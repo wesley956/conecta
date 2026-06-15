@@ -1,0 +1,7 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="demo-aberto-1" tvg-name="Canal Aberto Demo" tvg-logo="" group-title="Abertos",Canal Aberto Demo
+https://exemplo-autorizado.com/hls/canal-aberto-demo.m3u8
+#EXTINF:-1 tvg-id="demo-noticias-1" tvg-name="Jornal Demo" tvg-logo="" group-title="Notícias",Jornal Demo
+https://exemplo-autorizado.com/hls/jornal-demo.m3u8
+#EXTINF:-1 tvg-id="demo-esportes-1" tvg-name="Arena Demo" tvg-logo="" group-title="Esportes",Arena Demo
+https://exemplo-autorizado.com/hls/arena-demo.m3u8

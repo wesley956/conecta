@@ -5,8 +5,29 @@ import type { Playlist } from '@/types';
 
 // ===== PLAYLISTS SCREEN =====
 export function PlaylistsScreen() {
-  const { playlists, setScreen } = useAppStore();
+  const { playlists, setScreen, importM3UPlaylist } = useAppStore();
   const [showAdd, setShowAdd] = useState(false);
+  const [playlistName, setPlaylistName] = useState('');
+  const [playlistUrl, setPlaylistUrl] = useState('');
+  const [m3uContent, setM3uContent] = useState('');
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleImportM3U = () => {
+    setImportMessage(null);
+    setImportError(null);
+
+    try {
+      const result = importM3UPlaylist(playlistName, playlistUrl, m3uContent);
+      setImportMessage(`Lista importada: ${result.imported} canais adicionados${result.skipped ? `, ${result.skipped} itens ignorados` : ''}.`);
+      setPlaylistName('');
+      setPlaylistUrl('');
+      setM3uContent('');
+      setShowAdd(false);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Erro ao importar lista M3U.');
+    }
+  };
 
   return (
     <AppLayout>
@@ -28,31 +49,76 @@ export function PlaylistsScreen() {
         {/* Add New Playlist Form */}
         {showAdd && (
           <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
-            <h3 className="text-text-white font-bold mb-3">Adicionar Nova Lista</h3>
+            <h3 className="text-text-white font-bold mb-3">Adicionar Lista M3U Autorizada</h3>
+
             <div className="space-y-3">
               <div>
                 <label className="text-text-gray text-xs block mb-1">Nome da Lista</label>
-                <input type="text" placeholder="Ex: Lista Principal" className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+                <input
+                  type="text"
+                  value={playlistName}
+                  onChange={e => setPlaylistName(e.target.value)}
+                  placeholder="Ex: Lista autorizada do meu provedor"
+                  className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+                />
               </div>
+
               <div>
-                <label className="text-text-gray text-xs block mb-1">Formato</label>
-                <select className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none">
-                  <option value="m3u">M3U URL</option>
-                  <option value="xtream">Xtream Codes</option>
-                  <option value="stalker">Stalker (Autorizado)</option>
-                  <option value="local">Arquivo Local</option>
-                </select>
+                <label className="text-text-gray text-xs block mb-1">URL de origem, opcional</label>
+                <input
+                  type="text"
+                  value={playlistUrl}
+                  onChange={e => setPlaylistUrl(e.target.value)}
+                  placeholder="https://exemplo-autorizado.com/lista.m3u"
+                  className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+                />
+                <p className="text-text-gray/60 text-[10px] mt-1">
+                  Por enquanto o app importa o conteúdo colado abaixo. A busca automática por URL entra na próxima etapa por causa de CORS/autenticação.
+                </p>
               </div>
+
               <div>
-                <label className="text-text-gray text-xs block mb-1">URL / Configuração</label>
-                <input type="text" placeholder="https://..." className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+                <label className="text-text-gray text-xs block mb-1">Conteúdo M3U</label>
+                <textarea
+                  value={m3uContent}
+                  onChange={e => setM3uContent(e.target.value)}
+                  rows={8}
+                  placeholder={'#EXTM3U\n#EXTINF:-1 tvg-id="canal-demo" group-title="Abertos",Canal Demo\nhttps://exemplo-autorizado.com/stream/canal.m3u8'}
+                  className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-xs font-mono focus:border-neon-orange focus:outline-none resize-y"
+                />
               </div>
+
+              {importMessage && (
+                <p className="text-active-green text-xs bg-active-green/10 border border-active-green/20 rounded-lg p-2">
+                  {importMessage}
+                </p>
+              )}
+
+              {importError && (
+                <p className="text-error-red text-xs bg-error-red/10 border border-error-red/20 rounded-lg p-2">
+                  {importError}
+                </p>
+              )}
+
               <div className="flex gap-2">
-                <button className="flex-1 bg-neon-orange text-bg-primary py-2 rounded-lg font-bold text-sm">Adicionar</button>
-                <button onClick={() => setShowAdd(false)} className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-sm">Cancelar</button>
+                <button
+                  onClick={handleImportM3U}
+                  className="flex-1 bg-neon-orange text-bg-primary py-2 rounded-lg font-bold text-sm"
+                >
+                  Importar M3U
+                </button>
+                <button
+                  onClick={() => setShowAdd(false)}
+                  className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-sm"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
-            <p className="text-alert-yellow text-[10px] mt-3">⚠️ Use apenas listas e fontes autorizadas. O uso de conteúdo pirata é proibido.</p>
+
+            <p className="text-alert-yellow text-[10px] mt-3">
+              ⚠️ Use apenas listas e fontes autorizadas. O app não fornece canais, filmes, séries ou listas.
+            </p>
           </div>
         )}
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AppState, UIMode, AppSettings, WatchHistory, Channel, Movie, Series, Playlist } from '@/types';
 import { channels as mockChannels, movies as mockMovies, series as mockSeries, playlists as mockPlaylists, watchHistory as mockHistory, DEVICE_CODE, LEGAL_NOTICE } from '@/data/mock';
+import { parseM3U, isLikelyM3U } from '@/utils/m3u';
 
 interface AppStore {
   // Navigation
@@ -29,6 +30,7 @@ interface AppStore {
   series: Series[];
   playlists: Playlist[];
   watchHistory: WatchHistory[];
+  importM3UPlaylist: (name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
   currentChannel: Channel | null;
   currentMovie: Movie | null;
   currentSeries: Series | null;
@@ -96,6 +98,40 @@ export const useAppStore = create<AppStore>((set) => ({
   series: mockSeries,
   playlists: mockPlaylists,
   watchHistory: mockHistory,
+  importM3UPlaylist: (name, sourceUrl, content) => {
+    if (!isLikelyM3U(content)) {
+      throw new Error('O conteúdo informado não parece ser uma lista M3U válida.');
+    }
+
+    const playlistId = `pl-${Date.now()}`;
+    const result = parseM3U(content, playlistId);
+
+    if (result.channels.length === 0) {
+      throw new Error('Nenhum canal com URL reproduzível foi encontrado na lista.');
+    }
+
+    const now = new Date().toLocaleString('pt-BR');
+
+    const playlist: Playlist = {
+      id: playlistId,
+      name: name.trim() || 'Lista M3U autorizada',
+      type: 'm3u',
+      url: sourceUrl.trim() || undefined,
+      status: 'active',
+      channelCount: result.channels.length,
+      movieCount: 0,
+      seriesCount: 0,
+      lastSync: now,
+    };
+
+    set((state) => ({
+      playlists: [playlist, ...state.playlists],
+      channels: [...result.channels, ...state.channels],
+      activeNotice: `✅ ${result.channels.length} canais importados da lista autorizada.`,
+    }));
+
+    return { imported: result.channels.length, skipped: result.skipped };
+  },
   currentChannel: null,
   currentMovie: null,
   currentSeries: null,
