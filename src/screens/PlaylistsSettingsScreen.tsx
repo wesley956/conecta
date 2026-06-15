@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import { fetchM3UContent } from '@/utils/fetchM3U';
 import { AppLayout, Header, NeonCard, StatusBadge, ScrollContainer, BottomNav, LegalBanner } from '@/components/shared';
 import type { Playlist } from '@/types';
 
@@ -38,16 +39,7 @@ export function PlaylistsScreen() {
     setIsFetchingUrl(true);
 
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        throw new Error(`A URL respondeu com erro HTTP ${response.status}.`);
-      }
-
-      const content = await response.text();
+      const content = await fetchM3UContent(url);
 
       if (!content.includes('#EXTM3U') && !content.includes('#EXTINF')) {
         throw new Error('O conteúdo baixado não parece ser uma lista M3U válida.');

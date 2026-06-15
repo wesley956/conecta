@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StatusBadge } from '@/components/shared';
 import { plans, notices, logs } from '@/data/mock';
 import { useAppStore } from '@/stores/appStore';
+import { fetchM3UContent } from '@/utils/fetchM3U';
 
 // ===== PLANS SCREEN =====
 export function AdminPlans() {
@@ -120,16 +121,7 @@ export function AdminPlaylists() {
       let content = pastedContent;
 
       if (!content && url) {
-        const response = await fetch(url, {
-          method: 'GET',
-          cache: 'no-store',
-        });
-
-        if (!response.ok) {
-          throw new Error(`A URL respondeu com erro HTTP ${response.status}.`);
-        }
-
-        content = await response.text();
+        content = await fetchM3UContent(url);
       }
 
       const result = content.trim()
