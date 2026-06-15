@@ -3,7 +3,7 @@ import { useAppStore } from '@/stores/appStore';
 import Hls from 'hls.js';
 
 export function PlayerScreen() {
-  const { currentChannel, currentMovie, setScreen } = useAppStore();
+  const { channels, currentChannel, currentMovie, setCurrentChannel, setScreen } = useAppStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -16,6 +16,10 @@ export function PlayerScreen() {
 
   const content = currentChannel || currentMovie;
   const isLive = !!currentChannel;
+  const quickChannels = useMemo(() => {
+    const channelsWithUrl = channels.filter(ch => ch.url?.trim());
+    return channelsWithUrl.length > 0 ? channelsWithUrl : channels;
+  }, [channels]);
 
   const streamUrl = useMemo(() => {
     const candidate = content?.url?.trim() ?? '';
@@ -130,6 +134,12 @@ export function PlayerScreen() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [missingSource, playerError]);
 
+  const handleQuickChannelClick = (ch: typeof channels[0]) => {
+    setCurrentChannel(ch);
+    setShowQuickList(false);
+    setShowControls(true);
+  };
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
@@ -201,7 +211,7 @@ export function PlayerScreen() {
           <div className="bg-gradient-to-b from-black/80 to-transparent p-4 pointer-events-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <button onClick={() => setScreen('home')} className="text-white text-xl hover:text-neon-orange transition-colors">
+                <button onClick={() => setScreen(isLive ? 'channels' : 'home')} className="text-white text-xl hover:text-neon-orange transition-colors">
                   ←
                 </button>
                 <div>
@@ -263,14 +273,14 @@ export function PlayerScreen() {
               <h3 className="text-text-white font-bold">Canais</h3>
               <button onClick={() => setShowQuickList(false)} className="text-text-gray hover:text-white">✕</button>
             </div>
-            {useAppStore.getState().channels.slice(0, 15).map(ch => (
-              <div key={ch.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-card cursor-pointer transition-colors">
+            {quickChannels.slice(0, 30).map(ch => (
+              <button key={ch.id} onClick={() => handleQuickChannelClick(ch)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-card cursor-pointer transition-colors text-left">
                 <span className="text-sm">📺</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-text-white text-sm truncate">{ch.name}</p>
                 </div>
                 {ch.id === currentChannel?.id && <span className="text-neon-orange text-xs">▶</span>}
-              </div>
+              </button>
             ))}
           </div>
         </div>
