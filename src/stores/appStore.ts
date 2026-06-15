@@ -32,6 +32,7 @@ interface AppStore {
   playlists: Playlist[];
   watchHistory: WatchHistory[];
   importM3UPlaylist: (name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
+  addDirectStreamChannel: (name: string, sourceUrl: string) => { imported: number; skipped: number };
   currentChannel: Channel | null;
   currentMovie: Movie | null;
   currentSeries: Series | null;
@@ -101,6 +102,43 @@ export const useAppStore = create<AppStore>()(
   series: mockSeries,
   playlists: mockPlaylists,
   watchHistory: mockHistory,
+  addDirectStreamChannel: (name, sourceUrl) => {
+    const url = sourceUrl.trim();
+
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error('A URL precisa começar com http:// ou https://');
+    }
+
+    const channelName = name.trim() || 'Canal HLS autorizado';
+    const channel: Channel = {
+      id: `direct-${Date.now()}`,
+      name: channelName,
+      group: 'importados',
+      url,
+      isFavorite: false,
+    };
+
+    const playlist: Playlist = {
+      id: `pl-direct-${Date.now()}`,
+      name: `${channelName} - Stream direto`,
+      type: 'm3u',
+      url,
+      status: 'active',
+      channelCount: 1,
+      movieCount: 0,
+      seriesCount: 0,
+      lastSync: new Date().toLocaleString('pt-BR'),
+    };
+
+    set((state) => ({
+      playlists: [playlist, ...state.playlists],
+      channels: [channel, ...state.channels],
+      activeNotice: `✅ Canal direto adicionado: ${channelName}.`,
+    }));
+
+    return { imported: 1, skipped: 0 };
+  },
+
   importM3UPlaylist: (name, sourceUrl, content) => {
     if (!isLikelyM3U(content)) {
       throw new Error('O conteúdo informado não parece ser uma lista M3U válida.');

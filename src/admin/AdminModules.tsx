@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StatusBadge } from '@/components/shared';
-import { plans, playlists, notices, logs } from '@/data/mock';
+import { plans, notices, logs } from '@/data/mock';
+import { useAppStore } from '@/stores/appStore';
 
 // ===== PLANS SCREEN =====
 export function AdminPlans() {
@@ -69,7 +70,84 @@ export function AdminPlans() {
 
 // ===== ADMIN PLAYLISTS SCREEN =====
 export function AdminPlaylists() {
+  const { playlists, importM3UPlaylist, addDirectStreamChannel } = useAppStore();
   const [showAdd, setShowAdd] = useState(false);
+  const [playlistName, setPlaylistName] = useState('');
+  const [playlistType, setPlaylistType] = useState<'m3u' | 'xtream' | 'stalker'>('m3u');
+  const [playlistUrl, setPlaylistUrl] = useState('');
+  const [m3uContent, setM3uContent] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setPlaylistName('');
+    setPlaylistType('m3u');
+    setPlaylistUrl('');
+    setM3uContent('');
+  };
+
+  const handleAddPlaylist = async () => {
+    setMessage(null);
+    setError(null);
+
+    if (playlistType !== 'm3u') {
+      setError('Por enquanto, a importação automática está ativa apenas para listas M3U autorizadas. Xtream/Stalker entram em uma próxima fase.');
+      return;
+    }
+
+    const url = playlistUrl.trim();
+    const pastedContent = m3uContent.trim();
+
+    if (!url && !pastedContent) {
+      setError('Informe uma URL M3U ou cole o conteúdo da lista.');
+      return;
+    }
+
+    if (url && !/^https?:\/\//i.test(url)) {
+      setError('A URL precisa começar com http:// ou https://');
+      return;
+    }
+
+    if (url.startsWith('http://') && window.location.protocol === 'https:') {
+      setError('Essa URL usa HTTP e foi bloqueada pelo navegador porque o Codespace roda em HTTPS. Use uma URL HTTPS, cole o conteúdo M3U manualmente ou teste depois no APK/backend.');
+      return;
+    }
+
+    setIsAdding(true);
+
+    try {
+      let content = pastedContent;
+
+      if (!content && url) {
+        const response = await fetch(url, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error(`A URL respondeu com erro HTTP ${response.status}.`);
+        }
+
+        content = await response.text();
+      }
+
+      const result = content.trim()
+        ? importM3UPlaylist(playlistName, url, content)
+        : addDirectStreamChannel(playlistName, url);
+      setMessage(`Lista adicionada com sucesso: ${result.imported} canais importados${result.skipped ? `, ${result.skipped} itens ignorados` : ''}.`);
+      resetForm();
+      setShowAdd(false);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message} Se a URL estiver correta, o servidor pode estar bloqueando acesso pelo navegador/CORS. Nesse caso, cole o conteúdo M3U no campo manual.`
+          : 'Não foi possível adicionar a lista.'
+      );
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   return (
     <div>
@@ -82,24 +160,67 @@ export function AdminPlaylists() {
 
       <div className="bg-alert-yellow/5 border border-alert-yellow/20 rounded-xl p-4 mb-4">
         <p className="text-alert-yellow text-sm">
-          ⚖️ <strong>Aviso:</strong> Cadastre apenas listas e fontes autorizadas. O uso de conteúdo pirata é de inteira responsabilidade do administrador.
+          ⚖️ <strong>Aviso:</strong> Cadastre apenas listas e fontes autorizadas. O app não fornece canais, filmes, séries ou listas.
         </p>
       </div>
+
+      {message && (
+        <div className="bg-active-green/10 border border-active-green/20 rounded-xl p-3 mb-4">
+          <p className="text-active-green text-sm">{message}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-error-red/10 border border-error-red/20 rounded-xl p-3 mb-4">
+          <p className="text-error-red text-sm">{error}</p>
+        </div>
+      )}
 
       {showAdd && (
         <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
           <h3 className="text-text-white font-bold mb-3">Nova Lista</h3>
           <div className="space-y-3">
-            <input placeholder="Nome da Lista" className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <select className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none">
+            <input
+              value={playlistName}
+              onChange={e => setPlaylistName(e.target.value)}
+              placeholder="Nome da Lista"
+              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+            />
+
+            <select
+              value={playlistType}
+              onChange={e => setPlaylistType(e.target.value as 'm3u' | 'xtream' | 'stalker')}
+              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+            >
               <option value="m3u">M3U URL</option>
               <option value="xtream">Xtream Codes</option>
               <option value="stalker">Stalker (Autorizado)</option>
             </select>
-            <input placeholder="URL ou Configuração" className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+
+            <input
+              value={playlistUrl}
+              onChange={e => setPlaylistUrl(e.target.value)}
+              placeholder="URL M3U autorizada"
+              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+            />
+
+            <textarea
+              value={m3uContent}
+              onChange={e => setM3uContent(e.target.value)}
+              rows={6}
+              placeholder="Opcional: cole aqui o conteúdo da lista M3U se a URL não puder ser acessada pelo navegador."
+              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-xs font-mono focus:border-neon-orange focus:outline-none resize-y"
+            />
           </div>
+
           <div className="flex gap-2 mt-3">
-            <button className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg text-sm font-bold">Adicionar</button>
+            <button
+              onClick={handleAddPlaylist}
+              disabled={isAdding}
+              className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+            >
+              {isAdding ? 'Adicionando...' : 'Adicionar'}
+            </button>
             <button onClick={() => setShowAdd(false)} className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm">Cancelar</button>
           </div>
         </div>

@@ -5,20 +5,75 @@ import type { Playlist } from '@/types';
 
 // ===== PLAYLISTS SCREEN =====
 export function PlaylistsScreen() {
-  const { playlists, setScreen, importM3UPlaylist } = useAppStore();
+  const { playlists, setScreen, importM3UPlaylist, addDirectStreamChannel } = useAppStore();
   const [showAdd, setShowAdd] = useState(false);
   const [playlistName, setPlaylistName] = useState('');
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [m3uContent, setM3uContent] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [isFetchingUrl, setIsFetchingUrl] = useState(false);
+
+  const handleFetchFromUrl = async () => {
+    setImportMessage(null);
+    setImportError(null);
+
+    const url = playlistUrl.trim();
+
+    if (!url) {
+      setImportError('Informe a URL da lista M3U antes de buscar.');
+      return;
+    }
+
+    if (!/^https?:\/\//i.test(url)) {
+      setImportError('A URL precisa começar com http:// ou https://');
+      return;
+    }
+
+    if (url.startsWith('http://') && window.location.protocol === 'https:') {
+      setImportError('Essa URL usa HTTP e foi bloqueada pelo navegador porque o Codespace roda em HTTPS. Use uma URL HTTPS, cole o conteúdo M3U manualmente ou teste depois no APK/backend.');
+      return;
+    }
+
+    setIsFetchingUrl(true);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        throw new Error(`A URL respondeu com erro HTTP ${response.status}.`);
+      }
+
+      const content = await response.text();
+
+      if (!content.includes('#EXTM3U') && !content.includes('#EXTINF')) {
+        throw new Error('O conteúdo baixado não parece ser uma lista M3U válida.');
+      }
+
+      setM3uContent(content);
+      setImportMessage('Lista baixada da URL. Agora clique em Importar M3U.');
+    } catch (error) {
+      setImportError(
+        error instanceof Error
+          ? `${error.message} Algumas listas bloqueiam acesso direto pelo navegador por CORS. Nesse caso, cole o conteúdo M3U manualmente.`
+          : 'Não foi possível buscar a lista pela URL.'
+      );
+    } finally {
+      setIsFetchingUrl(false);
+    }
+  };
 
   const handleImportM3U = () => {
     setImportMessage(null);
     setImportError(null);
 
     try {
-      const result = importM3UPlaylist(playlistName, playlistUrl, m3uContent);
+      const result = m3uContent.trim()
+        ? importM3UPlaylist(playlistName, playlistUrl, m3uContent)
+        : addDirectStreamChannel(playlistName, playlistUrl);
       setImportMessage(`Lista importada: ${result.imported} canais adicionados${result.skipped ? `, ${result.skipped} itens ignorados` : ''}.`);
       setPlaylistName('');
       setPlaylistUrl('');
@@ -64,16 +119,26 @@ export function PlaylistsScreen() {
               </div>
 
               <div>
-                <label className="text-text-gray text-xs block mb-1">URL de origem, opcional</label>
-                <input
-                  type="text"
-                  value={playlistUrl}
-                  onChange={e => setPlaylistUrl(e.target.value)}
-                  placeholder="https://exemplo-autorizado.com/lista.m3u"
-                  className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
-                />
+                <label className="text-text-gray text-xs block mb-1">URL da lista M3U</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={playlistUrl}
+                    onChange={e => setPlaylistUrl(e.target.value)}
+                    placeholder="https://exemplo-autorizado.com/lista.m3u"
+                    className="flex-1 bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFetchFromUrl}
+                    disabled={isFetchingUrl}
+                    className="bg-neon-cyan text-bg-primary px-4 py-2 rounded-lg font-bold text-xs disabled:opacity-50"
+                  >
+                    {isFetchingUrl ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
                 <p className="text-text-gray/60 text-[10px] mt-1">
-                  Por enquanto o app importa o conteúdo colado abaixo. A busca automática por URL entra na próxima etapa por causa de CORS/autenticação.
+                  Use apenas URLs de listas autorizadas. Se o navegador bloquear por CORS, cole o conteúdo M3U manualmente no campo abaixo.
                 </p>
               </div>
 
