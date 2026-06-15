@@ -1,0 +1,229 @@
+# Auditoria QA / CRUD / Botões
+
+Arquivos analisados: 14
+Botões encontrados: 96
+Botões de ação/CRUD encontrados: 34
+Suspeitas encontradas: 44
+
+## Actions detectadas no appStore
+
+- addDirectStreamChannel
+- addDirectStreamChannel
+- importM3UPlaylist
+- importM3UPlaylist
+- partialize
+- setActiveNotice
+- setActiveNotice
+- setAdminMode
+- setAdminMode
+- setCurrentChannel
+- setCurrentChannel
+- setCurrentMovie
+- setCurrentMovie
+- setCurrentSeries
+- setCurrentSeries
+- setDeviceActivated
+- setDeviceActivated
+- setIsPlaying
+- setIsPlaying
+- setScreen
+- setScreen
+- setSearchQuery
+- setSearchQuery
+- setSplashDone
+- setSplashDone
+- setSubscription
+- setSubscription
+- setUIMode
+- setUIMode
+- toggleChannelFavorite
+- toggleChannelFavorite
+- toggleMovieFavorite
+- toggleMovieFavorite
+- toggleSeriesFavorite
+- toggleSeriesFavorite
+- updateSettings
+- updateSettings
+
+## Botões de ação/CRUD
+
+- src/screens/ActivationScreen.tsx:70 | onClick=SIM | disabled=NÃO | setRequested(true)} className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-whi
+- src/screens/ActivationScreen.tsx:77 | onClick=SIM | disabled=SIM | (sem texto detectado)
+- src/screens/ActivationScreen.tsx:95 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:te
+- src/screens/ErrorScreens.tsx:42 | onClick=SIM | disabled=NÃO | 🔄 Tentar Novamente
+- src/screens/ErrorScreens.tsx:85 | onClick=SIM | disabled=NÃO | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x
+- src/screens/ErrorScreens.tsx:117 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:
+- src/screens/PlayerScreen.tsx:123 | onClick=SIM | disabled=NÃO | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
+- src/screens/PlaylistsSettingsScreen.tsx:98 | onClick=SIM | disabled=NÃO | setShowAdd(true)} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" > ＋ Ad
+- src/screens/PlaylistsSettingsScreen.tsx:157 | onClick=SIM | disabled=SIM | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:165 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-md bg-white/[0.055] px-10 py-4 text-2xl font-light text-white/
+- src/admin/AdminLayout.tsx:232 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b
+- src/admin/AdminLayout.tsx:235 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-
+- src/admin/AdminModules.tsx:15 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Plano
+- src/admin/AdminModules.tsx:30 | onClick=NÃO | disabled=NÃO | Salvar
+- src/admin/AdminModules.tsx:31 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
+- src/admin/AdminModules.tsx:62 | onClick=NÃO | disabled=NÃO | ✏️ Editar
+- src/admin/AdminModules.tsx:63 | onClick=NÃO | disabled=NÃO | 🗑️ Remover
+- src/admin/AdminModules.tsx:148 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Nova Lista
+- src/admin/AdminModules.tsx:209 | onClick=SIM | disabled=SIM | (sem texto detectado)
+- src/admin/AdminModules.tsx:216 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
+- src/admin/AdminModules.tsx:246 | onClick=NÃO | disabled=NÃO | Testar
+- src/admin/AdminModules.tsx:247 | onClick=NÃO | disabled=NÃO | Editar
+- src/admin/AdminModules.tsx:248 | onClick=NÃO | disabled=NÃO | Remover
+- src/admin/AdminModules.tsx:268 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Aviso
+- src/admin/AdminModules.tsx:287 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
+- src/admin/AdminModules.tsx:306 | onClick=NÃO | disabled=NÃO | (sem texto detectado)
+- src/admin/AdminModules.tsx:307 | onClick=NÃO | disabled=NÃO | Remover
+- src/admin/AdminModules.tsx:332 | onClick=NÃO | disabled=NÃO | 🗑️ Limpar Logs
+- src/admin/CustomersDevices.tsx:153 | onClick=SIM | disabled=NÃO | + Novo Cliente
+- src/admin/CustomersDevices.tsx:223 | onClick=SIM | disabled=NÃO | Salvar
+- src/admin/CustomersDevices.tsx:226 | onClick=SIM | disabled=NÃO | Cancelar
+- src/admin/CustomersDevices.tsx:250 | onClick=SIM | disabled=NÃO | renewCustomer(selectedCustomer)} className="bg-active-green/20 text-active-green px-4 py-2 rounded-l
+- src/admin/CustomersDevices.tsx:262 | onClick=SIM | disabled=NÃO | openEditCustomer(selectedCustomer)} className="rounded-xl border border-white/10 bg-white/[0.04] px-
+- src/admin/CustomersDevices.tsx:406 | onClick=SIM | disabled=NÃO | updateDeviceStatus(device, 'active')} className="bg-active-green/20 text-active-green px-3 py-1 roun
+
+## Suspeitas / pontos para corrigir ou testar
+
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:13 | const [selectedCategory, setSelectedCategory] = useState('Todos');
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:22 | if (['Todos', 'Buscar', 'Playback', 'Tudo: A-Z'].includes(selectedCategory)) {
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:62 | selectedCategory === category || (index === 0 && selectedCategory === 'Todos') ? 'active' : ''
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/FavoritesSearchScreen.tsx:180 | placeholder="Buscar"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/FavoritesSearchScreen.tsx:181 | className="w-full bg-transparent text-5xl font-light text-white/85 outline-none placeholder:text-white/35"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/MoviesScreen.tsx:11 | const categories = ['Destaques', 'Em alta', 'Lançamentos', ...movieCategories.filter(c => c !== 'Todos')];
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlayerScreen.tsx:124 | onClick={() => window.location.reload()}
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:130 | placeholder="Minha lista"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:131 | className="w-full border-b border-white/15 bg-transparent px-1 py-4 text-3xl font-light text-white outline-none placeholder:text-white/25 focus:border-[#2396f2]
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:140 | placeholder="https://..."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:141 | className="w-full border-b border-white/15 bg-transparent px-1 py-4 text-3xl font-light text-white outline-none placeholder:text-white/25 focus:border-[#2396f2]
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:151 | placeholder="#EXTM3U"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:152 | className="w-full resize-none rounded-md bg-white/[0.045] px-5 py-4 font-mono text-base text-white outline-none placeholder:text-white/25 focus:ring-1 focus:rin
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:30 | Salvar
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:62 | ✏️ Editar
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:63 | 🗑️ Remover
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:246 | Testar
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:247 | Editar
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:248 | Remover
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:306 | (sem texto detectado)
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:307 | Remover
+- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:332 | 🗑️ Limpar Logs
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:24 | <input placeholder="Nome do Plano" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:25 | <input placeholder="Valor (R$)" type="number" step="0.01" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outl
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:26 | <input placeholder="Máx. Dispositivos" type="number" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-n
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:27 | <input placeholder="Duração (dias)" type="number" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:96 | setError('Por enquanto, a importação automática está ativa apenas para listas M3U autorizadas. Xtream/Stalker entram em uma próxima fase.');
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:178 | placeholder="Nome da Lista"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:195 | placeholder="URL M3U autorizada"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:203 | placeholder="Opcional: cole aqui o conteúdo da lista M3U se a URL não puder ser acessada pelo navegador."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:277 | <input placeholder="Título do Aviso" className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:278 | <textarea placeholder="Mensagem do aviso..." rows={3} className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:o
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:280 | <option value="all">Todos os clientes</option>
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:304 | <span className="text-text-gray/50 text-xs">Destino: {n.target === 'all' ? 'Todos' : n.target}</span>
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:348 | {f === 'all' ? 'Todos' : f === 'admin' ? '👑 Admin' : f === 'system' ? '🤖 Sistema' : '👤 Cliente'}
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:167 | placeholder="Buscar por nome ou email..."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:177 | <option value="all">Todos</option>
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:194 | placeholder="Nome"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:200 | placeholder="Telefone"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:206 | placeholder="E-mail"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:356 | placeholder="Buscar por código ou cliente..."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:366 | <option value="all">Todos</option>
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/components/shared.tsx:320 | placeholder="Buscar canais, filmes, séries..."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/components/shared.tsx:321 | className="flex-1 premium-card rounded-xl px-4 py-3 text-text-white placeholder-text-gray/50 focus:border-neon-orange focus:outline-none"
+
+## Todos os botões mapeados
+
+- src/screens/ActivationScreen.tsx:57 | onClick=SIM | (sem texto detectado)
+- src/screens/ActivationScreen.tsx:70 | onClick=SIM | setRequested(true)} className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-whi
+- src/screens/ActivationScreen.tsx:77 | onClick=SIM | (sem texto detectado)
+- src/screens/ActivationScreen.tsx:95 | onClick=SIM | setScreen('home')} className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:te
+- src/screens/ChannelsScreen.tsx:46 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
+- src/screens/ChannelsScreen.tsx:55 | onClick=SIM | } className= `} >
+- src/screens/ChannelsScreen.tsx:87 | onClick=SIM | setSelectedChannelId(channel.id)} onDoubleClick= className= `} >
+- src/screens/ErrorScreens.tsx:42 | onClick=SIM | 🔄 Tentar Novamente
+- src/screens/ErrorScreens.tsx:48 | onClick=SIM | setScreen('activation')} className="w-full bg-white/[0.04] border border-white/10 text-text-gray fon
+- src/screens/ErrorScreens.tsx:85 | onClick=SIM | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x
+- src/screens/ErrorScreens.tsx:117 | onClick=SIM | setScreen('home')} className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:
+- src/screens/ErrorScreens.tsx:123 | onClick=SIM | setScreen('settings')} className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-
+- src/screens/FavoritesSearchScreen.tsx:38 | onClick=SIM | } className="clean-tv-tile rounded-md p-5 text-left" > ▣ Canal favorito
+- src/screens/FavoritesSearchScreen.tsx:63 | onClick=SIM | } className="clean-tv-tile rounded-md p-5 text-left" >
+- src/screens/FavoritesSearchScreen.tsx:79 | onClick=SIM | setScreen('series')} className="clean-tv-tile rounded-md p-5 text-left" > temporada(s) Série
+- src/screens/FavoritesSearchScreen.tsx:99 | onClick=SIM | } className="group text-left" > 🎬
+- src/screens/FavoritesSearchScreen.tsx:117 | onClick=SIM | setScreen('series')} className="group text-left" > 🎥
+- src/screens/FavoritesSearchScreen.tsx:188 | onClick=SIM | } className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" > ▣
+- src/screens/FavoritesSearchScreen.tsx:204 | onClick=SIM | } className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" > 🎬
+- src/screens/FavoritesSearchScreen.tsx:220 | onClick=SIM | setScreen('series')} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" > �
+- src/screens/HomeScreen.tsx:69 | onClick=SIM | (sem texto detectado)
+- src/screens/HomeScreen.tsx:101 | onClick=SIM | setScreen('channels')} className="clean-tv-tile active rounded-md p-7 text-left"> ▣ Assistir TV Abri
+- src/screens/HomeScreen.tsx:107 | onClick=SIM | setScreen('playlists')} className="clean-tv-tile rounded-md p-7 text-left"> ▤ Listas Gerenciar fonte
+- src/screens/HomeScreen.tsx:113 | onClick=SIM | setScreen('settings')} className="clean-tv-tile rounded-md p-7 text-left"> ◇ Sistema Ajustes do app
+- src/screens/MoviesScreen.tsx:33 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
+- src/screens/MoviesScreen.tsx:42 | onClick=SIM | setSelectedCategory(category)} className= `} > ..` : category}
+- src/screens/MoviesScreen.tsx:58 | onClick=NÃO | Populares
+- src/screens/MoviesScreen.tsx:61 | onClick=NÃO | Favoritos
+- src/screens/MoviesScreen.tsx:68 | onClick=SIM | playMovie(movie)} className="group text-left" > 🎬
+- src/screens/PlayerScreen.tsx:123 | onClick=SIM | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
+- src/screens/PlayerScreen.tsx:129 | onClick=SIM | Voltar
+- src/screens/PlayerScreen.tsx:147 | onClick=SIM | ←
+- src/screens/PlayerScreen.tsx:165 | onClick=SIM | setShowList(current => !current)} className="rounded-md bg-white/[0.055] px-7 py-3 text-2xl font-lig
+- src/screens/PlayerScreen.tsx:181 | onClick=SIM | } className="flex items-center gap-5 text-3xl font-light text-white/82 hover:text-white" > ▷
+- src/screens/PlayerScreen.tsx:206 | onClick=SIM | } className= `} > ▣
+- src/screens/PlaylistsSettingsScreen.tsx:80 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
+- src/screens/PlaylistsSettingsScreen.tsx:90 | onClick=SIM | setShowAdd(false)} className= > ▤ Minhas listas
+- src/screens/PlaylistsSettingsScreen.tsx:98 | onClick=SIM | setShowAdd(true)} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" > ＋ Ad
+- src/screens/PlaylistsSettingsScreen.tsx:106 | onClick=SIM | setScreen('settings')} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" >
+- src/screens/PlaylistsSettingsScreen.tsx:157 | onClick=SIM | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:165 | onClick=SIM | setShowAdd(false)} className="rounded-md bg-white/[0.055] px-10 py-4 text-2xl font-light text-white/
+- src/screens/PlaylistsSettingsScreen.tsx:240 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
+- src/screens/PlaylistsSettingsScreen.tsx:251 | onClick=NÃO | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:318 | onClick=SIM | setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')} className="text-2xl font-light text-white" >
+- src/screens/PlaylistsSettingsScreen.tsx:327 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white" >
+- src/screens/PlaylistsSettingsScreen.tsx:336 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white" >
+- src/screens/SeriesScreen.tsx:26 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
+- src/screens/SeriesScreen.tsx:35 | onClick=SIM | setSelectedCategory(category)} className= `} > ..` : category}
+- src/screens/SeriesScreen.tsx:51 | onClick=NÃO | Populares
+- src/screens/SeriesScreen.tsx:54 | onClick=NÃO | Favoritos
+- src/screens/SeriesScreen.tsx:61 | onClick=SIM | setScreen('series')} className="group text-left" > 🎥 temp.
+- src/admin/AdminLayout.tsx:46 | onClick=SIM | onViewChange(item.id)} className= `} >
+- src/admin/AdminLayout.tsx:67 | onClick=SIM | setAdminMode(false)} className="flex w-full items-center justify-center gap-2 rounded-2xl border bor
+- src/admin/AdminLayout.tsx:232 | onClick=SIM | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b
+- src/admin/AdminLayout.tsx:235 | onClick=SIM | setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-
+- src/admin/AdminModules.tsx:15 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Plano
+- src/admin/AdminModules.tsx:30 | onClick=NÃO | Salvar
+- src/admin/AdminModules.tsx:31 | onClick=SIM | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
+- src/admin/AdminModules.tsx:62 | onClick=NÃO | ✏️ Editar
+- src/admin/AdminModules.tsx:63 | onClick=NÃO | 🗑️ Remover
+- src/admin/AdminModules.tsx:148 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Nova Lista
+- src/admin/AdminModules.tsx:209 | onClick=SIM | (sem texto detectado)
+- src/admin/AdminModules.tsx:216 | onClick=SIM | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
+- src/admin/AdminModules.tsx:246 | onClick=NÃO | Testar
+- src/admin/AdminModules.tsx:247 | onClick=NÃO | Editar
+- src/admin/AdminModules.tsx:248 | onClick=NÃO | Remover
+- src/admin/AdminModules.tsx:268 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Aviso
+- src/admin/AdminModules.tsx:286 | onClick=NÃO | Enviar Aviso
+- src/admin/AdminModules.tsx:287 | onClick=SIM | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
+- src/admin/AdminModules.tsx:306 | onClick=NÃO | (sem texto detectado)
+- src/admin/AdminModules.tsx:307 | onClick=NÃO | Remover
+- src/admin/AdminModules.tsx:332 | onClick=NÃO | 🗑️ Limpar Logs
+- src/admin/AdminModules.tsx:339 | onClick=SIM | setFilter(f)} className= `} >
+- src/admin/CustomersDevices.tsx:153 | onClick=SIM | + Novo Cliente
+- src/admin/CustomersDevices.tsx:223 | onClick=SIM | Salvar
+- src/admin/CustomersDevices.tsx:226 | onClick=SIM | Cancelar
+- src/admin/CustomersDevices.tsx:237 | onClick=SIM | setSelectedCustomerId(null)} className="text-text-gray hover:text-white">✕
+- src/admin/CustomersDevices.tsx:250 | onClick=SIM | renewCustomer(selectedCustomer)} className="bg-active-green/20 text-active-green px-4 py-2 rounded-l
+- src/admin/CustomersDevices.tsx:254 | onClick=SIM | setCustomerStatus(selectedCustomer, 'active')} className="bg-active-green/20 text-active-green px-4 
+- src/admin/CustomersDevices.tsx:258 | onClick=SIM | setCustomerStatus(selectedCustomer, 'blocked')} className="bg-error-red/20 text-error-red px-4 py-2 
+- src/admin/CustomersDevices.tsx:262 | onClick=SIM | openEditCustomer(selectedCustomer)} className="rounded-xl border border-white/10 bg-white/[0.04] px-
+- src/admin/CustomersDevices.tsx:295 | onClick=SIM | setSelectedCustomerId(customer.id)} className="text-neon-cyan text-xs hover:text-neon-orange transit
+- src/admin/CustomersDevices.tsx:406 | onClick=SIM | updateDeviceStatus(device, 'active')} className="bg-active-green/20 text-active-green px-3 py-1 roun
+- src/admin/CustomersDevices.tsx:411 | onClick=SIM | updateDeviceStatus(device, 'blocked')} className="bg-error-red/20 text-error-red px-3 py-1 rounded t
+- src/admin/CustomersDevices.tsx:416 | onClick=SIM | updateDeviceStatus(device, 'active')} className="bg-active-green/20 text-active-green px-3 py-1 roun
+- src/components/shared.tsx:15 | onClick=SIM | useAppStore.getState().setActiveNotice(null)} className="text-white/60 hover:text-white"> ✕
+- src/components/shared.tsx:53 | onClick=SIM | setScreen('home'))} className="flex h-11 w-11 items-center justify-center rounded-xl border border-w
+- src/components/shared.tsx:75 | onClick=SIM | setScreen('search')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-
+- src/components/shared.tsx:81 | onClick=SIM | setAdminMode(true)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm f
+- src/components/shared.tsx:177 | onClick=SIM | →
+- src/components/shared.tsx:217 | onClick=SIM | (sem texto detectado)
+- src/components/shared.tsx:230 | onClick=SIM | setAdminMode(true)} title="Admin" className="clean-tv-sidebar-button mb-4 flex h-[82px] w-full items
+- src/components/shared.tsx:262 | onClick=SIM | onSelect(cat)} className= `} >
+- src/components/shared.tsx:294 | onClick=SIM | setVisible(false)} className="text-text-gray hover:text-white text-sm">✕
+- src/components/shared.tsx:323 | onClick=SIM | Buscar
+- src/components/shared.tsx:331 | onClick=SIM | } className= `} >

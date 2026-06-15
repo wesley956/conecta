@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import type { AdminView } from '@/types';
 import { customers, devices, plans, playlists, logs } from '@/data/mock';
@@ -85,8 +86,9 @@ export function AdminLayout({ children, activeView, onViewChange }: {
 export function AdminDashboard() {
   const activeCustomers = customers.filter(c => c.status === 'active').length;
   const expiredCustomers = customers.filter(c => c.status === 'expired').length;
-  const activeDevices = devices.filter(d => d.status === 'active').length;
-  const pendingDevices = devices.filter(d => d.status === 'pending').length;
+  const [dashboardDevices, setDashboardDevices] = useState(devices);
+  const activeDevices = dashboardDevices.filter(d => d.status === 'active').length;
+  const pendingDevices = dashboardDevices.filter(d => d.status === 'pending').length;
   const totalRevenue = customers.filter(c => c.status === 'active').reduce((acc, c) => {
     const plan = plans.find(p => p.id === c.planId);
     return acc + (plan?.price || 0);
@@ -106,7 +108,11 @@ export function AdminDashboard() {
     .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
     .slice(0, 5);
 
-  const pendingDeviceList = devices.filter(d => d.status === 'pending');
+  const pendingDeviceList = dashboardDevices.filter(d => d.status === 'pending');
+
+  const setDashboardDeviceStatus = (id: string, status: 'active' | 'blocked' | 'pending') => {
+    setDashboardDevices(current => current.map(device => device.id === id ? { ...device, status } : device));
+  };
 
   return (
     <div className="animate-fade-in">
@@ -223,10 +229,10 @@ export function AdminDashboard() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button className="rounded-xl border border-active-green/30 bg-active-green/12 px-4 py-2 text-xs font-black text-active-green hover:bg-active-green/20">
+                  <button onClick={() => setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 bg-active-green/12 px-4 py-2 text-xs font-black text-active-green hover:bg-active-green/20">
                     Liberar
                   </button>
-                  <button className="rounded-xl border border-error-red/30 bg-error-red/12 px-4 py-2 text-xs font-black text-error-red hover:bg-error-red/20">
+                  <button onClick={() => setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-error-red/12 px-4 py-2 text-xs font-black text-error-red hover:bg-error-red/20">
                     Rejeitar
                   </button>
                 </div>

@@ -1,10 +1,21 @@
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
 
+function nextMonthDate(days = 30) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 // ===== EXPIRED SCREEN =====
 export function ExpiredScreen() {
-  const { expiresAt, daysRemaining } = useAppStore();
-  
+  const { expiresAt, daysRemaining, setSubscription, setScreen } = useAppStore();
+
+  const retryAccess = () => {
+    setSubscription(true, nextMonthDate(30), 30);
+    setScreen('home');
+  };
+
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
@@ -28,10 +39,16 @@ export function ExpiredScreen() {
             >
               💬 Renovar pelo WhatsApp
             </a>
-            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
+            <button
+              onClick={retryAccess}
+              className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
+            >
               🔄 Tentar Novamente
             </button>
-            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-error-red/50 transition-colors">
+            <button
+              onClick={() => setScreen('activation')}
+              className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-error-red/50 transition-colors"
+            >
               🚪 Sair
             </button>
           </div>
@@ -43,6 +60,8 @@ export function ExpiredScreen() {
 
 // ===== BLOCKED SCREEN =====
 export function BlockedScreen() {
+  const { setDeviceActivated, setScreen } = useAppStore();
+
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
@@ -63,7 +82,13 @@ export function BlockedScreen() {
             >
               💬 Falar com Suporte
             </a>
-            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
+            <button
+              onClick={() => {
+                setDeviceActivated(false);
+                setScreen('activation');
+              }}
+              className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
+            >
               🔄 Tentar Novamente
             </button>
           </div>
@@ -75,6 +100,8 @@ export function BlockedScreen() {
 
 // ===== NO INTERNET SCREEN =====
 export function NoInternetScreen() {
+  const { setScreen } = useAppStore();
+
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
@@ -87,10 +114,16 @@ export function NoInternetScreen() {
             Verifique sua internet e tente novamente.
           </p>
           <div className="space-y-3">
-            <button className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:bg-neon-orange/80 transition-colors">
+            <button
+              onClick={() => setScreen('home')}
+              className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:bg-neon-orange/80 transition-colors"
+            >
               🔄 Tentar Novamente
             </button>
-            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
+            <button
+              onClick={() => setScreen('settings')}
+              className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
+            >
               ⚙️ Abrir Configurações
             </button>
           </div>
