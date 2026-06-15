@@ -19,8 +19,8 @@ export function AdminCustomers() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-white">Clientes</h1>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg font-bold text-sm">
+        <h1 className="text-4xl font-black text-text-white">Clientes</h1>
+        <button onClick={() => setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm">
           + Novo Cliente
         </button>
       </div>
@@ -32,12 +32,12 @@ export function AdminCustomers() {
           placeholder="Buscar por nome ou email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 bg-card border border-border rounded-lg px-4 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+          className="flex-1 premium-card rounded-xl px-4 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
         />
         <select
           value={filter}
           onChange={e => setFilter(e.target.value as typeof filter)}
-          className="bg-card border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+          className="premium-card rounded-xl px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
         >
           <option value="all">Todos</option>
           <option value="active">Ativos</option>
@@ -48,19 +48,19 @@ export function AdminCustomers() {
 
       {/* Add Form */}
       {showAdd && (
-        <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
-          <h3 className="text-text-white font-bold mb-3">Novo Cliente</h3>
+        <div className="glass-panel rounded-[1.35rem] border-neon-orange/30 p-4 mb-4 animate-scale-in">
+          <h3 className="mb-3 text-xl font-black text-text-white">Novo Cliente</h3>
           <div className="grid grid-cols-2 gap-3">
-            <input placeholder="Nome" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <input placeholder="Telefone" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <input placeholder="E-mail" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <select className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none">
+            <input placeholder="Nome" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <input placeholder="Telefone" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <input placeholder="E-mail" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <select className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none">
               {plans.map(p => <option key={p.id} value={p.id}>{p.name} - R$ {p.price.toFixed(2)}</option>)}
             </select>
           </div>
           <div className="flex gap-2 mt-3">
-            <button className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg text-sm font-bold">Salvar</button>
-            <button onClick={() => setShowAdd(false)} className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm">Cancelar</button>
+            <button className="btn-neon px-4 py-2 text-sm">Salvar</button>
+            <button onClick={() => setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray hover:border-neon-orange/50">Cancelar</button>
           </div>
         </div>
       )}
@@ -69,7 +69,7 @@ export function AdminCustomers() {
       {selectedCustomer && (
         <div className="bg-card border border-neon-cyan/30 rounded-xl p-4 mb-4 animate-scale-in">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-text-white font-bold text-lg">{selectedCustomer.name}</h3>
+            <h3 className="text-xl font-black text-text-white">{selectedCustomer.name}</h3>
             <button onClick={() => setSelectedCustomer(null)} className="text-text-gray hover:text-white">✕</button>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -83,16 +83,16 @@ export function AdminCustomers() {
           <div className="flex gap-2 mt-4">
             <button className="bg-active-green/20 text-active-green px-4 py-2 rounded-lg text-sm font-bold hover:bg-active-green/30">✅ Renovar</button>
             <button className="bg-error-red/20 text-error-red px-4 py-2 rounded-lg text-sm font-bold hover:bg-error-red/30">🚫 Bloquear</button>
-            <button className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm hover:border-neon-orange/50">✏️ Editar</button>
+            <button className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray hover:border-neon-orange/50 hover:border-neon-orange/50">✏️ Editar</button>
           </div>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full">
+      <div className="premium-card rounded-[1.35rem] overflow-hidden">
+        <table className="w-full overflow-hidden rounded-[1.35rem]">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-white/10">
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Nome</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Plano</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Vencimento</th>
@@ -103,7 +103,7 @@ export function AdminCustomers() {
           </thead>
           <tbody>
             {filtered.map(c => (
-              <tr key={c.id} className="border-b border-border/50 hover:bg-card-hover transition-colors">
+              <tr key={c.id} className="border-b border-white/10 hover:bg-white/[0.06] transition-colors">
                 <td className="px-4 py-3">
                   <div>
                     <p className="text-text-white text-sm font-medium">{c.name}</p>
@@ -145,7 +145,7 @@ export function AdminDevices() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-white">Dispositivos</h1>
+        <h1 className="text-4xl font-black text-text-white">Dispositivos</h1>
       </div>
 
       {/* Filters */}
@@ -155,12 +155,12 @@ export function AdminDevices() {
           placeholder="Buscar por código ou cliente..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 bg-card border border-border rounded-lg px-4 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+          className="flex-1 premium-card rounded-xl px-4 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
         />
         <select
           value={filter}
           onChange={e => setFilter(e.target.value as typeof filter)}
-          className="bg-card border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+          className="premium-card rounded-xl px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
         >
           <option value="all">Todos</option>
           <option value="active">Ativos</option>
@@ -171,16 +171,16 @@ export function AdminDevices() {
 
       {/* Pending Alert */}
       {mockDevices.filter(d => d.status === 'pending').length > 0 && (
-        <div className="bg-neon-orange/5 border border-neon-orange/20 rounded-xl p-4 mb-4">
+        <div className="rounded-[1.35rem] border border-neon-orange/25 bg-neon-orange/10 p-4 mb-4">
           <p className="text-neon-orange text-sm font-bold">⚡ {mockDevices.filter(d => d.status === 'pending').length} dispositivo(s) aguardando liberação</p>
         </div>
       )}
 
       {/* Table */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full">
+      <div className="premium-card rounded-[1.35rem] overflow-hidden">
+        <table className="w-full overflow-hidden rounded-[1.35rem]">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-white/10">
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Código</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Tipo</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Cliente</th>
@@ -191,7 +191,7 @@ export function AdminDevices() {
           </thead>
           <tbody>
             {filtered.map(d => (
-              <tr key={d.id} className="border-b border-border/50 hover:bg-card-hover transition-colors">
+              <tr key={d.id} className="border-b border-white/10 hover:bg-white/[0.06] transition-colors">
                 <td className="px-4 py-3 text-neon-cyan font-mono text-sm">{d.deviceCode}</td>
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-1 text-text-white text-sm">

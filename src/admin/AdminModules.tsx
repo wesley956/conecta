@@ -11,33 +11,33 @@ export function AdminPlans() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-white">Planos</h1>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg font-bold text-sm">
+        <h1 className="text-4xl font-black text-text-white">Planos</h1>
+        <button onClick={() => setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm">
           + Novo Plano
         </button>
       </div>
 
       {showAdd && (
-        <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
-          <h3 className="text-text-white font-bold mb-3">Novo Plano</h3>
+        <div className="glass-panel rounded-[1.35rem] border-neon-orange/30 p-4 mb-4 animate-scale-in">
+          <h3 className="mb-3 text-xl font-black text-text-white">Novo Plano</h3>
           <div className="grid grid-cols-2 gap-3">
-            <input placeholder="Nome do Plano" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <input placeholder="Valor (R$)" type="number" step="0.01" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <input placeholder="Máx. Dispositivos" type="number" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <input placeholder="Duração (dias)" type="number" className="bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <input placeholder="Nome do Plano" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <input placeholder="Valor (R$)" type="number" step="0.01" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <input placeholder="Máx. Dispositivos" type="number" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <input placeholder="Duração (dias)" type="number" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
           </div>
           <div className="flex gap-2 mt-3">
-            <button className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg text-sm font-bold">Salvar</button>
-            <button onClick={() => setShowAdd(false)} className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm">Cancelar</button>
+            <button className="btn-neon px-4 py-2 text-sm">Salvar</button>
+            <button onClick={() => setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray hover:border-neon-orange/50">Cancelar</button>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-3 gap-4">
         {plans.map(p => (
-          <div key={p.id} className={`bg-card border rounded-xl p-5 hover:border-neon-orange/30 transition-all ${p.price === 0 ? 'border-active-green/30' : 'border-border'}`}>
+          <div key={p.id} className={`premium-card rounded-[1.35rem] p-5 hover:border-neon-orange/30 transition-all ${p.price === 0 ? 'border-active-green/30' : 'border-white/10'}`}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-text-white font-bold text-lg">{p.name}</h3>
+              <h3 className="text-xl font-black text-text-white">{p.name}</h3>
               <StatusBadge status={p.status} />
             </div>
             <div className="text-3xl font-extrabold text-neon-orange mb-1">
@@ -59,8 +59,8 @@ export function AdminPlans() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-xs hover:border-neon-orange/50">✏️ Editar</button>
-              <button className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-xs hover:border-error-red/50">🗑️ Remover</button>
+              <button className="flex-1 bg-card border border-white/10 text-text-gray py-2 rounded-lg text-xs hover:border-neon-orange/50">✏️ Editar</button>
+              <button className="flex-1 bg-card border border-white/10 text-text-gray py-2 rounded-lg text-xs hover:border-error-red/50">🗑️ Remover</button>
             </div>
           </div>
         ))}
@@ -144,45 +144,45 @@ export function AdminPlaylists() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-white">Listas de Reprodução</h1>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg font-bold text-sm">
+        <h1 className="text-4xl font-black text-text-white">Listas de Reprodução</h1>
+        <button onClick={() => setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm">
           + Nova Lista
         </button>
       </div>
 
-      <div className="bg-alert-yellow/5 border border-alert-yellow/20 rounded-xl p-4 mb-4">
+      <div className="rounded-[1.35rem] border border-alert-yellow/25 bg-alert-yellow/10 p-4 mb-4">
         <p className="text-alert-yellow text-sm">
           ⚖️ <strong>Aviso:</strong> Cadastre apenas listas e fontes autorizadas. O app não fornece canais, filmes, séries ou listas.
         </p>
       </div>
 
       {message && (
-        <div className="bg-active-green/10 border border-active-green/20 rounded-xl p-3 mb-4">
+        <div className="rounded-[1.35rem] border border-active-green/25 bg-active-green/10 p-3 mb-4">
           <p className="text-active-green text-sm">{message}</p>
         </div>
       )}
 
       {error && (
-        <div className="bg-error-red/10 border border-error-red/20 rounded-xl p-3 mb-4">
+        <div className="rounded-[1.35rem] border border-error-red/25 bg-error-red/10 p-3 mb-4">
           <p className="text-error-red text-sm">{error}</p>
         </div>
       )}
 
       {showAdd && (
-        <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
-          <h3 className="text-text-white font-bold mb-3">Nova Lista</h3>
+        <div className="glass-panel rounded-[1.35rem] border-neon-orange/30 p-4 mb-4 animate-scale-in">
+          <h3 className="mb-3 text-xl font-black text-text-white">Nova Lista</h3>
           <div className="space-y-3">
             <input
               value={playlistName}
               onChange={e => setPlaylistName(e.target.value)}
               placeholder="Nome da Lista"
-              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+              className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
             />
 
             <select
               value={playlistType}
               onChange={e => setPlaylistType(e.target.value as 'm3u' | 'xtream' | 'stalker')}
-              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+              className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
             >
               <option value="m3u">M3U URL</option>
               <option value="xtream">Xtream Codes</option>
@@ -193,7 +193,7 @@ export function AdminPlaylists() {
               value={playlistUrl}
               onChange={e => setPlaylistUrl(e.target.value)}
               placeholder="URL M3U autorizada"
-              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
+              className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
             />
 
             <textarea
@@ -201,7 +201,7 @@ export function AdminPlaylists() {
               onChange={e => setM3uContent(e.target.value)}
               rows={6}
               placeholder="Opcional: cole aqui o conteúdo da lista M3U se a URL não puder ser acessada pelo navegador."
-              className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-xs font-mono focus:border-neon-orange focus:outline-none resize-y"
+              className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-xs font-mono focus:border-neon-orange focus:outline-none resize-y"
             />
           </div>
 
@@ -209,19 +209,19 @@ export function AdminPlaylists() {
             <button
               onClick={handleAddPlaylist}
               disabled={isAdding}
-              className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+              className="btn-neon px-4 py-2 text-sm disabled:opacity-50"
             >
               {isAdding ? 'Adicionando...' : 'Adicionar'}
             </button>
-            <button onClick={() => setShowAdd(false)} className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm">Cancelar</button>
+            <button onClick={() => setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray hover:border-neon-orange/50">Cancelar</button>
           </div>
         </div>
       )}
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full">
+      <div className="premium-card rounded-[1.35rem] overflow-hidden">
+        <table className="w-full overflow-hidden rounded-[1.35rem]">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-white/10">
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Nome</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Tipo</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Canais</th>
@@ -232,7 +232,7 @@ export function AdminPlaylists() {
           </thead>
           <tbody>
             {playlists.map(p => (
-              <tr key={p.id} className="border-b border-border/50 hover:bg-card-hover transition-colors">
+              <tr key={p.id} className="border-b border-white/10 hover:bg-white/[0.06] transition-colors">
                 <td className="px-4 py-3">
                   <p className="text-text-white text-sm font-medium">{p.name}</p>
                   <p className="text-text-gray/50 text-[10px]">Sync: {p.lastSync}</p>
@@ -243,9 +243,9 @@ export function AdminPlaylists() {
                 <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex gap-2 justify-end">
-                    <button className="text-neon-cyan text-xs hover:text-neon-orange">Testar</button>
-                    <button className="text-text-gray text-xs hover:text-neon-orange">Editar</button>
-                    <button className="text-error-red text-xs hover:text-error-red/70">Remover</button>
+                    <button className="rounded-lg border border-neon-cyan/25 bg-neon-cyan/10 px-3 py-1 text-xs font-black text-neon-cyan hover:border-neon-orange/50 hover:text-neon-orange">Testar</button>
+                    <button className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-black text-text-gray hover:border-neon-orange/50 hover:text-neon-orange">Editar</button>
+                    <button className="rounded-lg border border-error-red/25 bg-error-red/10 px-3 py-1 text-xs font-black text-error-red hover:bg-error-red/20">Remover</button>
                   </div>
                 </td>
               </tr>
@@ -264,34 +264,34 @@ export function AdminNotices() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-white">Avisos</h1>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg font-bold text-sm">
+        <h1 className="text-4xl font-black text-text-white">Avisos</h1>
+        <button onClick={() => setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm">
           + Novo Aviso
         </button>
       </div>
 
       {showAdd && (
-        <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
-          <h3 className="text-text-white font-bold mb-3">Novo Aviso</h3>
+        <div className="glass-panel rounded-[1.35rem] border-neon-orange/30 p-4 mb-4 animate-scale-in">
+          <h3 className="mb-3 text-xl font-black text-text-white">Novo Aviso</h3>
           <div className="space-y-3">
-            <input placeholder="Título do Aviso" className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-            <textarea placeholder="Mensagem do aviso..." rows={3} className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none resize-none" />
-            <select className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none">
+            <input placeholder="Título do Aviso" className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
+            <textarea placeholder="Mensagem do aviso..." rows={3} className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none resize-none" />
+            <select className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none">
               <option value="all">Todos os clientes</option>
               <option value="expiring">Apenas vencendo</option>
               <option value="expired">Apenas vencidos</option>
             </select>
           </div>
           <div className="flex gap-2 mt-3">
-            <button className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg text-sm font-bold">Enviar Aviso</button>
-            <button onClick={() => setShowAdd(false)} className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm">Cancelar</button>
+            <button className="btn-neon px-4 py-2 text-sm">Enviar Aviso</button>
+            <button onClick={() => setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray hover:border-neon-orange/50">Cancelar</button>
           </div>
         </div>
       )}
 
       <div className="space-y-3">
         {notices.map(n => (
-          <div key={n.id} className={`bg-card border rounded-xl p-4 ${n.active ? 'border-neon-orange/30' : 'border-border opacity-60'}`}>
+          <div key={n.id} className={`premium-card rounded-[1.35rem] p-4 ${n.active ? 'border-neon-orange/30' : 'border-white/10 opacity-60'}`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-text-white font-bold">{n.title}</h3>
               <div className="flex items-center gap-2">
@@ -303,8 +303,8 @@ export function AdminNotices() {
             <div className="flex items-center justify-between">
               <span className="text-text-gray/50 text-xs">Destino: {n.target === 'all' ? 'Todos' : n.target}</span>
               <div className="flex gap-2">
-                <button className="text-neon-cyan text-xs hover:text-neon-orange">{n.active ? 'Desativar' : 'Ativar'}</button>
-                <button className="text-error-red text-xs hover:text-error-red/70">Remover</button>
+                <button className="rounded-lg border border-neon-cyan/25 bg-neon-cyan/10 px-3 py-1 text-xs font-black text-neon-cyan hover:border-neon-orange/50 hover:text-neon-orange">{n.active ? 'Desativar' : 'Ativar'}</button>
+                <button className="rounded-lg border border-error-red/25 bg-error-red/10 px-3 py-1 text-xs font-black text-error-red hover:bg-error-red/20">Remover</button>
               </div>
             </div>
           </div>
@@ -328,8 +328,8 @@ export function AdminLogs() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-white">Logs</h1>
-        <button className="bg-card border border-border text-text-gray px-4 py-2 rounded-lg text-sm hover:border-neon-orange/50">
+        <h1 className="text-4xl font-black text-text-white">Logs</h1>
+        <button className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray hover:border-neon-orange/50 hover:border-neon-orange/50">
           🗑️ Limpar Logs
         </button>
       </div>
@@ -342,7 +342,7 @@ export function AdminLogs() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               filter === f
                 ? 'bg-neon-orange text-bg-primary'
-                : 'bg-card border border-border text-text-gray hover:border-neon-orange/50'
+                : 'bg-card border border-white/10 text-text-gray hover:border-neon-orange/50'
             }`}
           >
             {f === 'all' ? 'Todos' : f === 'admin' ? '👑 Admin' : f === 'system' ? '🤖 Sistema' : '👤 Cliente'}
@@ -350,10 +350,10 @@ export function AdminLogs() {
         ))}
       </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full">
+      <div className="premium-card rounded-[1.35rem] overflow-hidden">
+        <table className="w-full overflow-hidden rounded-[1.35rem]">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-white/10">
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Tipo</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Ação</th>
               <th className="text-left text-text-gray text-xs font-medium px-4 py-3">Detalhes</th>
@@ -362,7 +362,7 @@ export function AdminLogs() {
           </thead>
           <tbody>
             {filtered.map(l => (
-              <tr key={l.id} className="border-b border-border/50 hover:bg-card-hover transition-colors">
+              <tr key={l.id} className="border-b border-white/10 hover:bg-white/[0.06] transition-colors">
                 <td className="px-4 py-3">
                   <span className="text-sm">{actorIcon(l.actorType)}</span>
                   <span className="text-text-gray text-xs ml-2 capitalize">{l.actorType}</span>
@@ -383,11 +383,11 @@ export function AdminLogs() {
 export function AdminSettings() {
   return (
     <div>
-      <h1 className="text-2xl font-bold text-text-white mb-6">Configurações do Sistema</h1>
+      <h1 className="mb-6 text-4xl font-black text-text-white">Configurações do Sistema</h1>
       
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h3 className="text-text-white font-bold mb-3">🔐 Segurança</h3>
+        <div className="premium-card rounded-[1.35rem] p-4">
+          <h3 className="mb-3 text-xl font-black text-text-white">🔐 Segurança</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-text-gray text-sm">Validação de dispositivo</span>
@@ -412,8 +412,8 @@ export function AdminSettings() {
           </div>
         </div>
         
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h3 className="text-text-white font-bold mb-3">📱 Aplicativo</h3>
+        <div className="premium-card rounded-[1.35rem] p-4">
+          <h3 className="mb-3 text-xl font-black text-text-white">📱 Aplicativo</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-text-gray text-sm">Versão mínima</span>
@@ -434,8 +434,8 @@ export function AdminSettings() {
           </div>
         </div>
         
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h3 className="text-text-white font-bold mb-3">💬 Comunicação</h3>
+        <div className="premium-card rounded-[1.35rem] p-4">
+          <h3 className="mb-3 text-xl font-black text-text-white">💬 Comunicação</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-text-gray text-sm">WhatsApp suporte</span>
@@ -448,8 +448,8 @@ export function AdminSettings() {
           </div>
         </div>
         
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h3 className="text-text-white font-bold mb-3">⚖️ Legal</h3>
+        <div className="premium-card rounded-[1.35rem] p-4">
+          <h3 className="mb-3 text-xl font-black text-text-white">⚖️ Legal</h3>
           <p className="text-text-gray text-xs leading-relaxed">
             RonecaPlayTV é um player IPTV/P2P legal. Este sistema NÃO fornece canais, filmes, séries, listas piratas, 
             DRM bypass, desbloqueio de conteúdo pago ou qualquer conteúdo sem autorização. 
