@@ -106,17 +106,17 @@ export function NeonCard({ children, selected, onClick, className, glowColor = '
   glowColor?: 'orange' | 'cyan' | 'green';
 }) {
   const glowClasses = {
-    orange: selected ? 'border-neon-orange glow-orange' : 'border-border',
-    cyan: selected ? 'border-neon-cyan glow-cyan' : 'border-border',
-    green: selected ? 'border-active-green' : 'border-border',
+    orange: selected ? 'border-neon-orange glow-orange' : 'border-white/10',
+    cyan: selected ? 'border-neon-cyan glow-cyan' : 'border-white/10',
+    green: selected ? 'border-active-green' : 'border-white/10',
   };
   
   return (
     <div
       onClick={onClick}
       className={`
-        bg-card rounded-xl border-2 transition-all duration-300 cursor-pointer
-        hover:border-neon-orange/50 hover:bg-card-hover
+        premium-card rounded-xl border-2 transition-all duration-300 cursor-pointer
+        hover:border-neon-orange/50 hover:bg-white/[0.06]
         ${glowClasses[glowColor]}
         ${selected ? 'scale-[1.02]' : ''}
         ${className || ''}
@@ -210,7 +210,7 @@ export function BottomNav() {
   ];
   
   return (
-    <nav className="flex items-center justify-around bg-bg-dark border-t border-border py-2 mt-2 -mx-4 px-4">
+    <nav className="flex items-center justify-around bg-bg-dark border-t border-white/10 py-2 mt-2 -mx-4 px-4">
       {navItems.map(item => (
         <button
           key={item.screen}
@@ -253,7 +253,7 @@ export function CategoryPills({ categories, selected, onSelect }: {
           className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
             selected === cat
               ? 'bg-neon-orange text-bg-primary shadow-lg glow-orange'
-              : 'bg-card border border-border text-text-gray hover:border-neon-orange/50 hover:text-text-white'
+              : 'bg-white/[0.04] border border-white/10 text-text-gray hover:border-neon-orange/50 hover:text-text-white'
           }`}
         >
           {cat}
@@ -270,7 +270,7 @@ export function LegalBanner() {
   if (!visible) return null;
   
   return (
-    <div className="bg-bg-dark border border-border rounded-xl p-4 mb-4 animate-fade-in">
+    <div className="input-dark rounded-xl p-4 mb-4 animate-fade-in">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
           <span className="text-alert-yellow text-lg">⚖️</span>
@@ -306,7 +306,7 @@ export function VirtualKeyboard({ value, onChange, onSearch }: {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Buscar canais, filmes, séries..."
-          className="flex-1 bg-card border border-border rounded-lg px-4 py-3 text-text-white placeholder-text-gray/50 focus:border-neon-orange focus:outline-none"
+          className="flex-1 premium-card rounded-xl px-4 py-3 text-text-white placeholder-text-gray/50 focus:border-neon-orange focus:outline-none"
         />
         <button onClick={onSearch} className="bg-neon-orange text-bg-primary px-6 py-3 rounded-lg font-bold hover:bg-neon-orange/80 transition-colors">
           Buscar
@@ -326,7 +326,7 @@ export function VirtualKeyboard({ value, onChange, onSearch }: {
                 className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
                   key === '🔍'
                     ? 'bg-neon-orange text-bg-primary w-16'
-                    : 'bg-card border border-border text-text-white hover:border-neon-orange hover:bg-card-hover'
+                    : 'bg-white/[0.04] border border-white/10 text-text-white hover:border-neon-orange hover:bg-white/[0.06]'
                 }`}
               >
                 {key}

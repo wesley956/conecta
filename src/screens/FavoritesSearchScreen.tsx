@@ -27,7 +27,7 @@ export function FavoritesScreen() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                tab === t.key ? 'bg-neon-orange text-bg-primary' : 'bg-card border border-border text-text-gray hover:border-neon-orange/50'
+                tab === t.key ? 'bg-neon-orange text-bg-primary' : 'bg-white/[0.04] border border-white/10 text-text-gray hover:border-neon-orange/50'
               }`}
             >
               {t.label}
@@ -41,7 +41,7 @@ export function FavoritesScreen() {
               {favChannels.map(ch => (
                 <NeonCard key={ch.id} onClick={() => setScreen('player')} glowColor="cyan">
                   <div className="flex items-center gap-3 p-3">
-                    <div className="w-10 h-10 rounded-lg bg-bg-dark border border-border flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg input-dark flex items-center justify-center">
                       <span>📺</span>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -140,7 +140,7 @@ export function SearchScreen() {
                 <h3 className="text-text-white font-bold mb-2">📺 Canais ({results.channels.length})</h3>
                 <div className="space-y-2">
                   {results.channels.slice(0, 5).map(ch => (
-                    <div key={ch.id} onClick={() => setScreen('channels')} className="flex items-center gap-3 bg-card border border-border rounded-lg p-3 cursor-pointer hover:border-neon-orange/50 transition-all">
+                    <div key={ch.id} onClick={() => setScreen('channels')} className="flex items-center gap-3 premium-card rounded-xl p-3 cursor-pointer hover:border-neon-orange/50 transition-all">
                       <span>📺</span>
                       <span className="text-text-white text-sm">{ch.name}</span>
                       <span className="text-active-green text-[10px] ml-auto">AO VIVO</span>

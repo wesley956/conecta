@@ -67,7 +67,7 @@ export function AdminCustomers() {
 
       {/* Customer Detail */}
       {selectedCustomer && (
-        <div className="bg-card border border-neon-cyan/30 rounded-xl p-4 mb-4 animate-scale-in">
+        <div className="glass-panel rounded-[1.35rem] border-neon-cyan/30 p-4 mb-4 animate-scale-in">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xl font-black text-text-white">{selectedCustomer.name}</h3>
             <button onClick={() => setSelectedCustomer(null)} className="text-text-gray hover:text-white">✕</button>

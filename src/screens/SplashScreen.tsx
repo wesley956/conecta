@@ -59,7 +59,7 @@ export function SplashScreen() {
 
       {/* Spinning ring */}
       <div className="relative mb-8">
-        <div className="w-32 h-32 rounded-full border-4 border-border animate-spin-slow">
+        <div className="w-32 h-32 rounded-full border-4 border-white/10 animate-spin-slow">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-4 h-4 bg-neon-orange rounded-full glow-orange" />
         </div>
         {/* Inner logo area */}
@@ -105,7 +105,7 @@ export function SplashScreen() {
       </div>
 
       {/* Progress bar */}
-      <div className="relative z-10 w-64 h-1.5 bg-card rounded-full overflow-hidden mb-4">
+      <div className="relative z-10 w-64 h-1.5 bg-white/[0.06] rounded-full overflow-hidden mb-4">
         <div
           className="h-full bg-gradient-to-r from-neon-orange to-neon-cyan rounded-full transition-all duration-500 ease-out"
           style={{ width: `${progress}%` }}

@@ -8,7 +8,7 @@ export function ExpiredScreen() {
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
-        <div className="bg-card border border-border rounded-2xl p-8 max-w-md w-full animate-scale-in text-center">
+        <div className="glass-panel rounded-[1.6rem] p-8 max-w-md w-full animate-scale-in text-center">
           <div className="w-20 h-20 bg-alert-yellow/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-4xl">⏰</span>
           </div>
@@ -28,10 +28,10 @@ export function ExpiredScreen() {
             >
               💬 Renovar pelo WhatsApp
             </a>
-            <button className="w-full bg-card border border-border text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
+            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
               🔄 Tentar Novamente
             </button>
-            <button className="w-full bg-card border border-border text-text-gray font-medium py-3 rounded-xl hover:border-error-red/50 transition-colors">
+            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-error-red/50 transition-colors">
               🚪 Sair
             </button>
           </div>
@@ -46,7 +46,7 @@ export function BlockedScreen() {
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
-        <div className="bg-card border border-border rounded-2xl p-8 max-w-md w-full animate-scale-in text-center">
+        <div className="glass-panel rounded-[1.6rem] p-8 max-w-md w-full animate-scale-in text-center">
           <div className="w-20 h-20 bg-error-red/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-4xl">🚫</span>
           </div>
@@ -63,7 +63,7 @@ export function BlockedScreen() {
             >
               💬 Falar com Suporte
             </a>
-            <button className="w-full bg-card border border-border text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
+            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
               🔄 Tentar Novamente
             </button>
           </div>
@@ -78,7 +78,7 @@ export function NoInternetScreen() {
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
-        <div className="bg-card border border-border rounded-2xl p-8 max-w-md w-full animate-scale-in text-center">
+        <div className="glass-panel rounded-[1.6rem] p-8 max-w-md w-full animate-scale-in text-center">
           <div className="w-20 h-20 bg-neon-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-4xl">📡</span>
           </div>
@@ -90,7 +90,7 @@ export function NoInternetScreen() {
             <button className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:bg-neon-orange/80 transition-colors">
               🔄 Tentar Novamente
             </button>
-            <button className="w-full bg-card border border-border text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
+            <button className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors">
               ⚙️ Abrir Configurações
             </button>
           </div>

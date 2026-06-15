@@ -59,8 +59,8 @@ export function AdminPlans() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button className="flex-1 bg-card border border-white/10 text-text-gray py-2 rounded-lg text-xs hover:border-neon-orange/50">✏️ Editar</button>
-              <button className="flex-1 bg-card border border-white/10 text-text-gray py-2 rounded-lg text-xs hover:border-error-red/50">🗑️ Remover</button>
+              <button className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2 rounded-lg text-xs hover:border-neon-orange/50">✏️ Editar</button>
+              <button className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2 rounded-lg text-xs hover:border-error-red/50">🗑️ Remover</button>
             </div>
           </div>
         ))}
@@ -342,7 +342,7 @@ export function AdminLogs() {
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               filter === f
                 ? 'bg-neon-orange text-bg-primary'
-                : 'bg-card border border-white/10 text-text-gray hover:border-neon-orange/50'
+                : 'bg-white/[0.04] border border-white/10 text-text-gray hover:border-neon-orange/50'
             }`}
           >
             {f === 'all' ? 'Todos' : f === 'admin' ? '👑 Admin' : f === 'system' ? '🤖 Sistema' : '👤 Cliente'}
