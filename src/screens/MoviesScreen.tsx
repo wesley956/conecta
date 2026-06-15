@@ -1,126 +1,145 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
-import { AppLayout, Header, CategoryPills, NeonCard, ProgressBar, ScrollContainer, BottomNav } from '@/components/shared';
+import { AppLayout, Header, CategoryPills, ProgressBar, BottomNav } from '@/components/shared';
 import { movieCategories } from '@/data/mock';
+import type { Movie } from '@/types';
 
 export function MoviesScreen() {
-  const { movies, setScreen, setCurrentMovie, toggleMovieFavorite, uiMode } = useAppStore();
+  const { movies, setScreen, setCurrentMovie, toggleMovieFavorite } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [selectedMovie, setSelectedMovie] = useState<string | null>(null);
+  const [selectedMovie, setSelectedMovie] = useState<string | null>(movies[0]?.id ?? null);
 
   const filteredMovies = useMemo(() => {
     if (selectedCategory === 'Todos') return movies;
-    return movies.filter(m => m.category === selectedCategory);
+    return movies.filter(movie => movie.category === selectedCategory);
   }, [movies, selectedCategory]);
 
-  const handleMovieClick = (mv: typeof movies[0]) => {
-    setCurrentMovie(mv);
-    setSelectedMovie(mv.id);
-  };
+  const activeMovie = selectedMovie
+    ? filteredMovies.find(movie => movie.id === selectedMovie) ?? filteredMovies[0] ?? null
+    : filteredMovies[0] ?? null;
 
-  const handlePlay = (mv: typeof movies[0]) => {
-    setCurrentMovie(mv);
+  const handlePlay = (movie: Movie) => {
+    setCurrentMovie(movie);
     setScreen('player');
   };
 
-  // Movie detail modal
-  const detailMovie = selectedMovie ? movies.find(m => m.id === selectedMovie) : null;
-
   return (
     <AppLayout>
-      <Header title="Filmes" showBack showSearch onBack={() => setScreen('home')} />
+      <div className="flex h-full flex-col">
+        <Header title="Filmes" showBack showSearch onBack={() => setScreen('home')} />
 
-      <ScrollContainer>
-        <CategoryPills categories={movieCategories} selected={selectedCategory} onSelect={setSelectedCategory} />
-
-        {detailMovie ? (
-          /* Movie Detail View */
-          <div className="animate-fade-in">
-            <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
-              {/* Cover area */}
-              <div className="h-48 bg-gradient-to-br from-neon-orange/20 via-bg-dark to-neon-cyan/10 flex items-center justify-center relative">
-                <span className="text-6xl">🎬</span>
-                <button onClick={() => setSelectedMovie(null)} className="absolute top-4 left-4 w-10 h-10 bg-bg-primary/80 rounded-full flex items-center justify-center text-text-white hover:bg-bg-primary transition-colors">
-                  ←
-                </button>
-              </div>
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h2 className="text-2xl font-bold text-text-white">{detailMovie.name}</h2>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-text-gray text-sm">{detailMovie.year}</span>
-                      <span className="text-text-gray/40">•</span>
-                      <span className="text-text-gray text-sm">{detailMovie.duration}</span>
-                      <span className="text-text-gray/40">•</span>
-                      <span className="text-neon-cyan text-sm">{detailMovie.category}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleMovieFavorite(detailMovie.id)}
-                    className={`text-2xl transition-colors ${detailMovie.isFavorite ? 'text-alert-yellow' : 'text-text-gray/30 hover:text-alert-yellow/50'}`}
-                  >
-                    {detailMovie.isFavorite ? '⭐' : '☆'}
-                  </button>
-                </div>
-                <p className="text-text-gray text-sm leading-relaxed mb-4">{detailMovie.synopsis}</p>
-                {detailMovie.progress !== undefined && detailMovie.progress > 0 && (
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-text-gray/60 text-xs">Progresso</span>
-                      <span className="text-neon-orange text-xs">{detailMovie.progress}%</span>
-                    </div>
-                    <ProgressBar progress={detailMovie.progress} />
-                  </div>
-                )}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handlePlay(detailMovie)}
-                    className="flex-1 bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:bg-neon-orange/80 transition-colors glow-orange"
-                  >
-                    ▶️ Assistir
-                  </button>
-                </div>
-              </div>
+        <main className="grid min-h-0 flex-1 grid-cols-[1fr_.82fr] gap-8">
+          <section className="min-h-0">
+            <div className="mb-5">
+              <p className="text-sm uppercase tracking-[0.34em] text-neon-cyan/75">Catálogo</p>
+              <h2 className="text-4xl font-black text-text-white">Filmes autorizados</h2>
             </div>
-            {/* Legal notice */}
-            <p className="text-text-gray/40 text-xs text-center mb-4">⚖️ Apenas conteúdo autorizado</p>
-          </div>
-        ) : (
-          /* Movie Grid */
-          <div className={`grid ${uiMode === 'tv' ? 'grid-cols-4 gap-4' : 'grid-cols-3 gap-3'} mb-4`}>
-            {filteredMovies.map(mv => (
-              <NeonCard key={mv.id} onClick={() => handleMovieClick(mv)}>
-                <div className="overflow-hidden">
-                  {/* Cover */}
-                  <div className="h-36 bg-gradient-to-br from-bg-dark to-card flex items-center justify-center relative">
-                    <span className="text-4xl">🎬</span>
-                    {mv.isFavorite && (
-                      <span className="absolute top-2 right-2 text-sm">⭐</span>
-                    )}
-                    {mv.progress !== undefined && mv.progress > 0 && (
-                      <div className="absolute bottom-0 left-0 right-0">
-                        <ProgressBar progress={mv.progress} />
+
+            <CategoryPills categories={movieCategories} selected={selectedCategory} onSelect={setSelectedCategory} />
+
+            <div className="grid grid-cols-4 gap-5 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 245px)' }}>
+              {filteredMovies.map((movie, index) => (
+                <button
+                  key={movie.id}
+                  onClick={() => setSelectedMovie(movie.id)}
+                  onDoubleClick={() => handlePlay(movie)}
+                  className={`premium-card overflow-hidden rounded-[1.35rem] text-left transition-all ${
+                    activeMovie?.id === movie.id ? 'selected glow-orange' : ''
+                  }`}
+                >
+                  <div className="relative flex h-52 items-center justify-center bg-gradient-to-br from-neon-orange/18 via-white/5 to-neon-cyan/10">
+                    <span className="text-6xl">🎬</span>
+                    <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2 py-1 text-xs font-black text-white">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    {movie.isFavorite && <span className="absolute right-3 top-3 text-xl">⭐</span>}
+                    {movie.progress !== undefined && movie.progress > 0 && (
+                      <div className="absolute inset-x-0 bottom-0">
+                        <ProgressBar progress={movie.progress} />
                       </div>
                     )}
                   </div>
-                  {/* Info */}
-                  <div className="p-3">
-                    <h3 className="text-text-white text-sm font-medium truncate">{mv.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-text-gray/60 text-xs">{mv.year}</span>
-                      <span className="text-text-gray/40 text-xs">•</span>
-                      <span className="text-text-gray/60 text-xs">{mv.duration}</span>
-                    </div>
-                  </div>
-                </div>
-              </NeonCard>
-            ))}
-          </div>
-        )}
-      </ScrollContainer>
 
-      <BottomNav />
+                  <div className="p-4">
+                    <h3 className="truncate text-lg font-black text-text-white">{movie.name}</h3>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-text-gray">
+                      <span>{movie.year}</span>
+                      <span>•</span>
+                      <span>{movie.duration}</span>
+                    </div>
+                    <p className="mt-2 truncate text-xs text-neon-cyan">{movie.category}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <aside>
+            <div className="glass-panel rounded-[1.7rem] p-6">
+              {activeMovie ? (
+                <>
+                  <div className="relative mb-5 flex h-72 items-center justify-center overflow-hidden rounded-[1.5rem] border border-neon-orange/30 bg-gradient-to-br from-neon-orange/24 via-white/5 to-neon-cyan/14">
+                    <span className="text-8xl">🎬</span>
+                    <button
+                      onClick={() => toggleMovieFavorite(activeMovie.id)}
+                      className={`absolute right-4 top-4 text-3xl ${activeMovie.isFavorite ? 'text-alert-yellow' : 'text-white/35 hover:text-alert-yellow'}`}
+                    >
+                      {activeMovie.isFavorite ? '⭐' : '☆'}
+                    </button>
+                  </div>
+
+                  <h3 className="text-4xl font-black leading-tight text-text-white">{activeMovie.name}</h3>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge>{activeMovie.year}</Badge>
+                    <Badge>{activeMovie.duration}</Badge>
+                    <Badge accent>{activeMovie.category}</Badge>
+                  </div>
+
+                  <p className="mt-5 text-sm leading-relaxed text-text-gray">{activeMovie.synopsis}</p>
+
+                  {activeMovie.progress !== undefined && activeMovie.progress > 0 && (
+                    <div className="mt-5">
+                      <div className="mb-2 flex items-center justify-between text-xs text-text-gray">
+                        <span>Continuar assistindo</span>
+                        <span className="font-black text-neon-orange">{activeMovie.progress}%</span>
+                      </div>
+                      <ProgressBar progress={activeMovie.progress} />
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => handlePlay(activeMovie)}
+                    className="btn-neon mt-6 w-full py-4 text-base"
+                  >
+                    {activeMovie.progress ? 'Continuar assistindo' : 'Assistir agora'}
+                  </button>
+
+                  <p className="mt-5 text-center text-[0.68rem] text-text-gray/60">
+                    Apenas conteúdo autorizado.
+                  </p>
+                </>
+              ) : (
+                <p className="text-text-gray">Selecione um filme.</p>
+              )}
+            </div>
+          </aside>
+        </main>
+
+        <BottomNav />
+      </div>
     </AppLayout>
+  );
+}
+
+function Badge({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
+  return (
+    <span className={`rounded-full border px-3 py-1 text-xs font-black ${
+      accent
+        ? 'border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan'
+        : 'border-white/10 bg-white/[0.04] text-text-gray'
+    }`}>
+      {children}
+    </span>
   );
 }
