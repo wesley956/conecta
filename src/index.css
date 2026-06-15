@@ -1,0 +1,186 @@
+:root {
+  font-family: Inter, Roboto, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #ffffff;
+  background: #050b0f;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(255, 122, 26, 0.18), transparent 28%),
+    radial-gradient(circle at 82% 65%, rgba(0, 230, 230, 0.14), transparent 32%),
+    linear-gradient(135deg, #050b0f 0%, #07131a 100%);
+}
+
+button {
+  font: inherit;
+}
+
+.roneca-shell {
+  min-height: 100vh;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.roneca-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.roneca-logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roneca-logo-mark {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 122, 26, 0.55);
+  border-radius: 16px;
+  background: rgba(255, 122, 26, 0.12);
+  box-shadow: 0 0 28px rgba(255, 122, 26, 0.25);
+}
+
+.roneca-status {
+  color: #b8c2cc;
+  font-size: 0.95rem;
+}
+
+.roneca-hero {
+  padding: 34px;
+  border: 1px solid rgba(37, 53, 65, 0.95);
+  border-radius: 30px;
+  background: rgba(17, 28, 36, 0.82);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+  position: relative;
+}
+
+.roneca-hero::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background: radial-gradient(circle at 78% 18%, rgba(0, 230, 230, 0.22), transparent 24%);
+}
+
+.roneca-hero-content {
+  position: relative;
+  max-width: 980px;
+}
+
+.roneca-eyebrow {
+  color: #00e6e6;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.roneca-title {
+  font-size: clamp(2.4rem, 7vw, 5.7rem);
+  line-height: 0.95;
+  margin: 0;
+  max-width: 920px;
+}
+
+.roneca-title span {
+  color: #ff7a1a;
+  text-shadow: 0 0 32px rgba(255, 122, 26, 0.35);
+}
+
+.roneca-description {
+  color: #b8c2cc;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  max-width: 760px;
+  line-height: 1.65;
+}
+
+.roneca-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.roneca-card {
+  min-height: 165px;
+  padding: 22px;
+  border: 1px solid #253541;
+  border-radius: 24px;
+  background: rgba(17, 28, 36, 0.88);
+  color: #ffffff;
+  text-align: left;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.roneca-card:hover,
+.roneca-card:focus {
+  outline: none;
+  transform: translateY(-4px);
+  border-color: #ff7a1a;
+  box-shadow: 0 0 30px rgba(255, 122, 26, 0.22);
+}
+
+.roneca-card-icon {
+  color: #00e6e6;
+  margin-bottom: 18px;
+}
+
+.roneca-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}
+
+.roneca-card p {
+  margin: 0;
+  color: #b8c2cc;
+  line-height: 1.5;
+}
+
+.roneca-footer {
+  margin-top: auto;
+  color: #b8c2cc;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .roneca-shell {
+    padding: 18px;
+  }
+
+  .roneca-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .roneca-hero {
+    padding: 24px;
+  }
+
+  .roneca-grid {
+    grid-template-columns: 1fr;
+  }
+}
