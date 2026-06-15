@@ -5,4 +5,11 @@ dist/
 .env.local
 .env.*.local
 *.log
+
+# Android/Capacitor
 android/
+
+# Arquivos temporários de fusão
+_imports/
+_backup_conecta_before_fusion/
+*.zip

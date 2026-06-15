@@ -11,20 +11,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "5.1.1",
-    "vite": "7.3.2",
-    "typescript": "5.9.3",
+    "clsx": "2.1.1",
+    "hls.js": "^1.6.16",
+    "lucide-react": "^1.18.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "lucide-react": "^1.18.0",
-    "zustand": "^5.0.14",
-    "hls.js": "^1.6.16",
-    "clsx": "2.1.1",
-    "tailwind-merge": "3.4.0"
+    "react-router-dom": "^7.17.0",
+    "tailwind-merge": "3.4.0",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.1.17",
     "@types/node": "22.19.17",
     "@types/react": "19.2.7",
-    "@types/react-dom": "19.2.3"
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "tailwindcss": "4.1.17",
+    "typescript": "5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-singlefile": "2.3.0"
   }
 }

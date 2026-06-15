@@ -1,186 +1,294 @@
-:root {
-  font-family: Inter, Roboto, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: #ffffff;
-  background: #050b0f;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+@theme {
+  --color-bg-primary: #050B0F;
+  --color-bg-dark: #07131A;
+  --color-card: #111C24;
+  --color-card-hover: #1A2A35;
+  --color-border: #253541;
+  --color-neon-orange: #FF7A1A;
+  --color-neon-cyan: #00E6E6;
+  --color-active-green: #31D67B;
+  --color-alert-yellow: #FFD447;
+  --color-text-white: #FFFFFF;
+  --color-text-gray: #B8C2CC;
+  --color-error-red: #FF4D4D;
+  --font-sans: 'Inter', 'Roboto', system-ui, sans-serif;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 }
 
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 15% 15%, rgba(255, 122, 26, 0.18), transparent 28%),
-    radial-gradient(circle at 82% 65%, rgba(0, 230, 230, 0.14), transparent 32%),
-    linear-gradient(135deg, #050b0f 0%, #07131a 100%);
-}
-
-button {
-  font: inherit;
-}
-
-.roneca-shell {
-  min-height: 100vh;
-  padding: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-.roneca-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.roneca-logo {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.roneca-logo-mark {
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 122, 26, 0.55);
-  border-radius: 16px;
-  background: rgba(255, 122, 26, 0.12);
-  box-shadow: 0 0 28px rgba(255, 122, 26, 0.25);
-}
-
-.roneca-status {
-  color: #b8c2cc;
-  font-size: 0.95rem;
-}
-
-.roneca-hero {
-  padding: 34px;
-  border: 1px solid rgba(37, 53, 65, 0.95);
-  border-radius: 30px;
-  background: rgba(17, 28, 36, 0.82);
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background: #050B0F;
+  color: #FFFFFF;
+  font-family: 'Inter', system-ui, sans-serif;
   overflow: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #253541;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF7A1A;
+}
+
+/* No scrollbar for horizontal scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glow Effects */
+.glow-orange {
+  box-shadow: 0 0 15px rgba(255, 122, 26, 0.4), 0 0 30px rgba(255, 122, 26, 0.2);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 15px rgba(0, 230, 230, 0.4), 0 0 30px rgba(0, 230, 230, 0.2);
+}
+
+.glow-orange-text {
+  text-shadow: 0 0 10px rgba(255, 122, 26, 0.6), 0 0 20px rgba(255, 122, 26, 0.3);
+}
+
+.glow-cyan-text {
+  text-shadow: 0 0 10px rgba(0, 230, 230, 0.6), 0 0 20px rgba(0, 230, 230, 0.3);
+}
+
+/* Focus Ring for Remote Control */
+.focus-ring {
+  outline: none;
+  border: 2px solid #FF7A1A;
+  box-shadow: 0 0 15px rgba(255, 122, 26, 0.5), 0 0 30px rgba(255, 122, 26, 0.2);
+  border-radius: 12px;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+/* Background Pattern */
+.bg-pattern {
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(255, 122, 26, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(0, 230, 230, 0.03) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 122, 26, 0.02) 0%, transparent 70%);
+}
+
+/* Neon Border Animation */
+.neon-border {
   position: relative;
 }
-
-.roneca-hero::before {
+.neon-border::after {
   content: '';
   position: absolute;
-  inset: -1px;
-  pointer-events: none;
-  background: radial-gradient(circle at 78% 18%, rgba(0, 230, 230, 0.22), transparent 24%);
+  inset: -2px;
+  border-radius: 14px;
+  background: linear-gradient(45deg, #FF7A1A, #00E6E6, #FF7A1A);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.neon-border:hover::after,
+.neon-border.selected::after {
+  opacity: 1;
 }
 
-.roneca-hero-content {
+/* TV-safe padding */
+.tv-safe {
+  padding: 4vh 4vw;
+}
+
+.mobile-safe {
+  padding: 1rem;
+}
+
+/* Card shimmer effect */
+.card-shimmer {
   position: relative;
-  max-width: 980px;
+  overflow: hidden;
+}
+.card-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.03), transparent);
+  transition: left 0.5s;
+}
+.card-shimmer:hover::before {
+  left: 100%;
 }
 
-.roneca-eyebrow {
-  color: #00e6e6;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin-bottom: 12px;
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #FF7A1A, #00E6E6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.roneca-title {
-  font-size: clamp(2.4rem, 7vw, 5.7rem);
-  line-height: 0.95;
-  margin: 0;
-  max-width: 920px;
+/* Neon button */
+.btn-neon {
+  background: linear-gradient(135deg, #FF7A1A, #FF9A4A);
+  color: #050B0F;
+  font-weight: 700;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 0 15px rgba(255, 122, 26, 0.3);
+}
+.btn-neon:hover {
+  box-shadow: 0 0 25px rgba(255, 122, 26, 0.5);
+  transform: translateY(-1px);
 }
 
-.roneca-title span {
-  color: #ff7a1a;
-  text-shadow: 0 0 32px rgba(255, 122, 26, 0.35);
+/* Neon card base */
+.neon-card-base {
+  background: #111C24;
+  border: 2px solid #253541;
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+.neon-card-base:hover {
+  border-color: rgba(255, 122, 26, 0.5);
+  background: #1A2A35;
+  box-shadow: 0 0 20px rgba(255, 122, 26, 0.15);
 }
 
-.roneca-description {
-  color: #b8c2cc;
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  max-width: 760px;
-  line-height: 1.65;
+/* Table styles */
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
 }
-
-.roneca-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+.admin-table thead tr {
+  background: #07131A;
 }
-
-.roneca-card {
-  min-height: 165px;
-  padding: 22px;
-  border: 1px solid #253541;
-  border-radius: 24px;
-  background: rgba(17, 28, 36, 0.88);
-  color: #ffffff;
+.admin-table th {
   text-align: left;
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #B8C2CC;
+  padding: 0.75rem 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.admin-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(37, 53, 65, 0.5);
+}
+.admin-table tbody tr:hover {
+  background: #1A2A35;
 }
 
-.roneca-card:hover,
-.roneca-card:focus {
+/* Input styles */
+.input-dark {
+  background: #07131A;
+  border: 1px solid #253541;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: #FFFFFF;
+  font-size: 0.875rem;
   outline: none;
-  transform: translateY(-4px);
-  border-color: #ff7a1a;
-  box-shadow: 0 0 30px rgba(255, 122, 26, 0.22);
+  transition: border-color 0.2s;
+}
+.input-dark:focus {
+  border-color: #FF7A1A;
+}
+.input-dark::placeholder {
+  color: rgba(184, 194, 204, 0.4);
 }
 
-.roneca-card-icon {
-  color: #00e6e6;
-  margin-bottom: 18px;
-}
-
-.roneca-card h2 {
-  margin: 0 0 8px;
-  font-size: 1.25rem;
-}
-
-.roneca-card p {
-  margin: 0;
-  color: #b8c2cc;
-  line-height: 1.5;
-}
-
-.roneca-footer {
-  margin-top: auto;
-  color: #b8c2cc;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 760px) {
-  .roneca-shell {
-    padding: 18px;
+/* Responsive font scaling */
+@media (min-width: 1024px) and (orientation: landscape) {
+  html {
+    font-size: 18px;
   }
-
-  .roneca-topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .roneca-hero {
-    padding: 24px;
-  }
-
-  .roneca-grid {
-    grid-template-columns: 1fr;
+}
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
   }
 }
