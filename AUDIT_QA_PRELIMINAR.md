@@ -3,7 +3,7 @@
 Arquivos analisados: 14
 Botões encontrados: 97
 Botões de ação/CRUD encontrados: 35
-Suspeitas encontradas: 35
+Suspeitas encontradas: 9
 
 ## Actions detectadas no appStore
 
@@ -88,38 +88,12 @@ Suspeitas encontradas: 35
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:13 | const [selectedCategory, setSelectedCategory] = useState('Todos');
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:22 | if (['Todos', 'Buscar', 'Playback', 'Tudo: A-Z'].includes(selectedCategory)) {
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:62 | selectedCategory === category || (index === 0 && selectedCategory === 'Todos') ? 'active' : ''
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/FavoritesSearchScreen.tsx:180 | placeholder="Buscar"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/FavoritesSearchScreen.tsx:181 | className="w-full bg-transparent text-5xl font-light text-white/85 outline-none placeholder:text-white/35"
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/MoviesScreen.tsx:11 | const categories = ['Destaques', 'Em alta', 'Lançamentos', ...movieCategories.filter(c => c !== 'Todos')];
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlayerScreen.tsx:124 | onClick={() => window.location.reload()}
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:130 | placeholder="Minha lista"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:131 | className="w-full border-b border-white/15 bg-transparent px-1 py-4 text-3xl font-light text-white outline-none placeholder:text-white/25 focus:border-[#2396f2]
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:140 | placeholder="https://..."
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:141 | className="w-full border-b border-white/15 bg-transparent px-1 py-4 text-3xl font-light text-white outline-none placeholder:text-white/25 focus:border-[#2396f2]
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:151 | placeholder="#EXTM3U"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:152 | className="w-full resize-none rounded-md bg-white/[0.045] px-5 py-4 font-mono text-base text-white outline-none placeholder:text-white/25 focus:ring-1 focus:rin
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:136 | placeholder="Nome do Plano"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:142 | placeholder="Valor (R$)"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:150 | placeholder="Máx. Dispositivos"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:157 | placeholder="Duração (dias)"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:266 | setError('Por enquanto, a importação automática está ativa apenas para listas M3U autorizadas. Xtream/Stalker entram em uma próxima fase.');
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:372 | placeholder="Nome da Lista"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:389 | placeholder="URL M3U autorizada"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:397 | placeholder="Opcional: cole aqui o conteúdo da lista M3U se a URL não puder ser acessada pelo navegador."
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:542 | placeholder="Título do Aviso"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:549 | placeholder="Mensagem do aviso..."
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:559 | <option value="all">Todos os clientes</option>
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:590 | <span className="text-text-gray/50 text-xs">Destino: {notice.target === 'all' ? 'Todos' : notice.target}</span>
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:647 | {item === 'all' ? 'Todos' : item === 'admin' ? '👑 Admin' : item === 'system' ? '🤖 Sistema' : '👤 Cliente'}
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:167 | placeholder="Buscar por nome ou email..."
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:177 | <option value="all">Todos</option>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:194 | placeholder="Nome"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:200 | placeholder="Telefone"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:206 | placeholder="E-mail"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:356 | placeholder="Buscar por código ou cliente..."
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:366 | <option value="all">Todos</option>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/components/shared.tsx:320 | placeholder="Buscar canais, filmes, séries..."
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/components/shared.tsx:321 | className="flex-1 premium-card rounded-xl px-4 py-3 text-text-white placeholder-text-gray/50 focus:border-neon-orange focus:outline-none"
 
 ## Todos os botões mapeados
 

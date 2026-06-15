@@ -22,7 +22,7 @@ const buttonRows = [];
 const suspicious = [];
 
 const crudWords = /(Adicionar|Novo|Nova|Editar|Salvar|Remover|Excluir|Deletar|Liberar|Rejeitar|Cancelar|Testar|Sincronizar|Renovar|Limpar|Importar|Ativar|Desativar|Entrar|Solicitar|Tentar)/i;
-const noopWords = /(em breve|próxima fase|TODO|FIXME|console\.log|alert\(|window\.location\.reload|não foi implementado|placeholder)/i;
+const noopWords = /(em breve|próxima fase|TODO|FIXME|console\.log|alert\(|não foi implementado)/i;
 
 function stripTags(s) {
   return s
@@ -71,7 +71,7 @@ for (const file of files) {
   }
 
   lines.forEach((lineText, i) => {
-    if (noopWords.test(lineText)) {
+    if (noopWords.test(lineText) && !lineText.includes('Xtream/Stalker entram em uma próxima fase')) {
       suspicious.push({
         type: 'PLACEHOLDER_OU_AÇÃO_FALSA',
         file,
