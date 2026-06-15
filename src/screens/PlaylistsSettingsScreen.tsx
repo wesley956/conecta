@@ -74,7 +74,7 @@ export function PlaylistsScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full flex-col">
+      <div className="clean-tv-page flex h-full flex-col">
         <Header title="Listas de Reprodução" showBack onBack={() => setScreen('home')} />
 
         <main className="grid min-h-0 flex-1 grid-cols-[1.35fr_.8fr] gap-8">
@@ -325,7 +325,7 @@ export function SettingsScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full flex-col">
+      <div className="clean-tv-page flex h-full flex-col">
         <Header title="Configurações" showBack onBack={() => setScreen('home')} />
 
         <main className="grid min-h-0 flex-1 grid-cols-[20rem_1fr] gap-8">

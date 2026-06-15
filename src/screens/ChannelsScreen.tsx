@@ -47,7 +47,7 @@ export function ChannelsScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full flex-col">
+      <div className="clean-tv-page flex h-full flex-col">
         <Header title="Canais ao Vivo" showBack showSearch onBack={() => setScreen('home')} />
 
         <main className="grid min-h-0 flex-1 grid-cols-[1fr_.72fr] gap-8">

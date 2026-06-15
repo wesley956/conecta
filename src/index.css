@@ -304,3 +304,85 @@ textarea:focus-visible {
     font-size: 14px;
   }
 }
+
+
+/* ===== CLEAN TV UI OVERRIDES ===== */
+.clean-tv-page {
+  padding-left: 104px;
+}
+
+.premium-bg {
+  background:
+    radial-gradient(circle at 88% 92%, rgba(55, 20, 80, 0.28), transparent 34%),
+    linear-gradient(115deg, #08090d 0%, #0a0b10 48%, #101017 100%) !important;
+}
+
+.glass-panel {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.premium-card {
+  background: rgba(10, 35, 68, 0.78) !important;
+  border: 1px solid rgba(255, 255, 255, 0.045) !important;
+  box-shadow: none !important;
+}
+
+.glow-orange,
+.glow-cyan,
+.glow-orange-text,
+.glow-cyan-text {
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.btn-neon {
+  background: #2396f2 !important;
+  color: #ffffff !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+}
+
+.input-dark {
+  background: rgba(8, 12, 20, 0.75) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+.clean-tv-sidebar {
+  background: #071a31;
+}
+
+.clean-tv-sidebar button {
+  outline: none;
+}
+
+.clean-tv-sidebar-button {
+  color: rgba(255, 255, 255, 0.58);
+  border-left: 4px solid transparent;
+}
+
+.clean-tv-sidebar-button.active {
+  color: #ffffff;
+  background: rgba(35, 150, 242, 0.18);
+  border-left-color: #2396f2;
+}
+
+.clean-tv-sidebar-button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.clean-tv-title {
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.clean-tv-muted {
+  color: rgba(255, 255, 255, 0.52);
+}

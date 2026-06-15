@@ -223,7 +223,7 @@ export function HomeScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full flex-col">
+      <div className="clean-tv-page flex h-full flex-col">
         <header className="mb-10 flex items-start justify-between">
           <LogoLockup />
           <TopStatus />

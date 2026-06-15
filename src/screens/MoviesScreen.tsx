@@ -25,7 +25,7 @@ export function MoviesScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full flex-col">
+      <div className="clean-tv-page flex h-full flex-col">
         <Header title="Filmes" showBack showSearch onBack={() => setScreen('home')} />
 
         <main className="grid min-h-0 flex-1 grid-cols-[1fr_.82fr] gap-8">

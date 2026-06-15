@@ -197,35 +197,47 @@ export function EmptyState({ icon, title, description }: { icon: string; title: 
 // ===== BOTTOM NAV (Mobile) =====
 
 export function BottomNav() {
-  const { currentScreen, setScreen, uiMode } = useAppStore();
-  
-  if (uiMode !== 'mobile') return null;
-  
-  const navItems = [
-    { screen: 'home' as const, icon: '🏠', label: 'Home' },
-    { screen: 'channels' as const, icon: '📺', label: 'Canais' },
-    { screen: 'movies' as const, icon: '🎬', label: 'Filmes' },
-    { screen: 'series' as const, icon: '🎥', label: 'Séries' },
-    { screen: 'settings' as const, icon: '⚙️', label: 'Config' },
+  const store = useAppStore() as any;
+  const activeScreen = store.screen ?? store.currentScreen ?? store.activeScreen ?? 'home';
+  const setScreen = store.setScreen as (screen: string) => void;
+  const setAdminMode = store.setAdminMode as (enabled: boolean) => void;
+
+  const items = [
+    { id: 'home', icon: '⌂', label: 'Início', action: () => setScreen('home'), active: ['home'].includes(activeScreen) },
+    { id: 'channels', icon: '▣', label: 'TV', action: () => setScreen('channels'), active: ['channels'].includes(activeScreen) },
+    { id: 'vod', icon: '▷', label: 'VOD', action: () => setScreen('movies'), active: ['movies', 'series'].includes(activeScreen) },
+    { id: 'playback', icon: '◷', label: 'Playback', action: () => setScreen('favorites'), active: ['favorites', 'search'].includes(activeScreen) },
+    { id: 'settings', icon: '◇', label: 'Config', action: () => setScreen('settings'), active: ['settings', 'playlists'].includes(activeScreen) },
   ];
-  
+
   return (
-    <nav className="flex items-center justify-around bg-bg-dark border-t border-white/10 py-2 mt-2 -mx-4 px-4">
-      {navItems.map(item => (
-        <button
-          key={item.screen}
-          onClick={() => setScreen(item.screen)}
-          className={`flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors ${
-            currentScreen === item.screen ? 'text-neon-orange' : 'text-text-gray hover:text-text-white'
-          }`}
-        >
-          <span className="text-lg">{item.icon}</span>
-          <span className="text-[10px] font-medium">{item.label}</span>
-        </button>
-      ))}
-    </nav>
+    <aside className="clean-tv-sidebar fixed bottom-0 left-0 top-0 z-50 flex w-[92px] flex-col items-center">
+      <nav className="flex w-full flex-1 flex-col">
+        {items.map(item => (
+          <button
+            key={item.id}
+            onClick={item.action}
+            title={item.label}
+            className={`clean-tv-sidebar-button flex h-[108px] w-full items-center justify-center text-[2.15rem] transition-all ${
+              item.active ? 'active' : ''
+            }`}
+          >
+            <span>{item.icon}</span>
+          </button>
+        ))}
+      </nav>
+
+      <button
+        onClick={() => setAdminMode(true)}
+        title="Admin"
+        className="clean-tv-sidebar-button mb-4 flex h-[82px] w-full items-center justify-center text-3xl transition-all"
+      >
+        ▶
+      </button>
+    </aside>
   );
 }
+
 
 // ===== SCROLLABLE CONTAINER =====
 
