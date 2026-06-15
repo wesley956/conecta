@@ -1,9 +1,9 @@
 # Auditoria QA / CRUD / Botões
 
 Arquivos analisados: 14
-Botões encontrados: 96
-Botões de ação/CRUD encontrados: 34
-Suspeitas encontradas: 44
+Botões encontrados: 97
+Botões de ação/CRUD encontrados: 35
+Suspeitas encontradas: 35
 
 ## Actions detectadas no appStore
 
@@ -59,22 +59,23 @@ Suspeitas encontradas: 44
 - src/screens/PlaylistsSettingsScreen.tsx:165 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-md bg-white/[0.055] px-10 py-4 text-2xl font-light text-white/
 - src/admin/AdminLayout.tsx:232 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b
 - src/admin/AdminLayout.tsx:235 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-
-- src/admin/AdminModules.tsx:15 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Plano
-- src/admin/AdminModules.tsx:30 | onClick=NÃO | disabled=NÃO | Salvar
-- src/admin/AdminModules.tsx:31 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
-- src/admin/AdminModules.tsx:62 | onClick=NÃO | disabled=NÃO | ✏️ Editar
-- src/admin/AdminModules.tsx:63 | onClick=NÃO | disabled=NÃO | 🗑️ Remover
-- src/admin/AdminModules.tsx:148 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Nova Lista
-- src/admin/AdminModules.tsx:209 | onClick=SIM | disabled=SIM | (sem texto detectado)
-- src/admin/AdminModules.tsx:216 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
-- src/admin/AdminModules.tsx:246 | onClick=NÃO | disabled=NÃO | Testar
-- src/admin/AdminModules.tsx:247 | onClick=NÃO | disabled=NÃO | Editar
-- src/admin/AdminModules.tsx:248 | onClick=NÃO | disabled=NÃO | Remover
-- src/admin/AdminModules.tsx:268 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Aviso
-- src/admin/AdminModules.tsx:287 | onClick=SIM | disabled=NÃO | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
-- src/admin/AdminModules.tsx:306 | onClick=NÃO | disabled=NÃO | (sem texto detectado)
-- src/admin/AdminModules.tsx:307 | onClick=NÃO | disabled=NÃO | Remover
-- src/admin/AdminModules.tsx:332 | onClick=NÃO | disabled=NÃO | 🗑️ Limpar Logs
+- src/admin/AdminModules.tsx:119 | onClick=SIM | disabled=NÃO | + Novo Plano
+- src/admin/AdminModules.tsx:164 | onClick=SIM | disabled=NÃO | Salvar
+- src/admin/AdminModules.tsx:165 | onClick=SIM | disabled=NÃO | Cancelar
+- src/admin/AdminModules.tsx:193 | onClick=SIM | disabled=NÃO | openEditPlan(plan)} className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2 rou
+- src/admin/AdminModules.tsx:196 | onClick=SIM | disabled=NÃO | togglePlanStatus(plan)} className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2
+- src/admin/AdminModules.tsx:199 | onClick=SIM | disabled=NÃO | removePlan(plan)} className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2 round
+- src/admin/AdminModules.tsx:350 | onClick=SIM | disabled=NÃO | + Nova Lista
+- src/admin/AdminModules.tsx:403 | onClick=SIM | disabled=SIM | (sem texto detectado)
+- src/admin/AdminModules.tsx:411 | onClick=SIM | disabled=NÃO | Cancelar
+- src/admin/AdminModules.tsx:443 | onClick=SIM | disabled=NÃO | testPlaylist(playlist)} className="rounded-lg border border-neon-cyan/25 bg-neon-cyan/10 px-3 py-1 t
+- src/admin/AdminModules.tsx:446 | onClick=SIM | disabled=NÃO | openEditPlaylist(playlist)} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 t
+- src/admin/AdminModules.tsx:449 | onClick=SIM | disabled=NÃO | removePlaylist(playlist)} className="rounded-lg border border-error-red/25 bg-error-red/10 px-3 py-1
+- src/admin/AdminModules.tsx:527 | onClick=SIM | disabled=NÃO | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Aviso
+- src/admin/AdminModules.tsx:569 | onClick=SIM | disabled=NÃO | Cancelar
+- src/admin/AdminModules.tsx:593 | onClick=SIM | disabled=NÃO | toggleNotice(notice)} className="rounded-lg border border-neon-cyan/25 bg-neon-cyan/10 px-3 py-1 tex
+- src/admin/AdminModules.tsx:596 | onClick=SIM | disabled=NÃO | removeNotice(notice)} className="rounded-lg border border-error-red/25 bg-error-red/10 px-3 py-1 tex
+- src/admin/AdminModules.tsx:631 | onClick=SIM | disabled=NÃO | 🗑️ Limpar Logs
 - src/admin/CustomersDevices.tsx:153 | onClick=SIM | disabled=NÃO | + Novo Cliente
 - src/admin/CustomersDevices.tsx:223 | onClick=SIM | disabled=NÃO | Salvar
 - src/admin/CustomersDevices.tsx:226 | onClick=SIM | disabled=NÃO | Cancelar
@@ -97,28 +98,19 @@ Suspeitas encontradas: 44
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:141 | className="w-full border-b border-white/15 bg-transparent px-1 py-4 text-3xl font-light text-white outline-none placeholder:text-white/25 focus:border-[#2396f2]
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:151 | placeholder="#EXTM3U"
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/PlaylistsSettingsScreen.tsx:152 | className="w-full resize-none rounded-md bg-white/[0.045] px-5 py-4 font-mono text-base text-white outline-none placeholder:text-white/25 focus:ring-1 focus:rin
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:30 | Salvar
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:62 | ✏️ Editar
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:63 | 🗑️ Remover
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:246 | Testar
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:247 | Editar
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:248 | Remover
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:306 | (sem texto detectado)
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:307 | Remover
-- [BOTÃO_DE_AÇÃO_SEM_ONCLICK] src/admin/AdminModules.tsx:332 | 🗑️ Limpar Logs
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:24 | <input placeholder="Nome do Plano" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:25 | <input placeholder="Valor (R$)" type="number" step="0.01" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outl
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:26 | <input placeholder="Máx. Dispositivos" type="number" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-n
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:27 | <input placeholder="Duração (dias)" type="number" className="input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:96 | setError('Por enquanto, a importação automática está ativa apenas para listas M3U autorizadas. Xtream/Stalker entram em uma próxima fase.');
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:178 | placeholder="Nome da Lista"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:195 | placeholder="URL M3U autorizada"
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:203 | placeholder="Opcional: cole aqui o conteúdo da lista M3U se a URL não puder ser acessada pelo navegador."
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:277 | <input placeholder="Título do Aviso" className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none" />
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:278 | <textarea placeholder="Mensagem do aviso..." rows={3} className="w-full input-dark rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:o
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:280 | <option value="all">Todos os clientes</option>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:304 | <span className="text-text-gray/50 text-xs">Destino: {n.target === 'all' ? 'Todos' : n.target}</span>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:348 | {f === 'all' ? 'Todos' : f === 'admin' ? '👑 Admin' : f === 'system' ? '🤖 Sistema' : '👤 Cliente'}
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:136 | placeholder="Nome do Plano"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:142 | placeholder="Valor (R$)"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:150 | placeholder="Máx. Dispositivos"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:157 | placeholder="Duração (dias)"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:266 | setError('Por enquanto, a importação automática está ativa apenas para listas M3U autorizadas. Xtream/Stalker entram em uma próxima fase.');
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:372 | placeholder="Nome da Lista"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:389 | placeholder="URL M3U autorizada"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:397 | placeholder="Opcional: cole aqui o conteúdo da lista M3U se a URL não puder ser acessada pelo navegador."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:542 | placeholder="Título do Aviso"
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:549 | placeholder="Mensagem do aviso..."
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:559 | <option value="all">Todos os clientes</option>
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:590 | <span className="text-text-gray/50 text-xs">Destino: {notice.target === 'all' ? 'Todos' : notice.target}</span>
+- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:647 | {item === 'all' ? 'Todos' : item === 'admin' ? '👑 Admin' : item === 'system' ? '🤖 Sistema' : '👤 Cliente'}
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:167 | placeholder="Buscar por nome ou email..."
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:177 | <option value="all">Todos</option>
 - [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:194 | placeholder="Nome"
@@ -186,24 +178,25 @@ Suspeitas encontradas: 44
 - src/admin/AdminLayout.tsx:67 | onClick=SIM | setAdminMode(false)} className="flex w-full items-center justify-center gap-2 rounded-2xl border bor
 - src/admin/AdminLayout.tsx:232 | onClick=SIM | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b
 - src/admin/AdminLayout.tsx:235 | onClick=SIM | setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-
-- src/admin/AdminModules.tsx:15 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Plano
-- src/admin/AdminModules.tsx:30 | onClick=NÃO | Salvar
-- src/admin/AdminModules.tsx:31 | onClick=SIM | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
-- src/admin/AdminModules.tsx:62 | onClick=NÃO | ✏️ Editar
-- src/admin/AdminModules.tsx:63 | onClick=NÃO | 🗑️ Remover
-- src/admin/AdminModules.tsx:148 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Nova Lista
-- src/admin/AdminModules.tsx:209 | onClick=SIM | (sem texto detectado)
-- src/admin/AdminModules.tsx:216 | onClick=SIM | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
-- src/admin/AdminModules.tsx:246 | onClick=NÃO | Testar
-- src/admin/AdminModules.tsx:247 | onClick=NÃO | Editar
-- src/admin/AdminModules.tsx:248 | onClick=NÃO | Remover
-- src/admin/AdminModules.tsx:268 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Aviso
-- src/admin/AdminModules.tsx:286 | onClick=NÃO | Enviar Aviso
-- src/admin/AdminModules.tsx:287 | onClick=SIM | setShowAdd(false)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm fo
-- src/admin/AdminModules.tsx:306 | onClick=NÃO | (sem texto detectado)
-- src/admin/AdminModules.tsx:307 | onClick=NÃO | Remover
-- src/admin/AdminModules.tsx:332 | onClick=NÃO | 🗑️ Limpar Logs
-- src/admin/AdminModules.tsx:339 | onClick=SIM | setFilter(f)} className= `} >
+- src/admin/AdminModules.tsx:119 | onClick=SIM | + Novo Plano
+- src/admin/AdminModules.tsx:164 | onClick=SIM | Salvar
+- src/admin/AdminModules.tsx:165 | onClick=SIM | Cancelar
+- src/admin/AdminModules.tsx:193 | onClick=SIM | openEditPlan(plan)} className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2 rou
+- src/admin/AdminModules.tsx:196 | onClick=SIM | togglePlanStatus(plan)} className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2
+- src/admin/AdminModules.tsx:199 | onClick=SIM | removePlan(plan)} className="flex-1 bg-white/[0.04] border border-white/10 text-text-gray py-2 round
+- src/admin/AdminModules.tsx:350 | onClick=SIM | + Nova Lista
+- src/admin/AdminModules.tsx:403 | onClick=SIM | (sem texto detectado)
+- src/admin/AdminModules.tsx:411 | onClick=SIM | Cancelar
+- src/admin/AdminModules.tsx:443 | onClick=SIM | testPlaylist(playlist)} className="rounded-lg border border-neon-cyan/25 bg-neon-cyan/10 px-3 py-1 t
+- src/admin/AdminModules.tsx:446 | onClick=SIM | openEditPlaylist(playlist)} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1 t
+- src/admin/AdminModules.tsx:449 | onClick=SIM | removePlaylist(playlist)} className="rounded-lg border border-error-red/25 bg-error-red/10 px-3 py-1
+- src/admin/AdminModules.tsx:527 | onClick=SIM | setShowAdd(!showAdd)} className="btn-neon px-4 py-2 text-sm"> + Novo Aviso
+- src/admin/AdminModules.tsx:566 | onClick=SIM | Enviar Aviso
+- src/admin/AdminModules.tsx:569 | onClick=SIM | Cancelar
+- src/admin/AdminModules.tsx:593 | onClick=SIM | toggleNotice(notice)} className="rounded-lg border border-neon-cyan/25 bg-neon-cyan/10 px-3 py-1 tex
+- src/admin/AdminModules.tsx:596 | onClick=SIM | removeNotice(notice)} className="rounded-lg border border-error-red/25 bg-error-red/10 px-3 py-1 tex
+- src/admin/AdminModules.tsx:631 | onClick=SIM | 🗑️ Limpar Logs
+- src/admin/AdminModules.tsx:638 | onClick=SIM | setFilter(item)} className= `} >
 - src/admin/CustomersDevices.tsx:153 | onClick=SIM | + Novo Cliente
 - src/admin/CustomersDevices.tsx:223 | onClick=SIM | Salvar
 - src/admin/CustomersDevices.tsx:226 | onClick=SIM | Cancelar
