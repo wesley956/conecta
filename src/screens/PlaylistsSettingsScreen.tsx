@@ -1,247 +1,299 @@
 import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { fetchM3UContent } from '@/utils/fetchM3U';
-import { AppLayout, Header, NeonCard, StatusBadge, ScrollContainer, BottomNav, LegalBanner } from '@/components/shared';
+import { AppLayout, Header, StatusBadge, ScrollContainer, BottomNav } from '@/components/shared';
 import type { Playlist } from '@/types';
 
 // ===== PLAYLISTS SCREEN =====
 export function PlaylistsScreen() {
   const { playlists, setScreen, importM3UPlaylist, addDirectStreamChannel } = useAppStore();
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(playlists[0]?.id ?? null);
   const [playlistName, setPlaylistName] = useState('');
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [m3uContent, setM3uContent] = useState('');
-  const [importMessage, setImportMessage] = useState<string | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [isFetchingUrl, setIsFetchingUrl] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleFetchFromUrl = async () => {
-    setImportMessage(null);
-    setImportError(null);
+  const selectedPlaylist = playlists.find(pl => pl.id === selectedId) ?? playlists[0] ?? null;
 
-    const url = playlistUrl.trim();
-
-    if (!url) {
-      setImportError('Informe a URL da lista M3U antes de buscar.');
-      return;
-    }
-
-    if (!/^https?:\/\//i.test(url)) {
-      setImportError('A URL precisa começar com http:// ou https://');
-      return;
-    }
-
-    if (url.startsWith('http://') && window.location.protocol === 'https:') {
-      setImportError('Essa URL usa HTTP e foi bloqueada pelo navegador porque o Codespace roda em HTTPS. Use uma URL HTTPS, cole o conteúdo M3U manualmente ou teste depois no APK/backend.');
-      return;
-    }
-
-    setIsFetchingUrl(true);
-
-    try {
-      const content = await fetchM3UContent(url);
-
-      if (!content.includes('#EXTM3U') && !content.includes('#EXTINF')) {
-        throw new Error('O conteúdo baixado não parece ser uma lista M3U válida.');
-      }
-
-      setM3uContent(content);
-      setImportMessage('Lista baixada da URL. Agora clique em Importar M3U.');
-    } catch (error) {
-      setImportError(
-        error instanceof Error
-          ? `${error.message} Algumas listas bloqueiam acesso direto pelo navegador por CORS. Nesse caso, cole o conteúdo M3U manualmente.`
-          : 'Não foi possível buscar a lista pela URL.'
-      );
-    } finally {
-      setIsFetchingUrl(false);
-    }
+  const resetForm = () => {
+    setPlaylistName('');
+    setPlaylistUrl('');
+    setM3uContent('');
   };
 
-  const handleImportM3U = () => {
-    setImportMessage(null);
-    setImportError(null);
+  const handleAddPlaylist = async () => {
+    setMessage(null);
+    setError(null);
+
+    const url = playlistUrl.trim();
+    let content = m3uContent.trim();
+
+    if (!url && !content) {
+      setError('Informe uma URL de lista/canal ou cole o conteúdo M3U.');
+      return;
+    }
+
+    if (url && !/^https?:\/\//i.test(url)) {
+      setError('A URL precisa começar com http:// ou https://');
+      return;
+    }
+
+    setIsAdding(true);
 
     try {
-      const result = m3uContent.trim()
-        ? importM3UPlaylist(playlistName, playlistUrl, m3uContent)
-        : addDirectStreamChannel(playlistName, playlistUrl);
-      setImportMessage(`Lista importada: ${result.imported} canais adicionados${result.skipped ? `, ${result.skipped} itens ignorados` : ''}.`);
-      setPlaylistName('');
-      setPlaylistUrl('');
-      setM3uContent('');
+      const isDirectStream = /\.(m3u8|mpd)(\?|#|$)/i.test(url);
+
+      let result: { imported: number; skipped: number };
+
+      if (!content && url && isDirectStream) {
+        result = addDirectStreamChannel(playlistName, url);
+      } else {
+        if (!content && url) {
+          content = await fetchM3UContent(url);
+        }
+
+        result = importM3UPlaylist(playlistName, url, content);
+      }
+
+      setMessage(`Lista adicionada: ${result.imported} item(ns) importado(s)${result.skipped ? `, ${result.skipped} ignorado(s)` : ''}.`);
+      resetForm();
       setShowAdd(false);
-    } catch (error) {
-      setImportError(error instanceof Error ? error.message : 'Erro ao importar lista M3U.');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível adicionar a lista.'
+      );
+    } finally {
+      setIsAdding(false);
     }
   };
 
   return (
     <AppLayout>
-      <Header title="Listas de Reprodução" showBack onBack={() => setScreen('home')} />
+      <div className="flex h-full flex-col">
+        <Header title="Listas de Reprodução" showBack onBack={() => setScreen('home')} />
 
-      <ScrollContainer>
-        <LegalBanner />
-
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-text-gray text-sm">{playlists.length} lista{playlists.length !== 1 ? 's' : ''} ativa{playlists.length !== 1 ? 's' : ''}</p>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            className="bg-neon-orange text-bg-primary px-4 py-2 rounded-lg font-bold text-sm hover:bg-neon-orange/80 transition-colors"
-          >
-            + Adicionar Lista
-          </button>
-        </div>
-
-        {/* Add New Playlist Form */}
-        {showAdd && (
-          <div className="bg-card border border-neon-orange/30 rounded-xl p-4 mb-4 animate-scale-in">
-            <h3 className="text-text-white font-bold mb-3">Adicionar Lista M3U Autorizada</h3>
-
-            <div className="space-y-3">
+        <main className="grid min-h-0 flex-1 grid-cols-[1.35fr_.8fr] gap-8">
+          <section className="min-h-0">
+            <div className="mb-5 flex items-end justify-between">
               <div>
-                <label className="text-text-gray text-xs block mb-1">Nome da Lista</label>
-                <input
-                  type="text"
-                  value={playlistName}
-                  onChange={e => setPlaylistName(e.target.value)}
-                  placeholder="Ex: Lista autorizada do meu provedor"
-                  className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
-                />
+                <p className="text-sm uppercase tracking-[0.34em] text-neon-cyan/75">Gerenciamento</p>
+                <h2 className="text-3xl font-black text-text-white">Listas autorizadas</h2>
               </div>
-
-              <div>
-                <label className="text-text-gray text-xs block mb-1">URL da lista M3U</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={playlistUrl}
-                    onChange={e => setPlaylistUrl(e.target.value)}
-                    placeholder="https://exemplo-autorizado.com/lista.m3u"
-                    className="flex-1 bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-sm focus:border-neon-orange focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleFetchFromUrl}
-                    disabled={isFetchingUrl}
-                    className="bg-neon-cyan text-bg-primary px-4 py-2 rounded-lg font-bold text-xs disabled:opacity-50"
-                  >
-                    {isFetchingUrl ? 'Buscando...' : 'Buscar'}
-                  </button>
-                </div>
-                <p className="text-text-gray/60 text-[10px] mt-1">
-                  Use apenas URLs de listas autorizadas. Se o navegador bloquear por CORS, cole o conteúdo M3U manualmente no campo abaixo.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-text-gray text-xs block mb-1">Conteúdo M3U</label>
-                <textarea
-                  value={m3uContent}
-                  onChange={e => setM3uContent(e.target.value)}
-                  rows={8}
-                  placeholder={'#EXTM3U\n#EXTINF:-1 tvg-id="canal-demo" group-title="Abertos",Canal Demo\nhttps://exemplo-autorizado.com/stream/canal.m3u8'}
-                  className="w-full bg-bg-dark border border-border rounded-lg px-3 py-2 text-text-white text-xs font-mono focus:border-neon-orange focus:outline-none resize-y"
-                />
-              </div>
-
-              {importMessage && (
-                <p className="text-active-green text-xs bg-active-green/10 border border-active-green/20 rounded-lg p-2">
-                  {importMessage}
-                </p>
-              )}
-
-              {importError && (
-                <p className="text-error-red text-xs bg-error-red/10 border border-error-red/20 rounded-lg p-2">
-                  {importError}
-                </p>
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleImportM3U}
-                  className="flex-1 bg-neon-orange text-bg-primary py-2 rounded-lg font-bold text-sm"
-                >
-                  Importar M3U
-                </button>
-                <button
-                  onClick={() => setShowAdd(false)}
-                  className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-sm"
-                >
-                  Cancelar
-                </button>
-              </div>
+              <span className="rounded-full border border-active-green/25 bg-active-green/10 px-3 py-1 text-xs font-bold text-active-green">
+                {playlists.length} ativa{playlists.length !== 1 ? 's' : ''}
+              </span>
             </div>
 
-            <p className="text-alert-yellow text-[10px] mt-3">
-              ⚠️ Use apenas listas e fontes autorizadas. O app não fornece canais, filmes, séries ou listas.
-            </p>
-          </div>
-        )}
+            {message && (
+              <div className="mb-4 rounded-2xl border border-active-green/25 bg-active-green/10 px-4 py-3 text-sm text-active-green">
+                {message}
+              </div>
+            )}
 
-        {/* Playlist Cards */}
-        <div className="space-y-3 mb-4">
-          {playlists.map(pl => (
-            <PlaylistCard key={pl.id} playlist={pl} />
-          ))}
-        </div>
-      </ScrollContainer>
+            {error && (
+              <div className="mb-4 rounded-2xl border border-error-red/25 bg-error-red/10 px-4 py-3 text-sm text-error-red">
+                {error}
+              </div>
+            )}
 
-      <BottomNav />
+            {showAdd && (
+              <div className="mb-5 rounded-[1.35rem] premium-card p-5 animate-scale-in">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-black text-text-white">Adicionar nova lista</h3>
+                    <p className="text-xs text-text-gray">M3U autorizada ou canal HLS direto</p>
+                  </div>
+                  <button onClick={() => setShowAdd(false)} className="text-text-gray hover:text-white">✕</button>
+                </div>
+
+                <div className="grid gap-3">
+                  <input
+                    value={playlistName}
+                    onChange={e => setPlaylistName(e.target.value)}
+                    placeholder="Nome da lista"
+                    className="input-dark w-full"
+                  />
+
+                  <input
+                    value={playlistUrl}
+                    onChange={e => setPlaylistUrl(e.target.value)}
+                    placeholder="https://exemplo-autorizado.com/lista.m3u ou canal.m3u8"
+                    className="input-dark w-full"
+                  />
+
+                  <textarea
+                    value={m3uContent}
+                    onChange={e => setM3uContent(e.target.value)}
+                    rows={6}
+                    placeholder={'Opcional: cole o conteúdo M3U aqui\n#EXTM3U\n#EXTINF:-1 group-title="Abertos",Canal Demo\nhttps://exemplo.com/canal.m3u8'}
+                    className="input-dark w-full resize-y font-mono text-xs"
+                  />
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleAddPlaylist}
+                      disabled={isAdding}
+                      className="btn-neon flex-1 disabled:opacity-50"
+                    >
+                      {isAdding ? 'Adicionando...' : 'Adicionar Lista'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        resetForm();
+                        setShowAdd(false);
+                      }}
+                      className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-text-gray hover:border-neon-orange/60 hover:text-white"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-[0.68rem] text-alert-yellow">
+                  ⚠️ Use apenas listas e fontes autorizadas. O app não fornece canais, filmes, séries ou listas.
+                </p>
+              </div>
+            )}
+
+            <div className="min-h-0 space-y-4 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+              {playlists.map((playlist, index) => (
+                <PlaylistPremiumRow
+                  key={playlist.id}
+                  playlist={playlist}
+                  index={index}
+                  selected={selectedPlaylist?.id === playlist.id}
+                  onClick={() => setSelectedId(playlist.id)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <aside className="min-h-0">
+            <div className="glass-panel sticky top-0 rounded-[1.5rem] p-6">
+              <h3 className="mb-5 text-2xl font-black text-text-white">Opções da lista</h3>
+
+              {selectedPlaylist ? (
+                <>
+                  <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="mb-3 flex items-center gap-3">
+                      <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-neon-cyan/25 bg-neon-cyan/10 text-3xl">
+                        {selectedPlaylist.type === 'm3u' ? '📺' : '🔗'}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-lg font-black text-text-white">{selectedPlaylist.name}</p>
+                        <p className="text-xs uppercase tracking-wider text-text-gray">{selectedPlaylist.type.toUpperCase()}</p>
+                      </div>
+                    </div>
+
+                    <div className="mb-2 flex items-center justify-between text-xs text-text-gray">
+                      <span>Sincronização</span>
+                      <span>{selectedPlaylist.channelCount} canais</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full w-full rounded-full bg-gradient-to-r from-active-green via-alert-yellow to-neon-orange" />
+                    </div>
+                    <p className="mt-2 text-[0.68rem] text-text-gray/70">Última sync: {selectedPlaylist.lastSync}</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button className="premium-card flex w-full items-center gap-4 rounded-2xl p-4 text-left hover:selected">
+                      <span className="text-3xl text-neon-cyan">✎</span>
+                      <span>
+                        <span className="block text-lg font-bold text-text-white">Editar lista</span>
+                        <span className="text-xs text-text-gray">Alterar nome, URL ou formato</span>
+                      </span>
+                    </button>
+
+                    <button className="premium-card flex w-full items-center gap-4 rounded-2xl p-4 text-left">
+                      <span className="text-3xl text-active-green">✓</span>
+                      <span>
+                        <span className="block text-lg font-bold text-text-white">Testar lista</span>
+                        <span className="text-xs text-text-gray">Validar canais e conexão</span>
+                      </span>
+                    </button>
+
+                    <button className="premium-card flex w-full items-center gap-4 rounded-2xl p-4 text-left">
+                      <span className="text-3xl text-error-red">🗑</span>
+                      <span>
+                        <span className="block text-lg font-bold text-text-white">Remover lista</span>
+                        <span className="text-xs text-text-gray">Excluir desta instalação</span>
+                      </span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-text-gray">Nenhuma lista selecionada.</p>
+              )}
+
+              <button
+                onClick={() => setShowAdd(true)}
+                className="mt-6 flex h-36 w-full flex-col items-center justify-center rounded-[1.35rem] border border-white/12 bg-white/[0.04] text-text-white transition-all hover:border-neon-orange hover:bg-neon-orange/10 hover:text-neon-orange"
+              >
+                <span className="text-6xl leading-none">＋</span>
+                <span className="mt-2 text-lg font-black uppercase">Adicionar nova lista</span>
+              </button>
+            </div>
+          </aside>
+        </main>
+
+        <BottomNav />
+      </div>
     </AppLayout>
   );
 }
 
-function PlaylistCard({ playlist }: { playlist: Playlist }) {
-  const [expanded, setExpanded] = useState(false);
+function PlaylistPremiumRow({
+  playlist,
+  index,
+  selected,
+  onClick,
+}: {
+  playlist: Playlist;
+  index: number;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const icon = index % 3 === 0 ? '📺' : index % 3 === 1 ? '🎬' : '⚽';
 
   return (
-    <NeonCard onClick={() => setExpanded(!expanded)} glowColor={playlist.status === 'active' ? 'green' : 'orange'}>
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-bg-dark border border-border flex items-center justify-center">
-              <span>📋</span>
-            </div>
-            <div>
-              <h3 className="text-text-white font-medium">{playlist.name}</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-text-gray/60 text-xs">{playlist.type.toUpperCase()}</span>
-                <StatusBadge status={playlist.status} />
-              </div>
-            </div>
-          </div>
-          <span className="text-text-gray/40">{expanded ? '▲' : '▼'}</span>
+    <button
+      onClick={onClick}
+      className={`premium-card flex w-full items-center gap-5 rounded-[1.35rem] p-5 text-left transition-all duration-300 ${
+        selected ? 'selected glow-orange' : ''
+      }`}
+    >
+      <span className={`flex h-20 w-20 items-center justify-center rounded-2xl border text-4xl ${
+        selected
+          ? 'border-neon-orange/60 bg-neon-orange/12 text-neon-orange'
+          : 'border-neon-cyan/25 bg-neon-cyan/8 text-neon-cyan'
+      }`}>
+        {icon}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center justify-between gap-4">
+          <h3 className="truncate text-xl font-black text-text-white">
+            {index + 1}. {playlist.name}
+          </h3>
+          <span className="text-sm font-bold text-text-white/80">{playlist.channelCount} canais</span>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 mt-3 text-xs text-text-gray">
-          <span>📺 {playlist.channelCount} canais</span>
-          <span>🎬 {playlist.movieCount} filmes</span>
-          <span>🎥 {playlist.seriesCount} séries</span>
-        </div>
+        <p className="mb-3 truncate text-sm text-text-gray">
+          Status: {playlist.status === 'active' ? 'Ativo' : playlist.status} • {playlist.type.toUpperCase()}
+        </p>
 
-        {/* Progress bar for sync */}
-        <div className="mt-2 h-1 bg-border rounded-full overflow-hidden">
-          <div className="h-full bg-active-green rounded-full w-full" />
+        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+          <div className={`h-full rounded-full ${
+            selected ? 'w-[88%] bg-gradient-to-r from-neon-orange to-alert-yellow' : 'w-[70%] bg-gradient-to-r from-neon-cyan to-active-green'
+          }`} />
         </div>
-        <p className="text-text-gray/40 text-[10px] mt-1">Última sincronização: {playlist.lastSync}</p>
-
-        {expanded && (
-          <div className="mt-3 pt-3 border-t border-border flex gap-2 animate-fade-in">
-            <button className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-xs hover:border-neon-orange/50 transition-colors">
-              ✏️ Editar
-            </button>
-            <button className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-xs hover:border-neon-cyan/50 transition-colors">
-              🧪 Testar
-            </button>
-            <button className="flex-1 bg-card border border-border text-text-gray py-2 rounded-lg text-xs hover:border-error-red/50 transition-colors">
-              🗑️ Remover
-            </button>
-          </div>
-        )}
       </div>
-    </NeonCard>
+    </button>
   );
 }
 
