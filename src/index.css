@@ -386,3 +386,29 @@ textarea:focus-visible {
 .clean-tv-muted {
   color: rgba(255, 255, 255, 0.52);
 }
+
+/* ===== CLEAN TV SIMPLE ELEMENTS ===== */
+.clean-tv-row {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.clean-tv-row:hover,
+.clean-tv-row.active {
+  background: rgba(35, 150, 242, 0.92);
+  color: #ffffff;
+}
+
+.clean-tv-tile {
+  background: rgba(7, 31, 58, 0.88);
+  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.035);
+}
+
+.clean-tv-tile:hover,
+.clean-tv-tile.active {
+  background: rgba(35, 150, 242, 0.24);
+  color: #ffffff;
+  border-color: rgba(35, 150, 242, 0.72);
+}
