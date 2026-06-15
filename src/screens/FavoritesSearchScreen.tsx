@@ -1,199 +1,254 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
-import { AppLayout, Header, ScrollContainer, BottomNav, NeonCard, ProgressBar, VirtualKeyboard, EmptyState } from '@/components/shared';
+import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 
-// ===== FAVORITES SCREEN =====
 export function FavoritesScreen() {
-  const { channels, movies, series, setScreen, toggleChannelFavorite, uiMode } = useAppStore();
-  const [tab, setTab] = useState<'channels' | 'movies' | 'series'>('channels');
+  const {
+    channels,
+    movies,
+    series,
+    setScreen,
+    setCurrentChannel,
+    setCurrentMovie,
+  } = useAppStore();
 
-  const favChannels = channels.filter(c => c.isFavorite);
-  const favMovies = movies.filter(m => m.isFavorite);
-  const favSeries = series.filter(s => s.isFavorite);
+  const favoriteChannels = channels.filter(item => item.isFavorite);
+  const favoriteMovies = movies.filter(item => item.isFavorite);
+  const favoriteSeries = series.filter(item => item.isFavorite);
+
+  const playbackMovies = movies.filter(item => (item.progress ?? 0) > 0);
+  const playbackSeries = series.filter(item => (item.progress ?? 0) > 0);
 
   return (
     <AppLayout>
-      <Header title="Favoritos" showBack onBack={() => setScreen('home')} />
+      <div className="clean-tv-page flex h-full px-14 py-8">
+        <BottomNav />
 
-      <ScrollContainer>
-        {/* Tabs */}
-        <div className="flex gap-2 mb-4">
-          {[
-            { key: 'channels' as const, label: `📺 Canais (${favChannels.length})` },
-            { key: 'movies' as const, label: `🎬 Filmes (${favMovies.length})` },
-            { key: 'series' as const, label: `🎥 Séries (${favSeries.length})` },
-          ].map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                tab === t.key ? 'bg-neon-orange text-bg-primary' : 'bg-white/[0.04] border border-white/10 text-text-gray hover:border-neon-orange/50'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <main className="min-w-0 flex-1 overflow-y-auto pr-8">
+          <h1 className="clean-tv-title mb-10 text-5xl">Playback</h1>
 
-        {tab === 'channels' && (
-          favChannels.length > 0 ? (
-            <div className={`grid ${uiMode === 'tv' ? 'grid-cols-3 gap-3' : 'grid-cols-1 gap-2'}`}>
-              {favChannels.map(ch => (
-                <NeonCard key={ch.id} onClick={() => setScreen('player')} glowColor="cyan">
-                  <div className="flex items-center gap-3 p-3">
-                    <div className="w-10 h-10 rounded-lg input-dark flex items-center justify-center">
-                      <span>📺</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-text-white text-sm font-medium truncate">{ch.name}</h3>
-                      <span className="text-active-green text-[10px]">● Ao vivo</span>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); toggleChannelFavorite(ch.id); }} className="text-alert-yellow">⭐</button>
+          <section className="mb-12">
+            <h2 className="clean-tv-title mb-5 text-3xl">Ao vivo</h2>
+
+            {favoriteChannels.length === 0 ? (
+              <CleanEmpty title="Sem canais favoritos" />
+            ) : (
+              <div className="grid grid-cols-5 gap-5">
+                {favoriteChannels.slice(0, 10).map(channel => (
+                  <button
+                    key={channel.id}
+                    onClick={() => {
+                      setCurrentChannel(channel);
+                      setScreen('player');
+                    }}
+                    className="clean-tv-tile rounded-md p-5 text-left"
+                  >
+                    <p className="text-3xl">▣</p>
+                    <p className="mt-5 truncate text-2xl font-light">{channel.name}</p>
+                    <p className="mt-2 text-base opacity-55">Canal favorito</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="mb-12">
+            <h2 className="clean-tv-title mb-5 text-3xl">Playback & VOD</h2>
+
+            {playbackMovies.length === 0 && playbackSeries.length === 0 ? (
+              <CleanEmpty title="Nenhum vídeo em andamento" />
+            ) : (
+              <div className="grid grid-cols-5 gap-5">
+                {playbackMovies.map(movie => (
+                  <button
+                    key={movie.id}
+                    onClick={() => {
+                      setCurrentMovie(movie);
+                      setScreen('player');
+                    }}
+                    className="clean-tv-tile rounded-md p-5 text-left"
+                  >
+                    <p className="text-sm opacity-50">{movie.year}</p>
+                    <p className="mt-4 truncate text-3xl font-light">{movie.name}</p>
+                    <p className="mt-2 text-base opacity-55">{movie.duration}</p>
+                    <ProgressBar progress={movie.progress ?? 0} className="mt-4" />
+                  </button>
+                ))}
+
+                {playbackSeries.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setScreen('series')}
+                    className="clean-tv-tile rounded-md p-5 text-left"
+                  >
+                    <p className="text-sm opacity-50">{item.seasons.length} temporada(s)</p>
+                    <p className="mt-4 truncate text-3xl font-light">{item.name}</p>
+                    <p className="mt-2 text-base opacity-55">Série</p>
+                    <ProgressBar progress={item.progress ?? 0} className="mt-4" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="clean-tv-title mb-5 text-3xl">Favoritos</h2>
+
+            <div className="grid grid-cols-6 gap-x-10 gap-y-9">
+              {favoriteMovies.map(movie => (
+                <button
+                  key={movie.id}
+                  onClick={() => {
+                    setCurrentMovie(movie);
+                    setScreen('player');
+                  }}
+                  className="group text-left"
+                >
+                  <div className="flex h-[210px] items-center justify-center rounded-xl bg-white/[0.045] text-6xl transition-transform group-hover:scale-[1.035]">
+                    🎬
                   </div>
-                </NeonCard>
+                  <p className="mt-3 truncate text-2xl font-light text-white/72 group-hover:text-white">
+                    {movie.name}
+                  </p>
+                </button>
+              ))}
+
+              {favoriteSeries.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setScreen('series')}
+                  className="group text-left"
+                >
+                  <div className="flex h-[210px] items-center justify-center rounded-xl bg-white/[0.045] text-6xl transition-transform group-hover:scale-[1.035]">
+                    🎥
+                  </div>
+                  <p className="mt-3 truncate text-2xl font-light text-white/72 group-hover:text-white">
+                    {item.name}
+                  </p>
+                </button>
               ))}
             </div>
-          ) : (
-            <EmptyState icon="📺" title="Nenhum canal favorito" description="Favorite canais para vê-los aqui" />
-          )
-        )}
-
-        {tab === 'movies' && (
-          favMovies.length > 0 ? (
-            <div className={`grid ${uiMode === 'tv' ? 'grid-cols-4 gap-4' : 'grid-cols-3 gap-3'}`}>
-              {favMovies.map(mv => (
-                <NeonCard key={mv.id} onClick={() => setScreen('movies')} glowColor="orange">
-                  <div className="h-32 bg-gradient-to-br from-bg-dark to-card flex items-center justify-center">
-                    <span className="text-3xl">🎬</span>
-                  </div>
-                  <div className="p-3">
-                    <h3 className="text-text-white text-sm font-medium truncate">{mv.name}</h3>
-                    <span className="text-text-gray/60 text-xs">{mv.year} • {mv.duration}</span>
-                    {mv.progress !== undefined && mv.progress > 0 && <ProgressBar progress={mv.progress} className="mt-2" />}
-                  </div>
-                </NeonCard>
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon="🎬" title="Nenhum filme favorito" description="Favorite filmes para vê-los aqui" />
-          )
-        )}
-
-        {tab === 'series' && (
-          favSeries.length > 0 ? (
-            <div className={`grid ${uiMode === 'tv' ? 'grid-cols-4 gap-4' : 'grid-cols-3 gap-3'}`}>
-              {favSeries.map(sr => (
-                <NeonCard key={sr.id} onClick={() => setScreen('series')} glowColor="cyan">
-                  <div className="h-32 bg-gradient-to-br from-bg-dark to-card flex items-center justify-center">
-                    <span className="text-3xl">🎥</span>
-                  </div>
-                  <div className="p-3">
-                    <h3 className="text-text-white text-sm font-medium truncate">{sr.name}</h3>
-                    <span className="text-neon-cyan text-xs">{sr.category}</span>
-                  </div>
-                </NeonCard>
-              ))}
-            </div>
-          ) : (
-            <EmptyState icon="🎥" title="Nenhuma série favorita" description="Favorite séries para vê-las aqui" />
-          )
-        )}
-      </ScrollContainer>
-
-      <BottomNav />
+          </section>
+        </main>
+      </div>
     </AppLayout>
   );
 }
 
-// ===== SEARCH SCREEN =====
 export function SearchScreen() {
-  const { channels, movies, series, setScreen, searchQuery, setSearchQuery, uiMode } = useAppStore();
-  const [query, setQuery] = useState(searchQuery);
+  const {
+    channels,
+    movies,
+    series,
+    setScreen,
+    setCurrentChannel,
+    setCurrentMovie,
+  } = useAppStore();
 
-  const results = useMemo(() => {
-    if (!query.trim()) return { channels: [], movies: [], series: [] };
-    const q = query.toLowerCase();
+  const [query, setQuery] = useState('');
+
+  const result = useMemo(() => {
+    const q = query.trim().toLowerCase();
+
+    if (!q) {
+      return {
+        channels: channels.slice(0, 8),
+        movies: movies.slice(0, 8),
+        series: series.slice(0, 8),
+      };
+    }
+
     return {
-      channels: channels.filter(c => c.name.toLowerCase().includes(q)),
-      movies: movies.filter(m => m.name.toLowerCase().includes(q)),
-      series: series.filter(s => s.name.toLowerCase().includes(q)),
+      channels: channels.filter(item => item.name.toLowerCase().includes(q)).slice(0, 12),
+      movies: movies.filter(item => item.name.toLowerCase().includes(q)).slice(0, 12),
+      series: series.filter(item => item.name.toLowerCase().includes(q)).slice(0, 12),
     };
-  }, [query, channels, movies, series]);
-
-  const totalResults = results.channels.length + results.movies.length + results.series.length;
+  }, [channels, movies, series, query]);
 
   return (
     <AppLayout>
-      <Header title="Busca" showBack onBack={() => setScreen('home')} />
+      <div className="clean-tv-page flex h-full px-14 py-8">
+        <BottomNav />
 
-      <ScrollContainer>
-        <VirtualKeyboard value={query} onChange={setQuery} onSearch={() => setSearchQuery(query)} />
+        <main className="min-w-0 flex-1">
+          <header className="mb-10 flex items-center gap-6">
+            <span className="text-5xl text-white/75">⌕</span>
+            <input
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              autoFocus
+              placeholder="Buscar"
+              className="w-full bg-transparent text-5xl font-light text-white/85 outline-none placeholder:text-white/35"
+            />
+          </header>
 
-        {query.trim() && (
-          <div className="mt-6 animate-fade-in">
-            <p className="text-text-gray text-sm mb-4">
-              {totalResults} resultado{totalResults !== 1 ? 's' : ''} para "{query}"
-            </p>
+          <div className="grid max-h-[calc(100vh-140px)] grid-cols-[1fr_1fr_1fr] gap-10 overflow-y-auto pr-8">
+            <SearchColumn title="Canais">
+              {result.channels.map(channel => (
+                <button
+                  key={channel.id}
+                  onClick={() => {
+                    setCurrentChannel(channel);
+                    setScreen('player');
+                  }}
+                  className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
+                >
+                  <span className="text-3xl">▣</span>
+                  <span className="truncate text-2xl font-light">{channel.name}</span>
+                </button>
+              ))}
+            </SearchColumn>
 
-            {results.channels.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-text-white font-bold mb-2">📺 Canais ({results.channels.length})</h3>
-                <div className="space-y-2">
-                  {results.channels.slice(0, 5).map(ch => (
-                    <div key={ch.id} onClick={() => setScreen('channels')} className="flex items-center gap-3 premium-card rounded-xl p-3 cursor-pointer hover:border-neon-orange/50 transition-all">
-                      <span>📺</span>
-                      <span className="text-text-white text-sm">{ch.name}</span>
-                      <span className="text-active-green text-[10px] ml-auto">AO VIVO</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <SearchColumn title="Filmes">
+              {result.movies.map(movie => (
+                <button
+                  key={movie.id}
+                  onClick={() => {
+                    setCurrentMovie(movie);
+                    setScreen('player');
+                  }}
+                  className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
+                >
+                  <span className="text-3xl">🎬</span>
+                  <span className="truncate text-2xl font-light">{movie.name}</span>
+                </button>
+              ))}
+            </SearchColumn>
 
-            {results.movies.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-text-white font-bold mb-2">🎬 Filmes ({results.movies.length})</h3>
-                <div className={`grid ${uiMode === 'tv' ? 'grid-cols-4 gap-3' : 'grid-cols-3 gap-2'}`}>
-                  {results.movies.slice(0, 6).map(mv => (
-                    <NeonCard key={mv.id} onClick={() => setScreen('movies')}>
-                      <div className="h-24 bg-gradient-to-br from-bg-dark to-card flex items-center justify-center">
-                        <span className="text-2xl">🎬</span>
-                      </div>
-                      <div className="p-2">
-                        <p className="text-text-white text-xs font-medium truncate">{mv.name}</p>
-                        <span className="text-text-gray/60 text-[10px]">{mv.year}</span>
-                      </div>
-                    </NeonCard>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {results.series.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-text-white font-bold mb-2">🎥 Séries ({results.series.length})</h3>
-                <div className={`grid ${uiMode === 'tv' ? 'grid-cols-4 gap-3' : 'grid-cols-3 gap-2'}`}>
-                  {results.series.slice(0, 6).map(sr => (
-                    <NeonCard key={sr.id} onClick={() => setScreen('series')} glowColor="cyan">
-                      <div className="h-24 bg-gradient-to-br from-bg-dark to-card flex items-center justify-center">
-                        <span className="text-2xl">🎥</span>
-                      </div>
-                      <div className="p-2">
-                        <p className="text-text-white text-xs font-medium truncate">{sr.name}</p>
-                        <span className="text-neon-cyan text-[10px]">{sr.category}</span>
-                      </div>
-                    </NeonCard>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {totalResults === 0 && (
-              <EmptyState icon="🔍" title="Nenhum resultado" description={`Não encontramos nada para "${query}". Tente outra busca.`} />
-            )}
+            <SearchColumn title="Séries">
+              {result.series.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setScreen('series')}
+                  className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
+                >
+                  <span className="text-3xl">🎥</span>
+                  <span className="truncate text-2xl font-light">{item.name}</span>
+                </button>
+              ))}
+            </SearchColumn>
           </div>
-        )}
-      </ScrollContainer>
+        </main>
+      </div>
     </AppLayout>
+  );
+}
+
+function SearchColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className="clean-tv-title mb-5 text-3xl">{title}</h2>
+      <div className="space-y-1">{children}</div>
+    </section>
+  );
+}
+
+function CleanEmpty({ title }: { title: string }) {
+  return (
+    <div className="clean-tv-tile max-w-[360px] rounded-md p-6">
+      <p className="text-3xl">◷</p>
+      <p className="mt-4 text-2xl font-light">{title}</p>
+      <p className="mt-2 text-base opacity-55">Nada para exibir por enquanto</p>
+    </div>
   );
 }
