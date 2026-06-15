@@ -1,41 +1,43 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { useAppStore } from '@/stores/appStore';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { useAppStore } from '@/stores/appStore';
+import { AppLayout } from '@/components/shared';
 
 export function PlayerScreen() {
-  const { channels, currentChannel, currentMovie, setCurrentChannel, setScreen } = useAppStore();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const {
+    currentChannel,
+    currentMovie,
+    channels,
+    setCurrentChannel,
+    setScreen,
+  } = useAppStore();
+
   const [showControls, setShowControls] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [showQuickList, setShowQuickList] = useState(false);
-  const [showOptions, setShowOptions] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [playerError, setPlayerError] = useState(false);
-  const [missingSource, setMissingSource] = useState(false);
+  const [playerError, setPlayerError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   const content = currentChannel || currentMovie;
-  const isLive = !!currentChannel;
-  const quickChannels = useMemo(() => {
-    const channelsWithUrl = channels.filter(ch => ch.url?.trim());
-    return channelsWithUrl.length > 0 ? channelsWithUrl : channels;
-  }, [channels]);
+  const isLive = Boolean(currentChannel);
+  const streamUrl = content?.url?.trim() || '';
 
-  const streamUrl = useMemo(() => {
-    const candidate = content?.url?.trim() ?? '';
-    return candidate.length > 0 ? candidate : '';
-  }, [content]);
+  const quickChannels = useMemo(() => {
+    const withUrl = channels.filter(channel => channel.url?.trim());
+    return withUrl.length ? withUrl.slice(0, 32) : channels.slice(0, 32);
+  }, [channels]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    setPlayerError(false);
-    setMissingSource(false);
-    setIsPlaying(false);
+    setPlayerError(null);
+    setIsReady(false);
 
     if (!streamUrl) {
-      setMissingSource(true);
+      video.removeAttribute('src');
+      video.load();
+      setPlayerError('Fonte autorizada não configurada para este conteúdo.');
       return;
     }
 
@@ -44,276 +46,245 @@ export function PlayerScreen() {
     if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
+        lowLatencyMode: isLive,
+        backBufferLength: 60,
       });
 
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().then(() => setIsPlaying(true)).catch(() => {
-          setIsPlaying(false);
+        setIsReady(true);
+        video.play().catch(() => {
+          setShowControls(true);
         });
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          setPlayerError(true);
-          setIsPlaying(false);
+          setPlayerError('Não foi possível reproduzir esta fonte. Verifique se a URL está ativa e autorizada.');
+          hls?.destroy();
         }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
-        video.play().then(() => setIsPlaying(true)).catch(() => {
-          setIsPlaying(false);
-        });
+        setIsReady(true);
+        video.play().catch(() => setShowControls(true));
       });
     } else {
-      setPlayerError(true);
+      setPlayerError('Este navegador não suporta HLS diretamente.');
     }
 
     return () => {
-      if (hls) hls.destroy();
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
+      hls?.destroy();
     };
-  }, [streamUrl]);
+  }, [streamUrl, isLive]);
 
-  // Auto-hide controls
   useEffect(() => {
-    if (!showControls) return;
-    const timer = setTimeout(() => setShowControls(false), 5000);
-    return () => clearTimeout(timer);
-  }, [showControls]);
+    const timer = window.setTimeout(() => setShowControls(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [showControls, content?.id]);
 
-  const togglePlay = () => {
-    const video = videoRef.current;
-    if (!video || missingSource || playerError) return;
-
-    if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
-    } else {
-      video.pause();
-      setIsPlaying(false);
-    }
+  const handleBack = () => {
+    setScreen(isLive ? 'channels' : 'home');
   };
 
-  // Keyboard controls for TV remote
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault();
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          setShowControls(true);
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          setShowQuickList(true);
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          togglePlay();
-          break;
-        case 'Escape':
-        case 'Backspace':
-          e.preventDefault();
-          setScreen('home');
-          break;
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [missingSource, playerError]);
-
-  const handleQuickChannelClick = (ch: typeof channels[0]) => {
-    setCurrentChannel(ch);
+  const handleQuickChannelClick = (channel: typeof channels[number]) => {
+    setCurrentChannel(channel);
     setShowQuickList(false);
     setShowControls(true);
   };
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
-
   return (
-    <div
-      className="h-full w-full bg-black relative overflow-hidden"
-      onMouseMove={() => setShowControls(true)}
-      onClick={() => setShowControls(!showControls)}
-    >
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime || 0)}
-        onDurationChange={() => setDuration(videoRef.current?.duration || 0)}
-      />
+    <AppLayout>
+      <div
+        className="relative h-full overflow-hidden rounded-[1.6rem] bg-black"
+        onMouseMove={() => setShowControls(true)}
+        onClick={() => setShowControls(current => !current)}
+      >
+        <video
+          ref={videoRef}
+          className="h-full w-full bg-black object-contain"
+          controls={false}
+          playsInline
+          autoPlay
+        />
 
-      {missingSource && (
-        <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/92">
-          <div className="text-center animate-scale-in max-w-lg px-6">
-            <span className="text-6xl mb-4 block">🔒</span>
-            <h3 className="text-2xl font-bold text-neon-orange mb-3">Fonte autorizada não configurada</h3>
-            <p className="text-text-gray text-sm mb-5 leading-relaxed">
-              Este item ainda não possui uma URL de reprodução. Cadastre uma lista M3U, Xtream ou fonte autorizada no painel/listas para reproduzir conteúdo real.
-            </p>
-            <div className="flex gap-3 justify-center flex-wrap">
-              <button onClick={() => setScreen('playlists')} className="bg-neon-orange text-bg-primary px-6 py-2 rounded-lg font-bold">
-                Configurar Listas
-              </button>
-              <button onClick={() => setScreen(isLive ? 'channels' : 'home')} className="bg-card border border-border text-text-gray px-6 py-2 rounded-lg">
+        {!streamUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-bg-primary via-bg-dark to-black">
+            <div className="glass-panel max-w-xl rounded-[1.8rem] p-8 text-center">
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[1.5rem] border border-alert-yellow/35 bg-alert-yellow/10 text-4xl">
+                ⚠️
+              </div>
+              <h2 className="text-3xl font-black text-text-white">Fonte não configurada</h2>
+              <p className="mt-3 text-text-gray">
+                Este conteúdo ainda não tem uma URL autorizada para reprodução.
+              </p>
+              <button onClick={handleBack} className="btn-neon mt-6">
                 Voltar
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {!isPlaying && !playerError && !missingSource && (
-        <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/80">
-          <div className="text-center animate-pulse-glow">
-            <span className="text-6xl mb-4 block">⏳</span>
-            <p className="text-text-gray">Carregando stream autorizado...</p>
-          </div>
-        </div>
-      )}
-
-      {playerError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/90">
-          <div className="text-center animate-scale-in max-w-md">
-            <span className="text-5xl mb-4 block">⚠️</span>
-            <h3 className="text-xl font-bold text-error-red mb-2">Canal Indisponível</h3>
-            <p className="text-text-gray text-sm mb-4">Esta fonte não respondeu. Verifique a lista autorizada ou escolha outro item.</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => window.location.reload()} className="bg-neon-orange text-bg-primary px-6 py-2 rounded-lg font-bold">
-                Tentar Novamente
-              </button>
-              <button onClick={() => setScreen('channels')} className="bg-card border border-border text-text-gray px-6 py-2 rounded-lg">
-                Próximo Canal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showControls && (
-        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none animate-fade-in">
-          <div className="bg-gradient-to-b from-black/80 to-transparent p-4 pointer-events-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button onClick={() => setScreen(isLive ? 'channels' : 'home')} className="text-white text-xl hover:text-neon-orange transition-colors">
-                  ←
-                </button>
-                <div>
-                  <h3 className="text-white font-bold text-lg">{content?.name || 'Reproduzindo'}</h3>
-                  {isLive && <span className="text-active-green text-xs flex items-center gap-1"><span className="w-1.5 h-1.5 bg-active-green rounded-full animate-pulse" />AO VIVO</span>}
-                  {!isLive && currentMovie && <span className="text-text-gray text-xs">{currentMovie.category} • {currentMovie.year}</span>}
-                </div>
+        {playerError && streamUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/82 backdrop-blur-sm">
+            <div className="glass-panel max-w-2xl rounded-[1.8rem] p-8 text-center">
+              <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[1.5rem] border border-error-red/35 bg-error-red/10 text-4xl">
+                ⛔
               </div>
-              <div className="flex items-center gap-4">
-                <button onClick={() => setShowQuickList(!showQuickList)} className="text-text-gray hover:text-neon-cyan transition-colors text-sm">
-                  📋 Lista
+              <h2 className="text-3xl font-black text-text-white">Erro na reprodução</h2>
+              <p className="mt-3 text-text-gray">{playerError}</p>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="btn-neon flex-1"
+                >
+                  Tentar novamente
                 </button>
-                <button onClick={() => setShowOptions(!showOptions)} className="text-text-gray hover:text-neon-cyan transition-colors text-sm">
-                  ⚙️ Opções
+                <button
+                  onClick={handleBack}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-text-white hover:border-neon-orange/60"
+                >
+                  Voltar
                 </button>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="flex items-center justify-center pointer-events-auto">
-            <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-bg-primary/50 border border-white/20 flex items-center justify-center text-white text-2xl hover:bg-neon-orange/30 hover:border-neon-orange transition-all">
-              {isPlaying ? '⏸' : '▶️'}
-            </button>
+        {streamUrl && !playerError && !isReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/55">
+            <div className="text-center">
+              <div className="mx-auto mb-5 h-16 w-16 animate-spin-slow rounded-full border-4 border-neon-orange/20 border-t-neon-orange" />
+              <p className="text-lg font-black text-text-white">Carregando transmissão...</p>
+              <p className="mt-1 text-sm text-text-gray">Validando fonte autorizada</p>
+            </div>
           </div>
+        )}
 
-          <div className="bg-gradient-to-t from-black/80 to-transparent p-4 pointer-events-auto">
-            {!isLive && duration > 0 && (
-              <div className="mb-3">
-                <div className="h-1 bg-white/20 rounded-full cursor-pointer">
-                  <div className="h-full bg-neon-orange rounded-full" style={{ width: `${(currentTime / duration) * 100}%` }} />
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span className="text-text-gray text-xs">{formatTime(currentTime)}</span>
-                  <span className="text-text-gray text-xs">{formatTime(duration)}</span>
-                </div>
+        <div
+          className={`absolute inset-x-0 top-0 bg-gradient-to-b from-black/88 via-black/45 to-transparent p-6 transition-opacity duration-300 ${
+            showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleBack}
+                className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] text-2xl text-white transition-all hover:border-neon-orange hover:text-neon-orange"
+              >
+                ←
+              </button>
+
+              <div>
+                <p className="text-xs uppercase tracking-[0.34em] text-neon-cyan/80">
+                  {isLive ? 'Ao vivo' : 'Reprodução'}
+                </p>
+                <h1 className="text-3xl font-black text-text-white">
+                  {content?.name || 'RonecaPlayTV'}
+                </h1>
+                <p className="mt-1 text-sm text-text-gray">
+                  {isLive ? 'Canal autorizado' : 'Filme autorizado'} • Player premium
+                </p>
               </div>
-            )}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="text-white text-xl hover:text-neon-orange transition-colors">
-                  {isPlaying ? '⏸' : '▶️'}
-                </button>
-                <span className="text-text-gray text-sm">
-                  {isLive ? '● Ao Vivo' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isLive && (
+                <span className="rounded-full border border-active-green/30 bg-active-green/15 px-4 py-2 text-xs font-black uppercase text-active-green">
+                  ● ao vivo
                 </span>
+              )}
+
+              <button
+                onClick={() => setShowQuickList(current => !current)}
+                className="rounded-xl border border-white/12 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition-all hover:border-neon-orange hover:text-neon-orange"
+              >
+                Lista rápida
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/92 via-black/50 to-transparent p-6 transition-opacity duration-300 ${
+            showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        >
+          <div className="glass-panel flex items-center justify-between rounded-[1.5rem] p-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => {
+                  const video = videoRef.current;
+                  if (!video) return;
+                  if (video.paused) video.play();
+                  else video.pause();
+                }}
+                className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neon-orange text-2xl font-black text-bg-primary glow-orange"
+              >
+                ▶
+              </button>
+
+              <div>
+                <p className="text-sm font-black text-text-white">{content?.name || 'Sem conteúdo'}</p>
+                <p className="text-xs text-text-gray">
+                  {streamUrl ? 'Fonte conectada' : 'Sem URL de reprodução'}
+                </p>
               </div>
-              <button className="text-text-gray hover:text-white transition-colors text-sm">
-                🔲 Tela Cheia
-              </button>
+            </div>
+
+            <div className="flex items-center gap-3 text-sm text-text-gray">
+              <span>HD</span>
+              <span>•</span>
+              <span>HLS</span>
+              <span>•</span>
+              <span>RonecaPlayTV</span>
             </div>
           </div>
         </div>
-      )}
 
-      {showQuickList && (
-        <div className="absolute right-0 top-0 bottom-0 w-72 bg-bg-dark/95 border-l border-border overflow-y-auto animate-slide-in-right">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-text-white font-bold">Canais</h3>
-              <button onClick={() => setShowQuickList(false)} className="text-text-gray hover:text-white">✕</button>
-            </div>
-            {quickChannels.slice(0, 30).map(ch => (
-              <button key={ch.id} onClick={() => handleQuickChannelClick(ch)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-card cursor-pointer transition-colors text-left">
-                <span className="text-sm">📺</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-text-white text-sm truncate">{ch.name}</p>
-                </div>
-                {ch.id === currentChannel?.id && <span className="text-neon-orange text-xs">▶</span>}
+        {showQuickList && (
+          <aside className="absolute bottom-28 right-6 top-28 w-[25rem] overflow-hidden rounded-[1.5rem] glass-panel p-4 animate-slide-in-right">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-text-white">Lista rápida</h2>
+                <p className="text-xs text-text-gray">Troque de canal sem sair do player</p>
+              </div>
+              <button
+                onClick={() => setShowQuickList(false)}
+                className="text-text-gray hover:text-white"
+              >
+                ✕
               </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showOptions && (
-        <div className="absolute right-0 top-0 bottom-0 w-72 bg-bg-dark/95 border-l border-border overflow-y-auto animate-slide-in-right">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-text-white font-bold">Opções do Player</h3>
-              <button onClick={() => setShowOptions(false)} className="text-text-gray hover:text-white">✕</button>
             </div>
-            <div className="space-y-2">
-              {[
-                { icon: '🖥️', label: 'Player Nativo', active: true },
-                { icon: '🔧', label: 'VLC Externo', active: false },
-                { icon: '📱', label: 'MX Player', active: false },
-                { icon: '⚡', label: 'Decodificação: Auto', active: true },
-                { icon: '📦', label: 'Buffer: Médio', active: true },
-                { icon: '🔄', label: 'Reconexão Auto', active: true },
-                { icon: '🔁', label: 'Recarregar Stream', active: false },
-                { icon: '⚠️', label: 'Reportar Erro', active: false },
-              ].map(opt => (
-                <button key={opt.label} className="w-full flex items-center gap-3 p-3 rounded-lg bg-card border border-border hover:border-neon-orange/50 transition-all text-left">
-                  <span>{opt.icon}</span>
-                  <span className="text-text-white text-sm flex-1">{opt.label}</span>
-                  {opt.active && <span className="text-active-green text-xs">●</span>}
+
+            <div className="space-y-2 overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+              {quickChannels.map(channel => (
+                <button
+                  key={channel.id}
+                  onClick={() => handleQuickChannelClick(channel)}
+                  className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                    currentChannel?.id === channel.id
+                      ? 'border-neon-orange bg-neon-orange/12 text-neon-orange'
+                      : 'border-white/10 bg-white/[0.04] text-text-gray hover:border-neon-orange/60 hover:text-text-white'
+                  }`}
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-xl">
+                    📺
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-black">{channel.name}</span>
+                    <span className="text-[0.68rem] uppercase tracking-wider text-active-green">Ao vivo</span>
+                  </span>
+                  <span>▶</span>
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </aside>
+        )}
+      </div>
+    </AppLayout>
   );
 }
