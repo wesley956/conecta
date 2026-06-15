@@ -1,0 +1,30 @@
+{
+  "name": "ronecaplaytv",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "5.1.1",
+    "vite": "7.3.2",
+    "typescript": "5.9.3",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "lucide-react": "^1.18.0",
+    "zustand": "^5.0.14",
+    "hls.js": "^1.6.16",
+    "clsx": "2.1.1",
+    "tailwind-merge": "3.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.17",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3"
+  }
+}
