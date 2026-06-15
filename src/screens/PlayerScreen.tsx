@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import Hls from 'hls.js';
 
@@ -12,40 +12,70 @@ export function PlayerScreen() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playerError, setPlayerError] = useState(false);
+  const [missingSource, setMissingSource] = useState(false);
 
   const content = currentChannel || currentMovie;
   const isLive = !!currentChannel;
 
-  // Demo: use a free HLS test stream
-  const demoUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+  const streamUrl = useMemo(() => {
+    const candidate = content?.url?.trim() ?? '';
+    return candidate.length > 0 ? candidate : '';
+  }, [content]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
+    setPlayerError(false);
+    setMissingSource(false);
+    setIsPlaying(false);
+
+    if (!streamUrl) {
+      setMissingSource(true);
+      return;
+    }
+
+    let hls: Hls | null = null;
+
     if (Hls.isSupported()) {
-      const hls = new Hls({
+      hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
       });
-      hls.loadSource(demoUrl);
+
+      hls.loadSource(streamUrl);
       hls.attachMedia(video);
+
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().then(() => setIsPlaying(true)).catch(() => {});
+        video.play().then(() => setIsPlaying(true)).catch(() => {
+          setIsPlaying(false);
+        });
       });
+
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           setPlayerError(true);
+          setIsPlaying(false);
         }
       });
-      return () => { hls.destroy(); };
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = demoUrl;
+      video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
-        video.play().then(() => setIsPlaying(true)).catch(() => {});
+        video.play().then(() => setIsPlaying(true)).catch(() => {
+          setIsPlaying(false);
+        });
       });
+    } else {
+      setPlayerError(true);
     }
-  }, []);
+
+    return () => {
+      if (hls) hls.destroy();
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    };
+  }, [streamUrl]);
 
   // Auto-hide controls
   useEffect(() => {
@@ -53,6 +83,18 @@ export function PlayerScreen() {
     const timer = setTimeout(() => setShowControls(false), 5000);
     return () => clearTimeout(timer);
   }, [showControls]);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video || missingSource || playerError) return;
+
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  };
 
   // Keyboard controls for TV remote
   useEffect(() => {
@@ -86,18 +128,7 @@ export function PlayerScreen() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, []);
-
-  const togglePlay = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
-    } else {
-      video.pause();
-      setIsPlaying(false);
-    }
-  };
+  }, [missingSource, playerError]);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -111,7 +142,6 @@ export function PlayerScreen() {
       onMouseMove={() => setShowControls(true)}
       onClick={() => setShowControls(!showControls)}
     >
-      {/* Video Element */}
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
@@ -119,25 +149,43 @@ export function PlayerScreen() {
         onDurationChange={() => setDuration(videoRef.current?.duration || 0)}
       />
 
-      {/* Demo overlay when no real content */}
-      {!isPlaying && !playerError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/80">
-          <div className="text-center animate-pulse-glow">
-            <span className="text-6xl mb-4 block">⏳</span>
-            <p className="text-text-gray">Carregando stream...</p>
+      {missingSource && (
+        <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/92">
+          <div className="text-center animate-scale-in max-w-lg px-6">
+            <span className="text-6xl mb-4 block">🔒</span>
+            <h3 className="text-2xl font-bold text-neon-orange mb-3">Fonte autorizada não configurada</h3>
+            <p className="text-text-gray text-sm mb-5 leading-relaxed">
+              Este item ainda não possui uma URL de reprodução. Cadastre uma lista M3U, Xtream ou fonte autorizada no painel/listas para reproduzir conteúdo real.
+            </p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button onClick={() => setScreen('playlists')} className="bg-neon-orange text-bg-primary px-6 py-2 rounded-lg font-bold">
+                Configurar Listas
+              </button>
+              <button onClick={() => setScreen(isLive ? 'channels' : 'home')} className="bg-card border border-border text-text-gray px-6 py-2 rounded-lg">
+                Voltar
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Error overlay */}
+      {!isPlaying && !playerError && !missingSource && (
+        <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/80">
+          <div className="text-center animate-pulse-glow">
+            <span className="text-6xl mb-4 block">⏳</span>
+            <p className="text-text-gray">Carregando stream autorizado...</p>
+          </div>
+        </div>
+      )}
+
       {playerError && (
         <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/90">
           <div className="text-center animate-scale-in max-w-md">
             <span className="text-5xl mb-4 block">⚠️</span>
             <h3 className="text-xl font-bold text-error-red mb-2">Canal Indisponível</h3>
-            <p className="text-text-gray text-sm mb-4">Este canal não respondeu. Tente novamente ou escolha outro.</p>
+            <p className="text-text-gray text-sm mb-4">Esta fonte não respondeu. Verifique a lista autorizada ou escolha outro item.</p>
             <div className="flex gap-3 justify-center">
-              <button onClick={() => setPlayerError(false)} className="bg-neon-orange text-bg-primary px-6 py-2 rounded-lg font-bold">
+              <button onClick={() => window.location.reload()} className="bg-neon-orange text-bg-primary px-6 py-2 rounded-lg font-bold">
                 Tentar Novamente
               </button>
               <button onClick={() => setScreen('channels')} className="bg-card border border-border text-text-gray px-6 py-2 rounded-lg">
@@ -148,10 +196,8 @@ export function PlayerScreen() {
         </div>
       )}
 
-      {/* Controls Overlay */}
       {showControls && (
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none animate-fade-in">
-          {/* Top Bar */}
           <div className="bg-gradient-to-b from-black/80 to-transparent p-4 pointer-events-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -175,16 +221,13 @@ export function PlayerScreen() {
             </div>
           </div>
 
-          {/* Center Play Button */}
           <div className="flex items-center justify-center pointer-events-auto">
             <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-bg-primary/50 border border-white/20 flex items-center justify-center text-white text-2xl hover:bg-neon-orange/30 hover:border-neon-orange transition-all">
               {isPlaying ? '⏸' : '▶️'}
             </button>
           </div>
 
-          {/* Bottom Bar */}
           <div className="bg-gradient-to-t from-black/80 to-transparent p-4 pointer-events-auto">
-            {/* Progress bar (VOD only) */}
             {!isLive && duration > 0 && (
               <div className="mb-3">
                 <div className="h-1 bg-white/20 rounded-full cursor-pointer">
@@ -213,7 +256,6 @@ export function PlayerScreen() {
         </div>
       )}
 
-      {/* Quick Channel List Sidebar */}
       {showQuickList && (
         <div className="absolute right-0 top-0 bottom-0 w-72 bg-bg-dark/95 border-l border-border overflow-y-auto animate-slide-in-right">
           <div className="p-4">
@@ -234,7 +276,6 @@ export function PlayerScreen() {
         </div>
       )}
 
-      {/* Options Panel */}
       {showOptions && (
         <div className="absolute right-0 top-0 bottom-0 w-72 bg-bg-dark/95 border-l border-border overflow-y-auto animate-slide-in-right">
           <div className="p-4">
