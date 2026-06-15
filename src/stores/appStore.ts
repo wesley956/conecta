@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AppState, UIMode, AppSettings, WatchHistory, Channel, Movie, Series, Playlist } from '@/types';
 import { channels as mockChannels, movies as mockMovies, series as mockSeries, playlists as mockPlaylists, watchHistory as mockHistory, DEVICE_CODE, LEGAL_NOTICE } from '@/data/mock';
 import { parseM3U, isLikelyM3U } from '@/utils/m3u';
@@ -71,7 +72,9 @@ interface AppStore {
   setSplashDone: (val: boolean) => void;
 }
 
-export const useAppStore = create<AppStore>((set) => ({
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set) => ({
   // Navigation
   currentScreen: 'splash',
   setScreen: (screen) => set((state) => ({ currentScreen: screen, previousScreen: state.currentScreen })),
@@ -187,4 +190,24 @@ export const useAppStore = create<AppStore>((set) => ({
   // Splash
   splashDone: false,
   setSplashDone: (val) => set({ splashDone: val }),
-}));
+    }),
+    {
+      name: 'ronecaplaytv-local-state-v1',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        uiMode: state.uiMode,
+        deviceActivated: state.deviceActivated,
+        subscriptionActive: state.subscriptionActive,
+        expiresAt: state.expiresAt,
+        daysRemaining: state.daysRemaining,
+        channels: state.channels,
+        movies: state.movies,
+        series: state.series,
+        playlists: state.playlists,
+        watchHistory: state.watchHistory,
+        settings: state.settings,
+        activeNotice: state.activeNotice,
+      }),
+    }
+  )
+);
