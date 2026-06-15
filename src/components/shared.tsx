@@ -5,18 +5,20 @@ import { useAppStore } from '@/stores/appStore';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { uiMode, activeNotice } = useAppStore();
-  
+
   return (
-    <div className={`h-full w-full bg-bg-primary bg-pattern overflow-hidden flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
-      {/* Notice Banner */}
+    <div className={`h-full w-full premium-bg overflow-hidden flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
       {activeNotice && (
-        <div className="bg-neon-orange/10 border border-neon-orange/30 text-neon-orange px-4 py-2 rounded-lg mb-3 text-sm flex items-center justify-between animate-fade-in">
-          <span>{activeNotice}</span>
-          <button onClick={() => useAppStore.getState().setActiveNotice(null)} className="ml-4 text-white/60 hover:text-white">
-            ✕
-          </button>
+        <div className="absolute left-[4.5vw] right-[4.5vw] top-4 z-50 rounded-2xl border border-neon-orange/30 bg-bg-dark/88 px-4 py-3 text-neon-orange shadow-[0_0_26px_rgba(255,122,26,.18)] backdrop-blur-xl animate-fade-in">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span>{activeNotice}</span>
+            <button onClick={() => useAppStore.getState().setActiveNotice(null)} className="text-white/60 hover:text-white">
+              ✕
+            </button>
+          </div>
         </div>
       )}
+
       <div className="flex-1 overflow-hidden">
         {children}
       </div>
@@ -36,51 +38,57 @@ export function Header({ title, showBack, onBack, showAdmin, showSearch, showUse
 }) {
   const { setScreen, setAdminMode, uiMode } = useAppStore();
   const [time, setTime] = useState(new Date());
-  
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   const formatTime = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  
+
   return (
-    <header className={`flex items-center justify-between mb-4 ${uiMode === 'tv' ? 'mb-6' : 'mb-3'}`}>
-      <div className="flex items-center gap-3">
+    <header className={`mb-6 flex items-center justify-between ${uiMode === 'tv' ? 'mb-8' : 'mb-4'}`}>
+      <div className="flex items-center gap-4">
         {showBack && (
-          <button onClick={onBack || (() => setScreen('home'))} className="text-text-gray hover:text-neon-orange transition-colors p-2">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          <button onClick={onBack || (() => setScreen('home'))} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-orange hover:text-neon-orange">
+            ←
           </button>
         )}
+
         {title ? (
-          <h1 className={`${uiMode === 'tv' ? 'text-2xl' : 'text-lg'} font-bold text-text-white`}>{title}</h1>
+          <div>
+            <h1 className={`${uiMode === 'tv' ? 'text-3xl' : 'text-xl'} font-black text-text-white`}>{title}</h1>
+            <p className="text-xs uppercase tracking-[0.28em] text-text-gray/70">RonecaPlayTV</p>
+          </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-neon-orange text-2xl font-extrabold tracking-wider glow-orange-text">RONECA</span>
-            <span className="text-neon-cyan text-2xl font-extrabold tracking-wider glow-cyan-text">PLAY</span>
-            <span className="text-text-gray text-sm font-medium ml-1">TV</span>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-orange to-neon-cyan text-2xl font-black text-bg-primary">R</div>
+            <div className="text-2xl font-black">
+              <span className="text-text-white">Roneca</span><span className="font-medium text-text-white/90">PlayTV</span>
+            </div>
           </div>
         )}
       </div>
-      <div className="flex items-center gap-4">
+
+      <div className="flex items-center gap-3">
         {showSearch && (
-          <button onClick={() => setScreen('search')} className="text-text-gray hover:text-neon-cyan transition-colors">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <button onClick={() => setScreen('search')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-cyan hover:text-neon-cyan">
+            🔍
           </button>
         )}
+
         {showAdmin && (
-          <button onClick={() => setAdminMode(true)} className="text-text-gray hover:text-neon-orange transition-colors text-sm border border-border px-3 py-1 rounded-lg hover:border-neon-orange">
-            ⚙️ Admin
+          <button onClick={() => setAdminMode(true)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray transition-all hover:border-neon-orange hover:text-neon-orange">
+            Admin
           </button>
         )}
-        <div className="flex items-center gap-2 text-text-gray text-sm">
-          <span className="text-active-green">●</span>
-          <span>Online</span>
-        </div>
-        <span className={`${uiMode === 'tv' ? 'text-lg' : 'text-sm'} text-text-gray font-mono`}>{formatTime(time)}</span>
+
+        <span className="hidden text-active-green md:inline">●</span>
+        <span className={`${uiMode === 'tv' ? 'text-2xl' : 'text-base'} font-light text-text-white`}>{formatTime(time)}</span>
+
         {showUser && (
-          <div className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center text-neon-orange text-sm font-bold">
-            U
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.08] text-lg">
+            👤
           </div>
         )}
       </div>
