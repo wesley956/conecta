@@ -226,6 +226,19 @@ function normalizeXtreamPlaybackUrl(streamUrl: string, sourceUrl: string, kind: 
   return `${source.origin}/${folder}/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${safeFileName}`;
 }
 
+function uniqueUrls(urls: string[]) {
+  return [...new Set(urls.filter(Boolean))];
+}
+
+function buildPlaybackUrls(streamUrl: string, sourceUrl: string, kind: EntryKind) {
+  const normalized = normalizeXtreamPlaybackUrl(streamUrl, sourceUrl, kind);
+
+  return uniqueUrls([
+    streamUrl,
+    normalized,
+  ]);
+}
+
 export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = ''): ParsedM3UResult {
   const lines = content
     .split(/\r?\n/)
@@ -259,7 +272,8 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
     };
 
     const kind = classifyEntry(entry);
-    entry.url = normalizeXtreamPlaybackUrl(entry.url, sourceUrl, kind);
+    const playbackUrls = buildPlaybackUrls(entry.url, sourceUrl, kind);
+    entry.url = playbackUrls[0];
 
     if (kind === 'live') {
       channels.push({
@@ -268,6 +282,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
         group: safeGroupName(entry.groupTitle),
         groupTitle: entry.groupTitle,
         url: entry.url,
+        playbackUrls,
         logo: entry.logo,
         epgId: entry.epgId,
         isFavorite: false,
@@ -286,6 +301,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
         cover: entry.logo,
         category: cleanMediaCategory(entry.groupTitle, 'movie'),
         url: entry.url,
+        playbackUrls,
         isFavorite: false,
         progress: 0,
       });
@@ -331,6 +347,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
       number: parsedEpisode.episode,
       name: entry.name,
       url: entry.url,
+      playbackUrls,
       duration: '—',
       progress: 0,
     });

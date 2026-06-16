@@ -19,6 +19,7 @@ export interface Channel {
   url?: string;
   epgId?: string;
   isFavorite?: boolean;
+  playbackUrls?: string[];
 }
 
 // Channel Category
@@ -41,6 +42,7 @@ export interface Movie {
   url?: string;
   isFavorite?: boolean;
   progress?: number; // 0-100
+  playbackUrls?: string[];
 }
 
 // Series
@@ -67,6 +69,7 @@ export interface Episode {
   url: string;
   duration: string;
   progress?: number;
+  playbackUrls?: string[];
 }
 
 // EPG

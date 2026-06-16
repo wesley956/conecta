@@ -41,15 +41,30 @@ export function PlayerScreen() {
   const [showList, setShowList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
 
   const content = currentMovie || currentChannel;
   const isLive = Boolean(currentChannel && !currentMovie);
-  const streamUrl = content?.url?.trim() || '';
+
+  const playbackCandidates = useMemo(() => {
+    if (!content) return [];
+
+    const extraUrls = Array.isArray(content.playbackUrls) ? content.playbackUrls : [];
+
+    return [...new Set([content.url, ...extraUrls].map(url => url?.trim()).filter(Boolean))];
+  }, [content]);
+
+  const streamUrl = playbackCandidates[playbackUrlIndex] || '';
   const playbackUrl = useMemo(() => toMediaProxyUrl(streamUrl), [streamUrl]);
+  const hasNextPlaybackUrl = playbackUrlIndex + 1 < playbackCandidates.length;
 
   const quickChannels = useMemo(() => {
     return channels.filter(channel => channel.url?.trim()).slice(0, 36);
   }, [channels]);
+
+  useEffect(() => {
+    setPlaybackUrlIndex(0);
+  }, [content?.id]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -71,6 +86,16 @@ export function PlayerScreen() {
     let tsPlayer: any = null;
     const isHls = isHlsUrl(streamUrl);
     const isMpegTs = isMpegTsUrl(streamUrl);
+
+    const tryNextPlaybackUrl = (message: string) => {
+      if (playbackUrlIndex + 1 < playbackCandidates.length) {
+        setError(`${message} Tentando outra fonte (${playbackUrlIndex + 2}/${playbackCandidates.length})...`);
+        setPlaybackUrlIndex(index => index + 1);
+        return;
+      }
+
+      setError(message);
+    };
 
     if (isMpegTs) {
       if (!mpegts?.getFeatureList?.().mseLivePlayback && !mpegts?.getFeatureList?.().msePlayback) {
@@ -101,7 +126,7 @@ export function PlayerScreen() {
       }
 
       const markReady = () => setReady(true);
-      const markError = () => setError('Não foi possível reproduzir este canal MPEG-TS.');
+      const markError = () => tryNextPlaybackUrl('Não foi possível reproduzir este canal MPEG-TS.');
 
       video.addEventListener('loadedmetadata', markReady);
       video.addEventListener('canplay', markReady);
@@ -134,8 +159,8 @@ export function PlayerScreen() {
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          setError('Não foi possível reproduzir esta fonte HLS.');
           hls?.destroy();
+          tryNextPlaybackUrl('Não foi possível reproduzir esta fonte HLS.');
         }
       });
     } else {
@@ -144,7 +169,7 @@ export function PlayerScreen() {
         setReady(true);
         video.play().catch(() => setShowControls(true));
       };
-      video.onerror = () => setError('Não foi possível reproduzir esta fonte.');
+      video.onerror = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte.');
     }
 
     return () => {
@@ -153,7 +178,7 @@ export function PlayerScreen() {
       video.onloadedmetadata = null;
       video.onerror = null;
     };
-  }, [streamUrl, playbackUrl, isLive]);
+  }, [streamUrl, playbackUrl, isLive, playbackUrlIndex, playbackCandidates]);
 
   useEffect(() => {
     if (!showControls) return;
@@ -196,10 +221,17 @@ export function PlayerScreen() {
 
               <div className="mt-10 flex gap-4">
                 <button
-                  onClick={() => window.location.reload()}
+                  onClick={() => {
+                    if (hasNextPlaybackUrl) {
+                      setPlaybackUrlIndex(index => index + 1);
+                      setError(null);
+                    } else {
+                      window.location.reload();
+                    }
+                  }}
                   className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light text-white"
                 >
-                  Tentar novamente
+                  {hasNextPlaybackUrl ? 'Tentar próxima fonte' : 'Tentar novamente'}
                 </button>
                 <button
                   onClick={goBack}
