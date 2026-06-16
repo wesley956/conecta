@@ -5,6 +5,8 @@ import { channelCategories } from '@/data/mock';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import type { Channel } from '@/types';
 
+const CHANNEL_RENDER_BATCH_SIZE = 120;
+
 function humanizeGroupName(group: string) {
   return group
     .split('-')
@@ -40,6 +42,7 @@ export function ChannelsScreen() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
   const [autoError, setAutoError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(CHANNEL_RENDER_BATCH_SIZE);
   const loadingRef = useRef(false);
   const attemptedKeyRef = useRef('');
 
@@ -152,6 +155,16 @@ export function ChannelsScreen() {
     return channels.filter(channel => channel.group === selectedCategoryId);
   }, [channels, selectedCategoryId]);
 
+  useEffect(() => {
+    setVisibleCount(CHANNEL_RENDER_BATCH_SIZE);
+  }, [selectedCategoryId, channels.length]);
+
+  const visibleChannels = useMemo(() => {
+    return filteredChannels.slice(0, visibleCount);
+  }, [filteredChannels, visibleCount]);
+
+  const canLoadMore = visibleChannels.length < filteredChannels.length;
+
   const playChannel = (channel: Channel) => {
     setCurrentChannel(channel);
     setScreen('player');
@@ -195,7 +208,7 @@ export function ChannelsScreen() {
             </div>
 
             <p className="text-xl font-light text-white/45">
-              {autoLoading ? 'Carregando...' : `${filteredChannels.length} canal(is)`}
+              {autoLoading ? 'Carregando...' : `${visibleChannels.length}/${filteredChannels.length} canal(is)`}
             </p>
           </div>
 
@@ -221,7 +234,7 @@ export function ChannelsScreen() {
             </div>
           ) : (
             <div className="grid max-h-[calc(100vh-120px)] grid-cols-2 gap-x-12 gap-y-2 overflow-y-auto pr-6">
-              {filteredChannels.map(channel => {
+              {visibleChannels.map(channel => {
                 const safeLogo = getSafeImageUrl(channel.logo);
 
                 return (
@@ -245,6 +258,15 @@ export function ChannelsScreen() {
                   </button>
                 );
               })}
+
+              {canLoadMore && (
+                <button
+                  onClick={() => setVisibleCount(count => count + CHANNEL_RENDER_BATCH_SIZE)}
+                  className="col-span-2 mx-auto mt-6 rounded-md bg-white/[0.08] px-8 py-3 text-xl font-light text-white/75 hover:bg-white/[0.14] hover:text-white"
+                >
+                  Carregar mais {Math.min(CHANNEL_RENDER_BATCH_SIZE, filteredChannels.length - visibleChannels.length)} canal(is)
+                </button>
+              )}
             </div>
           )}
         </main>

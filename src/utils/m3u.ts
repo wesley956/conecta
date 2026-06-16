@@ -36,6 +36,34 @@ function isPlayableUrl(url: string): boolean {
   return /^https?:\/\//i.test(url) || /^rtmp:\/\//i.test(url);
 }
 
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function isLikelyVodEntry(name: string, groupTitle: string, url: string): boolean {
+  const text = normalizeText(`${groupTitle} ${name}`);
+
+  if (
+    text.includes('filme') ||
+    text.includes('filmes') ||
+    text.includes('movie') ||
+    text.includes('movies') ||
+    text.includes('vod') ||
+    text.includes('cinema') ||
+    text.includes('serie') ||
+    text.includes('series') ||
+    text.includes('temporada') ||
+    text.includes('novela')
+  ) {
+    return true;
+  }
+
+  return /\.(mp4|mkv|avi|mov|wmv|flv)(\?|$)/i.test(url);
+}
+
 export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3UResult {
   const lines = content
     .split(/\r?\n/)
@@ -59,6 +87,14 @@ export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3URe
 
     const name = readName(line);
     const groupTitle = readAttr(line, 'group-title') || 'Outros';
+
+    // Nesta fase, a seção TV Ao Vivo deve carregar só canais.
+    // Filmes e séries serão tratados em telas próprias depois.
+    if (isLikelyVodEntry(name, groupTitle, url)) {
+      skipped += 1;
+      continue;
+    }
+
     const logo = readAttr(line, 'tvg-logo');
     const epgId = readAttr(line, 'tvg-id');
 
