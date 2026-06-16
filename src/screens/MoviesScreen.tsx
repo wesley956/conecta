@@ -1,27 +1,51 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
-import { movieCategories } from '@/data/mock';
 import type { Movie } from '@/types';
 
 const MOVIE_RENDER_BATCH_SIZE = 60;
 
+interface CategoryOption {
+  id: string;
+  name: string;
+  count: number;
+}
+
+function sortByName(a: CategoryOption, b: CategoryOption) {
+  return a.name.localeCompare(b.name, 'pt-BR');
+}
+
 export function MoviesScreen() {
   const { movies, setScreen, setCurrentMovie } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState('Destaques');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(MOVIE_RENDER_BATCH_SIZE);
 
-  const categories = useMemo(() => {
-    const importedCategories = movies.map(movie => movie.category).filter(Boolean);
-    return ['Destaques', 'Em alta', 'Lançamentos', ...new Set([...movieCategories.filter(c => c !== 'Todos'), ...importedCategories])];
+  const categoryOptions = useMemo<CategoryOption[]>(() => {
+    const map = new Map<string, CategoryOption>();
+
+    for (const movie of movies) {
+      const name = movie.category || 'Outros';
+      const current = map.get(name);
+
+      map.set(name, {
+        id: name,
+        name,
+        count: (current?.count ?? 0) + 1,
+      });
+    }
+
+    return [
+      { id: 'all', name: 'Todos', count: movies.length },
+      { id: 'favorites', name: 'Favoritos', count: movies.filter(movie => movie.isFavorite).length },
+      { id: 'continue', name: 'Continuar', count: movies.filter(movie => (movie.progress ?? 0) > 0).length },
+      ...[...map.values()].sort(sortByName),
+    ];
   }, [movies]);
 
   const filteredMovies = useMemo(() => {
-    if (selectedCategory === 'Destaques' || selectedCategory === 'Em alta') return movies;
-
-    if (selectedCategory === 'Lançamentos') {
-      return [...movies].sort((a, b) => Number(b.year || 0) - Number(a.year || 0));
-    }
+    if (selectedCategory === 'all') return movies;
+    if (selectedCategory === 'favorites') return movies.filter(movie => movie.isFavorite);
+    if (selectedCategory === 'continue') return movies.filter(movie => (movie.progress ?? 0) > 0);
 
     return movies.filter(movie => movie.category === selectedCategory);
   }, [movies, selectedCategory]);
@@ -35,6 +59,7 @@ export function MoviesScreen() {
   }, [filteredMovies, visibleCount]);
 
   const canLoadMore = visibleMovies.length < filteredMovies.length;
+  const selectedLabel = categoryOptions.find(category => category.id === selectedCategory)?.name ?? 'Filmes';
 
   const playMovie = (movie: Movie) => {
     setCurrentMovie(movie);
@@ -46,41 +71,51 @@ export function MoviesScreen() {
       <div className="clean-tv-page flex h-full px-14 py-7">
         <BottomNav />
 
+        <aside className="w-[310px] shrink-0 pr-8">
+          <button
+            onClick={() => setScreen('home')}
+            className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
+          >
+            ⌂
+          </button>
+
+          <h2 className="mb-4 px-5 text-xl font-light text-white/38">Categorias</h2>
+
+          <div className="max-h-[calc(100vh-150px)] space-y-1 overflow-y-auto pr-2">
+            {categoryOptions.map(category => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`clean-tv-row flex w-full items-center justify-between gap-4 px-5 py-4 text-left ${
+                  selectedCategory === category.id ? 'active' : ''
+                }`}
+              >
+                <span className="truncate text-2xl font-light">{category.name}</span>
+                <span className="shrink-0 text-base text-white/35">{category.count}</span>
+              </button>
+            ))}
+          </div>
+        </aside>
+
         <main className="min-w-0 flex-1">
-          <header className="mb-8 flex items-center gap-10">
+          <header className="mb-8 flex items-center justify-between gap-10">
+            <div>
+              <p className="text-xl font-light text-white/38">Filmes</p>
+              <h1 className="clean-tv-title text-4xl">{selectedLabel}</h1>
+            </div>
+
             <button
               onClick={() => setScreen('search')}
               className="text-5xl text-white/80 transition-colors hover:text-white"
             >
               ⌕
             </button>
-
-            <nav className="flex min-w-0 items-center gap-9 overflow-hidden">
-              {categories.slice(0, 9).map(category => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`rounded-full px-8 py-2 text-2xl font-light transition-all ${
-                    selectedCategory === category
-                      ? 'border border-white/70 text-white'
-                      : 'text-white/42 hover:text-white/75'
-                  }`}
-                >
-                  {category.length > 14 ? `${category.slice(0, 13)}..` : category}
-                </button>
-              ))}
-            </nav>
           </header>
 
-          <div className="mb-8 flex items-center justify-between gap-8 pl-16 pr-8">
-            <div className="flex items-center gap-14">
-              <button className="border-b border-white/35 pb-2 text-2xl font-light text-white/78">
-                Populares
-              </button>
-              <button className="pb-2 text-2xl font-light text-white/42">
-                Favoritos
-              </button>
-            </div>
+          <div className="mb-8 flex items-center justify-between gap-8 pr-8">
+            <p className="text-2xl font-light text-white/72">
+              {filteredMovies.length === 0 ? 'Nenhum item' : 'Escolha um filme'}
+            </p>
 
             <p className="text-xl font-light text-white/42">
               {visibleMovies.length}/{filteredMovies.length} filme(s)
@@ -90,7 +125,7 @@ export function MoviesScreen() {
           {filteredMovies.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
               <p className="text-5xl">🎬</p>
-              <p className="mt-5 text-3xl font-light">Nenhum filme encontrado</p>
+              <p className="mt-5 text-3xl font-light">Nenhum filme nesta categoria</p>
             </div>
           ) : (
             <section className="grid max-h-[calc(100vh-165px)] grid-cols-6 gap-x-10 gap-y-9 overflow-y-auto pr-8">
@@ -119,6 +154,7 @@ export function MoviesScreen() {
                   <p className="mt-3 truncate text-2xl font-light text-white/72 group-hover:text-white">
                     {movie.name}
                   </p>
+                  <p className="truncate text-sm text-white/32">{movie.category}</p>
                 </button>
               ))}
 

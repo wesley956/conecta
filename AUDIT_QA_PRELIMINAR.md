@@ -1,7 +1,7 @@
 # Auditoria QA / CRUD / Botões
 
 Arquivos analisados: 14
-Botões encontrados: 110
+Botões encontrados: 108
 Botões de ação/CRUD encontrados: 41
 Suspeitas encontradas: 0
 
@@ -129,12 +129,11 @@ Suspeitas encontradas: 0
 - src/screens/HomeScreen.tsx:101 | onClick=SIM | setScreen('channels')} className="clean-tv-tile active rounded-md p-7 text-left"> ▣ Assistir TV Abri
 - src/screens/HomeScreen.tsx:107 | onClick=SIM | setScreen('playlists')} className="clean-tv-tile rounded-md p-7 text-left"> ▤ Listas Gerenciar fonte
 - src/screens/HomeScreen.tsx:113 | onClick=SIM | setScreen('settings')} className="clean-tv-tile rounded-md p-7 text-left"> ◇ Sistema Ajustes do app
-- src/screens/MoviesScreen.tsx:51 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
-- src/screens/MoviesScreen.tsx:60 | onClick=SIM | setSelectedCategory(category)} className= `} > ..` : category}
-- src/screens/MoviesScreen.tsx:77 | onClick=NÃO | Populares
-- src/screens/MoviesScreen.tsx:80 | onClick=NÃO | Favoritos
-- src/screens/MoviesScreen.tsx:98 | onClick=SIM | playMovie(movie)} className="group text-left" >
-- src/screens/MoviesScreen.tsx:126 | onClick=SIM | setVisibleCount(count => count + MOVIE_RENDER_BATCH_SIZE)} className="col-span-6 mx-auto mt-4 rounde
+- src/screens/MoviesScreen.tsx:75 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
+- src/screens/MoviesScreen.tsx:86 | onClick=SIM | setSelectedCategory(category.id)} className= `} >
+- src/screens/MoviesScreen.tsx:107 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
+- src/screens/MoviesScreen.tsx:133 | onClick=SIM | playMovie(movie)} className="group text-left" >
+- src/screens/MoviesScreen.tsx:162 | onClick=SIM | setVisibleCount(count => count + MOVIE_RENDER_BATCH_SIZE)} className="col-span-6 mx-auto mt-4 rounde
 - src/screens/PlayerScreen.tsx:198 | onClick=SIM | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
 - src/screens/PlayerScreen.tsx:204 | onClick=SIM | Voltar
 - src/screens/PlayerScreen.tsx:222 | onClick=SIM | ←
@@ -161,12 +160,11 @@ Suspeitas encontradas: 0
 - src/screens/PlaylistsSettingsScreen.tsx:507 | onClick=SIM | setScreen('playlists')} className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white" 
 - src/screens/PlaylistsSettingsScreen.tsx:543 | onClick=SIM | setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')} className="text-2xl font-light text-white hover:text-[
 - src/screens/PlaylistsSettingsScreen.tsx:563 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
-- src/screens/SeriesScreen.tsx:65 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
-- src/screens/SeriesScreen.tsx:74 | onClick=SIM | setSelectedCategory(category)} className= `} > ..` : category}
-- src/screens/SeriesScreen.tsx:91 | onClick=NÃO | Populares
-- src/screens/SeriesScreen.tsx:94 | onClick=NÃO | Favoritos
-- src/screens/SeriesScreen.tsx:112 | onClick=SIM | playFirstEpisode(item)} className="group text-left" > temp.
-- src/screens/SeriesScreen.tsx:144 | onClick=SIM | setVisibleCount(count => count + SERIES_RENDER_BATCH_SIZE)} className="col-span-6 mx-auto mt-4 round
+- src/screens/SeriesScreen.tsx:95 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
+- src/screens/SeriesScreen.tsx:106 | onClick=SIM | setSelectedCategory(category.id)} className= `} >
+- src/screens/SeriesScreen.tsx:127 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
+- src/screens/SeriesScreen.tsx:153 | onClick=SIM | playFirstEpisode(item)} className="group text-left" > temp.
+- src/screens/SeriesScreen.tsx:186 | onClick=SIM | setVisibleCount(count => count + SERIES_RENDER_BATCH_SIZE)} className="col-span-6 mx-auto mt-4 round
 - src/admin/AdminLayout.tsx:46 | onClick=SIM | onViewChange(item.id)} className= `} >
 - src/admin/AdminLayout.tsx:67 | onClick=SIM | setAdminMode(false)} className="flex w-full items-center justify-center gap-2 rounded-2xl border bor
 - src/admin/AdminLayout.tsx:232 | onClick=SIM | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b

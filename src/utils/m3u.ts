@@ -97,6 +97,41 @@ function parseYear(name: string): number {
   return match ? Number(match[1]) : 0;
 }
 
+function titleCaseCategory(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function cleanMediaCategory(groupTitle: string, kind: 'movie' | 'series'): string {
+  const fallback = kind === 'movie' ? 'Filmes' : 'Séries';
+
+  const parts = groupTitle
+    .split(/[|:>/\\-]+/g)
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  const forbidden = kind === 'movie'
+    ? ['filme', 'filmes', 'movie', 'movies', 'vod', 'cinema']
+    : ['serie', 'series', 'série', 'séries', 'temporada', 'temporadas', 'season'];
+
+  const picked = parts.find(part => {
+    const normalized = normalizeText(part);
+    return !forbidden.some(word => normalized === normalizeText(word));
+  });
+
+  const raw = picked || parts.at(-1) || groupTitle || fallback;
+  const cleaned = raw
+    .replace(/\b(FHD|HD|SD|4K|UHD|DUB|DUBLADO|LEG|LEGENDADO)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return titleCaseCategory(cleaned || fallback);
+}
+
 function cleanMovieName(name: string): string {
   return name
     .replace(/\b(19\d{2}|20\d{2})\b/g, '')
@@ -187,7 +222,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3URe
         duration: '—',
         synopsis: 'Filme importado da lista M3U autorizada.',
         cover: entry.logo,
-        category: entry.groupTitle,
+        category: cleanMediaCategory(entry.groupTitle, 'movie'),
         url: entry.url,
         isFavorite: false,
         progress: 0,
@@ -206,7 +241,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3URe
         id: `${playlistId}-sr-${seriesMap.size + 1}`,
         name: parsedEpisode.seriesName,
         cover: entry.logo,
-        category: entry.groupTitle,
+        category: cleanMediaCategory(entry.groupTitle, 'series'),
         synopsis: 'Série importada da lista M3U autorizada.',
         seasons: [],
         isFavorite: false,
