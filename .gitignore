@@ -13,3 +13,10 @@ android/
 _imports/
 _backup_conecta_before_fusion/
 *.zip
+
+# Local Android/Codespaces
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+*.apk

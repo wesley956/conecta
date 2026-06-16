@@ -1,3 +1,64 @@
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
+function isNativeRuntime() {
+  if (typeof window === 'undefined') return false;
+
+  const runtime = Capacitor?.getPlatform?.();
+  const capacitor = (window as any).Capacitor;
+
+  return (
+    runtime === 'android' ||
+    runtime === 'ios' ||
+    Boolean(Capacitor?.isNativePlatform?.()) ||
+    Boolean(capacitor?.isNativePlatform?.())
+  );
+}
+
+function looksLikeM3U(content: string) {
+  return content.includes('#EXTM3U') || content.includes('#EXTINF');
+}
+
+function previewText(content: string) {
+  return content
+    .replace(/\s+/g, ' ')
+    .slice(0, 180);
+}
+
+async function fetchM3UWithCapacitorHttp(url: string) {
+  if (!isNativeRuntime()) return null;
+
+  const response = await CapacitorHttp.get({
+    url,
+    responseType: 'text' as any,
+    headers: {
+      Accept: '*/*',
+      'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
+    },
+  });
+
+  const status = Number(response.status ?? 0);
+  const content =
+    typeof response.data === 'string'
+      ? response.data
+      : typeof response.data === 'object'
+        ? JSON.stringify(response.data)
+        : String(response.data ?? '');
+
+  if (status < 200 || status >= 300) {
+    throw new Error(`A URL respondeu HTTP ${status}. O servidor não entregou a lista M3U no APK.`);
+  }
+
+  if (!looksLikeM3U(content)) {
+    throw new Error(
+      `A URL respondeu, mas não parece uma lista M3U. Início da resposta: "${previewText(content)}"`
+    );
+  }
+
+  return content;
+}
+
+
+
 function buildCandidateUrls(rawUrl: string): string[] {
   const cleanUrl = rawUrl.trim();
 
@@ -64,7 +125,17 @@ async function fetchViaDevProxy(url: string): Promise<string> {
   return await response.text();
 }
 
+
+
 export async function fetchM3UContent(url: string): Promise<string> {
+  const nativeContent = await fetchM3UWithCapacitorHttp(url);
+
+  if (nativeContent) {
+    return nativeContent;
+  }
+
+
+
   const candidates = buildCandidateUrls(url);
   const errors: string[] = [];
 

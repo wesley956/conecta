@@ -8,8 +8,25 @@ function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
 }
 
+function isNativeRuntime() {
+  if (typeof window === 'undefined') return false;
+
+  const capacitor = (window as any).Capacitor;
+  const protocol = window.location.protocol;
+
+  return (
+    protocol === 'capacitor:' ||
+    protocol === 'ionic:' ||
+    protocol === 'http:' && window.location.hostname === 'localhost' ||
+    Boolean(capacitor?.isNativePlatform?.())
+  );
+}
+
 function toMediaProxyUrl(url: string) {
   if (!isHttpUrl(url)) return url;
+
+  // No APK/Capacitor não existe servidor Vite. Tenta tocar direto.
+  if (isNativeRuntime()) return url;
 
   const path = `/api/media-proxy?url=${encodeURIComponent(url)}`;
 
@@ -27,6 +44,24 @@ function isMpegTsUrl(url: string) {
   return /\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url);
 }
 
+function formatTime(totalSeconds: number) {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+    return '00:00';
+  }
+
+  const seconds = Math.floor(totalSeconds % 60);
+  const minutes = Math.floor((totalSeconds / 60) % 60);
+  const hours = Math.floor(totalSeconds / 3600);
+
+  const two = (value: number) => String(value).padStart(2, '0');
+
+  if (hours > 0) {
+    return `${hours}:${two(minutes)}:${two(seconds)}`;
+  }
+
+  return `${two(minutes)}:${two(seconds)}`;
+}
+
 export function PlayerScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const {
@@ -41,6 +76,11 @@ export function PlayerScreen() {
   const [showList, setShowList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
 
   const content = currentMovie || currentChannel;
@@ -181,12 +221,120 @@ export function PlayerScreen() {
   }, [streamUrl, playbackUrl, isLive, playbackUrlIndex, playbackCandidates]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const syncPlaybackState = () => {
+      const safeCurrentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+      const safeDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+
+      setCurrentTime(safeCurrentTime);
+      setDuration(safeDuration);
+      setIsPlaying(!video.paused && !video.ended);
+      setVolume(video.volume);
+      setMuted(video.muted);
+    };
+
+    video.addEventListener('timeupdate', syncPlaybackState);
+    video.addEventListener('durationchange', syncPlaybackState);
+    video.addEventListener('loadedmetadata', syncPlaybackState);
+    video.addEventListener('play', syncPlaybackState);
+    video.addEventListener('pause', syncPlaybackState);
+    video.addEventListener('volumechange', syncPlaybackState);
+    video.addEventListener('ended', syncPlaybackState);
+
+    syncPlaybackState();
+
+    return () => {
+      video.removeEventListener('timeupdate', syncPlaybackState);
+      video.removeEventListener('durationchange', syncPlaybackState);
+      video.removeEventListener('loadedmetadata', syncPlaybackState);
+      video.removeEventListener('play', syncPlaybackState);
+      video.removeEventListener('pause', syncPlaybackState);
+      video.removeEventListener('volumechange', syncPlaybackState);
+      video.removeEventListener('ended', syncPlaybackState);
+    };
+  }, [content?.id, streamUrl]);
+
+  useEffect(() => {
     if (!showControls) return;
     const timer = window.setTimeout(() => setShowControls(false), 3800);
     return () => window.clearTimeout(timer);
   }, [showControls, content?.id]);
 
   const goBack = () => setScreen(isLive ? 'channels' : 'movies');
+
+  const isSeekable = !isLive && duration > 0;
+  const progressPercent = isSeekable ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 100;
+
+  const togglePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video.play().catch(() => setShowControls(true));
+    } else {
+      video.pause();
+    }
+
+    setShowControls(true);
+  };
+
+  const seekBy = (seconds: number) => {
+    const video = videoRef.current;
+    if (!video || !isSeekable) return;
+
+    const nextTime = Math.min(duration, Math.max(0, video.currentTime + seconds));
+    video.currentTime = nextTime;
+    setCurrentTime(nextTime);
+    setShowControls(true);
+  };
+
+  const handleSeek = (value: string) => {
+    const video = videoRef.current;
+    if (!video || !isSeekable) return;
+
+    const nextTime = Number(value);
+    if (!Number.isFinite(nextTime)) return;
+
+    video.currentTime = nextTime;
+    setCurrentTime(nextTime);
+    setShowControls(true);
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = !video.muted;
+    setMuted(video.muted);
+    setShowControls(true);
+  };
+
+  const handleVolume = (value: string) => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const nextVolume = Math.min(1, Math.max(0, Number(value)));
+    video.volume = nextVolume;
+    video.muted = nextVolume === 0;
+
+    setVolume(nextVolume);
+    setMuted(video.muted);
+    setShowControls(true);
+  };
+
+  const toggleFullscreen = () => {
+    const container = videoRef.current?.parentElement;
+    if (!container) return;
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+
+    container.requestFullscreen?.().catch(() => undefined);
+  };
 
   return (
     <AppLayout>
@@ -240,6 +388,78 @@ export function PlayerScreen() {
                   Voltar
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {(streamUrl || ready || error) && (
+          <div
+            className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/95 via-black/75 to-transparent px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-14 transition-opacity sm:px-8 md:px-12 ${
+              showControls || error ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+            onClick={event => event.stopPropagation()}
+            onMouseMove={() => setShowControls(true)}
+          >
+            <div className="mb-3 flex items-end justify-between gap-4">
+              <div className="min-w-0">
+                <p className="truncate text-[clamp(14px,1.6vw,24px)] font-light text-white/90">
+                  {content?.name ?? 'Reprodução'}
+                </p>
+                <p className="mt-1 text-[clamp(11px,1.1vw,16px)] font-light text-white/45">
+                  {isLive ? 'Transmissão ao vivo' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
+                </p>
+              </div>
+
+              {isLive ? (
+                <div className="rounded-full border border-red-400/40 bg-red-500/15 px-4 py-1 text-[clamp(11px,1.1vw,16px)] font-semibold tracking-[0.22em] text-red-200">
+                  AO VIVO
+                </div>
+              ) : (
+                <div className="text-[clamp(11px,1.1vw,16px)] font-light tabular-nums text-white/50">
+                  {Math.round(progressPercent)}%
+                </div>
+              )}
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={isSeekable ? duration : 100}
+              step="1"
+              value={isSeekable ? currentTime : 100}
+              disabled={!isSeekable}
+              onChange={event => handleSeek(event.target.value)}
+              className="h-2 w-full cursor-pointer accent-[#2396f2] disabled:cursor-default disabled:opacity-45"
+              aria-label="Progresso da reprodução"
+            />
+
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button type="button" onClick={togglePlayPause} className="rounded-full bg-white/12 px-4 py-2 text-[clamp(16px,1.7vw,24px)] text-white hover:bg-white/18">
+                  {isPlaying ? '⏸' : '▶'}
+                </button>
+
+                {!isLive && (
+                  <>
+                    <button type="button" onClick={() => seekBy(-10)} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(12px,1.2vw,18px)] text-white/82 hover:bg-white/16">
+                      -10s
+                    </button>
+                    <button type="button" onClick={() => seekBy(10)} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(12px,1.2vw,18px)] text-white/82 hover:bg-white/16">
+                      +10s
+                    </button>
+                  </>
+                )}
+
+                <button type="button" onClick={toggleMute} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(13px,1.3vw,19px)] text-white/82 hover:bg-white/16">
+                  {muted || volume === 0 ? '🔇' : '🔊'}
+                </button>
+
+                <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={event => handleVolume(event.target.value)} className="hidden h-2 w-28 accent-[#2396f2] sm:block" aria-label="Volume" />
+              </div>
+
+              <button type="button" onClick={toggleFullscreen} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(13px,1.3vw,19px)] text-white/82 hover:bg-white/16">
+                ⛶ Tela cheia
+              </button>
             </div>
           </div>
         )}
