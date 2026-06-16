@@ -7,6 +7,7 @@ import { fetchM3UContent } from '@/utils/fetchM3U';
 export function PlaylistsScreen() {
   const {
     playlists,
+    channels,
     setScreen,
     importM3UPlaylist,
     addDirectStreamChannel,
@@ -96,6 +97,7 @@ export function PlaylistsScreen() {
         }
 
         closeForm();
+        if (pasted) setScreen('channels');
         return;
       }
 
@@ -111,6 +113,7 @@ export function PlaylistsScreen() {
 
       setMessage(`${result.imported} canal(is) importado(s).`);
       closeForm();
+      setScreen('channels');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível salvar a lista.');
     } finally {
@@ -118,7 +121,7 @@ export function PlaylistsScreen() {
     }
   };
 
-  const syncPlaylist = async (playlist: typeof playlists[number]) => {
+  const syncPlaylist = async (playlist: typeof playlists[number], openAfterSync = false) => {
     setMessage(null);
     setError(null);
     setDeleteTargetId(null);
@@ -134,11 +137,31 @@ export function PlaylistsScreen() {
       const content = await fetchM3UContent(playlist.url);
       const result = replaceM3UPlaylist(playlist.id, playlist.name, playlist.url, content);
       setMessage(`Lista sincronizada: ${result.imported} canal(is).`);
+      if (openAfterSync) setScreen('channels');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível sincronizar a lista.');
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const openPlaylistContent = async (playlist: typeof playlists[number]) => {
+    setMessage(null);
+    setError(null);
+
+    const hasChannelsInMemory = channels.some(channel => channel.id.startsWith(`${playlist.id}-ch-`));
+
+    if (hasChannelsInMemory) {
+      setScreen('channels');
+      return;
+    }
+
+    if (!playlist.url) {
+      setError('Essa lista está salva, mas os canais não estão carregados nesta sessão. Edite a lista e cole o conteúdo M3U para sincronizar.');
+      return;
+    }
+
+    await syncPlaylist(playlist, true);
   };
 
   const confirmDelete = (playlistId: string) => {
@@ -295,6 +318,14 @@ export function PlaylistsScreen() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap justify-end gap-3">
+                      <button
+                        onClick={() => openPlaylistContent(playlist)}
+                        disabled={isAdding || playlist.status !== 'active'}
+                        className="rounded-md bg-[#28d850]/85 px-5 py-2 text-base font-light text-white disabled:opacity-45"
+                      >
+                        Assistir
+                      </button>
+
                       <button
                         onClick={() => openEdit(playlist)}
                         className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/75 hover:text-white"

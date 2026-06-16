@@ -14,6 +14,7 @@ export interface Channel {
   id: string;
   name: string;
   logo?: string;
+  groupTitle?: string;
   group: string;
   url?: string;
   epgId?: string;

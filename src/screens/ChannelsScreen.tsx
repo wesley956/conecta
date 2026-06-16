@@ -4,8 +4,16 @@ import { AppLayout, BottomNav } from '@/components/shared';
 import { channelCategories } from '@/data/mock';
 import type { Channel } from '@/types';
 
-function getGroupName(group: string) {
-  return channelCategories.find(c => c.id === group)?.name || group;
+function humanizeGroupName(group: string) {
+  return group
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || 'Outros';
+}
+
+function getGroupName(channel: Channel) {
+  return channel.groupTitle || channelCategories.find(c => c.id === channel.group)?.name || humanizeGroupName(channel.group);
 }
 
 function getSafeImageUrl(url?: string) {
@@ -20,29 +28,52 @@ function getSafeImageUrl(url?: string) {
 
 export function ChannelsScreen() {
   const { channels, setScreen, setCurrentChannel } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(channels[0]?.id ?? null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('all');
 
-  const categories = useMemo(() => {
-    const reserved = new Set(['Buscar', 'Favoritos', 'Playback', 'Tudo: A-Z', 'Todos']);
-    const importedCategories = channelCategories.map(c => c.name).filter(name => !reserved.has(name));
-    return ['Buscar', 'Favoritos', 'Playback', 'Tudo: A-Z', ...importedCategories];
-  }, []);
+  const categoryOptions = useMemo(() => {
+    const fixed = [
+      { id: 'all', name: 'Todos', icon: '▤' },
+      { id: 'favorites', name: 'Favoritos', icon: '★' },
+      { id: 'playback', name: 'Playback', icon: '◉' },
+      { id: 'az', name: 'Tudo: A-Z', icon: '▤' },
+    ];
+
+    const seen = new Set(fixed.map(item => item.name.toLowerCase()));
+
+    const imported = channels
+      .map(channel => ({
+        id: channel.group,
+        name: getGroupName(channel),
+        icon: '▤',
+      }))
+      .filter(category => {
+        const key = `${category.id}-${category.name}`.toLowerCase();
+
+        if (seen.has(key) || seen.has(category.name.toLowerCase())) return false;
+
+        seen.add(key);
+        seen.add(category.name.toLowerCase());
+        return true;
+      });
+
+    return [...fixed, ...imported];
+  }, [channels]);
+
+  const selectedCategory = categoryOptions.find(category => category.id === selectedCategoryId) ?? categoryOptions[0];
 
   const filteredChannels = useMemo(() => {
-    if (selectedCategory === 'Favoritos') return channels.filter(channel => channel.isFavorite);
-    if (['Todos', 'Buscar', 'Playback', 'Tudo: A-Z'].includes(selectedCategory)) {
+    if (selectedCategoryId === 'favorites') return channels.filter(channel => channel.isFavorite);
+
+    if (selectedCategoryId === 'all' || selectedCategoryId === 'playback') {
+      return channels;
+    }
+
+    if (selectedCategoryId === 'az') {
       return [...channels].sort((a, b) => a.name.localeCompare(b.name));
     }
 
-    const category = channelCategories.find(c => c.name === selectedCategory);
-    if (!category) return channels;
-    return channels.filter(channel => channel.group === category.id);
-  }, [channels, selectedCategory]);
-
-  const selectedChannel = selectedChannelId
-    ? filteredChannels.find(channel => channel.id === selectedChannelId) ?? filteredChannels[0] ?? null
-    : filteredChannels[0] ?? null;
+    return channels.filter(channel => channel.group === selectedCategoryId);
+  }, [channels, selectedCategoryId]);
 
   const playChannel = (channel: Channel) => {
     setCurrentChannel(channel);
@@ -63,35 +94,37 @@ export function ChannelsScreen() {
           </button>
 
           <div className="space-y-1">
-            {categories.map((category, index) => (
+            {categoryOptions.map(category => (
               <button
-                key={`${category}-${index}`}
-                onClick={() => {
-                  setSelectedCategory(category);
-                  setSelectedChannelId(null);
-                }}
+                key={category.id}
+                onClick={() => setSelectedCategoryId(category.id)}
                 className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${
-                  selectedCategory === category || (index === 0 && selectedCategory === 'Todos') ? 'active' : ''
+                  selectedCategoryId === category.id ? 'active' : ''
                 }`}
               >
-                <span className="w-8 text-2xl">
-                  {category === 'Buscar' ? '⌕' : category === 'Favoritos' ? '★' : category === 'Playback' ? '◉' : '▤'}
-                </span>
-                <span className="truncate text-2xl font-light">{category}</span>
+                <span className="w-8 text-2xl">{category.icon}</span>
+                <span className="truncate text-2xl font-light">{category.name}</span>
               </button>
             ))}
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">
-          <h1 className="clean-tv-title mb-8 text-4xl">
-            {selectedCategory === 'Buscar' ? 'Buscar' : selectedCategory}
-          </h1>
+          <div className="mb-8 flex items-center justify-between gap-6">
+            <h1 className="clean-tv-title text-4xl">{selectedCategory?.name ?? 'Canais'}</h1>
+            <p className="text-xl font-light text-white/45">{filteredChannels.length} canal(is)</p>
+          </div>
 
           {filteredChannels.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
               <p className="text-5xl">▣</p>
               <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>
+              <button
+                onClick={() => setScreen('playlists')}
+                className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-white"
+              >
+                Voltar para listas
+              </button>
             </div>
           ) : (
             <div className="grid max-h-[calc(100vh-120px)] grid-cols-2 gap-x-12 gap-y-2 overflow-y-auto pr-6">
@@ -99,29 +132,24 @@ export function ChannelsScreen() {
                 const safeLogo = getSafeImageUrl(channel.logo);
 
                 return (
-                <button
-                  key={channel.id}
-                  onClick={() => setSelectedChannelId(channel.id)}
-                  onDoubleClick={() => playChannel(channel)}
-                  className={`flex h-[86px] items-center gap-5 border-l-2 px-4 text-left transition-all ${
-                    selectedChannel?.id === channel.id
-                      ? 'border-[#28d850] text-white'
-                      : 'border-white/20 text-white/62 hover:border-[#2396f2] hover:text-white'
-                  }`}
-                >
-                  <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
-                    {safeLogo ? (
-                      <img src={safeLogo} alt="" className="max-h-10 max-w-full object-contain" />
-                    ) : (
-                      'TV'
-                    )}
-                  </span>
+                  <button
+                    key={channel.id}
+                    onClick={() => playChannel(channel)}
+                    className="flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
+                  >
+                    <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
+                      {safeLogo ? (
+                        <img src={safeLogo} alt="" className="max-h-10 max-w-full object-contain" />
+                      ) : (
+                        'TV'
+                      )}
+                    </span>
 
-                  <span className="min-w-0">
-                    <span className="block truncate text-2xl font-light">{channel.name}</span>
-                    <span className="block truncate text-sm text-white/35">{getGroupName(channel.group)}</span>
-                  </span>
-                </button>
+                    <span className="min-w-0">
+                      <span className="block truncate text-2xl font-light">{channel.name}</span>
+                      <span className="block truncate text-sm text-white/35">{getGroupName(channel)}</span>
+                    </span>
+                  </button>
                 );
               })}
             </div>

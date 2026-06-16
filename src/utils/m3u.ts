@@ -66,6 +66,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3URe
       id: `${playlistId}-ch-${channels.length + 1}`,
       name,
       group: safeGroupName(groupTitle),
+      groupTitle,
       url,
       logo: logo || undefined,
       epgId: epgId || undefined,
