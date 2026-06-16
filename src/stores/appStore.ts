@@ -13,6 +13,14 @@ if (typeof window !== 'undefined') {
   }
 }
 
+function getParsedImportCount(result: ReturnType<typeof parseM3U>) {
+  return result.channels.length + result.movies.length + result.series.length;
+}
+
+function getParsedSummary(result: ReturnType<typeof parseM3U>) {
+  return `${result.channels.length} canal(is), ${result.movies.length} filme(s) e ${result.series.length} série(s)`;
+}
+
 interface AppStore {
   // Navigation
   currentScreen: AppState;
@@ -160,8 +168,8 @@ export const useAppStore = create<AppStore>()(
     const playlistId = `pl-${Date.now()}`;
     const result = parseM3U(content, playlistId);
 
-    if (result.channels.length === 0) {
-      throw new Error('Nenhum canal com URL reproduzível foi encontrado na lista.');
+    if (getParsedImportCount(result) === 0) {
+      throw new Error('Nenhum item com URL reproduzível foi encontrado na lista.');
     }
 
     const now = new Date().toLocaleString('pt-BR');
@@ -173,18 +181,20 @@ export const useAppStore = create<AppStore>()(
       url: sourceUrl.trim() || undefined,
       status: 'active',
       channelCount: result.channels.length,
-      movieCount: 0,
-      seriesCount: 0,
+      movieCount: result.movies.length,
+      seriesCount: result.series.length,
       lastSync: now,
     };
 
     set((state) => ({
       playlists: [playlist, ...state.playlists],
       channels: [...result.channels, ...state.channels],
-      activeNotice: `✅ ${result.channels.length} canais importados da lista autorizada.`,
+      movies: [...result.movies, ...state.movies],
+      series: [...result.series, ...state.series],
+      activeNotice: `✅ Lista importada: ${getParsedSummary(result)}.`,
     }));
 
-    return { imported: result.channels.length, skipped: result.skipped };
+    return { imported: getParsedImportCount(result), skipped: result.skipped };
   },
 
   removePlaylist: (playlistId) => set((state) => {
@@ -194,13 +204,27 @@ export const useAppStore = create<AppStore>()(
     const shouldRemoveChannel = (channel: Channel) =>
       channel.id.startsWith(`${playlistId}-ch-`) || Boolean(sourceUrl && channel.url === sourceUrl);
 
+    const shouldRemoveMovie = (movie: Movie) =>
+      movie.id.startsWith(`${playlistId}-mv-`) || Boolean(sourceUrl && movie.url === sourceUrl);
+
+    const shouldRemoveSeries = (item: Series) =>
+      item.id.startsWith(`${playlistId}-sr-`);
+
     const nextChannels = state.channels.filter((channel) => !shouldRemoveChannel(channel));
+    const nextMovies = state.movies.filter((movie) => !shouldRemoveMovie(movie));
+    const nextSeries = state.series.filter((item) => !shouldRemoveSeries(item));
     const currentChannelRemoved = state.currentChannel ? shouldRemoveChannel(state.currentChannel) : false;
+    const currentMovieRemoved = state.currentMovie ? shouldRemoveMovie(state.currentMovie) : false;
+    const currentSeriesRemoved = state.currentSeries ? shouldRemoveSeries(state.currentSeries) : false;
 
     return {
       playlists: state.playlists.filter((item) => item.id !== playlistId),
       channels: nextChannels,
+      movies: nextMovies,
+      series: nextSeries,
       currentChannel: currentChannelRemoved ? null : state.currentChannel,
+      currentMovie: currentMovieRemoved ? null : state.currentMovie,
+      currentSeries: currentSeriesRemoved ? null : state.currentSeries,
       activeNotice: playlist ? `🗑️ Lista removida: ${playlist.name}.` : '🗑️ Lista removida.',
     };
   }),
@@ -221,8 +245,8 @@ export const useAppStore = create<AppStore>()(
 
     const result = parseM3U(content, playlistId);
 
-    if (result.channels.length === 0) {
-      throw new Error('Nenhum canal com URL reproduzível foi encontrado na lista.');
+    if (getParsedImportCount(result) === 0) {
+      throw new Error('Nenhum item com URL reproduzível foi encontrado na lista.');
     }
 
     const now = new Date().toLocaleString('pt-BR');
@@ -234,8 +258,8 @@ export const useAppStore = create<AppStore>()(
       url: sourceUrl.trim() || undefined,
       status: 'active',
       channelCount: result.channels.length,
-      movieCount: 0,
-      seriesCount: 0,
+      movieCount: result.movies.length,
+      seriesCount: result.series.length,
       lastSync: now,
     };
 
@@ -246,16 +270,24 @@ export const useAppStore = create<AppStore>()(
       const shouldRemoveChannel = (channel: Channel) =>
         channel.id.startsWith(`${playlistId}-ch-`) || Boolean(oldUrl && channel.url === oldUrl);
 
+      const shouldRemoveMovie = (movie: Movie) =>
+        movie.id.startsWith(`${playlistId}-mv-`) || Boolean(oldUrl && movie.url === oldUrl);
+
+      const shouldRemoveSeries = (item: Series) =>
+        item.id.startsWith(`${playlistId}-sr-`);
+
       return {
         playlists: state.playlists.some((item) => item.id === playlistId)
           ? state.playlists.map((item) => item.id === playlistId ? playlist : item)
           : [playlist, ...state.playlists],
         channels: [...result.channels, ...state.channels.filter((channel) => !shouldRemoveChannel(channel))],
-        activeNotice: `🔄 Lista sincronizada: ${result.channels.length} canal(is).`,
+        movies: [...result.movies, ...state.movies.filter((movie) => !shouldRemoveMovie(movie))],
+        series: [...result.series, ...state.series.filter((item) => !shouldRemoveSeries(item))],
+        activeNotice: `🔄 Lista sincronizada: ${getParsedSummary(result)}.`,
       };
     });
 
-    return { imported: result.channels.length, skipped: result.skipped };
+    return { imported: getParsedImportCount(result), skipped: result.skipped };
   },
 
   resetContentToMock: () => set({
