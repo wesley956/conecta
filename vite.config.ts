@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -26,6 +27,69 @@ function buildM3UProxyCandidates(target: string): string[] {
   return [...candidates];
 }
 
+function looksLikeM3U(content: string): boolean {
+  return content.trimStart().startsWith('#EXTM3U') || content.includes('#EXTINF');
+}
+
+async function fetchM3UWithNativeFetch(candidate: string): Promise<string> {
+  const response = await fetch(candidate, {
+    method: 'GET',
+    headers: {
+      'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
+      accept: 'application/x-mpegURL, application/vnd.apple.mpegurl, text/plain, application/octet-stream, */*',
+    },
+    signal: AbortSignal.timeout(25000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const content = await response.text();
+
+  if (!looksLikeM3U(content)) {
+    throw new Error('A fonte respondeu, mas não retornou conteúdo M3U.');
+  }
+
+  return content;
+}
+
+async function fetchM3UWithCurl(candidate: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'curl',
+      [
+        '-L',
+        '--connect-timeout',
+        '10',
+        '--max-time',
+        '45',
+        '--silent',
+        '--show-error',
+        '-A',
+        'VLC/3.0.20 LibVLC/3.0.20',
+        candidate,
+      ],
+      {
+        maxBuffer: 128 * 1024 * 1024,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr || error.message));
+          return;
+        }
+
+        if (!looksLikeM3U(stdout)) {
+          reject(new Error('O curl baixou a fonte, mas o conteúdo não parece M3U.'));
+          return;
+        }
+
+        resolve(stdout);
+      }
+    );
+  });
+}
+
 function devM3UProxy(): Plugin {
   return {
     name: 'ronecaplaytv-dev-m3u-proxy',
@@ -46,21 +110,7 @@ function devM3UProxy(): Plugin {
 
           for (const candidate of buildM3UProxyCandidates(target)) {
             try {
-              const response = await fetch(candidate, {
-                method: 'GET',
-                headers: {
-                  'user-agent': 'Mozilla/5.0 RonecaPlayTV Dev Proxy',
-                  accept: 'application/x-mpegURL, application/vnd.apple.mpegurl, text/plain, */*',
-                },
-                signal: AbortSignal.timeout(20000),
-              });
-
-              if (!response.ok) {
-                errors.push(`${candidate} => HTTP ${response.status}`);
-                continue;
-              }
-
-              const content = await response.text();
+              const content = await fetchM3UWithNativeFetch(candidate);
 
               res.statusCode = 200;
               res.setHeader('content-type', 'text/plain; charset=utf-8');
@@ -68,7 +118,19 @@ function devM3UProxy(): Plugin {
               res.end(content);
               return;
             } catch (error) {
-              errors.push(`${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+              errors.push(`fetch ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+            }
+
+            try {
+              const content = await fetchM3UWithCurl(candidate);
+
+              res.statusCode = 200;
+              res.setHeader('content-type', 'text/plain; charset=utf-8');
+              res.setHeader('cache-control', 'no-store');
+              res.end(content);
+              return;
+            } catch (error) {
+              errors.push(`curl ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
             }
           }
 
@@ -76,7 +138,7 @@ function devM3UProxy(): Plugin {
           res.end(
             [
               'Não foi possível buscar a lista pelo proxy dev.',
-              'Se a URL usa porta 80, use http:// em vez de https://.',
+              'A URL pode estar bloqueando o ambiente atual, a credencial pode ter expirado ou o servidor pode exigir outro formato.',
               errors.length ? `Detalhe: ${errors[errors.length - 1]}` : '',
             ].filter(Boolean).join(' ')
           );
@@ -88,6 +150,7 @@ function devM3UProxy(): Plugin {
     },
   };
 }
+
 
 export default defineConfig({
   plugins: [
