@@ -38,7 +38,7 @@ async function fetchM3UWithNativeFetch(candidate: string): Promise<string> {
       'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
       accept: 'application/x-mpegURL, application/vnd.apple.mpegurl, text/plain, application/octet-stream, */*',
     },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!response.ok) {
@@ -63,7 +63,8 @@ async function fetchM3UWithCurl(candidate: string): Promise<string> {
         '--connect-timeout',
         '10',
         '--max-time',
-        '45',
+        '30',
+        '--http1.1',
         '--silent',
         '--show-error',
         '-A',
@@ -74,17 +75,19 @@ async function fetchM3UWithCurl(candidate: string): Promise<string> {
         maxBuffer: 128 * 1024 * 1024,
       },
       (error, stdout, stderr) => {
+        // Alguns servidores IPTV mantêm a conexão aberta ou encerram estranho.
+        // Se já recebemos #EXTM3U/#EXTINF, aceitamos o conteúdo mesmo com timeout do curl.
+        if (stdout && looksLikeM3U(stdout)) {
+          resolve(stdout);
+          return;
+        }
+
         if (error) {
           reject(new Error(stderr || error.message));
           return;
         }
 
-        if (!looksLikeM3U(stdout)) {
-          reject(new Error('O curl baixou a fonte, mas o conteúdo não parece M3U.'));
-          return;
-        }
-
-        resolve(stdout);
+        reject(new Error('O curl baixou a fonte, mas o conteúdo não parece M3U.'));
       }
     );
   });
@@ -110,18 +113,6 @@ function devM3UProxy(): Plugin {
 
           for (const candidate of buildM3UProxyCandidates(target)) {
             try {
-              const content = await fetchM3UWithNativeFetch(candidate);
-
-              res.statusCode = 200;
-              res.setHeader('content-type', 'text/plain; charset=utf-8');
-              res.setHeader('cache-control', 'no-store');
-              res.end(content);
-              return;
-            } catch (error) {
-              errors.push(`fetch ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
-            }
-
-            try {
               const content = await fetchM3UWithCurl(candidate);
 
               res.statusCode = 200;
@@ -131,6 +122,18 @@ function devM3UProxy(): Plugin {
               return;
             } catch (error) {
               errors.push(`curl ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
+            }
+
+            try {
+              const content = await fetchM3UWithNativeFetch(candidate);
+
+              res.statusCode = 200;
+              res.setHeader('content-type', 'text/plain; charset=utf-8');
+              res.setHeader('cache-control', 'no-store');
+              res.end(content);
+              return;
+            } catch (error) {
+              errors.push(`fetch ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
             }
           }
 
