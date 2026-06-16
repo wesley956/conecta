@@ -10,7 +10,13 @@ function isHttpUrl(url: string) {
 
 function toMediaProxyUrl(url: string) {
   if (!isHttpUrl(url)) return url;
-  return `/api/dev-media-proxy?url=${encodeURIComponent(url)}`;
+
+  const path = `/api/dev-media-proxy?url=${encodeURIComponent(url)}`;
+
+  if (typeof window === 'undefined') return path;
+
+  // mpegts.js usa Worker/Blob; dentro do Worker URL relativa quebra.
+  return new URL(path, window.location.origin).toString();
 }
 
 function isHlsUrl(url: string) {
