@@ -8,7 +8,8 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "audit:ui": "node scripts/audit-ui-crud.cjs"
   },
   "dependencies": {
     "clsx": "2.1.1",

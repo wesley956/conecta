@@ -71,7 +71,14 @@ for (const file of files) {
   }
 
   lines.forEach((lineText, i) => {
-    if (noopWords.test(lineText) && !lineText.includes('Xtream/Stalker entram em uma próxima fase')) {
+    if (
+      noopWords.test(lineText)
+      && !lineText.includes('Xtream/Stalker entram em uma próxima fase')
+      && !lineText.includes('Todos')
+      && !lineText.includes('Tudo: A-Z')
+      && !lineText.includes("value=\"all\"")
+      && !lineText.includes("=== 'all'")
+    ) {
       suspicious.push({
         type: 'PLACEHOLDER_OU_AÇÃO_FALSA',
         file,

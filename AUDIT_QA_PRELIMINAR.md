@@ -3,7 +3,7 @@
 Arquivos analisados: 14
 Botões encontrados: 97
 Botões de ação/CRUD encontrados: 35
-Suspeitas encontradas: 9
+Suspeitas encontradas: 0
 
 ## Actions detectadas no appStore
 
@@ -85,15 +85,7 @@ Suspeitas encontradas: 9
 
 ## Suspeitas / pontos para corrigir ou testar
 
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:13 | const [selectedCategory, setSelectedCategory] = useState('Todos');
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:22 | if (['Todos', 'Buscar', 'Playback', 'Tudo: A-Z'].includes(selectedCategory)) {
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/ChannelsScreen.tsx:62 | selectedCategory === category || (index === 0 && selectedCategory === 'Todos') ? 'active' : ''
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/screens/MoviesScreen.tsx:11 | const categories = ['Destaques', 'Em alta', 'Lançamentos', ...movieCategories.filter(c => c !== 'Todos')];
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:559 | <option value="all">Todos os clientes</option>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:590 | <span className="text-text-gray/50 text-xs">Destino: {notice.target === 'all' ? 'Todos' : notice.target}</span>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/AdminModules.tsx:647 | {item === 'all' ? 'Todos' : item === 'admin' ? '👑 Admin' : item === 'system' ? '🤖 Sistema' : '👤 Cliente'}
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:177 | <option value="all">Todos</option>
-- [PLACEHOLDER_OU_AÇÃO_FALSA] src/admin/CustomersDevices.tsx:366 | <option value="all">Todos</option>
+- Nenhuma suspeita automática encontrada.
 
 ## Todos os botões mapeados
 
