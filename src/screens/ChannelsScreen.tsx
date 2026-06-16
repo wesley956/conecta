@@ -75,8 +75,12 @@ export function ChannelsScreen() {
 
       try {
         for (const playlist of pendingPlaylists) {
-          const content = await fetchM3UContent(playlist.url);
-          const result = replaceM3UPlaylist(playlist.id, playlist.name, playlist.url, content);
+          const playlistUrl = playlist.url;
+
+          if (!playlistUrl) continue;
+
+          const content = await fetchM3UContent(playlistUrl);
+          const result = replaceM3UPlaylist(playlist.id, playlist.name, playlistUrl, content);
           totalImported += result.imported;
         }
 
