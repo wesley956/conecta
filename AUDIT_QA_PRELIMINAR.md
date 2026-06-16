@@ -2,7 +2,7 @@
 
 Arquivos analisados: 14
 Botões encontrados: 107
-Botões de ação/CRUD encontrados: 40
+Botões de ação/CRUD encontrados: 41
 Suspeitas encontradas: 0
 
 ## Actions detectadas no appStore
@@ -58,6 +58,7 @@ Suspeitas encontradas: 0
 - src/screens/ActivationScreen.tsx:70 | onClick=SIM | disabled=NÃO | setRequested(true)} className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-whi
 - src/screens/ActivationScreen.tsx:77 | onClick=SIM | disabled=SIM | (sem texto detectado)
 - src/screens/ActivationScreen.tsx:95 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:te
+- src/screens/ChannelsScreen.tsx:211 | onClick=SIM | disabled=NÃO | setScreen('playlists')} className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-wh
 - src/screens/ErrorScreens.tsx:42 | onClick=SIM | disabled=NÃO | 🔄 Tentar Novamente
 - src/screens/ErrorScreens.tsx:85 | onClick=SIM | disabled=NÃO | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x
 - src/screens/ErrorScreens.tsx:117 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:
@@ -106,10 +107,10 @@ Suspeitas encontradas: 0
 - src/screens/ActivationScreen.tsx:70 | onClick=SIM | setRequested(true)} className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-whi
 - src/screens/ActivationScreen.tsx:77 | onClick=SIM | (sem texto detectado)
 - src/screens/ActivationScreen.tsx:95 | onClick=SIM | setScreen('home')} className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:te
-- src/screens/ChannelsScreen.tsx:89 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
-- src/screens/ChannelsScreen.tsx:98 | onClick=SIM | setSelectedCategoryId(category.id)} className= `} >
-- src/screens/ChannelsScreen.tsx:122 | onClick=SIM | setScreen('playlists')} className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-wh
-- src/screens/ChannelsScreen.tsx:135 | onClick=SIM | playChannel(channel)} className="flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 te
+- src/screens/ChannelsScreen.tsx:162 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
+- src/screens/ChannelsScreen.tsx:171 | onClick=SIM | setSelectedCategoryId(category.id)} className= `} >
+- src/screens/ChannelsScreen.tsx:211 | onClick=SIM | setScreen('playlists')} className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-wh
+- src/screens/ChannelsScreen.tsx:224 | onClick=SIM | playChannel(channel)} className="flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 te
 - src/screens/ErrorScreens.tsx:42 | onClick=SIM | 🔄 Tentar Novamente
 - src/screens/ErrorScreens.tsx:48 | onClick=SIM | setScreen('activation')} className="w-full bg-white/[0.04] border border-white/10 text-text-gray fon
 - src/screens/ErrorScreens.tsx:85 | onClick=SIM | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x

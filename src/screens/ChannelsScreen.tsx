@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
 import { channelCategories } from '@/data/mock';
+import { fetchM3UContent } from '@/utils/fetchM3U';
 import type { Channel } from '@/types';
 
 function humanizeGroupName(group: string) {
@@ -27,36 +28,108 @@ function getSafeImageUrl(url?: string) {
 }
 
 export function ChannelsScreen() {
-  const { channels, setScreen, setCurrentChannel } = useAppStore();
+  const {
+    channels,
+    playlists,
+    setScreen,
+    setCurrentChannel,
+    replaceM3UPlaylist,
+  } = useAppStore();
+
   const [selectedCategoryId, setSelectedCategoryId] = useState('all');
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoMessage, setAutoMessage] = useState<string | null>(null);
+  const [autoError, setAutoError] = useState<string | null>(null);
+  const loadingRef = useRef(false);
+  const attemptedKeyRef = useRef('');
+
+  const pendingPlaylists = useMemo(() => {
+    return playlists.filter(playlist => {
+      if (playlist.status !== 'active') return false;
+      if (!playlist.url) return false;
+
+      const hasChannelsInMemory = channels.some(channel => channel.id.startsWith(`${playlist.id}-ch-`));
+      return !hasChannelsInMemory;
+    });
+  }, [channels, playlists]);
+
+  const pendingKey = pendingPlaylists
+    .map(playlist => `${playlist.id}:${playlist.url}`)
+    .join('|');
+
+  useEffect(() => {
+    if (!pendingKey) return;
+    if (loadingRef.current) return;
+    if (attemptedKeyRef.current === pendingKey) return;
+
+    attemptedKeyRef.current = pendingKey;
+    loadingRef.current = true;
+    setAutoLoading(true);
+    setAutoError(null);
+    setAutoMessage('Carregando lista para TV Ao Vivo...');
+
+    let cancelled = false;
+
+    async function loadPendingPlaylists() {
+      let totalImported = 0;
+
+      try {
+        for (const playlist of pendingPlaylists) {
+          const content = await fetchM3UContent(playlist.url);
+          const result = replaceM3UPlaylist(playlist.id, playlist.name, playlist.url, content);
+          totalImported += result.imported;
+        }
+
+        if (!cancelled) {
+          setAutoMessage(totalImported > 0 ? `${totalImported} canal(is) carregado(s).` : null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAutoError(error instanceof Error ? error.message : 'Não foi possível carregar a lista.');
+        }
+      } finally {
+        if (!cancelled) {
+          setAutoLoading(false);
+        }
+
+        loadingRef.current = false;
+      }
+    }
+
+    void loadPendingPlaylists();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingKey, pendingPlaylists, replaceM3UPlaylist]);
 
   const categoryOptions = useMemo(() => {
     const fixed = [
       { id: 'all', name: 'Todos', icon: '▤' },
       { id: 'favorites', name: 'Favoritos', icon: '★' },
       { id: 'playback', name: 'Playback', icon: '◉' },
-      { id: 'az', name: 'Tudo: A-Z', icon: '▤' },
+      { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z' },
     ];
 
-    const seen = new Set(fixed.map(item => item.name.toLowerCase()));
+    const byId = new Map<string, { id: string; name: string; icon: string }>();
 
-    const imported = channels
-      .map(channel => ({
-        id: channel.group,
+    for (const category of fixed) {
+      byId.set(category.id, category);
+    }
+
+    for (const channel of channels) {
+      const id = channel.group || 'outros';
+
+      if (byId.has(id)) continue;
+
+      byId.set(id, {
+        id,
         name: getGroupName(channel),
         icon: '▤',
-      }))
-      .filter(category => {
-        const key = `${category.id}-${category.name}`.toLowerCase();
-
-        if (seen.has(key) || seen.has(category.name.toLowerCase())) return false;
-
-        seen.add(key);
-        seen.add(category.name.toLowerCase());
-        return true;
       });
+    }
 
-    return [...fixed, ...imported];
+    return [...byId.values()];
   }, [channels]);
 
   const selectedCategory = categoryOptions.find(category => category.id === selectedCategoryId) ?? categoryOptions[0];
@@ -111,19 +184,35 @@ export function ChannelsScreen() {
 
         <main className="min-w-0 flex-1">
           <div className="mb-8 flex items-center justify-between gap-6">
-            <h1 className="clean-tv-title text-4xl">{selectedCategory?.name ?? 'Canais'}</h1>
-            <p className="text-xl font-light text-white/45">{filteredChannels.length} canal(is)</p>
+            <div>
+              <h1 className="clean-tv-title text-4xl">{selectedCategory?.name ?? 'TV Ao Vivo'}</h1>
+              {autoMessage && <p className="mt-2 text-base text-white/45">{autoMessage}</p>}
+              {autoError && <p className="mt-2 text-base text-red-200/80">{autoError}</p>}
+            </div>
+
+            <p className="text-xl font-light text-white/45">
+              {autoLoading ? 'Carregando...' : `${filteredChannels.length} canal(is)`}
+            </p>
           </div>
 
-          {filteredChannels.length === 0 ? (
+          {autoLoading && filteredChannels.length === 0 ? (
+            <div className="mt-24 text-center text-white/45">
+              <p className="text-5xl">◌</p>
+              <p className="mt-5 text-3xl font-light">Carregando conteúdo da lista...</p>
+              <p className="mt-3 text-lg font-light">Isso pode levar alguns segundos em listas grandes.</p>
+            </div>
+          ) : filteredChannels.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
               <p className="text-5xl">▣</p>
               <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>
+              <p className="mx-auto mt-3 max-w-2xl text-lg font-light">
+                Adicione uma lista autorizada em Listas. Depois disso, ao entrar em TV Ao Vivo, o conteúdo será carregado automaticamente.
+              </p>
               <button
                 onClick={() => setScreen('playlists')}
                 className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-white"
               >
-                Voltar para listas
+                Adicionar lista
               </button>
             </div>
           ) : (
