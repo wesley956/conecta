@@ -231,6 +231,19 @@ export function SettingsScreen() {
     setUIMode,
   } = useAppStore();
 
+  const [activeSection, setActiveSection] = useState<'player' | 'list' | 'language' | 'appearance' | 'device' | 'about'>('player');
+
+  const sections = [
+    { id: 'player' as const, icon: '▷', label: 'Player' },
+    { id: 'list' as const, icon: '▤', label: 'Lista' },
+    { id: 'language' as const, icon: '◎', label: 'Idioma' },
+    { id: 'appearance' as const, icon: '◇', label: 'Aparência' },
+    { id: 'device' as const, icon: '▣', label: 'Dispositivo' },
+    { id: 'about' as const, icon: 'ⓘ', label: 'Sobre' },
+  ];
+
+  const title = sections.find(section => section.id === activeSection)?.label ?? 'Configurações';
+
   return (
     <AppLayout>
       <div className="clean-tv-page flex h-full px-14 py-8">
@@ -247,113 +260,167 @@ export function SettingsScreen() {
           <h1 className="clean-tv-title mb-8 text-5xl">Config</h1>
 
           <div className="space-y-1">
-            {['Player', 'Lista', 'Idioma', 'Aparência', 'Dispositivo', 'Sobre'].map((item, index) => (
+            {sections.map(section => (
               <button
-                key={item}
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
                 className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${
-                  index === 0 ? 'active' : ''
+                  activeSection === section.id ? 'active' : ''
                 }`}
               >
-                <span className="w-8 text-2xl">{index === 0 ? '▷' : index === 1 ? '▤' : index === 2 ? '⌾' : index === 3 ? '◇' : index === 4 ? '▣' : 'ⓘ'}</span>
-                <span className="text-2xl font-light">{item}</span>
+                <span className="w-8 text-2xl">{section.icon}</span>
+                <span className="text-2xl font-light">{section.label}</span>
               </button>
             ))}
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1">
-          <h2 className="clean-tv-title mb-8 text-4xl">Configurações</h2>
+        <main className="min-w-0 flex-1 overflow-y-auto pb-16 pr-6">
+          <h2 className="clean-tv-title mb-8 text-4xl">{title}</h2>
 
-          <div className="max-w-5xl divide-y divide-white/10">
-            <SettingRow label="Player preferencial" value={settings.playerType}>
-              <select
-                value={settings.playerType}
-                onChange={e => updateSettings({ playerType: e.target.value as typeof settings.playerType })}
-                className="bg-transparent text-right text-2xl font-light text-white outline-none"
-              >
-                <option value="auto">Automático</option>
-                <option value="native">Nativo</option>
-                <option value="vlc">VLC</option>
-                <option value="mxplayer">MX Player</option>
-              </select>
-            </SettingRow>
+          {activeSection === 'player' && (
+            <div className="max-w-5xl divide-y divide-white/10">
+              <SettingRow label="Player preferencial" value={settings.playerType}>
+                <select
+                  value={settings.playerType}
+                  onChange={e => updateSettings({ playerType: e.target.value as typeof settings.playerType })}
+                  className="min-w-[220px] bg-transparent text-right text-2xl font-light text-white outline-none"
+                >
+                  <option value="auto">Automático</option>
+                  <option value="native">Nativo</option>
+                  <option value="vlc">VLC</option>
+                  <option value="mxplayer">MX Player</option>
+                </select>
+              </SettingRow>
 
-            <SettingRow label="Decodificação" value={settings.decoding}>
-              <select
-                value={settings.decoding}
-                onChange={e => updateSettings({ decoding: e.target.value as typeof settings.decoding })}
-                className="bg-transparent text-right text-2xl font-light text-white outline-none"
-              >
-                <option value="auto">Automático</option>
-                <option value="hardware">Hardware</option>
-                <option value="software">Software</option>
-              </select>
-            </SettingRow>
+              <SettingRow label="Decodificação" value={settings.decoding}>
+                <select
+                  value={settings.decoding}
+                  onChange={e => updateSettings({ decoding: e.target.value as typeof settings.decoding })}
+                  className="min-w-[220px] bg-transparent text-right text-2xl font-light text-white outline-none"
+                >
+                  <option value="auto">Automático</option>
+                  <option value="hardware">Hardware</option>
+                  <option value="software">Software</option>
+                </select>
+              </SettingRow>
 
-            <SettingRow label="Buffer" value={settings.bufferSize}>
-              <select
-                value={settings.bufferSize}
-                onChange={e => updateSettings({ bufferSize: e.target.value as typeof settings.bufferSize })}
-                className="bg-transparent text-right text-2xl font-light text-white outline-none"
-              >
-                <option value="low">Baixo</option>
-                <option value="medium">Médio</option>
-                <option value="high">Alto</option>
-              </select>
-            </SettingRow>
+              <SettingRow label="Buffer" value={settings.bufferSize}>
+                <select
+                  value={settings.bufferSize}
+                  onChange={e => updateSettings({ bufferSize: e.target.value as typeof settings.bufferSize })}
+                  className="min-w-[220px] bg-transparent text-right text-2xl font-light text-white outline-none"
+                >
+                  <option value="low">Baixo</option>
+                  <option value="medium">Médio</option>
+                  <option value="high">Alto</option>
+                </select>
+              </SettingRow>
 
-            <SettingRow label="Idioma" value={settings.language}>
-              <select
-                value={settings.language}
-                onChange={e => updateSettings({ language: e.target.value as typeof settings.language })}
-                className="bg-transparent text-right text-2xl font-light text-white outline-none"
-              >
-                <option value="pt">Português</option>
-                <option value="en">English</option>
-                <option value="es">Español</option>
-              </select>
-            </SettingRow>
+              <SettingRow label="Reconexão automática" value={settings.autoReconnect ? 'Ligado' : 'Desligado'}>
+                <button
+                  onClick={() => updateSettings({ autoReconnect: !settings.autoReconnect })}
+                  className="text-2xl font-light text-white hover:text-[#2396f2]"
+                >
+                  {settings.autoReconnect ? 'Ligado' : 'Desligado'}
+                </button>
+              </SettingRow>
+            </div>
+          )}
 
-            <SettingRow label="Modo de interface" value={uiMode}>
-              <button
-                onClick={() => setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')}
-                className="text-2xl font-light text-white"
-              >
-                {uiMode === 'tv' ? 'TV Box' : 'Mobile'}
-              </button>
-            </SettingRow>
+          {activeSection === 'list' && (
+            <div className="max-w-5xl divide-y divide-white/10">
+              <SettingRow label="Gerenciar listas" value="Abrir">
+                <button
+                  onClick={() => setScreen('playlists')}
+                  className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white"
+                >
+                  Abrir listas
+                </button>
+              </SettingRow>
 
-            <SettingRow label="Reconexão automática" value={settings.autoReconnect ? 'Ligado' : 'Desligado'}>
-              <button
-                onClick={() => updateSettings({ autoReconnect: !settings.autoReconnect })}
-                className="text-2xl font-light text-white"
-              >
-                {settings.autoReconnect ? 'Ligado' : 'Desligado'}
-              </button>
-            </SettingRow>
+              <SettingRow label="Importação M3U" value="Ativa" />
+              <SettingRow label="Fontes autorizadas" value="Obrigatório" />
+              <SettingRow label="HTTP em HTTPS" value="Bloqueado pelo navegador" />
+            </div>
+          )}
 
-            <SettingRow label="P2P autorizado" value={settings.p2pEnabled ? 'Ligado' : 'Desligado'}>
-              <button
-                onClick={() => updateSettings({ p2pEnabled: !settings.p2pEnabled })}
-                className="text-2xl font-light text-white"
-              >
-                {settings.p2pEnabled ? 'Ligado' : 'Desligado'}
-              </button>
-            </SettingRow>
+          {activeSection === 'language' && (
+            <div className="max-w-5xl divide-y divide-white/10">
+              <SettingRow label="Idioma" value={settings.language}>
+                <select
+                  value={settings.language}
+                  onChange={e => updateSettings({ language: e.target.value as typeof settings.language })}
+                  className="min-w-[220px] bg-transparent text-right text-2xl font-light text-white outline-none"
+                >
+                  <option value="pt">Português</option>
+                  <option value="en">English</option>
+                  <option value="es">Español</option>
+                </select>
+              </SettingRow>
 
-            <SettingRow label="Código do dispositivo" value={deviceCode} />
-            <SettingRow label="Vencimento" value={expiresAt} />
-            <SettingRow label="Dias restantes" value={`${daysRemaining}`} />
-          </div>
+              <SettingRow label="Região" value="Brasil" />
+              <SettingRow label="Formato de data" value="DD/MM/AAAA" />
+            </div>
+          )}
 
-          <p className="mt-10 max-w-3xl text-lg font-light leading-relaxed text-white/42">
-            RonecaPlayTV é um player legal para fontes autorizadas. O app não fornece canais, filmes, séries ou listas.
-          </p>
+          {activeSection === 'appearance' && (
+            <div className="max-w-5xl divide-y divide-white/10">
+              <SettingRow label="Modo de interface" value={uiMode}>
+                <button
+                  onClick={() => setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')}
+                  className="text-2xl font-light text-white hover:text-[#2396f2]"
+                >
+                  {uiMode === 'tv' ? 'TV Box' : 'Mobile'}
+                </button>
+              </SettingRow>
+
+              <SettingRow label="Tema" value="Clean TV" />
+              <SettingRow label="Menu lateral" value="Ativo" />
+              <SettingRow label="Foco azul" value="Ativo" />
+            </div>
+          )}
+
+          {activeSection === 'device' && (
+            <div className="max-w-5xl divide-y divide-white/10">
+              <SettingRow label="Código do dispositivo" value={deviceCode} />
+              <SettingRow label="Vencimento" value={expiresAt} />
+              <SettingRow label="Dias restantes" value={`${daysRemaining}`} />
+              <SettingRow label="P2P autorizado" value={settings.p2pEnabled ? 'Ligado' : 'Desligado'}>
+                <button
+                  onClick={() => updateSettings({ p2pEnabled: !settings.p2pEnabled })}
+                  className="text-2xl font-light text-white hover:text-[#2396f2]"
+                >
+                  {settings.p2pEnabled ? 'Ligado' : 'Desligado'}
+                </button>
+              </SettingRow>
+            </div>
+          )}
+
+          {activeSection === 'about' && (
+            <div className="max-w-4xl">
+              <p className="mb-8 text-2xl font-light leading-relaxed text-white/62">
+                RonecaPlayTV é um player legal para fontes autorizadas.
+              </p>
+
+              <div className="divide-y divide-white/10">
+                <SettingRow label="Aplicativo" value="RonecaPlayTV" />
+                <SettingRow label="Tipo" value="Player IPTV/P2P" />
+                <SettingRow label="Conteúdo incluso" value="Não fornece conteúdo" />
+                <SettingRow label="Uso correto" value="Somente listas autorizadas" />
+              </div>
+
+              <p className="mt-10 text-lg font-light leading-relaxed text-white/42">
+                O app não fornece canais, filmes, séries, listas piratas, desbloqueio de conteúdo pago, DRM bypass ou qualquer conteúdo sem autorização.
+              </p>
+            </div>
+          )}
         </main>
       </div>
     </AppLayout>
   );
 }
+
 
 function SettingRow({
   label,
