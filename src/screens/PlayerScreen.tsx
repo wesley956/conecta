@@ -11,7 +11,7 @@ function isHttpUrl(url: string) {
 function toMediaProxyUrl(url: string) {
   if (!isHttpUrl(url)) return url;
 
-  const path = `/api/dev-media-proxy?url=${encodeURIComponent(url)}`;
+  const path = `/api/media-proxy?url=${encodeURIComponent(url)}`;
 
   if (typeof window === 'undefined') return path;
 

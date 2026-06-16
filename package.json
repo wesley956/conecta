@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run build",
     "preview": "vite preview",
-    "audit:ui": "node scripts/audit-ui-crud.cjs"
+    "audit:ui": "node scripts/audit-ui-crud.cjs",
+    "serve:prod": "npm run build && node server.mjs",
+    "serve:dist": "node server.mjs"
   },
   "dependencies": {
     "clsx": "2.1.1",
