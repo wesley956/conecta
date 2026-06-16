@@ -85,7 +85,7 @@ export function PlayerScreen() {
           url: playbackUrl,
         },
         {
-          enableWorker: true,
+          enableWorker: false,
           liveBufferLatencyChasing: true,
           stashInitialSize: 384 * 1024,
         }

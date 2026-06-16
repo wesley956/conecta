@@ -165,7 +165,68 @@ function parseEpisodeInfo(name: string) {
   };
 }
 
-export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3UResult {
+
+interface XtreamSourceInfo {
+  origin: string;
+  username: string;
+  password: string;
+}
+
+function parseXtreamSourceInfo(sourceUrl: string): XtreamSourceInfo | null {
+  if (!sourceUrl) return null;
+
+  try {
+    const url = new URL(sourceUrl);
+    const username = url.searchParams.get('username') || '';
+    const password = url.searchParams.get('password') || '';
+
+    if (!username || !password) return null;
+
+    return {
+      origin: url.origin,
+      username,
+      password,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getXtreamFileName(streamUrl: string, source: XtreamSourceInfo): string | null {
+  try {
+    const url = new URL(streamUrl);
+    const parts = url.pathname.split('/').filter(Boolean).map(part => decodeURIComponent(part));
+
+    for (let index = 0; index < parts.length - 2; index += 1) {
+      if (parts[index] === source.username && parts[index + 1] === source.password) {
+        return parts[index + 2] || null;
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeXtreamPlaybackUrl(streamUrl: string, sourceUrl: string, kind: EntryKind): string {
+  const source = parseXtreamSourceInfo(sourceUrl);
+
+  if (!source) return streamUrl;
+
+  const fileName = getXtreamFileName(streamUrl, source);
+
+  if (!fileName) return streamUrl;
+
+  const folder = kind === 'live' ? 'live' : kind === 'movie' ? 'movie' : 'series';
+  const safeFileName = kind === 'live' && !/\.[a-z0-9]+(\?|#|$)/i.test(fileName)
+    ? `${fileName}.ts`
+    : fileName;
+
+  return `${source.origin}/${folder}/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${safeFileName}`;
+}
+
+export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = ''): ParsedM3UResult {
   const lines = content
     .split(/\r?\n/)
     .map(line => line.trim())
@@ -198,6 +259,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u'): ParsedM3URe
     };
 
     const kind = classifyEntry(entry);
+    entry.url = normalizeXtreamPlaybackUrl(entry.url, sourceUrl, kind);
 
     if (kind === 'live') {
       channels.push({

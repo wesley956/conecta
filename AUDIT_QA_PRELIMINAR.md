@@ -1,8 +1,8 @@
 # Auditoria QA / CRUD / Botões
 
 Arquivos analisados: 14
-Botões encontrados: 108
-Botões de ação/CRUD encontrados: 41
+Botões encontrados: 109
+Botões de ação/CRUD encontrados: 42
 Suspeitas encontradas: 0
 
 ## Actions detectadas no appStore
@@ -65,14 +65,15 @@ Suspeitas encontradas: 0
 - src/screens/ErrorScreens.tsx:85 | onClick=SIM | disabled=NÃO | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x
 - src/screens/ErrorScreens.tsx:117 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:
 - src/screens/PlayerScreen.tsx:198 | onClick=SIM | disabled=NÃO | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
-- src/screens/PlaylistsSettingsScreen.tsx:204 | onClick=SIM | disabled=NÃO | ＋ Adicionar lista
-- src/screens/PlaylistsSettingsScreen.tsx:267 | onClick=SIM | disabled=SIM | (sem texto detectado)
-- src/screens/PlaylistsSettingsScreen.tsx:275 | onClick=SIM | disabled=NÃO | Cancelar
-- src/screens/PlaylistsSettingsScreen.tsx:336 | onClick=SIM | disabled=NÃO | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
-- src/screens/PlaylistsSettingsScreen.tsx:343 | onClick=SIM | disabled=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
-- src/screens/PlaylistsSettingsScreen.tsx:351 | onClick=SIM | disabled=NÃO | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
-- src/screens/PlaylistsSettingsScreen.tsx:366 | onClick=SIM | disabled=NÃO | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
-- src/screens/PlaylistsSettingsScreen.tsx:374 | onClick=SIM | disabled=NÃO | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
+- src/screens/PlaylistsSettingsScreen.tsx:186 | onClick=SIM | disabled=SIM | Limpar tudo
+- src/screens/PlaylistsSettingsScreen.tsx:211 | onClick=SIM | disabled=NÃO | ＋ Adicionar lista
+- src/screens/PlaylistsSettingsScreen.tsx:274 | onClick=SIM | disabled=SIM | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:282 | onClick=SIM | disabled=NÃO | Cancelar
+- src/screens/PlaylistsSettingsScreen.tsx:343 | onClick=SIM | disabled=NÃO | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
+- src/screens/PlaylistsSettingsScreen.tsx:350 | onClick=SIM | disabled=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
+- src/screens/PlaylistsSettingsScreen.tsx:358 | onClick=SIM | disabled=NÃO | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
+- src/screens/PlaylistsSettingsScreen.tsx:373 | onClick=SIM | disabled=NÃO | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
+- src/screens/PlaylistsSettingsScreen.tsx:381 | onClick=SIM | disabled=NÃO | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
 - src/admin/AdminLayout.tsx:232 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b
 - src/admin/AdminLayout.tsx:235 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-
 - src/admin/AdminModules.tsx:119 | onClick=SIM | disabled=NÃO | + Novo Plano
@@ -142,26 +143,27 @@ Suspeitas encontradas: 0
 - src/screens/PlayerScreen.tsx:240 | onClick=SIM | setShowList(current => !current)} className="rounded-md bg-white/[0.055] px-7 py-3 text-2xl font-lig
 - src/screens/PlayerScreen.tsx:256 | onClick=SIM | } className="flex items-center gap-5 text-3xl font-light text-white/82 hover:text-white" > ▷
 - src/screens/PlayerScreen.tsx:281 | onClick=SIM | } className= `} > ▣
-- src/screens/PlaylistsSettingsScreen.tsx:186 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
-- src/screens/PlaylistsSettingsScreen.tsx:196 | onClick=SIM | setShowAdd(false)} className= `} > ▤ Minhas listas
-- src/screens/PlaylistsSettingsScreen.tsx:204 | onClick=SIM | ＋ Adicionar lista
-- src/screens/PlaylistsSettingsScreen.tsx:212 | onClick=SIM | setScreen('settings')} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" >
-- src/screens/PlaylistsSettingsScreen.tsx:267 | onClick=SIM | (sem texto detectado)
-- src/screens/PlaylistsSettingsScreen.tsx:275 | onClick=SIM | Cancelar
-- src/screens/PlaylistsSettingsScreen.tsx:289 | onClick=SIM | Restaurar padrão
-- src/screens/PlaylistsSettingsScreen.tsx:328 | onClick=SIM | openPlaylistContent(playlist)} disabled= className="rounded-md bg-[#28d850]/85 px-5 py-2 text-base f
-- src/screens/PlaylistsSettingsScreen.tsx:336 | onClick=SIM | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
-- src/screens/PlaylistsSettingsScreen.tsx:343 | onClick=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
-- src/screens/PlaylistsSettingsScreen.tsx:351 | onClick=SIM | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
-- src/screens/PlaylistsSettingsScreen.tsx:360 | onClick=SIM | confirmDelete(playlist.id)} className="rounded-md bg-red-500/85 px-5 py-2 text-base font-light text-
-- src/screens/PlaylistsSettingsScreen.tsx:366 | onClick=SIM | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
-- src/screens/PlaylistsSettingsScreen.tsx:374 | onClick=SIM | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
-- src/screens/PlaylistsSettingsScreen.tsx:433 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
-- src/screens/PlaylistsSettingsScreen.tsx:444 | onClick=SIM | setActiveSection(section.id)} className= `} >
-- src/screens/PlaylistsSettingsScreen.tsx:501 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
-- src/screens/PlaylistsSettingsScreen.tsx:514 | onClick=SIM | setScreen('playlists')} className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white" 
-- src/screens/PlaylistsSettingsScreen.tsx:550 | onClick=SIM | setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')} className="text-2xl font-light text-white hover:text-[
-- src/screens/PlaylistsSettingsScreen.tsx:570 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
+- src/screens/PlaylistsSettingsScreen.tsx:186 | onClick=SIM | Limpar tudo
+- src/screens/PlaylistsSettingsScreen.tsx:193 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
+- src/screens/PlaylistsSettingsScreen.tsx:203 | onClick=SIM | setShowAdd(false)} className= `} > ▤ Minhas listas
+- src/screens/PlaylistsSettingsScreen.tsx:211 | onClick=SIM | ＋ Adicionar lista
+- src/screens/PlaylistsSettingsScreen.tsx:219 | onClick=SIM | setScreen('settings')} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" >
+- src/screens/PlaylistsSettingsScreen.tsx:274 | onClick=SIM | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:282 | onClick=SIM | Cancelar
+- src/screens/PlaylistsSettingsScreen.tsx:296 | onClick=SIM | Restaurar padrão
+- src/screens/PlaylistsSettingsScreen.tsx:335 | onClick=SIM | openPlaylistContent(playlist)} disabled= className="rounded-md bg-[#28d850]/85 px-5 py-2 text-base f
+- src/screens/PlaylistsSettingsScreen.tsx:343 | onClick=SIM | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
+- src/screens/PlaylistsSettingsScreen.tsx:350 | onClick=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
+- src/screens/PlaylistsSettingsScreen.tsx:358 | onClick=SIM | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
+- src/screens/PlaylistsSettingsScreen.tsx:367 | onClick=SIM | confirmDelete(playlist.id)} className="rounded-md bg-red-500/85 px-5 py-2 text-base font-light text-
+- src/screens/PlaylistsSettingsScreen.tsx:373 | onClick=SIM | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
+- src/screens/PlaylistsSettingsScreen.tsx:381 | onClick=SIM | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
+- src/screens/PlaylistsSettingsScreen.tsx:440 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
+- src/screens/PlaylistsSettingsScreen.tsx:451 | onClick=SIM | setActiveSection(section.id)} className= `} >
+- src/screens/PlaylistsSettingsScreen.tsx:508 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
+- src/screens/PlaylistsSettingsScreen.tsx:521 | onClick=SIM | setScreen('playlists')} className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white" 
+- src/screens/PlaylistsSettingsScreen.tsx:557 | onClick=SIM | setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')} className="text-2xl font-light text-white hover:text-[
+- src/screens/PlaylistsSettingsScreen.tsx:577 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
 - src/screens/SeriesScreen.tsx:95 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
 - src/screens/SeriesScreen.tsx:106 | onClick=SIM | setSelectedCategory(category.id)} className= `} >
 - src/screens/SeriesScreen.tsx:127 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕

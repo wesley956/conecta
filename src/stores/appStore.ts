@@ -168,7 +168,7 @@ export const useAppStore = create<AppStore>()(
     }
 
     const playlistId = `pl-${Date.now()}`;
-    const result = parseM3U(content, playlistId);
+    const result = parseM3U(content, playlistId, sourceUrl);
 
     if (getParsedImportCount(result) === 0) {
       throw new Error('Nenhum item com URL reproduzível foi encontrado na lista.');
@@ -245,7 +245,7 @@ export const useAppStore = create<AppStore>()(
       throw new Error('O conteúdo informado não parece ser uma lista M3U válida.');
     }
 
-    const result = parseM3U(content, playlistId);
+    const result = parseM3U(content, playlistId, sourceUrl);
 
     if (getParsedImportCount(result) === 0) {
       throw new Error('Nenhum item com URL reproduzível foi encontrado na lista.');
