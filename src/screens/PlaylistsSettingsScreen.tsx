@@ -12,6 +12,7 @@ export function PlaylistsScreen() {
     importM3UPlaylist,
     addDirectStreamChannel,
     removePlaylist,
+    clearAllImportedContent,
     updatePlaylist,
     replaceM3UPlaylist,
     resetContentToMock,
@@ -164,6 +165,12 @@ export function PlaylistsScreen() {
     await syncPlaylist(playlist, true);
   };
 
+  const handleClearAllContent = () => {
+    clearAllImportedContent();
+    setMessage('Todas as listas e conteúdos foram removidos.');
+    setError(null);
+  };
+
   const confirmDelete = (playlistId: string) => {
     removePlaylist(playlistId);
     setDeleteTargetId(null);
@@ -176,6 +183,13 @@ export function PlaylistsScreen() {
         <BottomNav />
 
         <aside className="w-[330px] shrink-0 pr-10">
+          <button
+            onClick={handleClearAllContent}
+            disabled={playlists.length === 0}
+            className="rounded-md bg-red-500/20 px-6 py-3 text-xl font-light text-red-100 hover:bg-red-500/30 disabled:opacity-40"
+          >
+            Limpar tudo
+          </button>
           <button
             onClick={() => setScreen('home')}
             className="mb-8 text-5xl text-white/45 hover:text-white"

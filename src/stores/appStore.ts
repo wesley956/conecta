@@ -8,6 +8,7 @@ if (typeof window !== 'undefined') {
   try {
     // Versões antigas salvaram listas/canais grandes no localStorage e podem estourar quota.
     localStorage.removeItem('ronecaplaytv-local-state-v1');
+    localStorage.removeItem('ronecaplaytv-local-state-v2');
   } catch {
     // ignora falha de limpeza
   }
@@ -53,6 +54,7 @@ interface AppStore {
   removePlaylist: (playlistId: string) => void;
   updatePlaylist: (playlistId: string, partial: Partial<Pick<Playlist, 'name' | 'url' | 'status' | 'lastSync'>>) => void;
   replaceM3UPlaylist: (playlistId: string, name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
+  clearAllImportedContent: () => void;
   resetContentToMock: () => void;
   currentChannel: Channel | null;
   currentMovie: Movie | null;
@@ -118,11 +120,11 @@ export const useAppStore = create<AppStore>()(
   setSubscription: (active, expiresAt, days) => set({ subscriptionActive: active, expiresAt, daysRemaining: days }),
   
   // Content
-  channels: mockChannels,
-  movies: mockMovies,
-  series: mockSeries,
-  playlists: mockPlaylists,
-  watchHistory: mockHistory,
+  channels: [],
+  movies: [],
+  series: [],
+  playlists: [],
+  watchHistory: [],
   addDirectStreamChannel: (name, sourceUrl) => {
     const url = sourceUrl.trim();
 
@@ -290,6 +292,18 @@ export const useAppStore = create<AppStore>()(
     return { imported: getParsedImportCount(result), skipped: result.skipped };
   },
 
+  clearAllImportedContent: () => set({
+    playlists: [],
+    channels: [],
+    movies: [],
+    series: [],
+    watchHistory: [],
+    currentChannel: null,
+    currentMovie: null,
+    currentSeries: null,
+    activeNotice: '🧹 Listas e conteúdo removidos.',
+  }),
+
   resetContentToMock: () => set({
     channels: mockChannels,
     movies: mockMovies,
@@ -358,7 +372,7 @@ export const useAppStore = create<AppStore>()(
   setSplashDone: (val) => set({ splashDone: val }),
     }),
     {
-      name: 'ronecaplaytv-local-state-v2',
+      name: 'ronecaplaytv-local-state-v3',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         uiMode: state.uiMode,
