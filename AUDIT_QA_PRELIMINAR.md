@@ -106,9 +106,9 @@ Suspeitas encontradas: 0
 - src/screens/ActivationScreen.tsx:70 | onClick=SIM | setRequested(true)} className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-whi
 - src/screens/ActivationScreen.tsx:77 | onClick=SIM | (sem texto detectado)
 - src/screens/ActivationScreen.tsx:95 | onClick=SIM | setScreen('home')} className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:te
-- src/screens/ChannelsScreen.tsx:46 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
-- src/screens/ChannelsScreen.tsx:55 | onClick=SIM | } className= `} >
-- src/screens/ChannelsScreen.tsx:87 | onClick=SIM | setSelectedChannelId(channel.id)} onDoubleClick= className= `} >
+- src/screens/ChannelsScreen.tsx:58 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
+- src/screens/ChannelsScreen.tsx:67 | onClick=SIM | } className= `} >
+- src/screens/ChannelsScreen.tsx:102 | onClick=SIM | setSelectedChannelId(channel.id)} onDoubleClick= className= `} >
 - src/screens/ErrorScreens.tsx:42 | onClick=SIM | 🔄 Tentar Novamente
 - src/screens/ErrorScreens.tsx:48 | onClick=SIM | setScreen('activation')} className="w-full bg-white/[0.04] border border-white/10 text-text-gray fon
 - src/screens/ErrorScreens.tsx:85 | onClick=SIM | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x

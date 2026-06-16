@@ -8,13 +8,25 @@ function getGroupName(group: string) {
   return channelCategories.find(c => c.id === group)?.name || group;
 }
 
+function getSafeImageUrl(url?: string) {
+  if (!url) return undefined;
+
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+    return undefined;
+  }
+
+  return url;
+}
+
 export function ChannelsScreen() {
   const { channels, setScreen, setCurrentChannel } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState('Todos');
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(channels[0]?.id ?? null);
 
   const categories = useMemo(() => {
-    return ['Buscar', 'Favoritos', 'Playback', 'Tudo: A-Z', ...channelCategories.map(c => c.name)];
+    const reserved = new Set(['Buscar', 'Favoritos', 'Playback', 'Tudo: A-Z', 'Todos']);
+    const importedCategories = channelCategories.map(c => c.name).filter(name => !reserved.has(name));
+    return ['Buscar', 'Favoritos', 'Playback', 'Tudo: A-Z', ...importedCategories];
   }, []);
 
   const filteredChannels = useMemo(() => {
@@ -53,7 +65,7 @@ export function ChannelsScreen() {
           <div className="space-y-1">
             {categories.map((category, index) => (
               <button
-                key={category}
+                key={`${category}-${index}`}
                 onClick={() => {
                   setSelectedCategory(category);
                   setSelectedChannelId(null);
@@ -83,7 +95,10 @@ export function ChannelsScreen() {
             </div>
           ) : (
             <div className="grid max-h-[calc(100vh-120px)] grid-cols-2 gap-x-12 gap-y-2 overflow-y-auto pr-6">
-              {filteredChannels.map(channel => (
+              {filteredChannels.map(channel => {
+                const safeLogo = getSafeImageUrl(channel.logo);
+
+                return (
                 <button
                   key={channel.id}
                   onClick={() => setSelectedChannelId(channel.id)}
@@ -95,8 +110,8 @@ export function ChannelsScreen() {
                   }`}
                 >
                   <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
-                    {channel.logo ? (
-                      <img src={channel.logo} alt="" className="max-h-10 max-w-full object-contain" />
+                    {safeLogo ? (
+                      <img src={safeLogo} alt="" className="max-h-10 max-w-full object-contain" />
                     ) : (
                       'TV'
                     )}
@@ -107,7 +122,8 @@ export function ChannelsScreen() {
                     <span className="block truncate text-sm text-white/35">{getGroupName(channel.group)}</span>
                   </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>

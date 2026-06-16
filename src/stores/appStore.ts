@@ -4,6 +4,15 @@ import type { AppState, UIMode, AppSettings, WatchHistory, Channel, Movie, Serie
 import { channels as mockChannels, movies as mockMovies, series as mockSeries, playlists as mockPlaylists, watchHistory as mockHistory, DEVICE_CODE, LEGAL_NOTICE } from '@/data/mock';
 import { parseM3U, isLikelyM3U } from '@/utils/m3u';
 
+if (typeof window !== 'undefined') {
+  try {
+    // Versões antigas salvaram listas/canais grandes no localStorage e podem estourar quota.
+    localStorage.removeItem('ronecaplaytv-local-state-v1');
+  } catch {
+    // ignora falha de limpeza
+  }
+}
+
 interface AppStore {
   // Navigation
   currentScreen: AppState;
@@ -317,7 +326,7 @@ export const useAppStore = create<AppStore>()(
   setSplashDone: (val) => set({ splashDone: val }),
     }),
     {
-      name: 'ronecaplaytv-local-state-v1',
+      name: 'ronecaplaytv-local-state-v2',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         uiMode: state.uiMode,
@@ -325,13 +334,10 @@ export const useAppStore = create<AppStore>()(
         subscriptionActive: state.subscriptionActive,
         expiresAt: state.expiresAt,
         daysRemaining: state.daysRemaining,
-        channels: state.channels,
-        movies: state.movies,
-        series: state.series,
+        // Não persistir channels/movies/series/watchHistory aqui.
+        // Listas M3U grandes estouram o limite do localStorage.
         playlists: state.playlists,
-        watchHistory: state.watchHistory,
         settings: state.settings,
-        activeNotice: state.activeNotice,
       }),
     }
   )
