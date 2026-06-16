@@ -10,30 +10,66 @@ export function PlaylistsScreen() {
     setScreen,
     importM3UPlaylist,
     addDirectStreamChannel,
+    removePlaylist,
+    updatePlaylist,
+    replaceM3UPlaylist,
+    resetContentToMock,
   } = useAppStore();
 
   const [showAdd, setShowAdd] = useState(false);
+  const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
   const [playlistName, setPlaylistName] = useState('');
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [m3uContent, setM3uContent] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  const editingPlaylist = editingPlaylistId
+    ? playlists.find(playlist => playlist.id === editingPlaylistId) ?? null
+    : null;
 
   const reset = () => {
     setPlaylistName('');
     setPlaylistUrl('');
     setM3uContent('');
+    setEditingPlaylistId(null);
+    setDeleteTargetId(null);
   };
 
-  const handleAdd = async () => {
+  const openAdd = () => {
+    reset();
+    setMessage(null);
+    setError(null);
+    setShowAdd(true);
+  };
+
+  const openEdit = (playlist: typeof playlists[number]) => {
+    setMessage(null);
+    setError(null);
+    setDeleteTargetId(null);
+    setEditingPlaylistId(playlist.id);
+    setPlaylistName(playlist.name);
+    setPlaylistUrl(playlist.url ?? '');
+    setM3uContent('');
+    setShowAdd(true);
+  };
+
+  const closeForm = () => {
+    reset();
+    setShowAdd(false);
+  };
+
+  const handleSave = async () => {
     setMessage(null);
     setError(null);
 
     const url = playlistUrl.trim();
     const pasted = m3uContent.trim();
+    const name = playlistName.trim() || 'Lista M3U';
 
-    if (!url && !pasted) {
+    if (!editingPlaylistId && !url && !pasted) {
       setError('Informe uma URL M3U ou cole o conteúdo da lista.');
       return;
     }
@@ -51,24 +87,74 @@ export function PlaylistsScreen() {
     setIsAdding(true);
 
     try {
+      if (editingPlaylistId) {
+        if (pasted) {
+          const result = replaceM3UPlaylist(editingPlaylistId, name, url, pasted);
+          setMessage(`Lista sincronizada: ${result.imported} canal(is).`);
+        } else {
+          updatePlaylist(editingPlaylistId, {
+            name,
+            url: url || undefined,
+            lastSync: new Date().toLocaleString('pt-BR'),
+          });
+          setMessage('Lista atualizada.');
+        }
+
+        closeForm();
+        return;
+      }
+
       const isDirectStream = /\.(m3u8|mpd)(\?|#|$)/i.test(url);
       let result;
 
       if (isDirectStream && !pasted) {
-        result = addDirectStreamChannel(playlistName || 'Canal direto', url);
+        result = addDirectStreamChannel(name || 'Canal direto', url);
       } else {
         const content = pasted || await fetchM3UContent(url);
-        result = importM3UPlaylist(playlistName || 'Lista M3U', url, content);
+        result = importM3UPlaylist(name || 'Lista M3U', url, content);
       }
 
       setMessage(`${result.imported} canal(is) importado(s).`);
-      reset();
-      setShowAdd(false);
+      closeForm();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível adicionar a lista.');
+      setError(err instanceof Error ? err.message : 'Não foi possível salvar a lista.');
     } finally {
       setIsAdding(false);
     }
+  };
+
+  const syncPlaylist = async (playlist: typeof playlists[number]) => {
+    setMessage(null);
+    setError(null);
+    setDeleteTargetId(null);
+
+    if (!playlist.url) {
+      setError('Essa lista não tem URL. Edite a lista e cole o conteúdo M3U manualmente.');
+      return;
+    }
+
+    if (playlist.url.startsWith('http://') && window.location.protocol === 'https:') {
+      setError('URL HTTP bloqueada pelo navegador em HTTPS. Use HTTPS ou edite a lista colando o conteúdo M3U manualmente.');
+      return;
+    }
+
+    setIsAdding(true);
+
+    try {
+      const content = await fetchM3UContent(playlist.url);
+      const result = replaceM3UPlaylist(playlist.id, playlist.name, playlist.url, content);
+      setMessage(`Lista sincronizada: ${result.imported} canal(is).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível sincronizar a lista.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const confirmDelete = (playlistId: string) => {
+    removePlaylist(playlistId);
+    setDeleteTargetId(null);
+    setMessage('Lista excluída.');
   };
 
   return (
@@ -89,15 +175,15 @@ export function PlaylistsScreen() {
           <div className="space-y-1">
             <button
               onClick={() => setShowAdd(false)}
-              className={`clean-tv-row active flex w-full items-center gap-4 px-5 py-4 text-left`}
+              className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${!showAdd ? 'active' : ''}`}
             >
               <span className="w-8 text-2xl">▤</span>
               <span className="text-2xl font-light">Minhas listas</span>
             </button>
 
             <button
-              onClick={() => setShowAdd(true)}
-              className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
+              onClick={openAdd}
+              className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${showAdd && !editingPlaylistId ? 'active' : ''}`}
             >
               <span className="w-8 text-2xl">＋</span>
               <span className="text-2xl font-light">Adicionar lista</span>
@@ -113,10 +199,12 @@ export function PlaylistsScreen() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 overflow-y-auto pb-14 pr-6">
           {showAdd ? (
             <section className="max-w-4xl">
-              <h2 className="clean-tv-title mb-8 text-4xl">Adicionar lista</h2>
+              <h2 className="clean-tv-title mb-8 text-4xl">
+                {editingPlaylist ? 'Editar lista' : 'Adicionar lista'}
+              </h2>
 
               {error && <Notice tone="error">{error}</Notice>}
               {message && <Notice tone="success">{message}</Notice>}
@@ -143,7 +231,9 @@ export function PlaylistsScreen() {
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-xl font-light text-white/58">Conteúdo M3U manual</span>
+                  <span className="mb-2 block text-xl font-light text-white/58">
+                    Conteúdo M3U manual {editingPlaylist ? '(preencha para reimportar/substituir canais)' : ''}
+                  </span>
                   <textarea
                     value={m3uContent}
                     onChange={e => setM3uContent(e.target.value)}
@@ -155,15 +245,15 @@ export function PlaylistsScreen() {
 
                 <div className="flex gap-4 pt-4">
                   <button
-                    onClick={handleAdd}
+                    onClick={handleSave}
                     disabled={isAdding}
                     className="rounded-md bg-[#2396f2] px-10 py-4 text-2xl font-light text-white disabled:opacity-45"
                   >
-                    {isAdding ? 'Adicionando...' : 'Adicionar'}
+                    {isAdding ? 'Salvando...' : editingPlaylist ? 'Salvar' : 'Adicionar'}
                   </button>
 
                   <button
-                    onClick={() => setShowAdd(false)}
+                    onClick={closeForm}
                     className="rounded-md bg-white/[0.055] px-10 py-4 text-2xl font-light text-white/65 hover:text-white"
                   >
                     Cancelar
@@ -173,31 +263,93 @@ export function PlaylistsScreen() {
             </section>
           ) : (
             <section>
-              <h2 className="clean-tv-title mb-8 text-4xl">Minhas listas</h2>
+              <div className="mb-8 flex items-center justify-between">
+                <h2 className="clean-tv-title text-4xl">Minhas listas</h2>
+
+                <button
+                  onClick={resetContentToMock}
+                  className="rounded-md bg-white/[0.055] px-6 py-3 text-xl font-light text-white/65 hover:text-white"
+                >
+                  Restaurar padrão
+                </button>
+              </div>
 
               {message && <Notice tone="success">{message}</Notice>}
               {error && <Notice tone="error">{error}</Notice>}
 
-              <div className="max-w-5xl space-y-1">
+              <div className="max-w-6xl space-y-2">
                 {playlists.map((playlist, index) => (
                   <div
                     key={playlist.id}
-                    className={`flex items-center justify-between px-6 py-5 ${
-                      index === 0 ? 'bg-[#2396f2] text-white' : 'text-white/62 hover:bg-white/[0.055] hover:text-white'
+                    className={`px-6 py-5 ${
+                      index === 0 ? 'bg-[#2396f2] text-white' : 'bg-white/[0.025] text-white/70 hover:bg-white/[0.055] hover:text-white'
                     }`}
                   >
-                    <div>
-                      <p className="text-3xl font-light">{playlist.name}</p>
-                      <p className="mt-1 text-base opacity-55">
-                        {playlist.type.toUpperCase()} • Sync: {playlist.lastSync}
-                      </p>
+                    <div className="flex items-center justify-between gap-8">
+                      <div className="min-w-0">
+                        <p className="truncate text-3xl font-light">{playlist.name}</p>
+                        <p className="mt-1 truncate text-base opacity-55">
+                          {playlist.type.toUpperCase()} • {playlist.status} • Sync: {playlist.lastSync || 'Nunca'}
+                        </p>
+                        {playlist.url && (
+                          <p className="mt-1 max-w-2xl truncate text-xs opacity-35">{playlist.url}</p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <p className="text-2xl font-light">{playlist.channelCount} canais</p>
+                        <p className="mt-1 text-base opacity-55">
+                          {playlist.movieCount} filmes • {playlist.seriesCount} séries
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-right">
-                      <p className="text-2xl font-light">{playlist.channelCount} canais</p>
-                      <p className="mt-1 text-base opacity-55">
-                        {playlist.movieCount} filmes • {playlist.seriesCount} séries
-                      </p>
+                    <div className="mt-5 flex flex-wrap justify-end gap-3">
+                      <button
+                        onClick={() => openEdit(playlist)}
+                        className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/75 hover:text-white"
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        onClick={() => syncPlaylist(playlist)}
+                        disabled={isAdding}
+                        className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/75 hover:text-white disabled:opacity-45"
+                      >
+                        Sincronizar
+                      </button>
+
+                      <button
+                        onClick={() => updatePlaylist(playlist.id, { status: playlist.status === 'active' ? 'inactive' : 'active' })}
+                        className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/75 hover:text-white"
+                      >
+                        {playlist.status === 'active' ? 'Desativar' : 'Ativar'}
+                      </button>
+
+                      {deleteTargetId === playlist.id ? (
+                        <>
+                          <button
+                            onClick={() => confirmDelete(playlist.id)}
+                            className="rounded-md bg-red-500/85 px-5 py-2 text-base font-light text-white"
+                          >
+                            Confirmar exclusão
+                          </button>
+                          <button
+                            onClick={() => setDeleteTargetId(null)}
+                            className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/75"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteTargetId(playlist.id)}
+                          className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light text-red-200 hover:bg-red-500/25"
+                        >
+                          Excluir
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

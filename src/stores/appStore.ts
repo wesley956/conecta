@@ -33,6 +33,10 @@ interface AppStore {
   watchHistory: WatchHistory[];
   importM3UPlaylist: (name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
   addDirectStreamChannel: (name: string, sourceUrl: string) => { imported: number; skipped: number };
+  removePlaylist: (playlistId: string) => void;
+  updatePlaylist: (playlistId: string, partial: Partial<Pick<Playlist, 'name' | 'url' | 'status' | 'lastSync'>>) => void;
+  replaceM3UPlaylist: (playlistId: string, name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
+  resetContentToMock: () => void;
   currentChannel: Channel | null;
   currentMovie: Movie | null;
   currentSeries: Series | null;
@@ -173,6 +177,89 @@ export const useAppStore = create<AppStore>()(
 
     return { imported: result.channels.length, skipped: result.skipped };
   },
+
+  removePlaylist: (playlistId) => set((state) => {
+    const playlist = state.playlists.find((item) => item.id === playlistId);
+    const sourceUrl = playlist?.url;
+
+    const shouldRemoveChannel = (channel: Channel) =>
+      channel.id.startsWith(`${playlistId}-ch-`) || Boolean(sourceUrl && channel.url === sourceUrl);
+
+    const nextChannels = state.channels.filter((channel) => !shouldRemoveChannel(channel));
+    const currentChannelRemoved = state.currentChannel ? shouldRemoveChannel(state.currentChannel) : false;
+
+    return {
+      playlists: state.playlists.filter((item) => item.id !== playlistId),
+      channels: nextChannels,
+      currentChannel: currentChannelRemoved ? null : state.currentChannel,
+      activeNotice: playlist ? `🗑️ Lista removida: ${playlist.name}.` : '🗑️ Lista removida.',
+    };
+  }),
+
+  updatePlaylist: (playlistId, partial) => set((state) => ({
+    playlists: state.playlists.map((playlist) =>
+      playlist.id === playlistId
+        ? { ...playlist, ...partial, lastSync: partial.lastSync ?? playlist.lastSync }
+        : playlist
+    ),
+    activeNotice: '✅ Lista atualizada.',
+  })),
+
+  replaceM3UPlaylist: (playlistId, name, sourceUrl, content) => {
+    if (!isLikelyM3U(content)) {
+      throw new Error('O conteúdo informado não parece ser uma lista M3U válida.');
+    }
+
+    const result = parseM3U(content, playlistId);
+
+    if (result.channels.length === 0) {
+      throw new Error('Nenhum canal com URL reproduzível foi encontrado na lista.');
+    }
+
+    const now = new Date().toLocaleString('pt-BR');
+
+    const playlist: Playlist = {
+      id: playlistId,
+      name: name.trim() || 'Lista M3U autorizada',
+      type: 'm3u',
+      url: sourceUrl.trim() || undefined,
+      status: 'active',
+      channelCount: result.channels.length,
+      movieCount: 0,
+      seriesCount: 0,
+      lastSync: now,
+    };
+
+    set((state) => {
+      const oldPlaylist = state.playlists.find((item) => item.id === playlistId);
+      const oldUrl = oldPlaylist?.url;
+
+      const shouldRemoveChannel = (channel: Channel) =>
+        channel.id.startsWith(`${playlistId}-ch-`) || Boolean(oldUrl && channel.url === oldUrl);
+
+      return {
+        playlists: state.playlists.some((item) => item.id === playlistId)
+          ? state.playlists.map((item) => item.id === playlistId ? playlist : item)
+          : [playlist, ...state.playlists],
+        channels: [...result.channels, ...state.channels.filter((channel) => !shouldRemoveChannel(channel))],
+        activeNotice: `🔄 Lista sincronizada: ${result.channels.length} canal(is).`,
+      };
+    });
+
+    return { imported: result.channels.length, skipped: result.skipped };
+  },
+
+  resetContentToMock: () => set({
+    channels: mockChannels,
+    movies: mockMovies,
+    series: mockSeries,
+    playlists: mockPlaylists,
+    watchHistory: mockHistory,
+    currentChannel: null,
+    currentMovie: null,
+    currentSeries: null,
+    activeNotice: '✅ Listas e conteúdos restaurados para o estado inicial.',
+  }),
   currentChannel: null,
   currentMovie: null,
   currentSeries: null,
