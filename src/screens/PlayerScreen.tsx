@@ -42,8 +42,8 @@ export function PlayerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  const content = currentChannel || currentMovie;
-  const isLive = Boolean(currentChannel);
+  const content = currentMovie || currentChannel;
+  const isLive = Boolean(currentChannel && !currentMovie);
   const streamUrl = content?.url?.trim() || '';
   const playbackUrl = useMemo(() => toMediaProxyUrl(streamUrl), [streamUrl]);
 

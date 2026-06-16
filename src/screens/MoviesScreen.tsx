@@ -16,7 +16,7 @@ function sortByName(a: CategoryOption, b: CategoryOption) {
 }
 
 export function MoviesScreen() {
-  const { movies, setScreen, setCurrentMovie } = useAppStore();
+  const { movies, setScreen, setCurrentMovie, setCurrentSeries } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(MOVIE_RENDER_BATCH_SIZE);
 
@@ -62,6 +62,7 @@ export function MoviesScreen() {
   const selectedLabel = categoryOptions.find(category => category.id === selectedCategory)?.name ?? 'Filmes';
 
   const playMovie = (movie: Movie) => {
+    setCurrentSeries(null);
     setCurrentMovie(movie);
     setScreen('player');
   };

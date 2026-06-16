@@ -318,9 +318,9 @@ export const useAppStore = create<AppStore>()(
   currentChannel: null,
   currentMovie: null,
   currentSeries: null,
-  setCurrentChannel: (ch) => set({ currentChannel: ch }),
-  setCurrentMovie: (mv) => set({ currentMovie: mv }),
-  setCurrentSeries: (sr) => set({ currentSeries: sr }),
+  setCurrentChannel: (ch) => set({ currentChannel: ch, currentMovie: null, currentSeries: null }),
+  setCurrentMovie: (mv) => set({ currentMovie: mv, currentChannel: null }),
+  setCurrentSeries: (sr) => set({ currentSeries: sr, currentChannel: null }),
   
   // Favorites
   toggleChannelFavorite: (id) => set((state) => ({

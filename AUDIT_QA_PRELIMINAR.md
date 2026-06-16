@@ -132,11 +132,11 @@ Suspeitas encontradas: 0
 - src/screens/HomeScreen.tsx:101 | onClick=SIM | setScreen('channels')} className="clean-tv-tile active rounded-md p-7 text-left"> ▣ Assistir TV Abri
 - src/screens/HomeScreen.tsx:107 | onClick=SIM | setScreen('playlists')} className="clean-tv-tile rounded-md p-7 text-left"> ▤ Listas Gerenciar fonte
 - src/screens/HomeScreen.tsx:113 | onClick=SIM | setScreen('settings')} className="clean-tv-tile rounded-md p-7 text-left"> ◇ Sistema Ajustes do app
-- src/screens/MoviesScreen.tsx:75 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
-- src/screens/MoviesScreen.tsx:86 | onClick=SIM | setSelectedCategory(category.id)} className= `} >
-- src/screens/MoviesScreen.tsx:107 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
-- src/screens/MoviesScreen.tsx:133 | onClick=SIM | playMovie(movie)} className="group text-left" >
-- src/screens/MoviesScreen.tsx:162 | onClick=SIM | setVisibleCount(count => count + MOVIE_RENDER_BATCH_SIZE)} className="col-span-6 mx-auto mt-4 rounde
+- src/screens/MoviesScreen.tsx:76 | onClick=SIM | setScreen('home')} className="mb-7 text-5xl text-white/45 transition-colors hover:text-white" > ⌂
+- src/screens/MoviesScreen.tsx:87 | onClick=SIM | setSelectedCategory(category.id)} className= `} >
+- src/screens/MoviesScreen.tsx:108 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
+- src/screens/MoviesScreen.tsx:134 | onClick=SIM | playMovie(movie)} className="group text-left" >
+- src/screens/MoviesScreen.tsx:163 | onClick=SIM | setVisibleCount(count => count + MOVIE_RENDER_BATCH_SIZE)} className="col-span-6 mx-auto mt-4 rounde
 - src/screens/PlayerScreen.tsx:198 | onClick=SIM | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
 - src/screens/PlayerScreen.tsx:204 | onClick=SIM | Voltar
 - src/screens/PlayerScreen.tsx:222 | onClick=SIM | ←
