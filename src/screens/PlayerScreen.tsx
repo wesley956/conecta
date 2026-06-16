@@ -64,11 +64,14 @@ function formatTime(totalSeconds: number) {
 
 export function PlayerScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerShellRef = useRef<HTMLDivElement>(null);
   const {
     currentChannel,
     currentMovie,
+    currentSeries,
     channels,
     setCurrentChannel,
+    setCurrentMovie,
     setScreen,
   } = useAppStore();
 
@@ -81,6 +84,8 @@ export function PlayerScreen() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [showSettings, setShowSettings] = useState(false);
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
 
   const content = currentMovie || currentChannel;
@@ -233,6 +238,7 @@ export function PlayerScreen() {
       setIsPlaying(!video.paused && !video.ended);
       setVolume(video.volume);
       setMuted(video.muted);
+      setPlaybackRate(video.playbackRate || 1);
     };
 
     video.addEventListener('timeupdate', syncPlaybackState);
@@ -262,7 +268,64 @@ export function PlayerScreen() {
     return () => window.clearTimeout(timer);
   }, [showControls, content?.id]);
 
-  const goBack = () => setScreen(isLive ? 'channels' : 'movies');
+  useEffect(() => {
+    if (!content?.id) return;
+
+    const autoFullscreenTimer = window.setTimeout(() => {
+      const container = playerShellRef.current || videoRef.current?.parentElement;
+
+      if (!container || document.fullscreenElement) return;
+
+      container.requestFullscreen?.().catch(() => undefined);
+    }, 180);
+
+    return () => window.clearTimeout(autoFullscreenTimer);
+  }, [content?.id]);
+
+  const goBack = () => setScreen(isLive ? 'channels' : currentSeries ? 'series' : 'movies');
+
+  const seriesEpisodes = useMemo(() => {
+    const seasons = (currentSeries as any)?.seasons;
+
+    if (!Array.isArray(seasons)) return [];
+
+    return seasons.flatMap((season: any) => {
+      const episodes = Array.isArray(season?.episodes) ? season.episodes : [];
+
+      return episodes.map((episode: any, index: number) => ({
+        ...episode,
+        seasonTitle: season?.name ?? season?.title ?? season?.number ?? season?.seasonNumber ?? '',
+        episodeIndex: index,
+      }));
+    });
+  }, [currentSeries]);
+
+  const currentEpisodeIndex = useMemo(() => {
+    if (!content || seriesEpisodes.length === 0) return -1;
+
+    return seriesEpisodes.findIndex((episode: any) => {
+      return episode?.id === content.id || episode?.url === content.url;
+    });
+  }, [content, seriesEpisodes]);
+
+  const hasEpisodeControls = !isLive && currentEpisodeIndex >= 0 && seriesEpisodes.length > 1;
+
+  const playEpisodeByOffset = (offset: number) => {
+    if (!hasEpisodeControls) return;
+
+    const nextIndex = currentEpisodeIndex + offset;
+
+    if (nextIndex < 0 || nextIndex >= seriesEpisodes.length) return;
+
+    const nextEpisode = seriesEpisodes[nextIndex];
+
+    setCurrentMovie(nextEpisode as any);
+    setPlaybackUrlIndex(0);
+    setShowSettings(false);
+    setShowControls(true);
+  };
+
+  const playbackRates = [0.5, 1, 1.25, 1.5, 2];
 
   const isSeekable = !isLive && duration > 0;
   const progressPercent = isSeekable ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 100;
@@ -311,21 +374,19 @@ export function PlayerScreen() {
     setShowControls(true);
   };
 
-  const handleVolume = (value: string) => {
+
+  const handlePlaybackRate = (rate: number) => {
     const video = videoRef.current;
     if (!video) return;
 
-    const nextVolume = Math.min(1, Math.max(0, Number(value)));
-    video.volume = nextVolume;
-    video.muted = nextVolume === 0;
-
-    setVolume(nextVolume);
-    setMuted(video.muted);
+    video.playbackRate = rate;
+    setPlaybackRate(rate);
+    setShowSettings(false);
     setShowControls(true);
   };
 
   const toggleFullscreen = () => {
-    const container = videoRef.current?.parentElement;
+    const container = playerShellRef.current || videoRef.current?.parentElement;
     if (!container) return;
 
     if (document.fullscreenElement) {
@@ -339,9 +400,14 @@ export function PlayerScreen() {
   return (
     <AppLayout>
       <div
+        ref={playerShellRef}
         className="relative h-full bg-black"
         onMouseMove={() => setShowControls(true)}
-        onClick={() => setShowControls(current => !current)}
+        onDoubleClick={toggleFullscreen}
+        onClick={() => {
+          setShowSettings(false);
+          setShowControls(current => !current);
+        }}
       >
         <video
           ref={videoRef}
@@ -392,26 +458,80 @@ export function PlayerScreen() {
           </div>
         )}
 
+        {!error && streamUrl && (
+          <div
+            className={`pointer-events-none absolute inset-0 z-30 flex items-center justify-center transition-opacity ${
+              showControls ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <div className="pointer-events-auto flex items-center gap-[clamp(34px,7vw,118px)] drop-shadow-[0_28px_80px_rgba(0,0,0,0.65)]">
+              {!isLive ? (
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation();
+                    seekBy(-10);
+                  }}
+                  className="group flex h-[clamp(62px,8vw,106px)] w-[clamp(62px,8vw,106px)] items-center justify-center rounded-full border border-white/15 bg-white/[0.075] text-[clamp(17px,2.1vw,30px)] font-light text-white shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-2xl transition-all duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/[0.14] active:scale-95"
+                  aria-label="Retroceder 10 segundos"
+                >
+                  ↺ 10
+                </button>
+              ) : (
+                <div className="h-[clamp(58px,8vw,104px)] w-[clamp(58px,8vw,104px)]" />
+              )}
+
+              <button
+                type="button"
+                onClick={event => {
+                  event.stopPropagation();
+                  togglePlayPause();
+                }}
+                className="group flex h-[clamp(82px,10vw,138px)] w-[clamp(82px,10vw,138px)] items-center justify-center rounded-full border border-white/25 bg-white/[0.16] text-[clamp(34px,4.3vw,58px)] text-white shadow-[0_24px_90px_rgba(35,150,242,0.22)] backdrop-blur-2xl transition-all duration-200 hover:scale-105 hover:border-white/40 hover:bg-white/[0.24] active:scale-95"
+                aria-label={isPlaying ? 'Pausar' : 'Reproduzir'}
+              >
+                {isPlaying ? '⏸' : '▶'}
+              </button>
+
+              {!isLive ? (
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation();
+                    seekBy(10);
+                  }}
+                  className="group flex h-[clamp(62px,8vw,106px)] w-[clamp(62px,8vw,106px)] items-center justify-center rounded-full border border-white/15 bg-white/[0.075] text-[clamp(17px,2.1vw,30px)] font-light text-white shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-2xl transition-all duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/[0.14] active:scale-95"
+                  aria-label="Avançar 10 segundos"
+                >
+                  10 ↻
+                </button>
+              ) : (
+                <div className="h-[clamp(58px,8vw,104px)] w-[clamp(58px,8vw,104px)]" />
+              )}
+            </div>
+          </div>
+        )}
+
         {(streamUrl || ready || error) && (
           <div
-            className={`absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/95 via-black/75 to-transparent px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-14 transition-opacity sm:px-8 md:px-12 ${
-              showControls || error ? 'opacity-100' : 'pointer-events-none opacity-0'
+            className={`absolute inset-x-3 bottom-3 z-40 rounded-[28px] border border-white/10 bg-[#020817]/72 px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-5 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl transition-all duration-300 sm:inset-x-6 sm:bottom-6 sm:px-6 md:inset-x-10 md:px-8 ${
+              showControls || error ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
             }`}
             onClick={event => event.stopPropagation()}
             onMouseMove={() => setShowControls(true)}
           >
             <div className="mb-3 flex items-end justify-between gap-4">
               <div className="min-w-0">
-                <p className="truncate text-[clamp(14px,1.6vw,24px)] font-light text-white/90">
+                <p className="truncate text-[clamp(15px,1.55vw,24px)] font-medium tracking-[-0.03em] text-white/95">
                   {content?.name ?? 'Reprodução'}
                 </p>
-                <p className="mt-1 text-[clamp(11px,1.1vw,16px)] font-light text-white/45">
+                <p className="mt-1 text-[clamp(11px,1.05vw,15px)] font-light tabular-nums text-white/48">
                   {isLive ? 'Transmissão ao vivo' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
                 </p>
               </div>
 
               {isLive ? (
-                <div className="rounded-full border border-red-400/40 bg-red-500/15 px-4 py-1 text-[clamp(11px,1.1vw,16px)] font-semibold tracking-[0.22em] text-red-200">
+                <div className="rounded-full border border-red-400/35 bg-red-500/15 px-4 py-1.5 text-[clamp(10px,1vw,14px)] font-semibold tracking-[0.24em] text-red-100 shadow-[0_0_30px_rgba(239,68,68,0.18)]">
                   AO VIVO
                 </div>
               ) : (
@@ -429,37 +549,92 @@ export function PlayerScreen() {
               value={isSeekable ? currentTime : 100}
               disabled={!isSeekable}
               onChange={event => handleSeek(event.target.value)}
-              className="h-2 w-full cursor-pointer accent-[#2396f2] disabled:cursor-default disabled:opacity-45"
+              className="player-progress h-2 w-full cursor-pointer disabled:cursor-default disabled:opacity-45"
               aria-label="Progresso da reprodução"
             />
 
-            <div className="mt-4 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <button type="button" onClick={togglePlayPause} className="rounded-full bg-white/12 px-4 py-2 text-[clamp(16px,1.7vw,24px)] text-white hover:bg-white/18">
-                  {isPlaying ? '⏸' : '▶'}
+            <div className="relative mt-4 flex items-center justify-between gap-4">
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+              >
+                {muted || volume === 0 ? '🔇' : '🔊'}
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(current => !current)}
+                  className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+                >
+                  ⚙
                 </button>
 
-                {!isLive && (
-                  <>
-                    <button type="button" onClick={() => seekBy(-10)} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(12px,1.2vw,18px)] text-white/82 hover:bg-white/16">
-                      -10s
-                    </button>
-                    <button type="button" onClick={() => seekBy(10)} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(12px,1.2vw,18px)] text-white/82 hover:bg-white/16">
-                      +10s
-                    </button>
-                  </>
-                )}
-
-                <button type="button" onClick={toggleMute} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(13px,1.3vw,19px)] text-white/82 hover:bg-white/16">
-                  {muted || volume === 0 ? '🔇' : '🔊'}
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+                >
+                  ⛶
                 </button>
-
-                <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={event => handleVolume(event.target.value)} className="hidden h-2 w-28 accent-[#2396f2] sm:block" aria-label="Volume" />
               </div>
 
-              <button type="button" onClick={toggleFullscreen} className="rounded-full bg-white/10 px-4 py-2 text-[clamp(13px,1.3vw,19px)] text-white/82 hover:bg-white/16">
-                ⛶ Tela cheia
-              </button>
+              {showSettings && (
+                <div className="absolute bottom-full right-0 mb-4 w-[min(92vw,410px)] rounded-[26px] border border-white/12 bg-[#05101f]/88 p-5 text-white shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Velocidade</p>
+                    <div className="flex flex-wrap gap-2">
+                      {playbackRates.map(rate => (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => handlePlaybackRate(rate)}
+                          className={`rounded-full border px-3.5 py-2 text-sm transition-all duration-200 ${
+                            playbackRate === rate
+                              ? 'border-[#2396f2]/70 bg-[#2396f2] text-white shadow-[0_0_28px_rgba(35,150,242,0.32)]'
+                              : 'border-white/10 bg-white/[0.07] text-white/75 hover:border-white/20 hover:bg-white/[0.13]'
+                          }`}
+                        >
+                          {rate}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Áudio / idioma</p>
+                    <p className="rounded-2xl border border-white/8 bg-white/[0.045] px-3.5 py-3 text-sm leading-relaxed text-white/52">
+                      Disponível quando a fonte possuir múltiplas trilhas de áudio.
+                    </p>
+                  </div>
+
+                  {hasEpisodeControls && (
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Episódios</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => playEpisodeByOffset(-1)}
+                          disabled={currentEpisodeIndex <= 0}
+                          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-sm text-white/75 transition-all duration-200 hover:bg-white/[0.13] disabled:opacity-35"
+                        >
+                          Episódio anterior
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => playEpisodeByOffset(1)}
+                          disabled={currentEpisodeIndex >= seriesEpisodes.length - 1}
+                          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-sm text-white/75 transition-all duration-200 hover:bg-white/[0.13] disabled:opacity-35"
+                        >
+                          Próximo episódio
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
