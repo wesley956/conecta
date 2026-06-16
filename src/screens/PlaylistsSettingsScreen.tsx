@@ -79,11 +79,6 @@ export function PlaylistsScreen() {
       return;
     }
 
-    if (url.startsWith('http://') && window.location.protocol === 'https:') {
-      setError('URL HTTP bloqueada pelo navegador em HTTPS. Use HTTPS ou cole o conteúdo M3U manualmente.');
-      return;
-    }
-
     setIsAdding(true);
 
     try {
@@ -130,11 +125,6 @@ export function PlaylistsScreen() {
 
     if (!playlist.url) {
       setError('Essa lista não tem URL. Edite a lista e cole o conteúdo M3U manualmente.');
-      return;
-    }
-
-    if (playlist.url.startsWith('http://') && window.location.protocol === 'https:') {
-      setError('URL HTTP bloqueada pelo navegador em HTTPS. Use HTTPS ou edite a lista colando o conteúdo M3U manualmente.');
       return;
     }
 

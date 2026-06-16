@@ -62,14 +62,14 @@ Suspeitas encontradas: 0
 - src/screens/ErrorScreens.tsx:85 | onClick=SIM | disabled=NÃO | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x
 - src/screens/ErrorScreens.tsx:117 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:
 - src/screens/PlayerScreen.tsx:123 | onClick=SIM | disabled=NÃO | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
-- src/screens/PlaylistsSettingsScreen.tsx:184 | onClick=SIM | disabled=NÃO | ＋ Adicionar lista
-- src/screens/PlaylistsSettingsScreen.tsx:247 | onClick=SIM | disabled=SIM | (sem texto detectado)
-- src/screens/PlaylistsSettingsScreen.tsx:255 | onClick=SIM | disabled=NÃO | Cancelar
-- src/screens/PlaylistsSettingsScreen.tsx:308 | onClick=SIM | disabled=NÃO | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
-- src/screens/PlaylistsSettingsScreen.tsx:315 | onClick=SIM | disabled=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
-- src/screens/PlaylistsSettingsScreen.tsx:323 | onClick=SIM | disabled=NÃO | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
-- src/screens/PlaylistsSettingsScreen.tsx:338 | onClick=SIM | disabled=NÃO | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
-- src/screens/PlaylistsSettingsScreen.tsx:346 | onClick=SIM | disabled=NÃO | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
+- src/screens/PlaylistsSettingsScreen.tsx:174 | onClick=SIM | disabled=NÃO | ＋ Adicionar lista
+- src/screens/PlaylistsSettingsScreen.tsx:237 | onClick=SIM | disabled=SIM | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:245 | onClick=SIM | disabled=NÃO | Cancelar
+- src/screens/PlaylistsSettingsScreen.tsx:298 | onClick=SIM | disabled=NÃO | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
+- src/screens/PlaylistsSettingsScreen.tsx:305 | onClick=SIM | disabled=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
+- src/screens/PlaylistsSettingsScreen.tsx:313 | onClick=SIM | disabled=NÃO | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
+- src/screens/PlaylistsSettingsScreen.tsx:328 | onClick=SIM | disabled=NÃO | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
+- src/screens/PlaylistsSettingsScreen.tsx:336 | onClick=SIM | disabled=NÃO | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
 - src/admin/AdminLayout.tsx:232 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "active")} className="rounded-xl border border-active-green/30 b
 - src/admin/AdminLayout.tsx:235 | onClick=SIM | disabled=NÃO | setDashboardDeviceStatus(device.id, "blocked")} className="rounded-xl border border-error-red/30 bg-
 - src/admin/AdminModules.tsx:119 | onClick=SIM | disabled=NÃO | + Novo Plano
@@ -137,25 +137,25 @@ Suspeitas encontradas: 0
 - src/screens/PlayerScreen.tsx:165 | onClick=SIM | setShowList(current => !current)} className="rounded-md bg-white/[0.055] px-7 py-3 text-2xl font-lig
 - src/screens/PlayerScreen.tsx:181 | onClick=SIM | } className="flex items-center gap-5 text-3xl font-light text-white/82 hover:text-white" > ▷
 - src/screens/PlayerScreen.tsx:206 | onClick=SIM | } className= `} > ▣
-- src/screens/PlaylistsSettingsScreen.tsx:166 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
-- src/screens/PlaylistsSettingsScreen.tsx:176 | onClick=SIM | setShowAdd(false)} className= `} > ▤ Minhas listas
-- src/screens/PlaylistsSettingsScreen.tsx:184 | onClick=SIM | ＋ Adicionar lista
-- src/screens/PlaylistsSettingsScreen.tsx:192 | onClick=SIM | setScreen('settings')} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" >
-- src/screens/PlaylistsSettingsScreen.tsx:247 | onClick=SIM | (sem texto detectado)
-- src/screens/PlaylistsSettingsScreen.tsx:255 | onClick=SIM | Cancelar
-- src/screens/PlaylistsSettingsScreen.tsx:269 | onClick=SIM | Restaurar padrão
-- src/screens/PlaylistsSettingsScreen.tsx:308 | onClick=SIM | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
-- src/screens/PlaylistsSettingsScreen.tsx:315 | onClick=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
-- src/screens/PlaylistsSettingsScreen.tsx:323 | onClick=SIM | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
-- src/screens/PlaylistsSettingsScreen.tsx:332 | onClick=SIM | confirmDelete(playlist.id)} className="rounded-md bg-red-500/85 px-5 py-2 text-base font-light text-
-- src/screens/PlaylistsSettingsScreen.tsx:338 | onClick=SIM | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
-- src/screens/PlaylistsSettingsScreen.tsx:346 | onClick=SIM | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
-- src/screens/PlaylistsSettingsScreen.tsx:405 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
-- src/screens/PlaylistsSettingsScreen.tsx:416 | onClick=SIM | setActiveSection(section.id)} className= `} >
-- src/screens/PlaylistsSettingsScreen.tsx:473 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
-- src/screens/PlaylistsSettingsScreen.tsx:486 | onClick=SIM | setScreen('playlists')} className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white" 
-- src/screens/PlaylistsSettingsScreen.tsx:522 | onClick=SIM | setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')} className="text-2xl font-light text-white hover:text-[
-- src/screens/PlaylistsSettingsScreen.tsx:542 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
+- src/screens/PlaylistsSettingsScreen.tsx:156 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
+- src/screens/PlaylistsSettingsScreen.tsx:166 | onClick=SIM | setShowAdd(false)} className= `} > ▤ Minhas listas
+- src/screens/PlaylistsSettingsScreen.tsx:174 | onClick=SIM | ＋ Adicionar lista
+- src/screens/PlaylistsSettingsScreen.tsx:182 | onClick=SIM | setScreen('settings')} className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left" >
+- src/screens/PlaylistsSettingsScreen.tsx:237 | onClick=SIM | (sem texto detectado)
+- src/screens/PlaylistsSettingsScreen.tsx:245 | onClick=SIM | Cancelar
+- src/screens/PlaylistsSettingsScreen.tsx:259 | onClick=SIM | Restaurar padrão
+- src/screens/PlaylistsSettingsScreen.tsx:298 | onClick=SIM | openEdit(playlist)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/
+- src/screens/PlaylistsSettingsScreen.tsx:305 | onClick=SIM | syncPlaylist(playlist)} disabled= className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-lig
+- src/screens/PlaylistsSettingsScreen.tsx:313 | onClick=SIM | updatePlaylist(playlist.id, )} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light 
+- src/screens/PlaylistsSettingsScreen.tsx:322 | onClick=SIM | confirmDelete(playlist.id)} className="rounded-md bg-red-500/85 px-5 py-2 text-base font-light text-
+- src/screens/PlaylistsSettingsScreen.tsx:328 | onClick=SIM | setDeleteTargetId(null)} className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-w
+- src/screens/PlaylistsSettingsScreen.tsx:336 | onClick=SIM | setDeleteTargetId(playlist.id)} className="rounded-md bg-red-500/15 px-5 py-2 text-base font-light t
+- src/screens/PlaylistsSettingsScreen.tsx:395 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
+- src/screens/PlaylistsSettingsScreen.tsx:406 | onClick=SIM | setActiveSection(section.id)} className= `} >
+- src/screens/PlaylistsSettingsScreen.tsx:463 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
+- src/screens/PlaylistsSettingsScreen.tsx:476 | onClick=SIM | setScreen('playlists')} className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white" 
+- src/screens/PlaylistsSettingsScreen.tsx:512 | onClick=SIM | setUIMode(uiMode === 'tv' ? 'mobile' : 'tv')} className="text-2xl font-light text-white hover:text-[
+- src/screens/PlaylistsSettingsScreen.tsx:532 | onClick=SIM | updateSettings( )} className="text-2xl font-light text-white hover:text-[#2396f2]" >
 - src/screens/SeriesScreen.tsx:26 | onClick=SIM | setScreen('search')} className="text-5xl text-white/80 transition-colors hover:text-white" > ⌕
 - src/screens/SeriesScreen.tsx:35 | onClick=SIM | setSelectedCategory(category)} className= `} > ..` : category}
 - src/screens/SeriesScreen.tsx:51 | onClick=NÃO | Populares
