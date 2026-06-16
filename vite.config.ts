@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process';
+import http from 'node:http';
+import https from 'node:https';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -154,12 +156,92 @@ function devM3UProxy(): Plugin {
   };
 }
 
+function devMediaProxy(): Plugin {
+  return {
+    name: 'ronecaplaytv-dev-media-proxy',
+    configureServer(server) {
+      server.middlewares.use('/api/dev-media-proxy', (req, res) => {
+        const host = req.headers.host || 'localhost';
+        const requestUrl = new URL(req.url || '', `http://${host}`);
+        const target = requestUrl.searchParams.get('url') || '';
+
+        if (!/^https?:\/\//i.test(target)) {
+          res.statusCode = 400;
+          res.end('URL de mídia inválida.');
+          return;
+        }
+
+        let targetUrl: URL;
+
+        try {
+          targetUrl = new URL(target);
+        } catch {
+          res.statusCode = 400;
+          res.end('URL de mídia inválida.');
+          return;
+        }
+
+        const client = targetUrl.protocol === 'https:' ? https : http;
+
+        const upstreamReq = client.request(
+          targetUrl,
+          {
+            method: 'GET',
+            headers: {
+              'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
+              accept: '*/*',
+              ...(req.headers.range ? { range: req.headers.range } : {}),
+            },
+          },
+          upstream => {
+            res.statusCode = upstream.statusCode || 200;
+
+            const contentType =
+              upstream.headers['content-type'] ||
+              (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream');
+
+            res.setHeader('content-type', String(contentType));
+            res.setHeader('cache-control', 'no-store');
+            res.setHeader('access-control-allow-origin', '*');
+
+            const contentLength = upstream.headers['content-length'];
+            const acceptRanges = upstream.headers['accept-ranges'];
+            const contentRange = upstream.headers['content-range'];
+
+            if (contentLength) res.setHeader('content-length', String(contentLength));
+            if (acceptRanges) res.setHeader('accept-ranges', String(acceptRanges));
+            if (contentRange) res.setHeader('content-range', String(contentRange));
+
+            upstream.pipe(res);
+          }
+        );
+
+        upstreamReq.on('error', error => {
+          if (!res.headersSent) {
+            res.statusCode = 502;
+            res.end(error instanceof Error ? error.message : 'Falha no proxy de mídia.');
+          } else {
+            res.destroy();
+          }
+        });
+
+        req.on('close', () => {
+          upstreamReq.destroy();
+        });
+
+        upstreamReq.end();
+      });
+    },
+  };
+}
+
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
     devM3UProxy(),
+    devMediaProxy(),
     viteSingleFile(),
   ],
   resolve: {

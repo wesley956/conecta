@@ -1,7 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import mpegts from 'mpegts.js';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
+
+function isHttpUrl(url: string) {
+  return /^https?:\/\//i.test(url);
+}
+
+function toMediaProxyUrl(url: string) {
+  if (!isHttpUrl(url)) return url;
+  return `/api/dev-media-proxy?url=${encodeURIComponent(url)}`;
+}
+
+function isHlsUrl(url: string) {
+  return /\.m3u8(\?|#|$)/i.test(url);
+}
+
+function isMpegTsUrl(url: string) {
+  return /\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url);
+}
 
 export function PlayerScreen() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -21,6 +39,7 @@ export function PlayerScreen() {
   const content = currentChannel || currentMovie;
   const isLive = Boolean(currentChannel);
   const streamUrl = content?.url?.trim() || '';
+  const playbackUrl = useMemo(() => toMediaProxyUrl(streamUrl), [streamUrl]);
 
   const quickChannels = useMemo(() => {
     return channels.filter(channel => channel.url?.trim()).slice(0, 36);
@@ -33,15 +52,64 @@ export function PlayerScreen() {
     setReady(false);
     setError(null);
 
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+
     if (!streamUrl) {
-      video.removeAttribute('src');
-      video.load();
       setError('Fonte não configurada.');
       return;
     }
 
     let hls: Hls | null = null;
-    const isHls = /\.m3u8(\?|#|$)/i.test(streamUrl);
+    let tsPlayer: any = null;
+    const isHls = isHlsUrl(streamUrl);
+    const isMpegTs = isMpegTsUrl(streamUrl);
+
+    if (isMpegTs) {
+      if (!mpegts?.getFeatureList?.().mseLivePlayback && !mpegts?.getFeatureList?.().msePlayback) {
+        setError('Este navegador não tem suporte para MPEG-TS via MSE.');
+        return;
+      }
+
+      tsPlayer = mpegts.createPlayer(
+        {
+          type: 'mpegts',
+          isLive,
+          url: playbackUrl,
+        },
+        {
+          enableWorker: true,
+          liveBufferLatencyChasing: true,
+          stashInitialSize: 384 * 1024,
+        }
+      );
+
+      tsPlayer.attachMediaElement(video);
+      tsPlayer.load();
+
+      const playResult = tsPlayer.play?.();
+
+      if (playResult?.catch) {
+        playResult.catch(() => setShowControls(true));
+      }
+
+      const markReady = () => setReady(true);
+      const markError = () => setError('Não foi possível reproduzir este canal MPEG-TS.');
+
+      video.addEventListener('loadedmetadata', markReady);
+      video.addEventListener('canplay', markReady);
+      video.addEventListener('error', markError);
+
+      tsPlayer.on?.(mpegts.Events.ERROR, markError);
+
+      return () => {
+        video.removeEventListener('loadedmetadata', markReady);
+        video.removeEventListener('canplay', markReady);
+        video.removeEventListener('error', markError);
+        tsPlayer?.destroy?.();
+      };
+    }
 
     if (isHls && Hls.isSupported()) {
       hls = new Hls({
@@ -50,7 +118,7 @@ export function PlayerScreen() {
         backBufferLength: 60,
       });
 
-      hls.loadSource(streamUrl);
+      hls.loadSource(playbackUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -60,12 +128,12 @@ export function PlayerScreen() {
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          setError('Não foi possível reproduzir esta fonte.');
+          setError('Não foi possível reproduzir esta fonte HLS.');
           hls?.destroy();
         }
       });
     } else {
-      video.src = streamUrl;
+      video.src = playbackUrl;
       video.onloadedmetadata = () => {
         setReady(true);
         video.play().catch(() => setShowControls(true));
@@ -75,10 +143,11 @@ export function PlayerScreen() {
 
     return () => {
       hls?.destroy();
+      tsPlayer?.destroy?.();
       video.onloadedmetadata = null;
       video.onerror = null;
     };
-  }, [streamUrl, isLive]);
+  }, [streamUrl, playbackUrl, isLive]);
 
   useEffect(() => {
     if (!showControls) return;
@@ -192,7 +261,7 @@ export function PlayerScreen() {
             </button>
 
             <p className="text-xl font-light text-white/38">
-              {streamUrl ? 'Fonte conectada' : 'Sem fonte'}
+              {streamUrl ? (isMpegTsUrl(streamUrl) ? 'MPEG-TS via proxy' : 'Fonte conectada') : 'Sem fonte'}
             </p>
           </div>
         </div>

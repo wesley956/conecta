@@ -62,7 +62,7 @@ Suspeitas encontradas: 0
 - src/screens/ErrorScreens.tsx:42 | onClick=SIM | disabled=NÃO | 🔄 Tentar Novamente
 - src/screens/ErrorScreens.tsx:85 | onClick=SIM | disabled=NÃO | } className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-x
 - src/screens/ErrorScreens.tsx:117 | onClick=SIM | disabled=NÃO | setScreen('home')} className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:
-- src/screens/PlayerScreen.tsx:123 | onClick=SIM | disabled=NÃO | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
+- src/screens/PlayerScreen.tsx:192 | onClick=SIM | disabled=NÃO | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
 - src/screens/PlaylistsSettingsScreen.tsx:197 | onClick=SIM | disabled=NÃO | ＋ Adicionar lista
 - src/screens/PlaylistsSettingsScreen.tsx:260 | onClick=SIM | disabled=SIM | (sem texto detectado)
 - src/screens/PlaylistsSettingsScreen.tsx:268 | onClick=SIM | disabled=NÃO | Cancelar
@@ -134,12 +134,12 @@ Suspeitas encontradas: 0
 - src/screens/MoviesScreen.tsx:58 | onClick=NÃO | Populares
 - src/screens/MoviesScreen.tsx:61 | onClick=NÃO | Favoritos
 - src/screens/MoviesScreen.tsx:68 | onClick=SIM | playMovie(movie)} className="group text-left" > 🎬
-- src/screens/PlayerScreen.tsx:123 | onClick=SIM | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
-- src/screens/PlayerScreen.tsx:129 | onClick=SIM | Voltar
-- src/screens/PlayerScreen.tsx:147 | onClick=SIM | ←
-- src/screens/PlayerScreen.tsx:165 | onClick=SIM | setShowList(current => !current)} className="rounded-md bg-white/[0.055] px-7 py-3 text-2xl font-lig
-- src/screens/PlayerScreen.tsx:181 | onClick=SIM | } className="flex items-center gap-5 text-3xl font-light text-white/82 hover:text-white" > ▷
-- src/screens/PlayerScreen.tsx:206 | onClick=SIM | } className= `} > ▣
+- src/screens/PlayerScreen.tsx:192 | onClick=SIM | window.location.reload()} className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light te
+- src/screens/PlayerScreen.tsx:198 | onClick=SIM | Voltar
+- src/screens/PlayerScreen.tsx:216 | onClick=SIM | ←
+- src/screens/PlayerScreen.tsx:234 | onClick=SIM | setShowList(current => !current)} className="rounded-md bg-white/[0.055] px-7 py-3 text-2xl font-lig
+- src/screens/PlayerScreen.tsx:250 | onClick=SIM | } className="flex items-center gap-5 text-3xl font-light text-white/82 hover:text-white" > ▷
+- src/screens/PlayerScreen.tsx:275 | onClick=SIM | } className= `} > ▣
 - src/screens/PlaylistsSettingsScreen.tsx:179 | onClick=SIM | setScreen('home')} className="mb-8 text-5xl text-white/45 hover:text-white" > ⌂
 - src/screens/PlaylistsSettingsScreen.tsx:189 | onClick=SIM | setShowAdd(false)} className= `} > ▤ Minhas listas
 - src/screens/PlaylistsSettingsScreen.tsx:197 | onClick=SIM | ＋ Adicionar lista
