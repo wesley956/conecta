@@ -1,164 +1,208 @@
-import { execFile } from 'node:child_process';
-import http from 'node:http';
-import https from 'node:https';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
+import http, { type IncomingMessage, type ServerResponse } from 'node:http';
+import https from 'node:https';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
-function buildM3UProxyCandidates(target: string): string[] {
-  const candidates = new Set<string>();
-  candidates.add(target);
+const execFileAsync = promisify(execFile);
+const MAX_MEDIA_REDIRECTS = 6;
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value || '');
+}
+
+function setNoStoreCors(res: ServerResponse) {
+  res.setHeader('cache-control', 'no-store');
+  res.setHeader('access-control-allow-origin', '*');
+  res.setHeader('access-control-allow-methods', 'GET,HEAD,OPTIONS');
+  res.setHeader('access-control-allow-headers', 'range,content-type,accept');
+}
+
+function getTargetFromRequest(req: IncomingMessage) {
+  const host = req.headers.host || 'localhost';
+  const requestUrl = new URL(req.url || '/', `http://${host}`);
+  return requestUrl.searchParams.get('url') || '';
+}
+
+function looksLikeM3U(content: string) {
+  return content.includes('#EXTM3U') || content.includes('#EXTINF');
+}
+
+function getM3UFallbackUrls(rawUrl: string) {
+  const urls = [rawUrl];
 
   try {
-    const parsed = new URL(target);
+    const parsed = new URL(rawUrl);
 
-    if (parsed.protocol === 'https:' && parsed.port === '80') {
+    if (parsed.protocol === 'https:') {
       parsed.protocol = 'http:';
-      candidates.add(parsed.toString());
-    }
-
-    if (parsed.protocol === 'http:' && parsed.port === '443') {
-      parsed.protocol = 'https:';
-      candidates.add(parsed.toString());
+      urls.push(parsed.toString());
     }
   } catch {
-    // validação fica no handler
+    // ignora URL inválida aqui; o handler principal responde 400
   }
 
-  return [...candidates];
+  return [...new Set(urls)];
 }
 
-function looksLikeM3U(content: string): boolean {
-  return content.trimStart().startsWith('#EXTM3U') || content.includes('#EXTINF');
-}
-
-async function fetchM3UWithNativeFetch(candidate: string): Promise<string> {
-  const response = await fetch(candidate, {
-    method: 'GET',
+async function fetchM3UWithNativeFetch(url: string) {
+  const response = await fetch(url, {
+    redirect: 'follow',
     headers: {
       'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
-      accept: 'application/x-mpegURL, application/vnd.apple.mpegurl, text/plain, application/octet-stream, */*',
+      accept: '*/*',
     },
-    signal: AbortSignal.timeout(8000),
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
 
   const content = await response.text();
 
-  if (!looksLikeM3U(content)) {
-    throw new Error('A fonte respondeu, mas não retornou conteúdo M3U.');
+  if (!response.ok && !looksLikeM3U(content)) {
+    throw new Error(`Fonte M3U respondeu HTTP ${response.status}.`);
   }
 
   return content;
 }
 
-async function fetchM3UWithCurl(candidate: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'curl',
-      [
-        '-L',
-        '--connect-timeout',
-        '10',
-        '--max-time',
-        '30',
-        '--http1.1',
-        '--silent',
-        '--show-error',
-        '-A',
-        'VLC/3.0.20 LibVLC/3.0.20',
-        candidate,
-      ],
-      {
-        maxBuffer: 128 * 1024 * 1024,
-      },
-      (error, stdout, stderr) => {
-        // Alguns servidores IPTV mantêm a conexão aberta ou encerram estranho.
-        // Se já recebemos #EXTM3U/#EXTINF, aceitamos o conteúdo mesmo com timeout do curl.
-        if (stdout && looksLikeM3U(stdout)) {
-          resolve(stdout);
-          return;
-        }
+async function fetchM3UWithCurl(url: string) {
+  const { stdout } = await execFileAsync(
+    'curl',
+    [
+      '-L',
+      '--connect-timeout',
+      '12',
+      '--max-time',
+      '60',
+      '-A',
+      'VLC/3.0.20 LibVLC/3.0.20',
+      url,
+    ],
+    {
+      maxBuffer: 80 * 1024 * 1024,
+    }
+  );
 
-        if (error) {
-          reject(new Error(stderr || error.message));
-          return;
-        }
+  if (!looksLikeM3U(stdout)) {
+    throw new Error('A fonte respondeu, mas não parece ser uma lista M3U.');
+  }
 
-        reject(new Error('O curl baixou a fonte, mas o conteúdo não parece M3U.'));
-      }
-    );
-  });
+  return stdout;
 }
 
 function devM3UProxy(): Plugin {
   return {
-    name: 'ronecaplaytv-dev-m3u-proxy',
+    name: 'dev-m3u-proxy',
     configureServer(server) {
-      server.middlewares.use('/api/dev-m3u-proxy', async (req, res) => {
-        const errors: string[] = [];
+      const handleM3UProxy = async (req: IncomingMessage, res: ServerResponse) => {
+        setNoStoreCors(res);
 
-        try {
-          const host = req.headers.host || 'localhost';
-          const requestUrl = new URL(req.url || '', `http://${host}`);
-          const target = requestUrl.searchParams.get('url') || '';
-
-          if (!/^https?:\/\//i.test(target)) {
-            res.statusCode = 400;
-            res.end('URL inválida. Use http:// ou https://');
-            return;
-          }
-
-          for (const candidate of buildM3UProxyCandidates(target)) {
-            try {
-              const content = await fetchM3UWithCurl(candidate);
-
-              res.statusCode = 200;
-              res.setHeader('content-type', 'text/plain; charset=utf-8');
-              res.setHeader('cache-control', 'no-store');
-              res.end(content);
-              return;
-            } catch (error) {
-              errors.push(`curl ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
-            }
-
-            try {
-              const content = await fetchM3UWithNativeFetch(candidate);
-
-              res.statusCode = 200;
-              res.setHeader('content-type', 'text/plain; charset=utf-8');
-              res.setHeader('cache-control', 'no-store');
-              res.end(content);
-              return;
-            } catch (error) {
-              errors.push(`fetch ${candidate} => ${error instanceof Error ? error.message : 'erro desconhecido'}`);
-            }
-          }
-
-          res.statusCode = 502;
-          res.end(
-            [
-              'Não foi possível buscar a lista pelo proxy dev.',
-              'A URL pode estar bloqueando o ambiente atual, a credencial pode ter expirado ou o servidor pode exigir outro formato.',
-              errors.length ? `Detalhe: ${errors[errors.length - 1]}` : '',
-            ].filter(Boolean).join(' ')
-          );
-        } catch (error) {
-          res.statusCode = 502;
-          res.end(error instanceof Error ? error.message : 'Erro ao buscar fonte M3U.');
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.end();
+          return;
         }
-      });
+
+        const target = getTargetFromRequest(req);
+
+        if (!isHttpUrl(target)) {
+          res.statusCode = 400;
+          res.end('URL de lista inválida.');
+          return;
+        }
+
+        const candidates = getM3UFallbackUrls(target);
+        let lastError: unknown = null;
+
+        for (const candidate of candidates) {
+          try {
+            const content = await fetchM3UWithNativeFetch(candidate);
+
+            res.statusCode = 200;
+            res.setHeader('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
+            res.end(content);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+
+          try {
+            const content = await fetchM3UWithCurl(candidate);
+
+            res.statusCode = 200;
+            res.setHeader('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
+            res.end(content);
+            return;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        res.statusCode = 502;
+        res.end(lastError instanceof Error ? lastError.message : 'Erro ao buscar fonte M3U.');
+      };
+
+      server.middlewares.use('/api/dev-m3u-proxy', handleM3UProxy);
+      server.middlewares.use('/api/m3u-proxy', handleM3UProxy);
     },
   };
 }
 
+function toAbsoluteMediaUrl(value: string, baseUrl: URL) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
 
-function pipeDevMediaProxy(target: string, req: any, res: any, redirectsLeft = 6) {
-  if (!/^https?:\/\//i.test(target)) {
+function rewriteHLSManifest(content: string, baseUrl: URL) {
+  return content
+    .split(/\r?\n/)
+    .map(line => {
+      const trimmed = line.trim();
+
+      if (!trimmed || trimmed.startsWith('#')) {
+        if (trimmed.startsWith('#EXT-X-KEY') && trimmed.includes('URI="')) {
+          return line.replace(/URI="([^"]+)"/g, (_, uri: string) => {
+            const absolute = toAbsoluteMediaUrl(uri, baseUrl);
+            return `URI="/api/media-proxy?url=${encodeURIComponent(absolute)}"`;
+          });
+        }
+
+        return line;
+      }
+
+      const absolute = toAbsoluteMediaUrl(trimmed, baseUrl);
+      return `/api/media-proxy?url=${encodeURIComponent(absolute)}`;
+    })
+    .join('\n');
+}
+
+function shouldRewriteAsHLS(targetUrl: URL, contentType: string) {
+  return (
+    /\.m3u8(\?|#|$)/i.test(targetUrl.pathname) ||
+    contentType.includes('mpegurl') ||
+    contentType.includes('application/vnd.apple')
+  );
+}
+
+function pipeDevMediaProxy(
+  target: string,
+  req: IncomingMessage,
+  res: ServerResponse,
+  redirectsLeft = MAX_MEDIA_REDIRECTS
+) {
+  setNoStoreCors(res);
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  if (!isHttpUrl(target)) {
     res.statusCode = 400;
     res.end('URL de mídia inválida.');
     return;
@@ -185,7 +229,6 @@ function pipeDevMediaProxy(target: string, req: any, res: any, redirectsLeft = 6
         accept: '*/*',
         connection: 'keep-alive',
         ...(req.headers.range ? { range: req.headers.range } : {}),
-        ...(req.headers.referer ? { referer: req.headers.referer } : {}),
       },
     },
     upstream => {
@@ -198,14 +241,41 @@ function pipeDevMediaProxy(target: string, req: any, res: any, redirectsLeft = 6
         return;
       }
 
-      const contentType =
+      const contentType = String(
         upstream.headers['content-type'] ||
-        (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream');
+        (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream')
+      );
+
+      if (shouldRewriteAsHLS(targetUrl, contentType)) {
+        const chunks: Buffer[] = [];
+
+        upstream.on('data', chunk => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+
+        upstream.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf-8');
+          const rewritten = rewriteHLSManifest(raw, targetUrl);
+
+          res.statusCode = status;
+          res.setHeader('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
+          res.end(rewritten);
+        });
+
+        upstream.on('error', error => {
+          if (!res.headersSent) {
+            res.statusCode = 502;
+            res.end(error instanceof Error ? error.message : 'Falha ao ler HLS.');
+          } else {
+            res.destroy();
+          }
+        });
+
+        return;
+      }
 
       res.statusCode = status;
-      res.setHeader('content-type', String(contentType));
-      res.setHeader('cache-control', 'no-store');
-      res.setHeader('access-control-allow-origin', '*');
+      res.setHeader('content-type', contentType);
 
       const contentLength = upstream.headers['content-length'];
       const acceptRanges = upstream.headers['accept-ranges'];
@@ -239,23 +309,16 @@ function devMediaProxy(): Plugin {
   return {
     name: 'dev-media-proxy',
     configureServer(server) {
-      const handleMediaProxy = (req: any, res: any) => {
-        const host = req.headers.host || 'localhost';
-        const requestUrl = new URL(req.url || '', `http://${host}`);
-        const target = requestUrl.searchParams.get('url') || '';
-
+      const handleMediaProxy = (req: IncomingMessage, res: ServerResponse) => {
+        const target = getTargetFromRequest(req);
         pipeDevMediaProxy(target, req, res);
       };
 
-      // Nome antigo usado nos testes anteriores.
       server.middlewares.use('/api/dev-media-proxy', handleMediaProxy);
-
-      // Nome novo usado pelo player e pelo server.mjs real.
       server.middlewares.use('/api/media-proxy', handleMediaProxy);
     },
   };
 }
-
 
 export default defineConfig({
   plugins: [
