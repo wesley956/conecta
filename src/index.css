@@ -1460,3 +1460,348 @@ select:focus {
     min-height: 66px;
   }
 }
+
+/* =========================================================
+   RonecaPlayTV — APK Zero Bala responsive final pass
+   ========================================================= */
+
+/* Menu lateral menor + conteúdo mais largo no APK landscape */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  html {
+    font-size: clamp(7.2px, 1.08vw, 9.6px) !important;
+  }
+
+  .roneca-side-menu {
+    width: 108px !important;
+  }
+
+  .roneca-side-logo {
+    min-height: 48px !important;
+    padding: 0 0.42rem !important;
+    gap: 0.34rem !important;
+  }
+
+  .roneca-side-logo-mark {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 0.62rem !important;
+    font-size: 0.62rem !important;
+  }
+
+  .roneca-side-logo-text {
+    font-size: 0.72rem !important;
+    max-width: 58px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .roneca-side-button {
+    min-height: 39px !important;
+    padding: 0.32rem 0.38rem !important;
+    gap: 0.36rem !important;
+    border-radius: 0.68rem !important;
+  }
+
+  .roneca-side-icon {
+    width: 23px !important;
+    height: 23px !important;
+    flex-basis: 23px !important;
+    border-radius: 0.48rem !important;
+    font-size: 0.76rem !important;
+  }
+
+  .roneca-side-label {
+    font-size: 0.78rem !important;
+    line-height: 1.05 !important;
+    font-weight: 800 !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 118px !important;
+    padding-right: 0.45rem !important;
+    padding-top: 0.38rem !important;
+    padding-bottom: 0.35rem !important;
+  }
+
+  .clean-tv-page {
+    gap: 0 !important;
+  }
+
+  /* Coluna de categorias mais compacta para sobrar área para cards */
+  .clean-tv-page > aside:not(.roneca-side-menu) {
+    width: clamp(165px, 19vw, 210px) !important;
+    padding-right: 0.45rem !important;
+  }
+
+  .clean-tv-page > aside:not(.roneca-side-menu) h2,
+  .clean-tv-page > aside:not(.roneca-side-menu) .text-xl {
+    font-size: 0.95rem !important;
+  }
+
+  .clean-tv-row {
+    min-height: 33px !important;
+    padding: 0.38rem 0.48rem !important;
+    gap: 0.38rem !important;
+    border-radius: 0.42rem !important;
+  }
+
+  .clean-tv-row span {
+    font-size: 0.98rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .clean-tv-title {
+    font-size: clamp(1.95rem, 3.2vw, 3rem) !important;
+    line-height: 0.95 !important;
+  }
+
+  main header,
+  .roneca-topbar {
+    margin-bottom: 0.52rem !important;
+  }
+
+  main header p,
+  main p {
+    font-size: 1rem !important;
+  }
+
+  /* Filmes e séries: melhor distribuição em landscape */
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)) !important;
+    gap: 0.72rem !important;
+    align-items: start !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(125px, 21vw, 178px) !important;
+    border-radius: 0.78rem !important;
+  }
+
+  .roneca-poster-card p {
+    font-size: 1.08rem !important;
+    line-height: 1.08 !important;
+    margin-top: 0.42rem !important;
+  }
+
+  .roneca-poster-card p + p {
+    font-size: 0.9rem !important;
+    opacity: 0.78 !important;
+  }
+
+  /* TV: cards maiores para leitura, mas sem desperdiçar área */
+  .roneca-channel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.62rem !important;
+  }
+
+  .roneca-channel-grid > button {
+    min-height: 66px !important;
+    padding: 0.5rem 0.72rem !important;
+    border-radius: 0.72rem !important;
+  }
+
+  .roneca-channel-grid > button span span:first-child,
+  .roneca-channel-grid > button .truncate {
+    font-size: 1.04rem !important;
+    line-height: 1.12 !important;
+    font-weight: 800 !important;
+  }
+
+  .roneca-channel-grid > button span span:last-child {
+    font-size: 0.82rem !important;
+  }
+}
+
+/* Telas muito baixas: ainda mais compacto, mas com texto legível */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  html {
+    font-size: clamp(7px, 1vw, 8.8px) !important;
+  }
+
+  .roneca-side-menu {
+    width: 102px !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 111px !important;
+  }
+
+  .roneca-side-button {
+    min-height: 36px !important;
+  }
+
+  .clean-tv-page > aside:not(.roneca-side-menu) {
+    width: clamp(155px, 18vw, 195px) !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)) !important;
+    gap: 0.62rem !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(112px, 20vw, 158px) !important;
+  }
+
+  .roneca-channel-grid > button {
+    min-height: 58px !important;
+  }
+}
+
+/* Player: barra realmente fina e painel inferior menos alto */
+.player-bottom-panel {
+  padding-top: 0.7rem !important;
+  padding-bottom: max(0.55rem, env(safe-area-inset-bottom)) !important;
+  border-radius: 1.15rem !important;
+}
+
+.player-bottom-panel .mb-3 {
+  margin-bottom: 0.42rem !important;
+}
+
+.player-bottom-panel .mt-4,
+.player-bottom-panel .mt-3 {
+  margin-top: 0.48rem !important;
+}
+
+.player-progress,
+.player-progress-slim,
+input[type="range"].player-progress,
+input[type="range"].player-progress-slim {
+  display: block !important;
+  width: 100% !important;
+  height: 3px !important;
+  min-height: 3px !important;
+  max-height: 3px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background:
+    linear-gradient(90deg, #22d3ee var(--player-progress-value), rgba(255,255,255,0.18) var(--player-progress-value)) !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.player-progress:disabled,
+.player-progress-slim:disabled,
+input[type="range"].player-progress:disabled,
+input[type="range"].player-progress-slim:disabled {
+  background:
+    linear-gradient(90deg, rgba(34,211,238,0.38) 100%, rgba(255,255,255,0.16) 100%) !important;
+  opacity: 0.82 !important;
+}
+
+.player-progress::-webkit-slider-runnable-track,
+.player-progress-slim::-webkit-slider-runnable-track {
+  height: 3px !important;
+  min-height: 3px !important;
+  max-height: 3px !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.player-progress::-webkit-slider-thumb,
+.player-progress-slim::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  width: 13px !important;
+  height: 13px !important;
+  margin-top: -5px !important;
+  border-radius: 999px !important;
+  border: 2px solid #22d3ee !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14) !important;
+}
+
+.player-progress::-moz-range-track,
+.player-progress-slim::-moz-range-track {
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.player-progress::-moz-range-thumb,
+.player-progress-slim::-moz-range-thumb {
+  width: 13px !important;
+  height: 13px !important;
+  border-radius: 999px !important;
+  border: 2px solid #22d3ee !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.14) !important;
+}
+
+.player-progress:disabled::-webkit-slider-thumb,
+.player-progress-slim:disabled::-webkit-slider-thumb,
+.player-progress:disabled::-moz-range-thumb,
+.player-progress-slim:disabled::-moz-range-thumb {
+  opacity: 0 !important;
+}
+
+/* Seta de opções menor que antes, mas central e tocável */
+.player-settings-arrow {
+  min-width: 54px !important;
+  min-height: 34px !important;
+  padding: 0.12rem 1rem !important;
+  font-size: clamp(1.65rem, 2.3vw, 2.45rem) !important;
+}
+
+/* Botão voltar: grande, mas não gigante demais */
+.player-back-button {
+  min-width: 48px !important;
+  min-height: 48px !important;
+  font-size: clamp(2.5rem, 4.2vw, 4.5rem) !important;
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .player-bottom-panel {
+    left: 1.9rem !important;
+    right: 1.9rem !important;
+    bottom: 1rem !important;
+    padding: 0.58rem 1.05rem max(0.5rem, env(safe-area-inset-bottom)) !important;
+    border-radius: 1rem !important;
+  }
+
+  .player-bottom-panel p {
+    font-size: 1rem !important;
+  }
+
+  .player-bottom-panel p:first-child {
+    font-size: 1.22rem !important;
+  }
+
+  .player-progress,
+  .player-progress-slim,
+  input[type="range"].player-progress,
+  input[type="range"].player-progress-slim {
+    height: 2px !important;
+    min-height: 2px !important;
+    max-height: 2px !important;
+  }
+
+  .player-progress::-webkit-slider-runnable-track,
+  .player-progress-slim::-webkit-slider-runnable-track {
+    height: 2px !important;
+  }
+
+  .player-progress::-webkit-slider-thumb,
+  .player-progress-slim::-webkit-slider-thumb {
+    width: 11px !important;
+    height: 11px !important;
+    margin-top: -4.5px !important;
+    border-width: 2px !important;
+  }
+
+  .player-progress::-moz-range-thumb,
+  .player-progress-slim::-moz-range-thumb {
+    width: 11px !important;
+    height: 11px !important;
+    border-width: 2px !important;
+  }
+}

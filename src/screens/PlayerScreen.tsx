@@ -513,7 +513,7 @@ export function PlayerScreen() {
 
         {(streamUrl || ready || error) && (
           <div
-            className={`absolute inset-x-3 bottom-3 z-40 rounded-[28px] border border-white/10 bg-[#020817]/72 px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-5 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl transition-all duration-300 sm:inset-x-6 sm:bottom-6 sm:px-6 md:inset-x-10 md:px-8 ${
+            className={`player-bottom-panel absolute inset-x-3 bottom-3 z-40 rounded-[28px] border border-white/10 bg-[#020817]/72 px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-5 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl transition-all duration-300 sm:inset-x-6 sm:bottom-6 sm:px-6 md:inset-x-10 md:px-8 ${
               showControls || error ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
             }`}
             onClick={event => event.stopPropagation()}
