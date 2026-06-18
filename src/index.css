@@ -1312,3 +1312,79 @@ select:focus {
     padding-left: 106px !important;
   }
 }
+
+/* RonecaPlayTV — player controls polish */
+.player-progress {
+  --player-progress-value: 0%;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 12px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, #22d3ee var(--player-progress-value), rgba(255, 255, 255, 0.16) var(--player-progress-value));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 0 22px rgba(34, 211, 238, 0.14);
+}
+
+.player-progress:disabled {
+  background:
+    linear-gradient(90deg, rgba(239, 68, 68, 0.55) 0%, rgba(239, 68, 68, 0.3) 100%);
+}
+
+.player-progress::-webkit-slider-runnable-track {
+  height: 12px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.player-progress::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -6px;
+  border-radius: 999px;
+  border: 4px solid #22d3ee;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 5px rgba(34, 211, 238, 0.12),
+    0 12px 26px rgba(0, 0, 0, 0.42);
+}
+
+.player-progress::-moz-range-track {
+  height: 12px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.player-progress::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 4px solid #22d3ee;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 5px rgba(34, 211, 238, 0.12),
+    0 12px 26px rgba(0, 0, 0, 0.42);
+}
+
+@media (max-width: 980px) {
+  .player-progress {
+    height: 14px;
+  }
+
+  .player-progress::-webkit-slider-runnable-track {
+    height: 14px;
+  }
+
+  .player-progress::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+    margin-top: -7px;
+  }
+
+  .player-progress::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
+}

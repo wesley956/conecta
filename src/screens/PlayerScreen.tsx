@@ -254,10 +254,10 @@ export function PlayerScreen() {
   }, [content?.id, streamUrl]);
 
   useEffect(() => {
-    if (!showControls) return;
-    const timer = window.setTimeout(() => setShowControls(false), 3800);
+    if (!showControls || showSettings) return;
+    const timer = window.setTimeout(() => setShowControls(false), 7000);
     return () => window.clearTimeout(timer);
-  }, [showControls, content?.id]);
+  }, [showControls, showSettings, content?.id]);
 
   useEffect(() => {
     if (!content?.id) return;
@@ -388,17 +388,25 @@ export function PlayerScreen() {
     container.requestFullscreen?.().catch(() => undefined);
   };
 
+  const revealControls = () => {
+    setShowControls(true);
+  };
+
+  const handlePlayerSurfaceClick = () => {
+    setShowSettings(false);
+    setShowControls(true);
+  };
+
   return (
     <AppLayout>
       <div
         ref={playerShellRef}
         className="relative h-full bg-black"
-        onMouseMove={() => setShowControls(true)}
+        onMouseMove={revealControls}
+        onPointerDown={revealControls}
+        onTouchStart={revealControls}
         onDoubleClick={toggleFullscreen}
-        onClick={() => {
-          setShowSettings(false);
-          setShowControls(current => !current);
-        }}
+        onClick={handlePlayerSurfaceClick}
       >
         <video
           ref={videoRef}
@@ -540,7 +548,8 @@ export function PlayerScreen() {
               value={isSeekable ? currentTime : 100}
               disabled={!isSeekable}
               onChange={event => handleSeek(event.target.value)}
-              className="player-progress h-2 w-full cursor-pointer disabled:cursor-default disabled:opacity-45"
+              style={{ '--player-progress-value': `${progressPercent}%` } as any}
+              className="player-progress h-3 w-full cursor-pointer disabled:cursor-default disabled:opacity-45"
               aria-label="Progresso da reprodução"
             />
 
@@ -557,9 +566,11 @@ export function PlayerScreen() {
                 <button
                   type="button"
                   onClick={() => setShowSettings(current => !current)}
-                  className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+                  aria-label="Abrir opções do player"
+                  title="Opções"
+                  className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(18px,1.6vw,24px)] font-bold leading-none text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
                 >
-                  ⚙
+                  ⌄
                 </button>
 
                 <button
@@ -572,7 +583,7 @@ export function PlayerScreen() {
               </div>
 
               {showSettings && (
-                <div className="absolute bottom-full right-0 mb-4 w-[min(92vw,410px)] rounded-[26px] border border-white/12 bg-[#05101f]/88 p-5 text-white shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
+                <div className="absolute bottom-full right-0 mb-3 w-[min(88vw,380px)] rounded-[24px] border border-white/12 bg-[#05101f]/92 p-4 text-white shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
                   <div className="mb-4">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Velocidade</p>
                     <div className="flex flex-wrap gap-2">
@@ -665,30 +676,7 @@ export function PlayerScreen() {
           </div>
         </div>
 
-        <div
-          className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/82 to-transparent px-12 py-8 transition-opacity ${
-            showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => {
-                const video = videoRef.current;
-                if (!video) return;
-                if (video.paused) video.play();
-                else video.pause();
-              }}
-              className="flex items-center gap-5 text-3xl font-light text-white/82 hover:text-white"
-            >
-              <span className="text-5xl">▷</span>
-              <span>{content?.name || 'Sem conteúdo'}</span>
-            </button>
-
-            <p className="text-xl font-light text-white/38">
-              {streamUrl ? (isMpegTsUrl(streamUrl) ? 'MPEG-TS via proxy' : 'Fonte conectada') : 'Sem fonte'}
-            </p>
-          </div>
-        </div>
+        {/* Barra inferior duplicada removida: os controles principais ficam no painel de progresso. */}
 
         {showList && (
           <aside className="absolute bottom-0 right-0 top-0 w-[430px] bg-[#071a31]/96 px-5 py-8">
