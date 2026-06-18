@@ -1,5 +1,17 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
+const REQUEST_HEADERS = {
+  Accept: '*/*',
+  'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
+};
+
+interface XtreamSourceInfo {
+  origin: string;
+  username: string;
+  password: string;
+  output: string;
+}
+
 function isNativeRuntime() {
   if (typeof window === 'undefined') return false;
 
@@ -24,16 +36,211 @@ function previewText(content: string) {
     .slice(0, 180);
 }
 
+function parseXtreamSource(rawUrl: string): XtreamSourceInfo | null {
+  try {
+    const url = new URL(rawUrl.trim());
+    const username = url.searchParams.get('username') || '';
+    const password = url.searchParams.get('password') || '';
+    const output = url.searchParams.get('output') || 'mpegts';
+
+    if (!username || !password) return null;
+
+    return {
+      origin: url.origin,
+      username,
+      password,
+      output,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isXtreamGetUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl.trim());
+    return url.pathname.toLowerCase().endsWith('/get.php') && Boolean(
+      url.searchParams.get('username') && url.searchParams.get('password')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function buildXtreamApiUrl(source: XtreamSourceInfo, action?: string, extra: Record<string, string | number> = {}) {
+  const params = new URLSearchParams({
+    username: source.username,
+    password: source.password,
+  });
+
+  if (action) {
+    params.set('action', action);
+  }
+
+  for (const [key, value] of Object.entries(extra)) {
+    params.set(key, String(value));
+  }
+
+  return `${source.origin}/player_api.php?${params.toString()}`;
+}
+
+function liveExtension(source: XtreamSourceInfo) {
+  return source.output.toLowerCase() === 'm3u8' ? 'm3u8' : 'ts';
+}
+
+function liveUrl(source: XtreamSourceInfo, streamId: string | number) {
+  // A M3U real desse painel usa formato legado:
+  // http://host/user/pass/id.ts
+  return `${source.origin}/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${liveExtension(source)}`;
+}
+
+function movieUrl(source: XtreamSourceInfo, streamId: string | number, extension?: string) {
+  const ext = String(extension || 'mp4').replace('.', '').trim() || 'mp4';
+
+  return `${source.origin}/movie/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${ext}`;
+}
+
+function escapeM3UAttr(value: unknown) {
+  return String(value ?? '')
+    .replace(/"/g, "'")
+    .replace(/\r?\n/g, ' ')
+    .trim();
+}
+
+function m3uEntry(name: unknown, group: unknown, logo: unknown, url: string) {
+  const safeName = escapeM3UAttr(name) || 'Sem nome';
+  const safeGroup = escapeM3UAttr(group) || 'Outros';
+  const safeLogo = escapeM3UAttr(logo);
+
+  return `#EXTINF:-1 tvg-name="${safeName}" tvg-logo="${safeLogo}" group-title="${safeGroup}",${safeName}\n${url}`;
+}
+
+async function fetchJsonWithCapacitor<T>(url: string): Promise<T | null> {
+  if (!isNativeRuntime()) return null;
+
+  const response = await CapacitorHttp.get({
+    url,
+    responseType: 'json' as any,
+    headers: REQUEST_HEADERS,
+  });
+
+  const status = Number(response.status ?? 0);
+
+  if (status < 200 || status >= 300) {
+    throw new Error(`A API respondeu HTTP ${status}.`);
+  }
+
+  if (typeof response.data === 'string') {
+    return JSON.parse(response.data) as T;
+  }
+
+  return response.data as T;
+}
+
+async function fetchJsonDirect<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: REQUEST_HEADERS,
+  });
+
+  if (!response.ok) {
+    throw new Error(`A API respondeu HTTP ${response.status}.`);
+  }
+
+  return await response.json() as T;
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const nativeData = await fetchJsonWithCapacitor<T>(url);
+
+  if (nativeData) {
+    return nativeData;
+  }
+
+  return await fetchJsonDirect<T>(url);
+}
+
+function buildCategoryMap(categories: any[]) {
+  const map = new Map<string, string>();
+
+  for (const category of Array.isArray(categories) ? categories : []) {
+    const id = String(category.category_id ?? '').trim();
+    const name = String(category.category_name ?? '').trim();
+
+    if (id && name) {
+      map.set(id, name);
+    }
+  }
+
+  return map;
+}
+
+async function fetchXtreamAsM3U(rawUrl: string): Promise<string | null> {
+  if (!isXtreamGetUrl(rawUrl)) return null;
+
+  const source = parseXtreamSource(rawUrl);
+
+  if (!source) return null;
+
+  const profile = await fetchJson<any>(buildXtreamApiUrl(source));
+  const userInfo = profile?.user_info ?? {};
+
+  if (String(userInfo.auth) !== '1') {
+    throw new Error('A conta Xtream não autorizou o acesso.');
+  }
+
+  const [liveCategories, vodCategories, liveStreams, vodStreams] = await Promise.all([
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_categories')).catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_categories')).catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_streams')).catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_streams')).catch(() => []),
+  ]);
+
+  const liveCategoryMap = buildCategoryMap(liveCategories);
+  const vodCategoryMap = buildCategoryMap(vodCategories);
+  const output: string[] = ['#EXTM3U'];
+
+  for (const item of Array.isArray(liveStreams) ? liveStreams : []) {
+    const streamId = item.stream_id;
+
+    if (!streamId) continue;
+
+    const group = liveCategoryMap.get(String(item.category_id ?? '')) || 'Canais';
+    const url = liveUrl(source, streamId);
+
+    output.push(m3uEntry(item.name, group, item.stream_icon, url));
+  }
+
+  for (const item of Array.isArray(vodStreams) ? vodStreams : []) {
+    const streamId = item.stream_id;
+
+    if (!streamId) continue;
+
+    const category = vodCategoryMap.get(String(item.category_id ?? '')) || 'Filmes';
+    const group = `Filmes | ${category}`;
+    const url = movieUrl(source, streamId, item.container_extension);
+
+    output.push(m3uEntry(item.name, group, item.stream_icon, url));
+  }
+
+  if (output.length <= 1) {
+    throw new Error('A API Xtream respondeu, mas não retornou canais ou filmes.');
+  }
+
+  // Séries ficam para a próxima fase em modo sob demanda.
+  // Importar todos os episódios de uma vez exigiria milhares de chamadas get_series_info
+  // e travaria o APK novamente.
+  return output.join('\n');
+}
+
 async function fetchM3UWithCapacitorHttp(url: string) {
   if (!isNativeRuntime()) return null;
 
   const response = await CapacitorHttp.get({
     url,
     responseType: 'text' as any,
-    headers: {
-      Accept: '*/*',
-      'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
-    },
+    headers: REQUEST_HEADERS,
   });
 
   const status = Number(response.status ?? 0);
@@ -57,8 +264,6 @@ async function fetchM3UWithCapacitorHttp(url: string) {
   return content;
 }
 
-
-
 function buildCandidateUrls(rawUrl: string): string[] {
   const cleanUrl = rawUrl.trim();
 
@@ -72,14 +277,11 @@ function buildCandidateUrls(rawUrl: string): string[] {
   try {
     const parsed = new URL(cleanUrl);
 
-    // Muitos painéis Xtream usam porta 80 com HTTP.
-    // Se o usuário colar https://host:80, a conexão costuma cair/resetar.
     if (parsed.protocol === 'https:' && parsed.port === '80') {
       parsed.protocol = 'http:';
       candidates.add(parsed.toString());
     }
 
-    // Caso inverso menos comum: porta 443 com http.
     if (parsed.protocol === 'http:' && parsed.port === '443') {
       parsed.protocol = 'https:';
       candidates.add(parsed.toString());
@@ -92,8 +294,6 @@ function buildCandidateUrls(rawUrl: string): string[] {
 }
 
 async function fetchDirect(url: string): Promise<string | null> {
-  // Em página HTTPS, o navegador bloqueia HTTP direto.
-  // Nesse caso, pula direto para o proxy dev.
   if (window.location.protocol === 'https:' && url.startsWith('http://')) {
     return null;
   }
@@ -125,16 +325,18 @@ async function fetchViaDevProxy(url: string): Promise<string> {
   return await response.text();
 }
 
-
-
 export async function fetchM3UContent(url: string): Promise<string> {
+  const xtreamContent = await fetchXtreamAsM3U(url);
+
+  if (xtreamContent) {
+    return xtreamContent;
+  }
+
   const nativeContent = await fetchM3UWithCapacitorHttp(url);
 
   if (nativeContent) {
     return nativeContent;
   }
-
-
 
   const candidates = buildCandidateUrls(url);
   const errors: string[] = [];
