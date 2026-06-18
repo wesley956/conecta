@@ -100,6 +100,11 @@ function movieUrl(source: XtreamSourceInfo, streamId: string | number, extension
   return `${source.origin}/movie/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${ext}`;
 }
 
+function seriesUrl(source: XtreamSourceInfo, seriesId: string | number) {
+  // Placeholder leve: a tela de séries usa esse ID para buscar episódios sob demanda.
+  return `${source.origin}/series/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${seriesId}.xtream-series`;
+}
+
 function escapeM3UAttr(value: unknown) {
   return String(value ?? '')
     .replace(/"/g, "'")
@@ -190,15 +195,18 @@ async function fetchXtreamAsM3U(rawUrl: string): Promise<string | null> {
     throw new Error('A conta Xtream não autorizou o acesso.');
   }
 
-  const [liveCategories, vodCategories, liveStreams, vodStreams] = await Promise.all([
+  const [liveCategories, vodCategories, seriesCategories, liveStreams, vodStreams, seriesStreams] = await Promise.all([
     fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_categories')).catch(() => []),
     fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_categories')).catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_series_categories')).catch(() => []),
     fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_streams')).catch(() => []),
     fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_streams')).catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_series')).catch(() => []),
   ]);
 
   const liveCategoryMap = buildCategoryMap(liveCategories);
   const vodCategoryMap = buildCategoryMap(vodCategories);
+  const seriesCategoryMap = buildCategoryMap(seriesCategories);
   const output: string[] = ['#EXTM3U'];
 
   for (const item of Array.isArray(liveStreams) ? liveStreams : []) {
@@ -224,13 +232,25 @@ async function fetchXtreamAsM3U(rawUrl: string): Promise<string | null> {
     output.push(m3uEntry(item.name, group, item.stream_icon, url));
   }
 
+  for (const item of Array.isArray(seriesStreams) ? seriesStreams : []) {
+    const seriesId = item.series_id;
+
+    if (!seriesId) continue;
+
+    const category = seriesCategoryMap.get(String(item.category_id ?? '')) || 'Séries';
+    const group = `Séries | ${category}`;
+    const name = `${escapeM3UAttr(item.name) || 'Série'} S01E01`;
+    const url = seriesUrl(source, seriesId);
+
+    output.push(m3uEntry(name, group, item.cover || item.stream_icon, url));
+  }
+
   if (output.length <= 1) {
     throw new Error('A API Xtream respondeu, mas não retornou canais ou filmes.');
   }
 
-  // Séries ficam para a próxima fase em modo sob demanda.
-  // Importar todos os episódios de uma vez exigiria milhares de chamadas get_series_info
-  // e travaria o APK novamente.
+  // Séries entram como catálogo leve.
+  // Os episódios reais são carregados sob demanda ao abrir uma série.
   return output.join('\n');
 }
 

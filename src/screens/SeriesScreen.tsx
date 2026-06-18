@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Series, Movie } from '@/types';
+import { hydrateXtreamSeries, isXtreamSeriesPlaceholder } from '@/utils/xtreamSeries';
 
 const SERIES_RENDER_BATCH_SIZE = 60;
 
@@ -16,9 +17,10 @@ function sortByName(a: CategoryOption, b: CategoryOption) {
 }
 
 export function SeriesScreen() {
-  const { series, setScreen, setCurrentMovie, setCurrentSeries } = useAppStore();
+  const { series, setScreen, setCurrentMovie, setCurrentSeries, setActiveNotice } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(SERIES_RENDER_BATCH_SIZE);
+  const [loadingSeriesId, setLoadingSeriesId] = useState<string | null>(null);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -61,30 +63,43 @@ export function SeriesScreen() {
   const canLoadMore = visibleSeries.length < filteredSeries.length;
   const selectedLabel = categoryOptions.find(category => category.id === selectedCategory)?.name ?? 'Séries';
 
-  const playFirstEpisode = (item: Series) => {
-    const firstSeason = item.seasons[0];
-    const firstEpisode = firstSeason?.episodes[0];
+  const playFirstEpisode = async (item: Series) => {
+    setLoadingSeriesId(item.id);
 
-    setCurrentSeries(item);
+    try {
+      const hydratedSeries = await hydrateXtreamSeries(item);
+      const firstSeason = hydratedSeries.seasons[0];
+      const firstEpisode = firstSeason?.episodes[0];
 
-    if (!firstEpisode) return;
+      if (!firstEpisode) {
+        setActiveNotice('⚠️ Nenhum episódio encontrado para esta série.');
+        return;
+      }
 
-    const episodeAsMovie: Movie = {
-      id: firstEpisode.id,
-      name: `${item.name} - T${firstSeason.number}E${firstEpisode.number}`,
-      year: 0,
-      duration: firstEpisode.duration,
-      synopsis: item.synopsis,
-      cover: item.cover,
-      category: item.category,
-      url: firstEpisode.url,
-      playbackUrls: firstEpisode.playbackUrls,
-      progress: firstEpisode.progress,
-      isFavorite: item.isFavorite,
-    };
+      setCurrentSeries(hydratedSeries);
 
-    setCurrentMovie(episodeAsMovie);
-    setScreen('player');
+      const episodeAsMovie: Movie = {
+        id: firstEpisode.id,
+        name: `${hydratedSeries.name} - T${firstSeason.number}E${firstEpisode.number}`,
+        year: 0,
+        duration: firstEpisode.duration,
+        synopsis: hydratedSeries.synopsis,
+        cover: hydratedSeries.cover,
+        category: hydratedSeries.category,
+        url: firstEpisode.url,
+        playbackUrls: firstEpisode.playbackUrls,
+        progress: firstEpisode.progress,
+        isFavorite: hydratedSeries.isFavorite,
+      };
+
+      setCurrentMovie(episodeAsMovie);
+      setScreen('player');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao carregar episódios.';
+      setActiveNotice(`⚠️ ${message}`);
+    } finally {
+      setLoadingSeriesId(null);
+    }
   };
 
   return (
@@ -154,7 +169,8 @@ export function SeriesScreen() {
                 <button
                   key={item.id}
                   onClick={() => playFirstEpisode(item)}
-                  className="group text-left"
+                  disabled={loadingSeriesId === item.id}
+                  className="group text-left disabled:opacity-60"
                 >
                   <div className="relative h-[230px] overflow-hidden rounded-xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
                     {item.cover ? (
@@ -162,6 +178,18 @@ export function SeriesScreen() {
                     ) : (
                       <div className="flex h-full items-center justify-center bg-gradient-to-br from-white/[0.08] to-white/[0.015] text-6xl">
                         🎥
+                      </div>
+                    )}
+
+                    {isXtreamSeriesPlaceholder(item.seasons[0]?.episodes[0]?.url) && (
+                      <span className="absolute left-3 top-3 rounded bg-cyan-400/20 px-2 py-1 text-xs text-cyan-100">
+                        sob demanda
+                      </span>
+                    )}
+
+                    {loadingSeriesId === item.id && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-sm text-white">
+                        Carregando episódios...
                       </div>
                     )}
 
