@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import { loadContentCache, saveContentCache } from '@/utils/contentCache';
 import type { AppState, AdminView } from '@/types';
 
 // Screens
@@ -67,6 +68,94 @@ function AdminPanel() {
   );
 }
 
+
+
+// ===== CONTENT CACHE HYDRATOR =====
+function ContentCacheHydrator() {
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (hydratedRef.current) return;
+
+    hydratedRef.current = true;
+    let cancelled = false;
+
+    async function hydrate() {
+      const snapshot = await loadContentCache();
+
+      if (cancelled || !snapshot) return;
+
+      const total = snapshot.channels.length + snapshot.movies.length + snapshot.series.length;
+
+      if (total === 0 && snapshot.playlists.length === 0) return;
+
+      useAppStore.getState().hydrateContentCache({
+        channels: snapshot.channels,
+        movies: snapshot.movies,
+        series: snapshot.series,
+        playlists: snapshot.playlists,
+      });
+    }
+
+    void hydrate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let saveTimer: number | undefined;
+    let previous = {
+      channels: useAppStore.getState().channels,
+      movies: useAppStore.getState().movies,
+      series: useAppStore.getState().series,
+      playlists: useAppStore.getState().playlists,
+    };
+
+    const unsubscribe = useAppStore.subscribe((state) => {
+      const contentChanged =
+        previous.channels !== state.channels ||
+        previous.movies !== state.movies ||
+        previous.series !== state.series ||
+        previous.playlists !== state.playlists;
+
+      if (!contentChanged) return;
+
+      previous = {
+        channels: state.channels,
+        movies: state.movies,
+        series: state.series,
+        playlists: state.playlists,
+      };
+
+      if (saveTimer) {
+        window.clearTimeout(saveTimer);
+      }
+
+      saveTimer = window.setTimeout(() => {
+        const latest = useAppStore.getState();
+
+        void saveContentCache({
+          channels: latest.channels,
+          movies: latest.movies,
+          series: latest.series,
+          playlists: latest.playlists,
+        });
+      }, 900);
+    });
+
+    return () => {
+      unsubscribe();
+
+      if (saveTimer) {
+        window.clearTimeout(saveTimer);
+      }
+    };
+  }, []);
+
+  return null;
+}
 
 // ===== DEVICE PANEL AUTO SYNC =====
 function DevicePanelSync() {
@@ -221,6 +310,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-bg-primary overflow-hidden">
+      <ContentCacheHydrator />
       <DevicePanelSync />
       <AppScreen screen={currentScreen} />
     </div>

@@ -49,6 +49,7 @@ interface AppStore {
   series: Series[];
   playlists: Playlist[];
   watchHistory: WatchHistory[];
+  hydrateContentCache: (snapshot: { channels: Channel[]; movies: Movie[]; series: Series[]; playlists?: Playlist[] }) => void;
   importM3UPlaylist: (name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
   addDirectStreamChannel: (name: string, sourceUrl: string) => { imported: number; skipped: number };
   removePlaylist: (playlistId: string) => void;
@@ -125,6 +126,26 @@ export const useAppStore = create<AppStore>()(
   series: [],
   playlists: [],
   watchHistory: [],
+  hydrateContentCache: (snapshot) => set((state) => {
+    const channels = Array.isArray(snapshot.channels) ? snapshot.channels : [];
+    const movies = Array.isArray(snapshot.movies) ? snapshot.movies : [];
+    const series = Array.isArray(snapshot.series) ? snapshot.series : [];
+    const playlists = Array.isArray(snapshot.playlists) ? snapshot.playlists : [];
+
+    const total = channels.length + movies.length + series.length;
+
+    if (total === 0 && playlists.length === 0) {
+      return {};
+    }
+
+    return {
+      channels,
+      movies,
+      series,
+      playlists: playlists.length > 0 ? playlists : state.playlists,
+      activeNotice: total > 0 ? `⚡ Conteúdo carregado do cache local: ${channels.length} canal(is), ${movies.length} filme(s), ${series.length} série(s).` : state.activeNotice,
+    };
+  }),
   addDirectStreamChannel: (name, sourceUrl) => {
     const url = sourceUrl.trim();
 
