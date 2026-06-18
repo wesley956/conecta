@@ -233,7 +233,7 @@ export function ChannelsScreen() {
               </button>
             </div>
           ) : (
-            <div className="grid max-h-[calc(100vh-120px)] grid-cols-2 gap-x-12 gap-y-2 overflow-y-auto pr-6">
+            <div className="roneca-channel-grid max-h-[calc(100vh-135px)] overflow-y-auto pr-3">
               {visibleChannels.map(channel => {
                 const safeLogo = getSafeImageUrl(channel.logo);
 
@@ -262,7 +262,7 @@ export function ChannelsScreen() {
               {canLoadMore && (
                 <button
                   onClick={() => setVisibleCount(count => count + CHANNEL_RENDER_BATCH_SIZE)}
-                  className="col-span-2 mx-auto mt-6 rounded-md bg-white/[0.08] px-8 py-3 text-xl font-light text-white/75 hover:bg-white/[0.14] hover:text-white"
+                  className="roneca-load-more"
                 >
                   Carregar mais {Math.min(CHANNEL_RENDER_BATCH_SIZE, filteredChannels.length - visibleChannels.length)} canal(is)
                 </button>

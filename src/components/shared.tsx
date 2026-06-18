@@ -200,153 +200,36 @@ export function BottomNav() {
   const store = useAppStore() as any;
   const activeScreen = store.screen ?? store.currentScreen ?? store.activeScreen ?? 'home';
   const setScreen = store.setScreen as (screen: string) => void;
-  const setAdminMode = store.setAdminMode as (enabled: boolean) => void;
 
   const items = [
     { id: 'home', icon: '⌂', label: 'Início', action: () => setScreen('home'), active: ['home'].includes(activeScreen) },
-    { id: 'channels', icon: '▣', label: 'TV', action: () => setScreen('channels'), active: ['channels'].includes(activeScreen) },
-    { id: 'vod', icon: '▷', label: 'VOD', action: () => setScreen('movies'), active: ['movies', 'series'].includes(activeScreen) },
-    { id: 'playback', icon: '◷', label: 'Playback', action: () => setScreen('favorites'), active: ['favorites', 'search'].includes(activeScreen) },
-    { id: 'settings', icon: '◇', label: 'Config', action: () => setScreen('settings'), active: ['settings', 'playlists'].includes(activeScreen) },
+    { id: 'channels', icon: '▣', label: 'TV ao vivo', action: () => setScreen('channels'), active: ['channels'].includes(activeScreen) },
+    { id: 'movies', icon: '▶', label: 'Filmes', action: () => setScreen('movies'), active: ['movies'].includes(activeScreen) },
+    { id: 'series', icon: '▤', label: 'Séries', action: () => setScreen('series'), active: ['series'].includes(activeScreen) },
+    { id: 'playlists', icon: '☰', label: 'Listas', action: () => setScreen('playlists'), active: ['playlists'].includes(activeScreen) },
+    { id: 'settings', icon: '⚙', label: 'Config', action: () => setScreen('settings'), active: ['settings', 'favorites', 'search'].includes(activeScreen) },
   ];
 
   return (
-    <aside className="clean-tv-sidebar fixed bottom-0 left-0 top-0 z-50 flex w-[92px] flex-col items-center">
-      <nav className="flex w-full flex-1 flex-col">
+    <aside className="clean-tv-sidebar roneca-side-menu fixed bottom-0 left-0 top-0 z-50 flex flex-col">
+      <div className="roneca-side-logo">
+        <span className="roneca-side-logo-mark">RP</span>
+        <span className="roneca-side-logo-text">Roneca</span>
+      </div>
+
+      <nav className="flex w-full flex-1 flex-col gap-2 px-3 py-2">
         {items.map(item => (
           <button
             key={item.id}
             onClick={item.action}
             title={item.label}
-            className={`clean-tv-sidebar-button flex h-[108px] w-full items-center justify-center text-[2.15rem] transition-all ${
-              item.active ? 'active' : ''
-            }`}
+            className={`clean-tv-sidebar-button roneca-side-button ${item.active ? 'active' : ''}`}
           >
-            <span>{item.icon}</span>
+            <span className="roneca-side-icon">{item.icon}</span>
+            <span className="roneca-side-label">{item.label}</span>
           </button>
         ))}
       </nav>
-
-      <button
-        onClick={() => setAdminMode(true)}
-        title="Admin"
-        className="clean-tv-sidebar-button mb-4 flex h-[82px] w-full items-center justify-center text-3xl transition-all"
-      >
-        ▶
-      </button>
     </aside>
-  );
-}
-
-
-// ===== SCROLLABLE CONTAINER =====
-
-export function ScrollContainer({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`overflow-y-auto overflow-x-hidden custom-scrollbar ${className || ''}`} style={{ maxHeight: 'calc(100vh - 180px)' }}>
-      {children}
-    </div>
-  );
-}
-
-// ===== CATEGORY PILLS =====
-
-export function CategoryPills({ categories, selected, onSelect }: {
-  categories: string[];
-  selected: string;
-  onSelect: (cat: string) => void;
-}) {
-  return (
-    <div className="flex gap-2 overflow-x-auto pb-2 mb-4 no-scrollbar">
-      {categories.map(cat => (
-        <button
-          key={cat}
-          onClick={() => onSelect(cat)}
-          className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-            selected === cat
-              ? 'bg-neon-orange text-bg-primary shadow-lg glow-orange'
-              : 'bg-white/[0.04] border border-white/10 text-text-gray hover:border-neon-orange/50 hover:text-text-white'
-          }`}
-        >
-          {cat}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ===== LEGAL BANNER =====
-
-export function LegalBanner() {
-  const [visible, setVisible] = useState(true);
-  if (!visible) return null;
-  
-  return (
-    <div className="input-dark rounded-xl p-4 mb-4 animate-fade-in">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2">
-          <span className="text-alert-yellow text-lg">⚖️</span>
-          <p className="text-text-gray text-xs leading-relaxed">
-            <strong className="text-alert-yellow">Aviso Legal:</strong> RonecaPlayTV é um player legal. Não fornece canais, filmes ou listas piratas. 
-            Use apenas conteúdo autorizado. O uso indevido é de responsabilidade do usuário.
-          </p>
-        </div>
-        <button onClick={() => setVisible(false)} className="text-text-gray hover:text-white text-sm">✕</button>
-      </div>
-    </div>
-  );
-}
-
-// ===== VIRTUAL KEYBOARD (TV Mode) =====
-
-export function VirtualKeyboard({ value, onChange, onSearch }: {
-  value: string;
-  onChange: (val: string) => void;
-  onSearch: () => void;
-}) {
-  const rows = [
-    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'],
-    ['K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'],
-    ['U', 'V', 'W', 'X', 'Y', 'Z', '⌫', '🔍'],
-  ];
-  
-  return (
-    <div className="mt-4">
-      <div className="flex gap-2 mb-3">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Buscar canais, filmes, séries..."
-          className="flex-1 premium-card rounded-xl px-4 py-3 text-text-white placeholder-text-gray/50 focus:border-neon-orange focus:outline-none"
-        />
-        <button onClick={onSearch} className="bg-neon-orange text-bg-primary px-6 py-3 rounded-lg font-bold hover:bg-neon-orange/80 transition-colors">
-          Buscar
-        </button>
-      </div>
-      <div className="space-y-2">
-        {rows.map((row, ri) => (
-          <div key={ri} className="flex justify-center gap-1.5">
-            {row.map(key => (
-              <button
-                key={key}
-                onClick={() => {
-                  if (key === '⌫') onChange(value.slice(0, -1));
-                  else if (key === '🔍') onSearch();
-                  else onChange(value + key);
-                }}
-                className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
-                  key === '🔍'
-                    ? 'bg-neon-orange text-bg-primary w-16'
-                    : 'bg-white/[0.04] border border-white/10 text-text-white hover:border-neon-orange hover:bg-white/[0.06]'
-                }`}
-              >
-                {key}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }

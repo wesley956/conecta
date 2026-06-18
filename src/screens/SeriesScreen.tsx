@@ -149,7 +149,7 @@ export function SeriesScreen() {
               <p className="mt-5 text-3xl font-light">Nenhuma série nesta categoria</p>
             </div>
           ) : (
-            <section className="grid max-h-[calc(100vh-165px)] grid-cols-2 gap-x-5 gap-y-7 overflow-y-auto pr-3 sm:grid-cols-3 sm:gap-x-7 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 xl:gap-x-10 xl:gap-y-9 xl:pr-8">
+            <section className="roneca-media-grid max-h-[calc(100vh-170px)] overflow-y-auto pr-3">
               {visibleSeries.map(item => (
                 <button
                   key={item.id}
@@ -186,7 +186,7 @@ export function SeriesScreen() {
               {canLoadMore && (
                 <button
                   onClick={() => setVisibleCount(count => count + SERIES_RENDER_BATCH_SIZE)}
-                  className="col-span-6 mx-auto mt-4 rounded-md bg-white/[0.08] px-8 py-3 text-xl font-light text-white/75 hover:bg-white/[0.14] hover:text-white"
+                  className="roneca-load-more"
                 >
                   Carregar mais {Math.min(SERIES_RENDER_BATCH_SIZE, filteredSeries.length - visibleSeries.length)} série(s)
                 </button>

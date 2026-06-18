@@ -21,14 +21,6 @@ export function HomeScreen() {
     }).format(new Date());
   }, []);
 
-  const menuItems = [
-    { icon: '▣', title: 'TV ao vivo', subtitle: `${channels.length} canais`, action: () => setScreen('channels') },
-    { icon: '▷', title: 'Filmes', subtitle: `${movies.length} títulos`, action: () => setScreen('movies') },
-    { icon: '▤', title: 'Séries', subtitle: `${series.length} séries`, action: () => setScreen('series') },
-    { icon: '◷', title: 'Playback', subtitle: 'Continue assistindo', action: () => setScreen('favorites') },
-    { icon: '◇', title: 'Configurações', subtitle: 'Sistema e listas', action: () => setScreen('settings') },
-  ];
-
   const quickStats = [
     { label: 'Listas', value: playlists.length },
     { label: 'Canais', value: channels.length },
@@ -36,83 +28,68 @@ export function HomeScreen() {
     { label: 'Séries', value: series.length },
   ];
 
+  const quickActions = [
+    { icon: '▣', title: 'Assistir TV', subtitle: 'Abrir canais ao vivo', action: () => setScreen('channels') },
+    { icon: '▶', title: 'Filmes', subtitle: 'Catálogo de filmes', action: () => setScreen('movies') },
+    { icon: '☰', title: 'Listas', subtitle: 'Gerenciar fontes', action: () => setScreen('playlists') },
+  ];
+
   return (
     <AppLayout>
-      <div className="clean-tv-page flex h-full flex-col px-14 py-8">
+      <div className="clean-tv-page roneca-page">
         <BottomNav />
 
-        <header className="mb-14 flex items-center gap-12 text-white/55">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl text-[#2396f2]">⌾</span>
-            <span className="text-2xl font-light">{deviceCode || 'RonecaPlayTV'}</span>
+        <header className="roneca-topbar">
+          <div>
+            <p className="roneca-eyebrow">RonecaPlayTV</p>
+            <h1 className="roneca-page-title">Início</h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-3xl text-[#2396f2]">▣</span>
-            <span className="text-2xl font-light">{today}</span>
-          </div>
-
-          <div className="ml-auto text-right">
-            <p className="text-sm uppercase tracking-[0.28em] text-white/35">Acesso</p>
-            <p className="text-xl font-light text-white/70">
-              {daysRemaining > 0 ? `${daysRemaining} dias restantes` : 'Verificar liberação'}
-            </p>
+          <div className="roneca-topbar-info">
+            <span>{deviceCode || 'RonecaPlayTV'}</span>
+            <span>{today}</span>
+            <span>{daysRemaining > 0 ? `${daysRemaining} dias` : 'Verificar acesso'}</span>
           </div>
         </header>
 
-        <main className="grid flex-1 grid-cols-[360px_1fr] gap-12">
-          <section>
-            <h1 className="clean-tv-title mb-8 text-5xl">Início</h1>
+        <main className="roneca-home-grid">
+          <section className="roneca-hero-card">
+            <p className="roneca-eyebrow">Sua central</p>
+            <h2>TV, filmes e listas em um só lugar.</h2>
+            <p>
+              Use o menu lateral para navegar. A lista autorizada fica salva no app e carrega TV e filmes de forma rápida.
+            </p>
 
-            <div className="space-y-2">
-              {menuItems.map(item => (
-                <button
-                  key={item.title}
-                  onClick={item.action}
-                  className="clean-tv-row flex w-full items-center gap-5 px-7 py-5 text-left"
-                >
-                  <span className="w-12 text-4xl">{item.icon}</span>
-                  <span>
-                    <span className="block text-3xl font-light">{item.title}</span>
-                    <span className="block text-base opacity-65">{item.subtitle}</span>
-                  </span>
-                </button>
-              ))}
+            <div className="roneca-hero-actions">
+              <button onClick={() => setScreen('channels')} className="roneca-primary-action">
+                Assistir TV
+              </button>
+              <button onClick={() => setScreen('movies')} className="roneca-secondary-action">
+                Ver filmes
+              </button>
             </div>
           </section>
 
-          <section className="pt-14">
-            <h2 className="clean-tv-title mb-8 text-4xl">Resumo</h2>
-
-            <div className="mb-14 grid max-w-4xl grid-cols-4 gap-5">
+          <section>
+            <h2 className="roneca-section-title">Resumo</h2>
+            <div className="roneca-stats-grid">
               {quickStats.map(stat => (
-                <div key={stat.label} className="clean-tv-tile rounded-md px-6 py-5">
-                  <p className="text-lg font-light opacity-70">{stat.label}</p>
-                  <p className="mt-2 text-4xl font-light text-white">{stat.value}</p>
+                <div key={stat.label} className="roneca-stat-card">
+                  <p>{stat.label}</p>
+                  <strong>{stat.value}</strong>
                 </div>
               ))}
             </div>
 
-            <h2 className="clean-tv-title mb-7 text-4xl">Acesso rápido</h2>
-
-            <div className="grid max-w-5xl grid-cols-3 gap-5">
-              <button onClick={() => setScreen('channels')} className="clean-tv-tile active rounded-md p-7 text-left">
-                <p className="text-5xl">▣</p>
-                <p className="mt-6 text-3xl font-light">Assistir TV</p>
-                <p className="mt-2 text-lg opacity-65">Abrir canais ao vivo</p>
-              </button>
-
-              <button onClick={() => setScreen('playlists')} className="clean-tv-tile rounded-md p-7 text-left">
-                <p className="text-5xl">▤</p>
-                <p className="mt-6 text-3xl font-light">Listas</p>
-                <p className="mt-2 text-lg opacity-65">Gerenciar fontes</p>
-              </button>
-
-              <button onClick={() => setScreen('settings')} className="clean-tv-tile rounded-md p-7 text-left">
-                <p className="text-5xl">◇</p>
-                <p className="mt-6 text-3xl font-light">Sistema</p>
-                <p className="mt-2 text-lg opacity-65">Ajustes do app</p>
-              </button>
+            <h2 className="roneca-section-title roneca-section-gap">Acesso rápido</h2>
+            <div className="roneca-actions-grid">
+              {quickActions.map(action => (
+                <button key={action.title} onClick={action.action} className="roneca-action-card">
+                  <span>{action.icon}</span>
+                  <strong>{action.title}</strong>
+                  <small>{action.subtitle}</small>
+                </button>
+              ))}
             </div>
           </section>
         </main>
