@@ -11,6 +11,9 @@ jobs:
   build-android:
     name: Build Android Debug APK
     runs-on: ubuntu-latest
+    env:
+      VITE_ENABLE_DEVICE_PANEL: ${{ vars.VITE_ENABLE_DEVICE_PANEL || 'false' }}
+      VITE_DEVICE_CONFIG_URL: ${{ vars.VITE_DEVICE_CONFIG_URL || '' }}
 
     steps:
       - name: Checkout repository

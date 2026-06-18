@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
 import { fetchM3UContent } from '@/utils/fetchM3U';
+import { isDevicePanelEnabled } from '@/utils/devicePanel';
 
 // ===== PLAYLISTS SCREEN =====
 export function PlaylistsScreen() {
@@ -18,6 +19,7 @@ export function PlaylistsScreen() {
     resetContentToMock,
   } = useAppStore();
 
+  const panelMode = isDevicePanelEnabled();
   const [showAdd, setShowAdd] = useState(false);
   const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
   const [playlistName, setPlaylistName] = useState('');
@@ -41,6 +43,13 @@ export function PlaylistsScreen() {
   };
 
   const openAdd = () => {
+    if (panelMode) {
+      setMessage(null);
+      setError('Este APK está em modo painel. Vincule a lista pelo painel administrativo usando o código do aparelho.');
+      setShowAdd(false);
+      return;
+    }
+
     reset();
     setMessage(null);
     setError(null);
@@ -208,13 +217,15 @@ export function PlaylistsScreen() {
               <span className="text-2xl font-light">Minhas listas</span>
             </button>
 
-            <button
-              onClick={openAdd}
-              className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${showAdd && !editingPlaylistId ? 'active' : ''}`}
-            >
-              <span className="w-8 text-2xl">＋</span>
-              <span className="text-2xl font-light">Adicionar lista</span>
-            </button>
+            {!panelMode && (
+              <button
+                onClick={openAdd}
+                className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${showAdd && !editingPlaylistId ? 'active' : ''}`}
+              >
+                <span className="w-8 text-2xl">＋</span>
+                <span className="text-2xl font-light">Adicionar lista</span>
+              </button>
+            )}
 
             <button
               onClick={() => setScreen('settings')}
@@ -393,7 +404,11 @@ export function PlaylistsScreen() {
                   <div className="clean-tv-tile max-w-[460px] rounded-md p-7">
                     <p className="text-4xl">▤</p>
                     <p className="mt-4 text-3xl font-light">Nenhuma lista adicionada</p>
-                    <p className="mt-2 text-lg opacity-55">Adicione uma fonte autorizada para começar.</p>
+                    <p className="mt-2 text-lg opacity-55">
+                      {panelMode
+                        ? 'Aguardando uma lista vinculada pelo painel administrativo.'
+                        : 'Adicione uma fonte autorizada para começar.'}
+                    </p>
                   </div>
                 )}
               </div>

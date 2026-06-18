@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import { fetchM3UContent } from '@/utils/fetchM3U';
+import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import type { AppState, AdminView } from '@/types';
 
 // Screens
@@ -65,6 +67,107 @@ function AdminPanel() {
   );
 }
 
+
+// ===== DEVICE PANEL AUTO SYNC =====
+function DevicePanelSync() {
+  const syncingRef = useRef(false);
+  const deviceCode = useAppStore(state => state.deviceCode);
+  const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
+  const setSubscription = useAppStore(state => state.setSubscription);
+  const setActiveNotice = useAppStore(state => state.setActiveNotice);
+
+  useEffect(() => {
+    if (!isDevicePanelEnabled()) return;
+    if (!deviceCode) return;
+    if (syncingRef.current) return;
+
+    let cancelled = false;
+
+    async function syncFromPanel() {
+      syncingRef.current = true;
+
+      try {
+        const config = await fetchDevicePanelConfig(deviceCode);
+
+        if (cancelled) return;
+
+        if (!config.active) {
+          setDeviceActivated(false);
+          setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
+          return;
+        }
+
+        setDeviceActivated(true);
+
+        if (config.expiresAt) {
+          const expiresAt = new Date(config.expiresAt);
+          const now = new Date();
+          const days = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000));
+          setSubscription(days > 0, config.expiresAt, days);
+        }
+
+        const playlistUrl = String(config.playlistUrl ?? '').trim();
+
+        if (!playlistUrl) {
+          setActiveNotice('✅ Aparelho ativo, mas nenhuma lista foi vinculada no painel.');
+          return;
+        }
+
+        const playlistName = String(config.playlistName || config.clientName || 'Lista do painel');
+        const playlistUpdatedAt = String(config.playlistUpdatedAt || '');
+        const panelMarkerKey = `ronecaplaytv-panel-sync-${deviceCode}`;
+
+        const state = useAppStore.getState();
+        const existingPlaylist = state.playlists.find(playlist => playlist.url === playlistUrl);
+        const hasContentInMemory = state.channels.length > 0 || state.movies.length > 0 || state.series.length > 0;
+        const lastPanelUpdate = localStorage.getItem(panelMarkerKey) || '';
+
+        const shouldSync =
+          !existingPlaylist ||
+          !hasContentInMemory ||
+          Boolean(playlistUpdatedAt && playlistUpdatedAt !== lastPanelUpdate);
+
+        if (!shouldSync) {
+          return;
+        }
+
+        setActiveNotice('🔄 Carregando lista vinculada ao painel...');
+
+        const content = await fetchM3UContent(playlistUrl);
+
+        if (cancelled) return;
+
+        const freshState = useAppStore.getState();
+        const currentPlaylist = freshState.playlists.find(playlist => playlist.url === playlistUrl);
+
+        if (currentPlaylist) {
+          freshState.replaceM3UPlaylist(currentPlaylist.id, playlistName, playlistUrl, content);
+        } else {
+          freshState.importM3UPlaylist(playlistName, playlistUrl, content);
+        }
+
+        localStorage.setItem(panelMarkerKey, playlistUpdatedAt || new Date().toISOString());
+        setActiveNotice('✅ Lista carregada automaticamente pelo painel.');
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
+          setActiveNotice(`⚠️ ${message}`);
+        }
+      } finally {
+        syncingRef.current = false;
+      }
+    }
+
+    void syncFromPanel();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceCode, setActiveNotice, setDeviceActivated, setSubscription]);
+
+  return null;
+}
+
 // ===== MAIN APP =====
 export default function App() {
   const { currentScreen, isAdminMode } = useAppStore();
@@ -118,6 +221,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-bg-primary overflow-hidden">
+      <DevicePanelSync />
       <AppScreen screen={currentScreen} />
     </div>
   );
