@@ -570,3 +570,198 @@ body {
     height: 24px;
   }
 }
+
+/* RonecaPlayTV — modern streaming polish */
+:root {
+  --roneca-bg-0: #020617;
+  --roneca-bg-1: #07111f;
+  --roneca-bg-2: #0f172a;
+  --roneca-card: rgba(15, 23, 42, 0.78);
+  --roneca-card-strong: rgba(15, 23, 42, 0.94);
+  --roneca-border: rgba(148, 163, 184, 0.16);
+  --roneca-border-strong: rgba(34, 211, 238, 0.28);
+  --roneca-cyan: #22d3ee;
+  --roneca-orange: #fb923c;
+  --roneca-blue: #38bdf8;
+  --roneca-text: #f8fafc;
+  --roneca-muted: #94a3b8;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(251, 146, 60, 0.12), transparent 30rem),
+    var(--roneca-bg-0);
+}
+
+body {
+  background:
+    linear-gradient(135deg, rgba(2, 6, 23, 0.98), rgba(7, 17, 31, 0.98)),
+    var(--roneca-bg-0);
+  color: var(--roneca-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 211, 238, 0.42) rgba(15, 23, 42, 0.35);
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.75), rgba(251, 146, 60, 0.65));
+  border-radius: 999px;
+}
+
+.premium-bg,
+.clean-tv-bg {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(34, 211, 238, 0.16), transparent 28rem),
+    radial-gradient(circle at 92% 8%, rgba(251, 146, 60, 0.12), transparent 24rem),
+    linear-gradient(135deg, #020617 0%, #07111f 48%, #020617 100%) !important;
+}
+
+.clean-tv-card,
+.clean-tv-panel,
+.glass-panel,
+.premium-card {
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.72)) !important;
+  border: 1px solid var(--roneca-border) !important;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045) !important;
+  backdrop-filter: blur(18px);
+}
+
+.clean-tv-card,
+.premium-card {
+  border-radius: 1.25rem !important;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.clean-tv-card:hover,
+.premium-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: var(--roneca-border-strong) !important;
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.46),
+    0 0 0 1px rgba(34, 211, 238, 0.08),
+    0 0 34px rgba(34, 211, 238, 0.12) !important;
+}
+
+.clean-tv-button,
+.premium-button,
+button.clean-tv-button {
+  min-height: 44px;
+  border-radius: 999px !important;
+  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(251, 146, 60, 0.13)),
+    rgba(15, 23, 42, 0.74) !important;
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    filter 160ms ease;
+}
+
+.clean-tv-button:hover,
+.premium-button:hover,
+button.clean-tv-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(34, 211, 238, 0.42) !important;
+  filter: brightness(1.08);
+}
+
+.clean-tv-input,
+input,
+select {
+  min-height: 44px;
+  border-radius: 1rem !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  background-color: rgba(2, 6, 23, 0.62) !important;
+}
+
+.clean-tv-input:focus,
+input:focus,
+select:focus {
+  outline: none !important;
+  border-color: rgba(34, 211, 238, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12) !important;
+}
+
+.clean-tv-nav-item,
+.premium-nav-item {
+  border-radius: 1rem !important;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.clean-tv-nav-item:hover,
+.premium-nav-item:hover {
+  transform: translateX(2px);
+  background: rgba(34, 211, 238, 0.09) !important;
+}
+
+.roneca-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.18);
+  color: #fecaca;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.roneca-live-badge::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.9);
+}
+
+.roneca-poster-card img {
+  transition: transform 260ms ease, filter 260ms ease;
+}
+
+.roneca-poster-card:hover img {
+  transform: scale(1.04);
+  filter: saturate(1.08) contrast(1.04);
+}
+
+@media (max-width: 640px) {
+  .clean-tv-card,
+  .premium-card {
+    border-radius: 1rem !important;
+  }
+
+  .clean-tv-button,
+  .premium-button,
+  button {
+    min-height: 44px;
+  }
+}

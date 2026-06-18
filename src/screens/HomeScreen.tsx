@@ -65,13 +65,11 @@ export function HomeScreen() {
             <h1 className="clean-tv-title mb-8 text-5xl">Início</h1>
 
             <div className="space-y-2">
-              {menuItems.map((item, index) => (
+              {menuItems.map(item => (
                 <button
                   key={item.title}
                   onClick={item.action}
-                  className={`clean-tv-row flex w-full items-center gap-5 px-7 py-5 text-left ${
-                    index === 0 ? 'active' : ''
-                  }`}
+                  className="clean-tv-row flex w-full items-center gap-5 px-7 py-5 text-left"
                 >
                   <span className="w-12 text-4xl">{item.icon}</span>
                   <span>

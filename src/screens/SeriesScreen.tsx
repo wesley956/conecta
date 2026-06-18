@@ -149,14 +149,14 @@ export function SeriesScreen() {
               <p className="mt-5 text-3xl font-light">Nenhuma série nesta categoria</p>
             </div>
           ) : (
-            <section className="grid max-h-[calc(100vh-165px)] grid-cols-6 gap-x-10 gap-y-9 overflow-y-auto pr-8">
+            <section className="grid max-h-[calc(100vh-165px)] grid-cols-2 gap-x-5 gap-y-7 overflow-y-auto pr-3 sm:grid-cols-3 sm:gap-x-7 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 xl:gap-x-10 xl:gap-y-9 xl:pr-8">
               {visibleSeries.map(item => (
                 <button
                   key={item.id}
                   onClick={() => playFirstEpisode(item)}
-                  className="group text-left"
+                  className="group text-left roneca-poster-card"
                 >
-                  <div className="relative h-[230px] overflow-hidden rounded-xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
+                  <div className="relative h-[230px] overflow-hidden rounded-2xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
                     {item.cover ? (
                       <img src={item.cover} alt="" className="h-full w-full object-cover" />
                     ) : (
