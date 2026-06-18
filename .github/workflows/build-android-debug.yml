@@ -46,6 +46,9 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
+      - name: Force Android landscape
+        run: node scripts/force-android-landscape.cjs
+
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
