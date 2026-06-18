@@ -549,26 +549,26 @@ export function PlayerScreen() {
               disabled={!isSeekable}
               onChange={event => handleSeek(event.target.value)}
               style={{ '--player-progress-value': `${progressPercent}%` } as any}
-              className="player-progress h-3 w-full cursor-pointer disabled:cursor-default disabled:opacity-45"
+              className="player-progress player-progress-slim w-full cursor-pointer disabled:cursor-default disabled:opacity-45"
               aria-label="Progresso da reprodução"
             />
 
-            <div className="relative mt-4 flex items-center justify-between gap-4">
+            <div className="relative mt-3 grid grid-cols-3 items-center gap-4">
               <button
                 type="button"
                 onClick={toggleMute}
-                className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+                className="justify-self-start rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
               >
                 {muted || volume === 0 ? '🔇' : '🔊'}
               </button>
 
-              <div className="flex items-center gap-3">
+              <div className="contents">
                 <button
                   type="button"
                   onClick={() => setShowSettings(current => !current)}
                   aria-label="Abrir opções do player"
                   title="Opções"
-                  className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(18px,1.6vw,24px)] font-bold leading-none text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+                  className="player-settings-arrow justify-self-center rounded-full border border-white/10 bg-white/[0.09] px-6 py-2 text-[clamp(28px,3.4vw,42px)] font-black leading-none text-white/90 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.15] active:scale-95"
                 >
                   ⌄
                 </button>
@@ -576,14 +576,14 @@ export function PlayerScreen() {
                 <button
                   type="button"
                   onClick={toggleFullscreen}
-                  className="rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
+                  className="justify-self-end rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
                 >
                   ⛶
                 </button>
               </div>
 
               {showSettings && (
-                <div className="absolute bottom-full right-0 mb-3 w-[min(88vw,380px)] rounded-[24px] border border-white/12 bg-[#05101f]/92 p-4 text-white shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
+                <div className="absolute bottom-full left-1/2 mb-3 w-[min(88vw,380px)] -translate-x-1/2 rounded-[24px] border border-white/12 bg-[#05101f]/92 p-4 text-white shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
                   <div className="mb-4">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Velocidade</p>
                     <div className="flex flex-wrap gap-2">
@@ -650,7 +650,7 @@ export function PlayerScreen() {
             <div className="flex items-center gap-7">
               <button
                 onClick={goBack}
-                className="text-5xl font-light text-white/62 hover:text-white"
+                className="player-back-button text-7xl font-light leading-none text-white/76 hover:text-white"
               >
                 ←
               </button>
