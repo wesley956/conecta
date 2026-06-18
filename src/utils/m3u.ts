@@ -80,7 +80,6 @@ function looksLikeMovie(entry: M3UEntry): boolean {
     text.includes('filmes') ||
     text.includes('movie') ||
     text.includes('movies') ||
-    text.includes('vod') ||
     text.includes('cinema') ||
     /\.(mp4|mkv|avi|mov|wmv|flv)(\?|#|$)/i.test(entry.url)
   );
@@ -219,9 +218,7 @@ function normalizeXtreamPlaybackUrl(streamUrl: string, sourceUrl: string, kind: 
   if (!fileName) return streamUrl;
 
   const folder = kind === 'live' ? 'live' : kind === 'movie' ? 'movie' : 'series';
-  const safeFileName = kind === 'live' && !/\.[a-z0-9]+(\?|#|$)/i.test(fileName)
-    ? `${fileName}.ts`
-    : fileName;
+  const safeFileName = fileName;
 
   return `${source.origin}/${folder}/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${safeFileName}`;
 }

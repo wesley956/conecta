@@ -9,17 +9,8 @@ function isHttpUrl(url: string) {
 }
 
 function isNativeRuntime() {
-  if (typeof window === 'undefined') return false;
-
   const capacitor = (window as any).Capacitor;
-  const protocol = window.location.protocol;
-
-  return (
-    protocol === 'capacitor:' ||
-    protocol === 'ionic:' ||
-    protocol === 'http:' && window.location.hostname === 'localhost' ||
-    Boolean(capacitor?.isNativePlatform?.())
-  );
+  return Boolean(capacitor?.isNativePlatform?.());
 }
 
 function toMediaProxyUrl(url: string) {

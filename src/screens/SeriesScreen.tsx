@@ -78,6 +78,7 @@ export function SeriesScreen() {
       cover: item.cover,
       category: item.category,
       url: firstEpisode.url,
+      playbackUrls: firstEpisode.playbackUrls,
       progress: firstEpisode.progress,
       isFavorite: item.isFavorite,
     };
