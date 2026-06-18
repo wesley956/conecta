@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Series, Movie } from '@/types';
+import {
+  canLoadXtreamSeriesFromPlaylist,
+  fetchXtreamSeriesCatalog,
+  fetchXtreamSeriesEpisodes,
+} from '@/utils/xtreamSeries';
 
 const SERIES_RENDER_BATCH_SIZE = 60;
 
@@ -11,19 +16,86 @@ interface CategoryOption {
   count: number;
 }
 
+type XtreamSeries = Series & {
+  xtreamSeriesId?: string | number;
+};
+
 function sortByName(a: CategoryOption, b: CategoryOption) {
   return a.name.localeCompare(b.name, 'pt-BR');
 }
 
 export function SeriesScreen() {
-  const { series, setScreen, setCurrentMovie, setCurrentSeries } = useAppStore();
+  const {
+    series,
+    playlists,
+    setScreen,
+    setCurrentMovie,
+    setCurrentSeries,
+  } = useAppStore();
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(SERIES_RENDER_BATCH_SIZE);
+  const [remoteSeries, setRemoteSeries] = useState<XtreamSeries[]>([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+  const [loadingSeriesId, setLoadingSeriesId] = useState<string | null>(null);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+
+  const xtreamPlaylist = useMemo(() => {
+    return playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
+  }, [playlists]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCatalog() {
+      if (!xtreamPlaylist?.url) return;
+      if (remoteSeries.length > 0) return;
+
+      setIsLoadingCatalog(true);
+      setSeriesError(null);
+
+      try {
+        const loaded = await fetchXtreamSeriesCatalog(xtreamPlaylist.url);
+
+        if (!cancelled) {
+          setRemoteSeries(loaded);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSeriesError(error instanceof Error ? error.message : 'Não foi possível carregar séries.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingCatalog(false);
+        }
+      }
+    }
+
+    void loadCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [xtreamPlaylist?.url, remoteSeries.length]);
+
+  const allSeries = useMemo<XtreamSeries[]>(() => {
+    const map = new Map<string, XtreamSeries>();
+
+    for (const item of series as XtreamSeries[]) {
+      map.set(item.id, item);
+    }
+
+    for (const item of remoteSeries) {
+      map.set(item.id, item);
+    }
+
+    return [...map.values()];
+  }, [series, remoteSeries]);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
 
-    for (const item of series) {
+    for (const item of allSeries) {
       const name = item.category || 'Outros';
       const current = map.get(name);
 
@@ -35,24 +107,24 @@ export function SeriesScreen() {
     }
 
     return [
-      { id: 'all', name: 'Todas', count: series.length },
-      { id: 'favorites', name: 'Favoritas', count: series.filter(item => item.isFavorite).length },
-      { id: 'continue', name: 'Continuar', count: series.filter(item => (item.progress ?? 0) > 0).length },
+      { id: 'all', name: 'Todas', count: allSeries.length },
+      { id: 'favorites', name: 'Favoritas', count: allSeries.filter(item => item.isFavorite).length },
+      { id: 'continue', name: 'Continuar', count: allSeries.filter(item => (item.progress ?? 0) > 0).length },
       ...[...map.values()].sort(sortByName),
     ];
-  }, [series]);
+  }, [allSeries]);
 
   const filteredSeries = useMemo(() => {
-    if (selectedCategory === 'all') return series;
-    if (selectedCategory === 'favorites') return series.filter(item => item.isFavorite);
-    if (selectedCategory === 'continue') return series.filter(item => (item.progress ?? 0) > 0);
+    if (selectedCategory === 'all') return allSeries;
+    if (selectedCategory === 'favorites') return allSeries.filter(item => item.isFavorite);
+    if (selectedCategory === 'continue') return allSeries.filter(item => (item.progress ?? 0) > 0);
 
-    return series.filter(item => item.category === selectedCategory);
-  }, [series, selectedCategory]);
+    return allSeries.filter(item => item.category === selectedCategory);
+  }, [allSeries, selectedCategory]);
 
   useEffect(() => {
     setVisibleCount(SERIES_RENDER_BATCH_SIZE);
-  }, [selectedCategory, series.length]);
+  }, [selectedCategory, allSeries.length]);
 
   const visibleSeries = useMemo(() => {
     return filteredSeries.slice(0, visibleCount);
@@ -61,11 +133,11 @@ export function SeriesScreen() {
   const canLoadMore = visibleSeries.length < filteredSeries.length;
   const selectedLabel = categoryOptions.find(category => category.id === selectedCategory)?.name ?? 'Séries';
 
-  const playFirstEpisode = (item: Series) => {
+  const openFirstEpisode = (item: Series) => {
     const firstSeason = item.seasons[0];
     const firstEpisode = firstSeason?.episodes[0];
 
-    if (!firstEpisode) return;
+    if (!firstEpisode) return false;
 
     setCurrentSeries(item);
 
@@ -85,6 +157,37 @@ export function SeriesScreen() {
 
     setCurrentMovie(episodeAsMovie);
     setScreen('player');
+
+    return true;
+  };
+
+  const playFirstEpisode = async (item: XtreamSeries) => {
+    setSeriesError(null);
+
+    if (openFirstEpisode(item)) return;
+
+    if (!xtreamPlaylist?.url || !item.xtreamSeriesId) {
+      setSeriesError('Essa série não possui episódios carregados.');
+      return;
+    }
+
+    setLoadingSeriesId(item.id);
+
+    try {
+      const seasons = await fetchXtreamSeriesEpisodes(xtreamPlaylist.url, item.xtreamSeriesId);
+      const hydratedSeries: Series = {
+        ...item,
+        seasons,
+      };
+
+      if (!openFirstEpisode(hydratedSeries)) {
+        setSeriesError('Nenhum episódio reproduzível foi encontrado nesta série.');
+      }
+    } catch (error) {
+      setSeriesError(error instanceof Error ? error.message : 'Não foi possível carregar episódios.');
+    } finally {
+      setLoadingSeriesId(null);
+    }
   };
 
   return (
@@ -134,9 +237,23 @@ export function SeriesScreen() {
           </header>
 
           <div className="mb-8 flex items-center justify-between gap-8 pr-8">
-            <p className="text-2xl font-light text-white/72">
-              {filteredSeries.length === 0 ? 'Nenhum item' : 'Escolha uma série'}
-            </p>
+            <div>
+              <p className="text-2xl font-light text-white/72">
+                {isLoadingCatalog ? 'Carregando séries...' : filteredSeries.length === 0 ? 'Nenhum item' : 'Escolha uma série'}
+              </p>
+
+              {seriesError && (
+                <p className="mt-2 max-w-3xl text-base text-red-200/80">
+                  {seriesError}
+                </p>
+              )}
+
+              {!xtreamPlaylist && allSeries.length === 0 && !isLoadingCatalog && (
+                <p className="mt-2 max-w-3xl text-base text-white/38">
+                  Séries sob demanda serão carregadas automaticamente quando a lista Xtream estiver disponível.
+                </p>
+              )}
+            </div>
 
             <p className="text-xl font-light text-white/42">
               {visibleSeries.length}/{filteredSeries.length} série(s)
@@ -145,16 +262,19 @@ export function SeriesScreen() {
 
           {filteredSeries.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
-              <p className="text-5xl">🎥</p>
-              <p className="mt-5 text-3xl font-light">Nenhuma série nesta categoria</p>
+              <p className="text-5xl">{isLoadingCatalog ? '⏳' : '🎥'}</p>
+              <p className="mt-5 text-3xl font-light">
+                {isLoadingCatalog ? 'Buscando catálogo de séries' : 'Nenhuma série nesta categoria'}
+              </p>
             </div>
           ) : (
             <section className="roneca-media-grid max-h-[calc(100vh-170px)] overflow-y-auto pr-3">
               {visibleSeries.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => playFirstEpisode(item)}
-                  className="group text-left roneca-poster-card"
+                  onClick={() => void playFirstEpisode(item)}
+                  disabled={loadingSeriesId === item.id}
+                  className="group text-left roneca-poster-card disabled:opacity-55"
                 >
                   <div className="relative h-[230px] overflow-hidden rounded-2xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
                     {item.cover ? (
@@ -172,8 +292,14 @@ export function SeriesScreen() {
                     )}
 
                     <span className="absolute bottom-3 left-3 rounded bg-black/45 px-2 py-1 text-xs text-white/70">
-                      {item.seasons.length} temp.
+                      {item.seasons.length > 0 ? `${item.seasons.length} temp.` : 'Sob demanda'}
                     </span>
+
+                    {loadingSeriesId === item.id && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/65 text-xl text-white">
+                        Carregando...
+                      </div>
+                    )}
                   </div>
 
                   <p className="mt-3 truncate text-2xl font-light text-white/72 group-hover:text-white">
