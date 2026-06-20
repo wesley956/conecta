@@ -2088,3 +2088,54 @@ input[type="range"].player-progress-slim:disabled {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
   }
 }
+
+/* =========================================================
+   RonecaPlayTV — Patch 2 movie/series detail modal
+   ========================================================= */
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .fixed.z-\[120\] > div {
+    inset: 0.75rem 0.9rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .fixed.z-\[120\] h2 {
+    font-size: clamp(1.55rem, 3.5vw, 2.45rem) !important;
+  }
+
+  .fixed.z-\[120\] p {
+    font-size: 0.92rem !important;
+  }
+
+  .fixed.z-\[120\] button {
+    min-height: 34px;
+  }
+
+  .fixed.z-\[120\] .grid button {
+    min-height: 48px;
+  }
+}
+
+/* RonecaPlayTV — detail modal mobile polish */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .fixed.z-\[120\] > div {
+    inset: 0.65rem 0.78rem !important;
+    border-radius: 1rem !important;
+  }
+
+  .fixed.z-\[120\] h2 {
+    font-size: clamp(1.55rem, 3.5vw, 2.45rem) !important;
+  }
+
+  .fixed.z-\[120\] p {
+    font-size: 0.92rem !important;
+  }
+
+  .fixed.z-\[120\] button {
+    min-height: 34px;
+  }
+
+  .fixed.z-\[120\] .grid button {
+    min-height: 48px;
+  }
+}

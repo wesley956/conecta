@@ -337,72 +337,119 @@ export function SeriesScreen() {
 
         {seriesDetail && (
           <div
-            className="fixed inset-0 z-40 flex items-stretch justify-end bg-black/70"
+            className="fixed inset-0 z-[120] bg-black/72 backdrop-blur-md"
             onClick={closeSeriesDetail}
           >
             <div
-              className="flex h-full w-[min(92vw,560px)] flex-col bg-[#0b0c12] px-7 py-7"
+              className="absolute inset-x-4 bottom-4 top-4 overflow-hidden rounded-3xl border border-white/10 bg-[#06111f]/95 shadow-2xl md:inset-x-10"
               onClick={event => event.stopPropagation()}
             >
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-base font-light text-white/40">Série</p>
-                  <h2 className="truncate text-[clamp(22px,2.6vw,30px)] font-light text-white">
-                    {seriesDetail.item.name}
-                  </h2>
+              <div className="flex h-full min-h-0 flex-col md:flex-row">
+                <div className="relative h-48 shrink-0 bg-black/30 md:h-full md:w-[32%]">
+                  {seriesDetail.item.cover ? (
+                    <img
+                      src={seriesDetail.item.cover}
+                      alt={seriesDetail.item.name}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-white/5 text-6xl text-white/30">
+                      ▦
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#06111f] via-transparent to-transparent md:bg-gradient-to-r" />
                 </div>
-                <button
-                  onClick={closeSeriesDetail}
-                  className="shrink-0 rounded-full bg-white/[0.06] px-4 py-2 text-2xl text-white/70 hover:text-white"
-                  aria-label="Fechar"
-                >
-                  ✕
-                </button>
-              </div>
 
-              {seriesDetail.seasons.length > 1 && (
-                <div className="mb-5 flex flex-wrap gap-2">
-                  {seriesDetail.seasons.map(season => (
+                <div className="flex min-h-0 flex-1 flex-col p-5 md:p-7">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold uppercase tracking-[0.24em] text-sky-300/80">Série</p>
+                      <h2 className="mt-1 line-clamp-2 text-3xl font-black leading-none text-white md:text-5xl">
+                        {seriesDetail.item.name}
+                      </h2>
+                      <p className="mt-2 text-base font-semibold text-white/55">
+                        {seriesDetail.item.category || 'Sem categoria'}
+                      </p>
+                    </div>
+
                     <button
-                      key={season.number}
-                      onClick={() => setSelectedSeasonNumber(season.number)}
-                      className={`rounded-md px-4 py-2 text-[clamp(14px,1.6vw,18px)] font-light transition-colors ${
-                        selectedSeasonNumber === season.number
-                          ? 'bg-[#2396f2] text-white'
-                          : 'bg-white/[0.06] text-white/60 hover:text-white'
-                      }`}
+                      type="button"
+                      onClick={closeSeriesDetail}
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-2xl font-bold text-white hover:bg-white/20"
+                      aria-label="Fechar detalhes"
                     >
-                      Temporada {season.number}
+                      ×
                     </button>
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
-                {selectedSeason?.episodes.map(episode => (
-                  <button
-                    key={episode.id}
-                    onClick={() => playEpisode(
-                      { ...seriesDetail.item, seasons: seriesDetail.seasons },
-                      selectedSeason,
-                      episode,
-                    )}
-                    className="clean-tv-row flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
-                  >
-                    <span className="truncate text-[clamp(15px,1.8vw,20px)] font-light">
-                      {episode.number}. {episode.name}
-                    </span>
-                    {episode.duration && episode.duration !== '—' && (
-                      <span className="shrink-0 text-sm text-white/35">{episode.duration}</span>
-                    )}
-                  </button>
-                ))}
-
-                {!selectedSeason?.episodes.length && (
-                  <p className="px-2 py-6 text-center text-base text-white/40">
-                    Nenhum episódio encontrado nesta temporada.
+                  <p className="mt-4 line-clamp-3 max-w-4xl text-base leading-relaxed text-white/72">
+                    {seriesDetail.item.synopsis || 'Sinopse não disponível para esta série.'}
                   </p>
-                )}
+
+                  {seriesDetail.seasons.length > 1 && (
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {seriesDetail.seasons.map(season => (
+                        <button
+                          key={season.number}
+                          type="button"
+                          onClick={() => setSelectedSeasonNumber(season.number)}
+                          className={`rounded-full px-4 py-2 text-sm font-black transition-colors ${
+                            selectedSeasonNumber === season.number
+                              ? 'bg-sky-400 text-slate-950'
+                              : 'bg-white/[0.07] text-white/65 hover:text-white'
+                          }`}
+                        >
+                          Temporada {season.number}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-2">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h3 className="text-xl font-black text-white">Episódios</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {selectedSeason?.episodes.map(episode => (
+                        <button
+                          key={episode.id}
+                          type="button"
+                          onClick={() => playEpisode(
+                            { ...seriesDetail.item, seasons: seriesDetail.seasons },
+                            selectedSeason,
+                            episode,
+                          )}
+                          className="rounded-xl border border-white/10 bg-black/18 p-3 text-left hover:border-sky-300/50 hover:bg-sky-400/10"
+                        >
+                          <p className="line-clamp-2 text-sm font-black text-white">
+                            {episode.number}. {episode.name}
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-white/46">
+                            {episode.duration && episode.duration !== '—' ? episode.duration : 'Assistir episódio'}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+
+                    {!selectedSeason?.episodes.length && (
+                      <p className="px-2 py-6 text-center text-base text-white/40">
+                        Nenhum episódio encontrado nesta temporada.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={closeSeriesDetail}
+                      className="rounded-full border border-white/12 bg-white/8 px-6 py-3 text-base font-bold text-white hover:bg-white/14"
+                    >
+                      Voltar
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

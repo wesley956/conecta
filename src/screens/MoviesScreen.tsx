@@ -19,6 +19,7 @@ export function MoviesScreen() {
   const { movies, setScreen, setCurrentMovie, setCurrentSeries } = useAppStore();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [visibleCount, setVisibleCount] = useState(MOVIE_RENDER_BATCH_SIZE);
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -133,7 +134,7 @@ export function MoviesScreen() {
               {visibleMovies.map(movie => (
                 <button
                   key={movie.id}
-                  onClick={() => playMovie(movie)}
+                  onClick={() => setSelectedMovie(movie)}
                   className="group text-left roneca-poster-card"
                 >
                   <div className="relative h-[230px] overflow-hidden rounded-2xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
@@ -170,6 +171,85 @@ export function MoviesScreen() {
             </section>
           )}
         </main>
+
+        {selectedMovie && (
+          <div className="fixed inset-0 z-[120] bg-black/72 backdrop-blur-md" onClick={() => setSelectedMovie(null)}>
+            <div
+              className="absolute inset-x-4 bottom-4 top-4 overflow-hidden rounded-3xl border border-white/10 bg-[#06111f]/95 shadow-2xl md:inset-x-10"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex h-full min-h-0 flex-col md:flex-row">
+                <div className="relative h-52 shrink-0 bg-black/30 md:h-full md:w-[34%]">
+                  {selectedMovie.cover ? (
+                    <img
+                      src={selectedMovie.cover}
+                      alt={selectedMovie.name}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-white/5 text-6xl text-white/30">
+                      ▶
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#06111f] via-transparent to-transparent md:bg-gradient-to-r" />
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col p-5 md:p-7">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold uppercase tracking-[0.24em] text-sky-300/80">Filme</p>
+                      <h2 className="mt-1 line-clamp-2 text-3xl font-black leading-none text-white md:text-5xl">
+                        {selectedMovie.name}
+                      </h2>
+                      <p className="mt-2 text-base font-semibold text-white/55">
+                        {selectedMovie.category || 'Sem categoria'}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMovie(null)}
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-2xl font-bold text-white hover:bg-white/20"
+                      aria-label="Fechar detalhes"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="mt-5 min-h-0 flex-1 overflow-y-auto pr-2">
+                    <p className="max-w-3xl text-lg leading-relaxed text-white/76">
+                      {selectedMovie.synopsis || 'Sinopse não disponível para este filme. Você ainda pode iniciar a reprodução normalmente.'}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const movie = selectedMovie;
+                        setSelectedMovie(null);
+                        playMovie(movie);
+                      }}
+                      className="rounded-full bg-sky-400 px-7 py-3 text-base font-black text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-300"
+                    >
+                      ▶ Assistir agora
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMovie(null)}
+                      className="rounded-full border border-white/12 bg-white/8 px-6 py-3 text-base font-bold text-white hover:bg-white/14"
+                    >
+                      Voltar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </AppLayout>
   );
