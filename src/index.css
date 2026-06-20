@@ -2139,3 +2139,56 @@ input[type="range"].player-progress-slim:disabled {
     min-height: 48px;
   }
 }
+
+/* =========================================================
+   RonecaPlayTV — Patch 3 player extension + return state
+   ========================================================= */
+
+.player-settings-extension {
+  animation: ronecaPanelExtend 160ms ease-out both;
+}
+
+@keyframes ronecaPanelExtend {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.player-episode-picker {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125, 211, 252, 0.55) rgba(255, 255, 255, 0.08);
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .player-bottom-panel {
+    inset-inline: 0.75rem !important;
+    bottom: 0.55rem !important;
+    padding: 0.72rem 0.86rem max(0.72rem, env(safe-area-inset-bottom)) !important;
+    border-radius: 1rem !important;
+  }
+
+  .player-bottom-panel:has(.player-settings-extension) {
+    max-height: calc(100dvh - 1.1rem) !important;
+    overflow-y: auto !important;
+  }
+
+  .player-settings-extension {
+    padding: 0.72rem !important;
+    border-radius: 0.9rem !important;
+  }
+
+  .player-episode-picker {
+    max-height: 28dvh !important;
+  }
+
+  .player-settings-arrow {
+    padding-inline: 1.05rem !important;
+    padding-block: 0.15rem !important;
+    font-size: clamp(1.45rem, 4.8vw, 2.15rem) !important;
+  }
+}

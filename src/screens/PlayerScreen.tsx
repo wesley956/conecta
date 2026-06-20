@@ -583,58 +583,94 @@ export function PlayerScreen() {
               </div>
 
               {showSettings && (
-                <div className="absolute bottom-full left-1/2 mb-3 w-[min(88vw,380px)] -translate-x-1/2 rounded-[24px] border border-white/12 bg-[#05101f]/92 p-4 text-white shadow-[0_30px_90px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
-                  <div className="mb-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Velocidade</p>
-                    <div className="flex flex-wrap gap-2">
-                      {playbackRates.map(rate => (
-                        <button
-                          key={rate}
-                          type="button"
-                          onClick={() => handlePlaybackRate(rate)}
-                          className={`rounded-full border px-3.5 py-2 text-sm transition-all duration-200 ${
-                            playbackRate === rate
-                              ? 'border-[#2396f2]/70 bg-[#2396f2] text-white shadow-[0_0_28px_rgba(35,150,242,0.32)]'
-                              : 'border-white/10 bg-white/[0.07] text-white/75 hover:border-white/20 hover:bg-white/[0.13]'
-                          }`}
-                        >
-                          {rate}x
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Áudio / idioma</p>
-                    <p className="rounded-2xl border border-white/8 bg-white/[0.045] px-3.5 py-3 text-sm leading-relaxed text-white/52">
-                      Disponível quando a fonte possuir múltiplas trilhas de áudio.
-                    </p>
-                  </div>
-
-                  {hasEpisodeControls && (
+                <div className="player-settings-extension col-span-3 mt-3 w-full rounded-[24px] border border-white/12 bg-[#05101f]/82 p-4 text-white shadow-[0_18px_55px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                     <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Episódios</p>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => playEpisodeByOffset(-1)}
-                          disabled={currentEpisodeIndex <= 0}
-                          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-sm text-white/75 transition-all duration-200 hover:bg-white/[0.13] disabled:opacity-35"
-                        >
-                          Episódio anterior
-                        </button>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Velocidade</p>
+                      <div className="flex flex-wrap gap-2">
+                        {playbackRates.map(rate => (
+                          <button
+                            key={rate}
+                            type="button"
+                            onClick={() => handlePlaybackRate(rate)}
+                            className={`rounded-full border px-3.5 py-2 text-sm transition-all duration-200 ${
+                              playbackRate === rate
+                                ? 'border-[#2396f2]/70 bg-[#2396f2] text-white shadow-[0_0_28px_rgba(35,150,242,0.32)]'
+                                : 'border-white/10 bg-white/[0.07] text-white/75 hover:border-white/20 hover:bg-white/[0.13]'
+                            }`}
+                          >
+                            {rate}x
+                          </button>
+                        ))}
+                      </div>
 
-                        <button
-                          type="button"
-                          onClick={() => playEpisodeByOffset(1)}
-                          disabled={currentEpisodeIndex >= seriesEpisodes.length - 1}
-                          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-sm text-white/75 transition-all duration-200 hover:bg-white/[0.13] disabled:opacity-35"
-                        >
-                          Próximo episódio
-                        </button>
+                      <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Áudio / idioma</p>
+                        <p className="rounded-2xl border border-white/8 bg-white/[0.045] px-3.5 py-3 text-sm leading-relaxed text-white/52">
+                          Disponível quando a fonte possuir múltiplas trilhas de áudio.
+                        </p>
                       </div>
                     </div>
-                  )}
+
+                    {hasEpisodeControls ? (
+                      <div className="min-w-0">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">Episódios</p>
+
+                        <div className="mb-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => playEpisodeByOffset(-1)}
+                            disabled={currentEpisodeIndex <= 0}
+                            className="flex-1 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-sm text-white/75 transition-all duration-200 hover:bg-white/[0.13] disabled:opacity-35"
+                          >
+                            Anterior
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => playEpisodeByOffset(1)}
+                            disabled={currentEpisodeIndex >= seriesEpisodes.length - 1}
+                            className="flex-1 rounded-2xl border border-white/10 bg-white/[0.07] px-3 py-2.5 text-sm text-white/75 transition-all duration-200 hover:bg-white/[0.13] disabled:opacity-35"
+                          >
+                            Próximo
+                          </button>
+                        </div>
+
+                        <div className="player-episode-picker max-h-[28vh] space-y-1 overflow-y-auto rounded-2xl border border-white/8 bg-black/18 p-2">
+                          {seriesEpisodes.map((episode: any, index: number) => (
+                            <button
+                              key={`${episode.id}-${index}`}
+                              type="button"
+                              onClick={() => {
+                                const offset = index - currentEpisodeIndex;
+                                if (offset !== 0) {
+                                  playEpisodeByOffset(offset);
+                                }
+                                setShowSettings(false);
+                                setShowControls(true);
+                              }}
+                              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-all ${
+                                index === currentEpisodeIndex
+                                  ? 'bg-sky-400 text-slate-950'
+                                  : 'bg-white/[0.045] text-white/78 hover:bg-white/[0.1] hover:text-white'
+                              }`}
+                            >
+                              <span className="min-w-0 flex-1 truncate text-sm font-black">
+                                {index + 1}. {episode.name}
+                              </span>
+                              <span className="shrink-0 text-xs opacity-70">
+                                {episode.seasonTitle ? `T${episode.seasonTitle}` : 'EP'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-white/8 bg-white/[0.045] px-3.5 py-3 text-sm leading-relaxed text-white/52">
+                        Episódios aparecem aqui quando você estiver assistindo uma série.
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

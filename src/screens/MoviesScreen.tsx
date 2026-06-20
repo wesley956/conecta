@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Movie } from '@/types';
@@ -17,9 +17,10 @@ function sortByName(a: CategoryOption, b: CategoryOption) {
 
 export function MoviesScreen() {
   const { movies, setScreen, setCurrentMovie, setCurrentSeries } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [visibleCount, setVisibleCount] = useState(MOVIE_RENDER_BATCH_SIZE);
+  const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:movies:selectedCategory') ?? 'all');
+  const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:movies:visibleCount')) || MOVIE_RENDER_BATCH_SIZE);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const movieGridRef = useRef<HTMLElement | null>(null);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -52,8 +53,42 @@ export function MoviesScreen() {
   }, [movies, selectedCategory]);
 
   useEffect(() => {
-    setVisibleCount(MOVIE_RENDER_BATCH_SIZE);
+    const saved = Number(window.sessionStorage.getItem('roneca:movies:visibleCount'));
+    setVisibleCount(Number.isFinite(saved) && saved > MOVIE_RENDER_BATCH_SIZE ? saved : MOVIE_RENDER_BATCH_SIZE);
   }, [selectedCategory, movies.length]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:movies:selectedCategory', selectedCategory);
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:movies:visibleCount', String(visibleCount));
+  }, [visibleCount]);
+
+  useEffect(() => {
+    const node = movieGridRef.current;
+    if (!node) return;
+
+    const key = `roneca:movies:scroll:${selectedCategory}`;
+    const savedScroll = Number(window.sessionStorage.getItem(key));
+
+    if (Number.isFinite(savedScroll) && savedScroll > 0) {
+      window.requestAnimationFrame(() => {
+        node.scrollTop = savedScroll;
+      });
+    }
+
+    const saveScroll = () => {
+      window.sessionStorage.setItem(key, String(node.scrollTop));
+    };
+
+    node.addEventListener('scroll', saveScroll, { passive: true });
+
+    return () => {
+      saveScroll();
+      node.removeEventListener('scroll', saveScroll);
+    };
+  }, [selectedCategory, visibleCount]);
 
   const visibleMovies = useMemo(() => {
     return filteredMovies.slice(0, visibleCount);
@@ -130,7 +165,7 @@ export function MoviesScreen() {
               <p className="mt-5 text-3xl font-light">Nenhum filme nesta categoria</p>
             </div>
           ) : (
-            <section className="roneca-media-grid max-h-[calc(100vh-170px)] overflow-y-auto pr-3">
+            <section ref={movieGridRef} className="roneca-media-grid max-h-[calc(100vh-170px)] overflow-y-auto pr-3">
               {visibleMovies.map(movie => (
                 <button
                   key={movie.id}

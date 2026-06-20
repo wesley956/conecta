@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Series, Movie, Season, Episode } from '@/types';
@@ -33,14 +33,15 @@ export function SeriesScreen() {
     setCurrentSeries,
   } = useAppStore();
 
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [visibleCount, setVisibleCount] = useState(SERIES_RENDER_BATCH_SIZE);
+  const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:series:selectedCategory') ?? 'all');
+  const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:series:visibleCount')) || SERIES_RENDER_BATCH_SIZE);
   const [remoteSeries, setRemoteSeries] = useState<XtreamSeries[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [loadingSeriesId, setLoadingSeriesId] = useState<string | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [seriesDetail, setSeriesDetail] = useState<{ item: XtreamSeries; seasons: Season[] } | null>(null);
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number | null>(null);
+  const seriesGridRef = useRef<HTMLElement | null>(null);
 
   const xtreamPlaylist = useMemo(() => {
     return playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
@@ -125,8 +126,42 @@ export function SeriesScreen() {
   }, [allSeries, selectedCategory]);
 
   useEffect(() => {
-    setVisibleCount(SERIES_RENDER_BATCH_SIZE);
+    const saved = Number(window.sessionStorage.getItem('roneca:series:visibleCount'));
+    setVisibleCount(Number.isFinite(saved) && saved > SERIES_RENDER_BATCH_SIZE ? saved : SERIES_RENDER_BATCH_SIZE);
   }, [selectedCategory, allSeries.length]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:series:selectedCategory', selectedCategory);
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:series:visibleCount', String(visibleCount));
+  }, [visibleCount]);
+
+  useEffect(() => {
+    const node = seriesGridRef.current;
+    if (!node) return;
+
+    const key = `roneca:series:scroll:${selectedCategory}`;
+    const savedScroll = Number(window.sessionStorage.getItem(key));
+
+    if (Number.isFinite(savedScroll) && savedScroll > 0) {
+      window.requestAnimationFrame(() => {
+        node.scrollTop = savedScroll;
+      });
+    }
+
+    const saveScroll = () => {
+      window.sessionStorage.setItem(key, String(node.scrollTop));
+    };
+
+    node.addEventListener('scroll', saveScroll, { passive: true });
+
+    return () => {
+      saveScroll();
+      node.removeEventListener('scroll', saveScroll);
+    };
+  }, [selectedCategory, visibleCount]);
 
   const visibleSeries = useMemo(() => {
     return filteredSeries.slice(0, visibleCount);
@@ -282,7 +317,7 @@ export function SeriesScreen() {
               </p>
             </div>
           ) : (
-            <section className="roneca-media-grid max-h-[calc(100vh-170px)] overflow-y-auto pr-3">
+            <section ref={seriesGridRef} className="roneca-media-grid max-h-[calc(100vh-170px)] overflow-y-auto pr-3">
               {visibleSeries.map(item => (
                 <button
                   key={item.id}

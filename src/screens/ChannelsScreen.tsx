@@ -40,13 +40,14 @@ export function ChannelsScreen() {
     replaceM3UPlaylist,
   } = useAppStore();
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState(() => window.sessionStorage.getItem('roneca:channels:selectedCategoryId') ?? 'all');
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoMessage, setAutoMessage] = useState<string | null>(null);
   const [autoError, setAutoError] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(CHANNEL_RENDER_BATCH_SIZE);
+  const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:channels:visibleCount')) || CHANNEL_RENDER_BATCH_SIZE);
   const loadingRef = useRef(false);
   const attemptedKeyRef = useRef('');
+  const channelGridRef = useRef<HTMLDivElement | null>(null);
 
   const pendingPlaylists = useMemo(() => {
     return playlists.filter(playlist => {
@@ -158,8 +159,42 @@ export function ChannelsScreen() {
   }, [channels, selectedCategoryId]);
 
   useEffect(() => {
-    setVisibleCount(CHANNEL_RENDER_BATCH_SIZE);
+    const saved = Number(window.sessionStorage.getItem('roneca:channels:visibleCount'));
+    setVisibleCount(Number.isFinite(saved) && saved > CHANNEL_RENDER_BATCH_SIZE ? saved : CHANNEL_RENDER_BATCH_SIZE);
   }, [selectedCategoryId, channels.length]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:channels:selectedCategoryId', selectedCategoryId);
+  }, [selectedCategoryId]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:channels:visibleCount', String(visibleCount));
+  }, [visibleCount]);
+
+  useEffect(() => {
+    const node = channelGridRef.current;
+    if (!node) return;
+
+    const key = `roneca:channels:scroll:${selectedCategoryId}`;
+    const savedScroll = Number(window.sessionStorage.getItem(key));
+
+    if (Number.isFinite(savedScroll) && savedScroll > 0) {
+      window.requestAnimationFrame(() => {
+        node.scrollTop = savedScroll;
+      });
+    }
+
+    const saveScroll = () => {
+      window.sessionStorage.setItem(key, String(node.scrollTop));
+    };
+
+    node.addEventListener('scroll', saveScroll, { passive: true });
+
+    return () => {
+      saveScroll();
+      node.removeEventListener('scroll', saveScroll);
+    };
+  }, [selectedCategoryId, visibleCount]);
 
   const visibleChannels = useMemo(() => {
     return filteredChannels.slice(0, visibleCount);
@@ -235,7 +270,7 @@ export function ChannelsScreen() {
               </button>
             </div>
           ) : (
-            <div className="roneca-channel-grid max-h-[calc(100vh-135px)] overflow-y-auto pr-3">
+            <div ref={channelGridRef} className="roneca-channel-grid max-h-[calc(100vh-135px)] overflow-y-auto pr-3">
               {visibleChannels.map(channel => {
                 const safeLogo = getSafeImageUrl(channel.logo);
 
