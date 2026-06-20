@@ -1798,3 +1798,293 @@ input[type="range"].player-progress-slim:disabled {
     border-width: 2px !important;
   }
 }
+
+/* =========================================================
+   RonecaPlayTV — Patch 1 Mobile Space Layout
+   Objetivo: mais tela útil no celular/landscape
+   ========================================================= */
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  /* Fonte um pouco mais legível, sem inflar tudo */
+  html {
+    font-size: clamp(9px, 1.15vw, 12px) !important;
+  }
+
+  /* Menu recolhido: ocupa pouco espaço fixo */
+  .roneca-side-menu {
+    width: 58px !important;
+    z-index: 80 !important;
+    overflow: hidden !important;
+    transition:
+      width 180ms ease,
+      box-shadow 180ms ease,
+      background 180ms ease;
+  }
+
+  /* Ao tocar/focar no menu, ele expande por cima do conteúdo */
+  .roneca-side-menu:hover,
+  .roneca-side-menu:focus-within {
+    width: 148px !important;
+    box-shadow: 24px 0 70px rgba(0, 0, 0, 0.48) !important;
+  }
+
+  .roneca-side-logo {
+    min-height: 42px !important;
+    padding: 0 0.38rem !important;
+    gap: 0.42rem !important;
+  }
+
+  .roneca-side-logo-mark {
+    width: 30px !important;
+    height: 30px !important;
+    flex: 0 0 30px !important;
+    border-radius: 0.62rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .roneca-side-logo-text {
+    opacity: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    transition: opacity 150ms ease;
+  }
+
+  .roneca-side-menu:hover .roneca-side-logo-text,
+  .roneca-side-menu:focus-within .roneca-side-logo-text {
+    opacity: 1 !important;
+    width: auto !important;
+    font-size: 0.82rem !important;
+  }
+
+  .roneca-side-menu nav {
+    padding-inline: 0.35rem !important;
+    gap: 0.38rem !important;
+  }
+
+  .roneca-side-button {
+    justify-content: flex-start !important;
+    min-height: 39px !important;
+    padding: 0.28rem 0.36rem !important;
+    gap: 0.46rem !important;
+    border-radius: 0.72rem !important;
+  }
+
+  .roneca-side-icon {
+    width: 28px !important;
+    height: 28px !important;
+    flex: 0 0 28px !important;
+    border-radius: 0.58rem !important;
+    font-size: 0.86rem !important;
+  }
+
+  .roneca-side-label {
+    opacity: 0 !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
+    font-size: 0.86rem !important;
+    font-weight: 800 !important;
+    line-height: 1.05 !important;
+    transition: opacity 150ms ease;
+  }
+
+  .roneca-side-menu:hover .roneca-side-label,
+  .roneca-side-menu:focus-within .roneca-side-label {
+    opacity: 1 !important;
+    width: auto !important;
+    max-width: 82px !important;
+  }
+
+  /* O conteúdo começa depois do menu recolhido, não depois do menu aberto */
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 66px !important;
+    padding-right: 0.4rem !important;
+    padding-top: 0.32rem !important;
+    padding-bottom: 0.28rem !important;
+    gap: 0 !important;
+  }
+
+  /* Categorias menores */
+  .clean-tv-categories,
+  .clean-tv-page > aside.clean-tv-categories {
+    width: clamp(132px, 15vw, 168px) !important;
+    padding-right: 0.38rem !important;
+  }
+
+  .clean-tv-categories > button:first-child {
+    margin-bottom: 0.42rem !important;
+    font-size: 1.7rem !important;
+  }
+
+  .clean-tv-categories h2 {
+    margin-bottom: 0.35rem !important;
+    padding-inline: 0.45rem !important;
+    font-size: 0.92rem !important;
+  }
+
+  .clean-tv-category-count {
+    display: none !important;
+  }
+
+  .clean-tv-row {
+    min-height: 31px !important;
+    padding: 0.3rem 0.44rem !important;
+    gap: 0.34rem !important;
+    border-radius: 0.42rem !important;
+  }
+
+  .clean-tv-row span {
+    font-size: 0.95rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .clean-tv-title {
+    font-size: clamp(1.65rem, 2.5vw, 2.35rem) !important;
+    line-height: 0.98 !important;
+  }
+
+  main header,
+  .roneca-topbar {
+    margin-bottom: 0.38rem !important;
+  }
+
+  main header p,
+  main p {
+    font-size: 0.92rem !important;
+  }
+
+  main > .mb-8,
+  main > .mb-7,
+  main > .mb-6 {
+    margin-bottom: 0.48rem !important;
+  }
+
+  /* Esconde contador superior no celular para limpar a tela */
+  main > div.flex.items-center.justify-between > p:last-child {
+    display: none !important;
+  }
+
+  /* Filmes/Séries: mais cards por linha e menos altura desperdiçada */
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)) !important;
+    gap: 0.52rem !important;
+    max-height: calc(100dvh - 88px) !important;
+    padding-right: 0.28rem !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(104px, 25vh, 142px) !important;
+    border-radius: 0.64rem !important;
+  }
+
+  .roneca-poster-card p {
+    margin-top: 0.28rem !important;
+    font-size: 0.9rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .roneca-poster-card p + p {
+    font-size: 0.72rem !important;
+    opacity: 0.72 !important;
+  }
+
+  .roneca-poster-card span.absolute {
+    bottom: 0.35rem !important;
+    left: 0.35rem !important;
+    padding: 0.14rem 0.34rem !important;
+    font-size: 0.58rem !important;
+  }
+
+  /* TV: mais canais por tela */
+  .roneca-channel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.42rem !important;
+    max-height: calc(100dvh - 72px) !important;
+    padding-right: 0.25rem !important;
+  }
+
+  .roneca-channel-grid > button {
+    height: auto !important;
+    min-height: 48px !important;
+    padding: 0.34rem 0.46rem !important;
+    gap: 0.42rem !important;
+    border-radius: 0.58rem !important;
+  }
+
+  .roneca-channel-grid > button > span:first-child {
+    width: 42px !important;
+    height: 32px !important;
+    flex: 0 0 42px !important;
+  }
+
+  .roneca-channel-grid > button img {
+    max-height: 28px !important;
+  }
+
+  .roneca-channel-grid > button span span:first-child {
+    font-size: 0.84rem !important;
+    line-height: 1.05 !important;
+    font-weight: 800 !important;
+  }
+
+  .roneca-channel-grid > button span span:last-child {
+    font-size: 0.66rem !important;
+  }
+}
+
+/* Celular landscape muito baixo: compacta ainda mais */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 430px) {
+  .clean-tv-categories,
+  .clean-tv-page > aside.clean-tv-categories {
+    width: 124px !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)) !important;
+    gap: 0.45rem !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(92px, 24vh, 124px) !important;
+  }
+
+  .roneca-channel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .roneca-channel-grid > button {
+    min-height: 43px !important;
+  }
+}
+
+/* TV/desktop grande: mantém menu bonito, mas não exagerado */
+@media (hover: hover) and (pointer: fine) and (min-width: 1100px) {
+  .roneca-side-menu {
+    width: 156px !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 176px !important;
+  }
+
+  .clean-tv-categories,
+  .clean-tv-page > aside.clean-tv-categories {
+    width: clamp(190px, 18vw, 250px) !important;
+  }
+
+  .clean-tv-category-count {
+    display: none !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)) !important;
+  }
+
+  .roneca-channel-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+  }
+}

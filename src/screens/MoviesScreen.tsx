@@ -72,7 +72,7 @@ export function MoviesScreen() {
       <div className="clean-tv-page flex h-full px-14 py-7">
         <BottomNav />
 
-        <aside className="w-[310px] shrink-0 pr-8">
+        <aside className="clean-tv-categories w-[310px] shrink-0 pr-8">
           <button
             onClick={() => setScreen('home')}
             className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
@@ -92,7 +92,7 @@ export function MoviesScreen() {
                 }`}
               >
                 <span className="truncate text-2xl font-light">{category.name}</span>
-                <span className="shrink-0 text-base text-white/35">{category.count}</span>
+                <span className="clean-tv-category-count shrink-0 text-base text-white/35">{category.count}</span>
               </button>
             ))}
           </div>

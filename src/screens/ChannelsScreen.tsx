@@ -177,7 +177,7 @@ export function ChannelsScreen() {
       <div className="clean-tv-page flex h-full px-14 py-8">
         <BottomNav />
 
-        <aside className="w-[310px] shrink-0 pr-8">
+        <aside className="clean-tv-categories w-[310px] shrink-0 pr-8">
           <button
             onClick={() => setScreen('home')}
             className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
