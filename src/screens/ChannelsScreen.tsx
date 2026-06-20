@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
 import { channelCategories } from '@/data/mock';
 import { fetchM3UContent } from '@/utils/fetchM3U';
+import { cleanLiveGroupTitle } from '@/utils/m3u';
 import type { Channel } from '@/types';
 
 const CHANNEL_RENDER_BATCH_SIZE = 120;
@@ -16,7 +17,8 @@ function humanizeGroupName(group: string) {
 }
 
 function getGroupName(channel: Channel) {
-  return channel.groupTitle || channelCategories.find(c => c.id === channel.group)?.name || humanizeGroupName(channel.group);
+  if (channel.groupTitle) return cleanLiveGroupTitle(channel.groupTitle);
+  return channelCategories.find(c => c.id === channel.group)?.name || humanizeGroupName(channel.group);
 }
 
 function getSafeImageUrl(url?: string) {

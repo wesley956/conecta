@@ -85,7 +85,25 @@ function looksLikeMovie(entry: M3UEntry): boolean {
   );
 }
 
+// Canais lineares "24 horas" (ex: "Filmes 24h", "Cinema 24 Horas",
+// "Telecine 24h") tocam uma transmissão contínua, não um catálogo VOD real
+// — mesmo que o nome/categoria contenha "filme"/"cinema". Sem essa guarda,
+// `looksLikeMovie` classificava esses canais como Filme só pelo texto,
+// misturando canais ao vivo dentro da tela de Filmes.
+function looksLike24HourChannel(entry: M3UEntry): boolean {
+  const text = normalizeText(`${entry.groupTitle} ${entry.name}`);
+  return /\b24\s*h(oras)?\b/.test(text) || text.includes('24/7');
+}
+
 function classifyEntry(entry: M3UEntry): EntryKind {
+  const urlText = normalizeText(entry.url);
+  const hasVodPath = urlText.includes('/movie/');
+  const hasSeriesPath = urlText.includes('/series/');
+
+  if (!hasVodPath && !hasSeriesPath && looksLike24HourChannel(entry)) {
+    return 'live';
+  }
+
   if (looksLikeSeries(entry)) return 'series';
   if (looksLikeMovie(entry)) return 'movie';
   return 'live';
@@ -129,6 +147,62 @@ function cleanMediaCategory(groupTitle: string, kind: 'movie' | 'series'): strin
     .trim();
 
   return titleCaseCategory(cleaned || fallback);
+}
+
+// Limpeza cosmética do nome de grupo de canais ao vivo (TV). Diferente de
+// cleanMediaCategory, aqui NÃO removemos palavras como "filme"/"série" —
+// só tiramos sujeira (tags de qualidade, separadores, espaços extras) e
+// title-case o resultado, mantendo o agrupamento (que já é feito por
+// slug em safeGroupName, então já é tolerante a acento/maiúsculas).
+export function cleanLiveGroupTitle(groupTitle: string): string {
+  const value = groupTitle.trim();
+
+  if (!value) return 'Outros';
+
+  const cleaned = value
+    .replace(/[|]+/g, ' ')
+    .replace(/\b(FHD|HD|SD|4K|UHD)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return titleCaseCategory(cleaned || value);
+}
+
+// Consolida categorias de Filmes/Séries que são a mesma coisa escrita de
+// formas diferentes (acentos, maiúsculas/minúsculas, espaços extras) —
+// ex: "Ação", "AÇÃO", "Acao " viravam 3 categorias separadas porque
+// cleanMediaCategory só corrige capitalização, não acentos. Aqui agrupamos
+// por uma chave normalizada e escolhemos o rótulo mais frequente (ou mais
+// completo em caso de empate) como nome de exibição canônico.
+function mergeCategoryVariants<T extends { category: string }>(items: T[]): T[] {
+  const labelCountsByKey = new Map<string, Map<string, number>>();
+
+  for (const item of items) {
+    const key = normalizeText(item.category).replace(/\s+/g, ' ').trim();
+    const labelCounts = labelCountsByKey.get(key) ?? new Map<string, number>();
+    labelCounts.set(item.category, (labelCounts.get(item.category) ?? 0) + 1);
+    labelCountsByKey.set(key, labelCounts);
+  }
+
+  const canonicalLabelByKey = new Map<string, string>();
+
+  for (const [key, labelCounts] of labelCountsByKey) {
+    const [bestLabel] = [...labelCounts.entries()].sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return b[0].length - a[0].length;
+    })[0];
+
+    canonicalLabelByKey.set(key, bestLabel);
+  }
+
+  return items.map(item => {
+    const key = normalizeText(item.category).replace(/\s+/g, ' ').trim();
+    const canonical = canonicalLabelByKey.get(key);
+
+    return canonical && canonical !== item.category
+      ? { ...item, category: canonical }
+      : item;
+  });
 }
 
 function cleanMovieName(name: string): string {
@@ -350,17 +424,19 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
     });
   }
 
-  const series = [...seriesMap.values()].map(item => ({
-    ...item,
-    seasons: item.seasons
-      .map(season => ({
-        ...season,
-        episodes: [...season.episodes].sort((a, b) => a.number - b.number),
-      }))
-      .sort((a, b) => a.number - b.number),
-  }));
+  const series = mergeCategoryVariants(
+    [...seriesMap.values()].map(item => ({
+      ...item,
+      seasons: item.seasons
+        .map(season => ({
+          ...season,
+          episodes: [...season.episodes].sort((a, b) => a.number - b.number),
+        }))
+        .sort((a, b) => a.number - b.number),
+    }))
+  );
 
-  return { channels, movies, series, skipped };
+  return { channels, movies: mergeCategoryVariants(movies), series, skipped };
 }
 
 export function isLikelyM3U(content: string): boolean {

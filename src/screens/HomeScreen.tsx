@@ -36,7 +36,7 @@ export function HomeScreen() {
 
   return (
     <AppLayout>
-      <div className="clean-tv-page roneca-page">
+      <div className="clean-tv-page roneca-page h-full overflow-y-auto">
         <BottomNav />
 
         <header className="roneca-topbar">

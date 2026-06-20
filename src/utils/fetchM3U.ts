@@ -1,4 +1,5 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { parseCapacitorJsonOrThrow, parseJsonOrThrow, SeriesApiError } from '@/utils/safeFetchJson';
 
 const REQUEST_HEADERS = {
   Accept: '*/*',
@@ -115,29 +116,28 @@ function m3uEntry(name: unknown, group: unknown, logo: unknown, url: string) {
   return `#EXTINF:-1 tvg-name="${safeName}" tvg-logo="${safeLogo}" group-title="${safeGroup}",${safeName}\n${url}`;
 }
 
-async function fetchJsonWithCapacitor<T>(url: string): Promise<T | null> {
+async function fetchJsonWithCapacitor<T>(url: string, context: string): Promise<T | null> {
   if (!isNativeRuntime()) return null;
 
   const response = await CapacitorHttp.get({
     url,
-    responseType: 'json' as any,
+    // Texto, não 'json': se a API Xtream responder HTML (login expirado,
+    // bloqueio, manutenção), deixamos o parseCapacitorJsonOrThrow detectar
+    // isso e gerar uma mensagem clara em vez de um SyntaxError cru.
+    responseType: 'text' as any,
     headers: REQUEST_HEADERS,
   });
 
   const status = Number(response.status ?? 0);
 
   if (status < 200 || status >= 300) {
-    throw new Error(`A API respondeu HTTP ${status}.`);
+    throw new SeriesApiError(`${context}: a API respondeu HTTP ${status}.`);
   }
 
-  if (typeof response.data === 'string') {
-    return JSON.parse(response.data) as T;
-  }
-
-  return response.data as T;
+  return parseCapacitorJsonOrThrow<T>(response.data, context);
 }
 
-async function fetchJsonDirect<T>(url: string): Promise<T> {
+async function fetchJsonDirect<T>(url: string, context: string): Promise<T> {
   const response = await fetch(url, {
     method: 'GET',
     cache: 'no-store',
@@ -145,20 +145,21 @@ async function fetchJsonDirect<T>(url: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`A API respondeu HTTP ${response.status}.`);
+    throw new SeriesApiError(`${context}: a API respondeu HTTP ${response.status}.`);
   }
 
-  return await response.json() as T;
+  const text = await response.text();
+  return parseJsonOrThrow<T>(text, context);
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const nativeData = await fetchJsonWithCapacitor<T>(url);
+async function fetchJson<T>(url: string, context = 'API Xtream'): Promise<T> {
+  const nativeData = await fetchJsonWithCapacitor<T>(url, context);
 
   if (nativeData) {
     return nativeData;
   }
 
-  return await fetchJsonDirect<T>(url);
+  return await fetchJsonDirect<T>(url, context);
 }
 
 function buildCategoryMap(categories: any[]) {
@@ -183,7 +184,7 @@ async function fetchXtreamAsM3U(rawUrl: string): Promise<string | null> {
 
   if (!source) return null;
 
-  const profile = await fetchJson<any>(buildXtreamApiUrl(source));
+  const profile = await fetchJson<any>(buildXtreamApiUrl(source), 'Login Xtream');
   const userInfo = profile?.user_info ?? {};
 
   if (String(userInfo.auth) !== '1') {
@@ -191,10 +192,10 @@ async function fetchXtreamAsM3U(rawUrl: string): Promise<string | null> {
   }
 
   const [liveCategories, vodCategories, liveStreams, vodStreams] = await Promise.all([
-    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_categories')).catch(() => []),
-    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_categories')).catch(() => []),
-    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_streams')).catch(() => []),
-    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_streams')).catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de TV').catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes').catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_live_streams'), 'Lista de canais').catch(() => []),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_vod_streams'), 'Lista de filmes').catch(() => []),
   ]);
 
   const liveCategoryMap = buildCategoryMap(liveCategories);

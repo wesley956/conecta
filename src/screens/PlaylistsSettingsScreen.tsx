@@ -29,6 +29,7 @@ export function PlaylistsScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
   const editingPlaylist = editingPlaylistId
     ? playlists.find(playlist => playlist.id === editingPlaylistId) ?? null
@@ -176,6 +177,7 @@ export function PlaylistsScreen() {
 
   const handleClearAllContent = () => {
     clearAllImportedContent();
+    setConfirmClearAll(false);
     setMessage('Todas as listas e conteúdos foram removidos.');
     setError(null);
   };
@@ -193,18 +195,37 @@ export function PlaylistsScreen() {
 
         <aside className="w-[330px] shrink-0 pr-10">
           <button
-            onClick={handleClearAllContent}
-            disabled={playlists.length === 0}
-            className="rounded-md bg-red-500/20 px-6 py-3 text-xl font-light text-red-100 hover:bg-red-500/30 disabled:opacity-40"
-          >
-            Limpar tudo
-          </button>
-          <button
             onClick={() => setScreen('home')}
-            className="mb-8 text-5xl text-white/45 hover:text-white"
+            className="mb-6 text-5xl text-white/45 hover:text-white"
           >
             ⌂
           </button>
+
+          {confirmClearAll ? (
+            <div className="mb-8 flex flex-wrap items-center gap-2">
+              <span className="text-base font-light text-red-100/85">Apagar tudo?</span>
+              <button
+                onClick={handleClearAllContent}
+                className="rounded-md bg-red-500/85 px-5 py-2 text-base font-light text-white"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setConfirmClearAll(false)}
+                className="rounded-md bg-white/[0.08] px-5 py-2 text-base font-light text-white/75"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClearAll(true)}
+              disabled={playlists.length === 0}
+              className="mb-8 rounded-md bg-red-500/20 px-6 py-3 text-xl font-light text-red-100 hover:bg-red-500/30 disabled:opacity-40"
+            >
+              Limpar tudo
+            </button>
+          )}
 
           <h1 className="clean-tv-title mb-8 text-5xl">Listas</h1>
 

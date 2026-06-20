@@ -427,12 +427,12 @@ export function PlayerScreen() {
 
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-black">
-            <div className="w-[560px] text-center">
+            <div className="w-[min(90vw,560px)] text-center">
               <p className="text-6xl text-white/35">⚠</p>
-              <h1 className="mt-6 text-4xl font-light text-white/82">Reprodução indisponível</h1>
-              <p className="mt-4 text-xl font-light text-white/42">{error}</p>
+              <h1 className="mt-6 text-[clamp(22px,3.4vw,36px)] font-light text-white/82">Reprodução indisponível</h1>
+              <p className="mt-4 text-[clamp(15px,2vw,20px)] font-light text-white/42">{error}</p>
 
-              <div className="mt-10 flex gap-4">
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                 <button
                   onClick={() => {
                     if (hasNextPlaybackUrl) {
@@ -442,13 +442,13 @@ export function PlayerScreen() {
                       window.location.reload();
                     }
                   }}
-                  className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-2xl font-light text-white"
+                  className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-[clamp(16px,2vw,22px)] font-light text-white"
                 >
                   {hasNextPlaybackUrl ? 'Tentar próxima fonte' : 'Tentar novamente'}
                 </button>
                 <button
                   onClick={goBack}
-                  className="flex-1 rounded-md bg-white/[0.055] px-8 py-4 text-2xl font-light text-white/72"
+                  className="flex-1 rounded-md bg-white/[0.055] px-8 py-4 text-[clamp(16px,2vw,22px)] font-light text-white/72"
                 >
                   Voltar
                 </button>
@@ -679,7 +679,7 @@ export function PlayerScreen() {
         {/* Barra inferior duplicada removida: os controles principais ficam no painel de progresso. */}
 
         {showList && (
-          <aside className="absolute bottom-0 right-0 top-0 w-[430px] bg-[#071a31]/96 px-5 py-8">
+          <aside className="absolute bottom-0 right-0 top-0 w-[min(82vw,430px)] bg-[#071a31]/96 px-5 py-8">
             <h2 className="mb-7 text-4xl font-light text-white/82">Canais</h2>
 
             <div className="max-h-[calc(100vh-110px)] space-y-1 overflow-y-auto">

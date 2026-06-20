@@ -1,5 +1,6 @@
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import type { Episode, Season, Series } from '@/types';
+import { parseCapacitorJsonOrThrow, parseJsonOrThrow, SeriesApiError } from '@/utils/safeFetchJson';
 
 interface XtreamSourceInfo {
   origin: string;
@@ -85,29 +86,28 @@ function buildXtreamApiUrl(source: XtreamSourceInfo, action: string, extra: Reco
   return `${source.origin}/player_api.php?${params.toString()}`;
 }
 
-async function fetchJsonWithCapacitor<T>(url: string): Promise<T | null> {
+async function fetchJsonWithCapacitor<T>(url: string, context: string): Promise<T | null> {
   if (!isNativeRuntime()) return null;
 
   const response = await CapacitorHttp.get({
     url,
-    responseType: 'json' as any,
+    // Pedimos texto, não 'json': se a API responder HTML, o CapacitorHttp
+    // não tenta (e falha) o parse internamente — deixamos nosso
+    // parseCapacitorJsonOrThrow detectar isso e gerar uma mensagem clara.
+    responseType: 'text' as any,
     headers: REQUEST_HEADERS,
   });
 
   const status = Number(response.status ?? 0);
 
   if (status < 200 || status >= 300) {
-    throw new Error(`API Xtream respondeu HTTP ${status}.`);
+    throw new SeriesApiError(`${context}: API Xtream respondeu HTTP ${status}.`);
   }
 
-  if (typeof response.data === 'string') {
-    return JSON.parse(response.data) as T;
-  }
-
-  return response.data as T;
+  return parseCapacitorJsonOrThrow<T>(response.data, context);
 }
 
-async function fetchJsonDirect<T>(url: string): Promise<T> {
+async function fetchJsonDirect<T>(url: string, context: string): Promise<T> {
   const response = await fetch(url, {
     method: 'GET',
     cache: 'no-store',
@@ -115,18 +115,19 @@ async function fetchJsonDirect<T>(url: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API Xtream respondeu HTTP ${response.status}.`);
+    throw new SeriesApiError(`${context}: API Xtream respondeu HTTP ${response.status}.`);
   }
 
-  return await response.json() as T;
+  const text = await response.text();
+  return parseJsonOrThrow<T>(text, context);
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const nativeData = await fetchJsonWithCapacitor<T>(url);
+async function fetchJson<T>(url: string, context: string): Promise<T> {
+  const nativeData = await fetchJsonWithCapacitor<T>(url, context);
 
   if (nativeData) return nativeData;
 
-  return await fetchJsonDirect<T>(url);
+  return await fetchJsonDirect<T>(url, context);
 }
 
 function buildCategoryMap(categories: any[]) {
@@ -168,8 +169,8 @@ export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Ser
   }
 
   const [categories, seriesItems] = await Promise.all([
-    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_series_categories')).catch(() => []),
-    fetchJson<XtreamSeriesCatalogItem[]>(buildXtreamApiUrl(source, 'get_series')),
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries').catch(() => []),
+    fetchJson<XtreamSeriesCatalogItem[]>(buildXtreamApiUrl(source, 'get_series'), 'Catálogo de séries'),
   ]);
 
   const categoryMap = buildCategoryMap(categories);
@@ -205,7 +206,7 @@ export async function fetchXtreamSeriesEpisodes(playlistUrl: string, seriesId: s
 
   const info = await fetchJson<any>(buildXtreamApiUrl(source, 'get_series_info', {
     series_id: seriesId,
-  }));
+  }), 'Episódios da série');
 
   const episodesBySeason = info?.episodes ?? {};
   const seasons: Season[] = [];

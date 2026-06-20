@@ -306,10 +306,12 @@ textarea:focus-visible {
 }
 
 
-/* ===== CLEAN TV UI OVERRIDES ===== */
-.clean-tv-page {
-  padding-left: 104px;
-}
+/* ===== CLEAN TV UI OVERRIDES =====
+   A definição real de padding do .clean-tv-page fica mais abaixo
+   (".roneca-page, .clean-tv-page { padding-left: 206px !important; ... }").
+   Havia uma segunda declaração aqui (padding-left: 104px, sem !important)
+   que nunca chegava a ser aplicada — sempre perdia para a regra com
+   !important. Removida para evitar confusão em futuras edições. */
 
 .premium-bg {
   background:
@@ -1065,17 +1067,27 @@ select:focus {
   font-size: clamp(0.95rem, 1.8vw, 1.2rem) !important;
 }
 
+/* Modo retrato (fallback antes do Android aplicar landscape, ou caso o
+   usuário gire o aparelho). Havia DOIS blocos "@media (orientation: portrait)"
+   separados neste arquivo (um aqui, outro ~200 linhas abaixo) definindo
+   valores diferentes para .roneca-side-menu e .clean-tv-page — o segundo
+   sobrescrevia o primeiro só parcialmente (apenas onde usava !important nas
+   mesmas propriedades), criando um resultado "frankenstein" difícil de
+   prever. Consolidado em um único bloco com os valores que de fato
+   prevaleciam (menu compacto, só ícones). */
 @media (orientation: portrait) {
   .roneca-side-menu {
-    width: 150px !important;
+    width: 96px !important;
   }
 
-  .roneca-side-logo-text {
-    display: none;
+  .roneca-side-logo-text,
+  .roneca-side-label {
+    display: none !important;
   }
 
   .roneca-side-button {
-    min-height: 58px !important;
+    justify-content: center !important;
+    min-height: 52px !important;
     gap: 0.6rem;
     padding: 0.65rem 0.55rem !important;
   }
@@ -1087,13 +1099,9 @@ select:focus {
     font-size: 1rem;
   }
 
-  .roneca-side-label {
-    font-size: 0.82rem;
-  }
-
   .roneca-page,
   .clean-tv-page {
-    padding-left: 166px !important;
+    padding-left: 106px !important;
     padding-right: 0.75rem !important;
     padding-top: 0.9rem !important;
   }
@@ -1290,29 +1298,6 @@ select:focus {
   }
 }
 
-/* Se por algum motivo abrir em retrato antes do Android aplicar landscape,
-   o menu fica compacto para não ocupar metade da tela. */
-@media (orientation: portrait) {
-  .roneca-side-menu {
-    width: 96px !important;
-  }
-
-  .roneca-side-logo-text,
-  .roneca-side-label {
-    display: none !important;
-  }
-
-  .roneca-side-button {
-    justify-content: center !important;
-    min-height: 52px !important;
-  }
-
-  .roneca-page,
-  .clean-tv-page {
-    padding-left: 106px !important;
-  }
-}
-
 /* RonecaPlayTV — player controls polish */
 .player-progress {
   --player-progress-value: 0%;
@@ -1467,12 +1452,18 @@ select:focus {
 
 /* Menu lateral menor + conteúdo mais largo no APK landscape */
 @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  /* ANTES: clamp(7.2px, 1.08vw, 9.6px) — menos da metade do padrão (16px).
+     Como praticamente todo texto do app usa classes Tailwind baseadas em
+     rem (text-xl, text-2xl, text-4xl...), isso encolhia TUDO pela metade
+     bem no cenário mais comum de uso real (celular/TV Box em landscape
+     com toque), e era a causa raiz de boa parte das letras pequenas
+     reportadas (categorias, itens do menu, nomes de canais/filmes). */
   html {
-    font-size: clamp(7.2px, 1.08vw, 9.6px) !important;
+    font-size: clamp(13px, 1.65vw, 16px) !important;
   }
 
   .roneca-side-menu {
-    width: 108px !important;
+    width: 124px !important;
   }
 
   .roneca-side-logo {
@@ -1497,29 +1488,29 @@ select:focus {
   }
 
   .roneca-side-button {
-    min-height: 39px !important;
-    padding: 0.32rem 0.38rem !important;
-    gap: 0.36rem !important;
+    min-height: 42px !important;
+    padding: 0.32rem 0.42rem !important;
+    gap: 0.4rem !important;
     border-radius: 0.68rem !important;
   }
 
   .roneca-side-icon {
-    width: 23px !important;
-    height: 23px !important;
-    flex-basis: 23px !important;
+    width: 25px !important;
+    height: 25px !important;
+    flex-basis: 25px !important;
     border-radius: 0.48rem !important;
-    font-size: 0.76rem !important;
+    font-size: 0.8rem !important;
   }
 
   .roneca-side-label {
-    font-size: 0.78rem !important;
-    line-height: 1.05 !important;
+    font-size: 0.85rem !important;
+    line-height: 1.08 !important;
     font-weight: 800 !important;
   }
 
   .roneca-page,
   .clean-tv-page {
-    padding-left: 118px !important;
+    padding-left: 134px !important;
     padding-right: 0.45rem !important;
     padding-top: 0.38rem !important;
     padding-bottom: 0.35rem !important;
@@ -1616,21 +1607,23 @@ select:focus {
 
 /* Telas muito baixas: ainda mais compacto, mas com texto legível */
 @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  /* ANTES: clamp(7px, 1vw, 8.8px) — mesmo problema do bloco acima, agravado.
+     Mantemos compacto (um pouco menor que o bloco principal), mas legível. */
   html {
-    font-size: clamp(7px, 1vw, 8.8px) !important;
+    font-size: clamp(12px, 1.5vw, 14px) !important;
   }
 
   .roneca-side-menu {
-    width: 102px !important;
+    width: 116px !important;
   }
 
   .roneca-page,
   .clean-tv-page {
-    padding-left: 111px !important;
+    padding-left: 126px !important;
   }
 
   .roneca-side-button {
-    min-height: 36px !important;
+    min-height: 38px !important;
   }
 
   .clean-tv-page > aside:not(.roneca-side-menu) {

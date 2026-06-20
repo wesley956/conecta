@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
-import type { Series, Movie } from '@/types';
+import type { Series, Movie, Season, Episode } from '@/types';
 import {
   canLoadXtreamSeriesFromPlaylist,
   fetchXtreamSeriesCatalog,
@@ -39,6 +39,8 @@ export function SeriesScreen() {
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [loadingSeriesId, setLoadingSeriesId] = useState<string | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [seriesDetail, setSeriesDetail] = useState<{ item: XtreamSeries; seasons: Season[] } | null>(null);
+  const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number | null>(null);
 
   const xtreamPlaylist = useMemo(() => {
     return playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
@@ -133,38 +135,41 @@ export function SeriesScreen() {
   const canLoadMore = visibleSeries.length < filteredSeries.length;
   const selectedLabel = categoryOptions.find(category => category.id === selectedCategory)?.name ?? 'Séries';
 
-  const openFirstEpisode = (item: Series) => {
-    const firstSeason = item.seasons[0];
-    const firstEpisode = firstSeason?.episodes[0];
-
-    if (!firstEpisode) return false;
-
+  // Toca um episódio específico (chamado a partir do seletor de
+  // temporada/episódio, nunca mais "no escuro" direto do card da série).
+  const playEpisode = (item: Series, season: Season, episode: Episode) => {
     setCurrentSeries(item);
 
     const episodeAsMovie: Movie = {
-      id: firstEpisode.id,
-      name: `${item.name} - T${firstSeason.number}E${firstEpisode.number}`,
+      id: episode.id,
+      name: `${item.name} - T${season.number}E${episode.number}`,
       year: 0,
-      duration: firstEpisode.duration,
+      duration: episode.duration,
       synopsis: item.synopsis,
       cover: item.cover,
       category: item.category,
-      url: firstEpisode.url,
-      playbackUrls: firstEpisode.playbackUrls,
-      progress: firstEpisode.progress,
+      url: episode.url,
+      playbackUrls: episode.playbackUrls,
+      progress: episode.progress,
       isFavorite: item.isFavorite,
     };
 
     setCurrentMovie(episodeAsMovie);
     setScreen('player');
-
-    return true;
   };
 
-  const playFirstEpisode = async (item: XtreamSeries) => {
+  // Ao clicar numa série: 1) já tem temporadas carregadas (lista M3U comum)?
+  // mostra o seletor direto. 2) é uma série Xtream sob demanda? busca
+  // get_series_info agora e então mostra o seletor. Nunca toca o primeiro
+  // episódio automaticamente — o usuário escolhe a temporada/episódio.
+  const openSeriesDetail = async (item: XtreamSeries) => {
     setSeriesError(null);
 
-    if (openFirstEpisode(item)) return;
+    if (item.seasons.length > 0) {
+      setSeriesDetail({ item, seasons: item.seasons });
+      setSelectedSeasonNumber(item.seasons[0].number);
+      return;
+    }
 
     if (!xtreamPlaylist?.url || !item.xtreamSeriesId) {
       setSeriesError('Essa série não possui episódios carregados.');
@@ -175,20 +180,29 @@ export function SeriesScreen() {
 
     try {
       const seasons = await fetchXtreamSeriesEpisodes(xtreamPlaylist.url, item.xtreamSeriesId);
-      const hydratedSeries: Series = {
-        ...item,
-        seasons,
-      };
 
-      if (!openFirstEpisode(hydratedSeries)) {
-        setSeriesError('Nenhum episódio reproduzível foi encontrado nesta série.');
+      if (seasons.length === 0) {
+        setSeriesError('Nenhum episódio foi encontrado nesta série.');
+        return;
       }
+
+      setSeriesDetail({ item, seasons });
+      setSelectedSeasonNumber(seasons[0].number);
     } catch (error) {
       setSeriesError(error instanceof Error ? error.message : 'Não foi possível carregar episódios.');
     } finally {
       setLoadingSeriesId(null);
     }
   };
+
+  const closeSeriesDetail = () => {
+    setSeriesDetail(null);
+    setSelectedSeasonNumber(null);
+  };
+
+  const selectedSeason = seriesDetail?.seasons.find(season => season.number === selectedSeasonNumber)
+    ?? seriesDetail?.seasons[0]
+    ?? null;
 
   return (
     <AppLayout>
@@ -272,7 +286,7 @@ export function SeriesScreen() {
               {visibleSeries.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => void playFirstEpisode(item)}
+                  onClick={() => void openSeriesDetail(item)}
                   disabled={loadingSeriesId === item.id}
                   className="group text-left roneca-poster-card disabled:opacity-55"
                 >
@@ -320,6 +334,79 @@ export function SeriesScreen() {
             </section>
           )}
         </main>
+
+        {seriesDetail && (
+          <div
+            className="fixed inset-0 z-40 flex items-stretch justify-end bg-black/70"
+            onClick={closeSeriesDetail}
+          >
+            <div
+              className="flex h-full w-[min(92vw,560px)] flex-col bg-[#0b0c12] px-7 py-7"
+              onClick={event => event.stopPropagation()}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-base font-light text-white/40">Série</p>
+                  <h2 className="truncate text-[clamp(22px,2.6vw,30px)] font-light text-white">
+                    {seriesDetail.item.name}
+                  </h2>
+                </div>
+                <button
+                  onClick={closeSeriesDetail}
+                  className="shrink-0 rounded-full bg-white/[0.06] px-4 py-2 text-2xl text-white/70 hover:text-white"
+                  aria-label="Fechar"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {seriesDetail.seasons.length > 1 && (
+                <div className="mb-5 flex flex-wrap gap-2">
+                  {seriesDetail.seasons.map(season => (
+                    <button
+                      key={season.number}
+                      onClick={() => setSelectedSeasonNumber(season.number)}
+                      className={`rounded-md px-4 py-2 text-[clamp(14px,1.6vw,18px)] font-light transition-colors ${
+                        selectedSeasonNumber === season.number
+                          ? 'bg-[#2396f2] text-white'
+                          : 'bg-white/[0.06] text-white/60 hover:text-white'
+                      }`}
+                    >
+                      Temporada {season.number}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
+                {selectedSeason?.episodes.map(episode => (
+                  <button
+                    key={episode.id}
+                    onClick={() => playEpisode(
+                      { ...seriesDetail.item, seasons: seriesDetail.seasons },
+                      selectedSeason,
+                      episode,
+                    )}
+                    className="clean-tv-row flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+                  >
+                    <span className="truncate text-[clamp(15px,1.8vw,20px)] font-light">
+                      {episode.number}. {episode.name}
+                    </span>
+                    {episode.duration && episode.duration !== '—' && (
+                      <span className="shrink-0 text-sm text-white/35">{episode.duration}</span>
+                    )}
+                  </button>
+                ))}
+
+                {!selectedSeason?.episodes.length && (
+                  <p className="px-2 py-6 text-center text-base text-white/40">
+                    Nenhum episódio encontrado nesta temporada.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
