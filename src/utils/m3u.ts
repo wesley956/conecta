@@ -57,55 +57,148 @@ function isPlayableUrl(url: string): boolean {
   return /^https?:\/\//i.test(url) || /^rtmp:\/\//i.test(url);
 }
 
-function looksLikeSeries(entry: M3UEntry): boolean {
-  const text = normalizeText(`${entry.groupTitle} ${entry.name} ${entry.url}`);
+function getUrlPath(url: string): string {
+  try {
+    return decodeURIComponent(new URL(url).pathname).toLowerCase();
+  } catch {
+    return url.toLowerCase();
+  }
+}
+
+function getUrlExtension(url: string): string {
+  const path = getUrlPath(url).split('?')[0].split('#')[0];
+  const match = path.match(/\.([a-z0-9]{2,5})$/i);
+  return match?.[1]?.toLowerCase() ?? '';
+}
+
+function hasExplicitSeriesPath(entry: M3UEntry): boolean {
+  return getUrlPath(entry.url).includes('/series/');
+}
+
+function hasExplicitMoviePath(entry: M3UEntry): boolean {
+  return getUrlPath(entry.url).includes('/movie/');
+}
+
+function hasVodFileExtension(entry: M3UEntry): boolean {
+  return /^(mp4|mkv|avi|mov|wmv|flv|webm|m4v)$/i.test(getUrlExtension(entry.url));
+}
+
+function hasLiveFileExtension(entry: M3UEntry): boolean {
+  return /^(ts|m3u8)$/i.test(getUrlExtension(entry.url));
+}
+
+function hasEpisodeSignal(entry: M3UEntry): boolean {
+  const name = entry.name;
 
   return (
-    text.includes('/series/') ||
-    text.includes('serie') ||
-    text.includes('series') ||
-    text.includes('temporada') ||
-    text.includes('season') ||
-    /\bs\d{1,2}\s*e\d{1,3}\b/i.test(entry.name) ||
-    /\b\d{1,2}x\d{1,3}\b/i.test(entry.name)
+    /\bs\d{1,2}\s*e\d{1,3}\b/i.test(name) ||
+    /\bt\d{1,2}\s*e\d{1,3}\b/i.test(name) ||
+    /\b\d{1,2}x\d{1,3}\b/i.test(name) ||
+    /\btemporada\s*\d{1,2}.*epis[oó]dio\s*\d{1,3}\b/i.test(name) ||
+    /\btemp\.?\s*\d{1,2}.*ep\.?\s*\d{1,3}\b/i.test(name)
   );
 }
 
-function looksLikeMovie(entry: M3UEntry): boolean {
-  const text = normalizeText(`${entry.groupTitle} ${entry.name} ${entry.url}`);
+function hasSeriesCatalogSignal(entry: M3UEntry): boolean {
+  const text = normalizeText(`${entry.groupTitle} ${entry.name}`);
 
   return (
-    text.includes('/movie/') ||
+    text.includes('serie') ||
+    text.includes('series') ||
+    text.includes('série') ||
+    text.includes('séries') ||
+    text.includes('temporada') ||
+    text.includes('season')
+  );
+}
+
+function hasMovieCatalogSignal(entry: M3UEntry): boolean {
+  const text = normalizeText(`${entry.groupTitle} ${entry.name}`);
+
+  return (
     text.includes('filme') ||
     text.includes('filmes') ||
     text.includes('movie') ||
     text.includes('movies') ||
-    text.includes('cinema') ||
-    /\.(mp4|mkv|avi|mov|wmv|flv)(\?|#|$)/i.test(entry.url)
+    text.includes('vod') ||
+    text.includes('cinema')
   );
+}
+
+function hasLinearLiveSignal(entry: M3UEntry): boolean {
+  const text = normalizeText(`${entry.groupTitle} ${entry.name}`);
+
+  return (
+    /\b24\s*h(oras)?\b/.test(text) ||
+    text.includes('24/7') ||
+    /\bcanais?\b/.test(text) ||
+    /\bcanal\b/.test(text) ||
+    /\btv\b/.test(text) ||
+    text.includes('ao vivo') ||
+    /\blive\b/.test(text)
+  );
+}
+
+function looksLikeSeries(entry: M3UEntry): boolean {
+  if (hasExplicitSeriesPath(entry)) return true;
+  if (hasExplicitMoviePath(entry)) return false;
+
+  // Padrão forte de episódio: S01E02, T01E02, 1x02 etc.
+  // Mesmo se o link terminar em .ts, isso costuma ser episódio real em várias listas.
+  if (hasEpisodeSignal(entry) && !hasLinearLiveSignal(entry)) {
+    return true;
+  }
+
+  // Só a palavra "Séries" no grupo não basta mais.
+  // Para virar série sem /series/ ou S01E01, precisa parecer VOD.
+  if (hasSeriesCatalogSignal(entry) && hasVodFileExtension(entry) && !hasLinearLiveSignal(entry)) {
+    return true;
+  }
+
+  return false;
+}
+
+function looksLikeMovie(entry: M3UEntry): boolean {
+  if (hasExplicitMoviePath(entry)) return true;
+  if (hasExplicitSeriesPath(entry)) return false;
+  if (hasEpisodeSignal(entry)) return false;
+
+  // Links .ts/.m3u8 são mais prováveis de TV ao vivo.
+  if (hasLiveFileExtension(entry)) return false;
+
+  // Arquivos VOD reais sem /movie/ ainda podem ser filmes.
+  if (hasVodFileExtension(entry) && !hasLinearLiveSignal(entry)) {
+    return true;
+  }
+
+  // Usa o sinal de catálogo de filmes apenas quando também existe cara de VOD.
+  // Isso evita jogar canal ao vivo de "Cinema/Filmes 24h" para Filmes.
+  if (hasMovieCatalogSignal(entry) && hasVodFileExtension(entry) && !hasLinearLiveSignal(entry)) {
+    return true;
+  }
+
+  // Categoria com "Filmes" sozinha não basta, porque muitos painéis colocam
+  // canais lineares de filmes/cinema em grupos com esse nome.
+  return false;
 }
 
 // Canais lineares "24 horas" (ex: "Filmes 24h", "Cinema 24 Horas",
 // "Telecine 24h") tocam uma transmissão contínua, não um catálogo VOD real
-// — mesmo que o nome/categoria contenha "filme"/"cinema". Sem essa guarda,
-// `looksLikeMovie` classificava esses canais como Filme só pelo texto,
-// misturando canais ao vivo dentro da tela de Filmes.
+// — mesmo que o nome/categoria contenha "filme"/"cinema".
 function looksLike24HourChannel(entry: M3UEntry): boolean {
   const text = normalizeText(`${entry.groupTitle} ${entry.name}`);
   return /\b24\s*h(oras)?\b/.test(text) || text.includes('24/7');
 }
 
 function classifyEntry(entry: M3UEntry): EntryKind {
-  const urlText = normalizeText(entry.url);
-  const hasVodPath = urlText.includes('/movie/');
-  const hasSeriesPath = urlText.includes('/series/');
+  if (looksLike24HourChannel(entry)) return 'live';
 
-  if (!hasVodPath && !hasSeriesPath && looksLike24HourChannel(entry)) {
-    return 'live';
-  }
+  if (hasExplicitSeriesPath(entry)) return 'series';
+  if (hasExplicitMoviePath(entry)) return 'movie';
 
   if (looksLikeSeries(entry)) return 'series';
   if (looksLikeMovie(entry)) return 'movie';
+
   return 'live';
 }
 
@@ -215,14 +308,20 @@ function cleanMovieName(name: string): string {
 
 function parseEpisodeInfo(name: string) {
   const sxe = name.match(/\bS(\d{1,2})\s*E(\d{1,3})\b/i);
+  const txe = name.match(/\bT(\d{1,2})\s*E(\d{1,3})\b/i);
   const alt = name.match(/\b(\d{1,2})x(\d{1,3})\b/i);
+  const temporada = name.match(/\btemporada\s*(\d{1,2}).*epis[oó]dio\s*(\d{1,3})\b/i);
+  const tempEp = name.match(/\btemp\.?\s*(\d{1,2}).*ep\.?\s*(\d{1,3})\b/i);
 
-  const season = Number(sxe?.[1] ?? alt?.[1] ?? 1);
-  const episode = Number(sxe?.[2] ?? alt?.[2] ?? 1);
+  const season = Number(sxe?.[1] ?? txe?.[1] ?? alt?.[1] ?? temporada?.[1] ?? tempEp?.[1] ?? 1);
+  const episode = Number(sxe?.[2] ?? txe?.[2] ?? alt?.[2] ?? temporada?.[2] ?? tempEp?.[2] ?? 1);
 
   let seriesName = name
     .replace(/\bS\d{1,2}\s*E\d{1,3}\b/i, '')
+    .replace(/\bT\d{1,2}\s*E\d{1,3}\b/i, '')
     .replace(/\b\d{1,2}x\d{1,3}\b/i, '')
+    .replace(/\btemporada\s*\d{1,2}.*epis[oó]dio\s*\d{1,3}\b/i, '')
+    .replace(/\btemp\.?\s*\d{1,2}.*ep\.?\s*\d{1,3}\b/i, '')
     .replace(/\s*[-–|]\s*$/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
