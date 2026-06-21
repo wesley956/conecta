@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
+import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 
 export function ActivationScreen() {
-  const { deviceCode, setScreen, setDeviceActivated } = useAppStore();
+  const { deviceCode, setScreen, setDeviceActivated, setDeviceCode, setSubscription, setActiveNotice } = useAppStore();
   const [requested, setRequested] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,13 +19,57 @@ export function ActivationScreen() {
     }
   };
 
-  const retryActivation = () => {
+  const retryActivation = async () => {
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      if (!isDevicePanelEnabled()) {
+        setDeviceActivated(true);
+        setScreen('home');
+        return;
+      }
+
+      const activation = await activateDeviceWithPanel();
+      const activeDeviceCode = activation.deviceCode || deviceCode;
+
+      if (activation.deviceCode && activation.deviceCode !== deviceCode) {
+        setDeviceCode(activation.deviceCode);
+      }
+
+      const config = await fetchDevicePanelConfig(activeDeviceCode);
+
+      if (!config.active) {
+        setDeviceActivated(false);
+        setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
+
+        if (config.status === 'blocked') {
+          setScreen('blocked');
+        } else if (config.status === 'expired') {
+          setScreen('expired');
+        } else {
+          setScreen('activation');
+        }
+
+        return;
+      }
+
       setDeviceActivated(true);
+
+      if (config.expiresAt) {
+        const expiresAt = new Date(config.expiresAt);
+        const now = new Date();
+        const days = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000));
+        setSubscription(days > 0, config.expiresAt, days);
+      }
+
+      setActiveNotice('✅ Aparelho liberado pelo painel. Carregando conteúdo...');
       setScreen('home');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
+      setActiveNotice(`⚠️ ${message}`);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   };
 
   return (

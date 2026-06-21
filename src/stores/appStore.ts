@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AppState, UIMode, AppSettings, WatchHistory, Channel, Movie, Series, Playlist } from '@/types';
 import { channels as mockChannels, movies as mockMovies, series as mockSeries, playlists as mockPlaylists, watchHistory as mockHistory, DEVICE_CODE, LEGAL_NOTICE } from '@/data/mock';
 import { parseM3U, isLikelyM3U } from '@/utils/m3u';
+import { getStoredDeviceCode, setStoredDeviceCode, isDevicePanelEnabled } from '@/utils/devicePanel';
 
 if (typeof window !== 'undefined') {
   try {
@@ -34,6 +35,7 @@ interface AppStore {
   
   // Device
   deviceCode: string;
+  setDeviceCode: (code: string) => void;
   deviceActivated: boolean;
   setDeviceActivated: (val: boolean) => void;
   
@@ -110,8 +112,14 @@ export const useAppStore = create<AppStore>()(
   setUIMode: (mode) => set({ uiMode: mode }),
   
   // Device
-  deviceCode: DEVICE_CODE,
-  deviceActivated: true, // For demo, start as activated
+  deviceCode: getStoredDeviceCode() || DEVICE_CODE,
+  setDeviceCode: (code) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    setStoredDeviceCode(trimmed);
+    set({ deviceCode: trimmed });
+  },
+  deviceActivated: !isDevicePanelEnabled(), // Demo liberado quando o painel está desligado
   setDeviceActivated: (val) => set({ deviceActivated: val }),
   
   // Subscription
@@ -397,6 +405,7 @@ export const useAppStore = create<AppStore>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         uiMode: state.uiMode,
+        deviceCode: state.deviceCode,
         deviceActivated: state.deviceActivated,
         subscriptionActive: state.subscriptionActive,
         expiresAt: state.expiresAt,
@@ -404,8 +413,7 @@ export const useAppStore = create<AppStore>()(
         // Não persistir channels/movies/series/watchHistory aqui.
         // Listas M3U grandes estouram o limite do localStorage.
         playlists: state.playlists,
-        settings: state.settings,
-      }),
+        settings: state.settings,      }),
     }
   )
 );

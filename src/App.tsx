@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { fetchM3UContent } from '@/utils/fetchM3U';
-import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
 import type { AppState, AdminView } from '@/types';
 
@@ -161,13 +161,15 @@ function ContentCacheHydrator() {
 function DevicePanelSync() {
   const syncingRef = useRef(false);
   const deviceCode = useAppStore(state => state.deviceCode);
+  const deviceActivated = useAppStore(state => state.deviceActivated);
+  const setDeviceCode = useAppStore(state => state.setDeviceCode);
+  const setScreen = useAppStore(state => state.setScreen);
   const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
   const setSubscription = useAppStore(state => state.setSubscription);
   const setActiveNotice = useAppStore(state => state.setActiveNotice);
 
   useEffect(() => {
     if (!isDevicePanelEnabled()) return;
-    if (!deviceCode) return;
     if (syncingRef.current) return;
 
     let cancelled = false;
@@ -176,13 +178,39 @@ function DevicePanelSync() {
       syncingRef.current = true;
 
       try {
-        const config = await fetchDevicePanelConfig(deviceCode);
+        const activation = await activateDeviceWithPanel();
+
+        if (cancelled) return;
+
+        let activeDeviceCode = activation.deviceCode || deviceCode;
+
+        if (activation.deviceCode && activation.deviceCode !== deviceCode) {
+          setDeviceCode(activation.deviceCode);
+          activeDeviceCode = activation.deviceCode;
+        }
+
+        if (!activeDeviceCode) {
+          setDeviceActivated(false);
+          setScreen('activation');
+          return;
+        }
+
+        const config = await fetchDevicePanelConfig(activeDeviceCode);
 
         if (cancelled) return;
 
         if (!config.active) {
           setDeviceActivated(false);
           setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
+
+          if (config.status === 'blocked') {
+            setScreen('blocked');
+          } else if (config.status === 'expired') {
+            setScreen('expired');
+          } else {
+            setScreen('activation');
+          }
+
           return;
         }
 
@@ -195,6 +223,12 @@ function DevicePanelSync() {
           setSubscription(days > 0, config.expiresAt, days);
         }
 
+        const currentScreen = useAppStore.getState().currentScreen;
+
+        if (['splash', 'activation', 'blocked', 'expired', 'nointernet'].includes(currentScreen)) {
+          setScreen('home');
+        }
+
         const playlistUrl = String(config.playlistUrl ?? '').trim();
 
         if (!playlistUrl) {
@@ -204,7 +238,7 @@ function DevicePanelSync() {
 
         const playlistName = String(config.playlistName || config.clientName || 'Lista do painel');
         const playlistUpdatedAt = String(config.playlistUpdatedAt || '');
-        const panelMarkerKey = `ronecaplaytv-panel-sync-${deviceCode}`;
+        const panelMarkerKey = `ronecaplaytv-panel-sync-${activeDeviceCode}`;
 
         const state = useAppStore.getState();
         const existingPlaylist = state.playlists.find(playlist => playlist.url === playlistUrl);
@@ -252,7 +286,15 @@ function DevicePanelSync() {
     return () => {
       cancelled = true;
     };
-  }, [deviceCode, setActiveNotice, setDeviceActivated, setSubscription]);
+  }, [
+    deviceCode,
+    deviceActivated,
+    setActiveNotice,
+    setDeviceActivated,
+    setDeviceCode,
+    setScreen,
+    setSubscription,
+  ]);
 
   return null;
 }
