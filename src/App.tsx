@@ -301,7 +301,18 @@ function DevicePanelSync() {
 
 // ===== MAIN APP =====
 export default function App() {
-  const { currentScreen, isAdminMode } = useAppStore();
+  const { currentScreen, isAdminMode, setAdminMode } = useAppStore();
+
+  useEffect(() => {
+    const syncAdminRoute = () => {
+      setAdminMode(window.location.hash === '#admin');
+    };
+
+    syncAdminRoute();
+    window.addEventListener('hashchange', syncAdminRoute);
+
+    return () => window.removeEventListener('hashchange', syncAdminRoute);
+  }, [setAdminMode]);
 
   // Keyboard navigation for TV remote control
   const handleKeyDown = useCallback((e: KeyboardEvent) => {

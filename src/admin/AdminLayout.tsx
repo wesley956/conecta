@@ -65,7 +65,12 @@ export function AdminLayout({ children, activeView, onViewChange }: {
 
         <div className="mt-4 border-t border-white/10 pt-4">
           <button
-            onClick={() => setAdminMode(false)}
+            onClick={() => {
+              setAdminMode(false);
+              if (window.location.hash === '#admin') {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search);
+              }
+            }}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-text-gray transition-all hover:border-neon-orange/60 hover:text-neon-orange"
           >
             ← Voltar ao App
