@@ -1,4 +1,4 @@
-# RonecaPlayTV Admin
+# Cruz Stars Admin
 
 Painel separado do APK.
 
