@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
-import type { AppState, AdminView } from '@/types';
+import type { AppState } from '@/types';
 
 // Screens
 import { SplashScreen } from '@/screens/SplashScreen';
@@ -18,9 +18,6 @@ import { PlaylistsScreen, SettingsScreen } from '@/screens/PlaylistsSettingsScre
 import { ExpiredScreen, BlockedScreen, NoInternetScreen } from '@/screens/ErrorScreens';
 
 // Admin
-import { AdminLayout, AdminDashboard } from '@/admin/AdminLayout';
-import { AdminCustomers, AdminDevices } from '@/admin/CustomersDevices';
-import { AdminPlans, AdminPlaylists, AdminNotices, AdminLogs, AdminSettings } from '@/admin/AdminModules';
 
 // ===== SCREEN ROUTER =====
 function AppScreen({ screen }: { screen: AppState }) {
@@ -44,29 +41,7 @@ function AppScreen({ screen }: { screen: AppState }) {
 }
 
 // ===== ADMIN PANEL =====
-function AdminPanel() {
-  const [activeView, setActiveView] = useState<AdminView>('dashboard');
 
-  const renderView = () => {
-    switch (activeView) {
-      case 'dashboard': return <AdminDashboard />;
-      case 'customers': return <AdminCustomers />;
-      case 'devices': return <AdminDevices />;
-      case 'plans': return <AdminPlans />;
-      case 'playlists': return <AdminPlaylists />;
-      case 'notices': return <AdminNotices />;
-      case 'logs': return <AdminLogs />;
-      case 'settings': return <AdminSettings />;
-      default: return <AdminDashboard />;
-    }
-  };
-
-  return (
-    <AdminLayout activeView={activeView} onViewChange={setActiveView}>
-      {renderView()}
-    </AdminLayout>
-  );
-}
 
 
 
@@ -301,20 +276,9 @@ function DevicePanelSync() {
 
 // ===== MAIN APP =====
 export default function App() {
-  const { currentScreen, isAdminMode, setAdminMode } = useAppStore();
+  const { currentScreen } = useAppStore();
 
-  useEffect(() => {
-    const syncAdminRoute = () => {
-      setAdminMode(window.location.hash === '#admin');
-    };
-
-    syncAdminRoute();
-    window.addEventListener('hashchange', syncAdminRoute);
-
-    return () => window.removeEventListener('hashchange', syncAdminRoute);
-  }, [setAdminMode]);
-
-  // Keyboard navigation for TV remote control
+    // Keyboard navigation for TV remote control
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const { setScreen, currentScreen: screen } = useAppStore.getState();
     
@@ -356,12 +320,7 @@ export default function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  if (isAdminMode) {
-    return <AdminPanel />;
-  }
-
-  return (
+return (
     <div className="h-screen w-screen bg-bg-primary overflow-hidden">
       <ContentCacheHydrator />
       <DevicePanelSync />

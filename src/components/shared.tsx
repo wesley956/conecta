@@ -28,15 +28,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
 // ===== HEADER =====
 
-export function Header({ title, showBack, onBack, showAdmin, showSearch, showUser }: {
+export function Header({ title, showBack, onBack, showSearch, showUser }: {
   title?: string;
   showBack?: boolean;
   onBack?: () => void;
-  showAdmin?: boolean;
   showSearch?: boolean;
   showUser?: boolean;
 }) {
-  const { setScreen, setAdminMode, uiMode } = useAppStore();
+  const { setScreen, uiMode } = useAppStore();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -74,12 +73,6 @@ export function Header({ title, showBack, onBack, showAdmin, showSearch, showUse
         {showSearch && (
           <button onClick={() => setScreen('search')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-cyan hover:text-neon-cyan">
             🔍
-          </button>
-        )}
-
-        {showAdmin && (
-          <button onClick={() => setAdminMode(true)} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-text-gray transition-all hover:border-neon-orange hover:text-neon-orange">
-            Admin
           </button>
         )}
 

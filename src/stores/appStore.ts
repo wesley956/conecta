@@ -76,8 +76,6 @@ interface AppStore {
   updateSettings: (partial: Partial<AppSettings>) => void;
   
   // Admin mode
-  isAdminMode: boolean;
-  setAdminMode: (val: boolean) => void;
   
   // Legal
   legalNotice: string;
@@ -378,8 +376,6 @@ export const useAppStore = create<AppStore>()(
   updateSettings: (partial) => set((state) => ({ settings: { ...state.settings, ...partial } })),
   
   // Admin mode
-  isAdminMode: false,
-  setAdminMode: (val) => set({ isAdminMode: val }),
   
   // Legal
   legalNotice: LEGAL_NOTICE,
