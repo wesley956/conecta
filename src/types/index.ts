@@ -7,7 +7,7 @@ export type DeviceType = 'celular' | 'tablet' | 'tvbox' | 'androidtv' | 'googlet
 export type UIMode = 'tv' | 'mobile';
 
 // App states
-export type AppState = 'splash' | 'activation' | 'expired' | 'blocked' | 'nointernet' | 'home' | 'channels' | 'movies' | 'series' | 'player' | 'favorites' | 'search' | 'playlists' | 'settings' | 'channel_detail' | 'movie_detail' | 'series_detail';
+export type AppState = 'splash' | 'activation' | 'expired' | 'blocked' | 'nointernet' | 'home' | 'channels' | 'movies' | 'series' | 'player' | 'favorites' | 'search' | 'settings' | 'channel_detail' | 'movie_detail' | 'series_detail';
 
 // Channel
 export interface Channel {
@@ -190,4 +190,4 @@ export interface AppSettings {
 }
 
 // Admin View
-export type AdminView = 'dashboard' | 'customers' | 'devices' | 'plans' | 'playlists' | 'notices' | 'logs' | 'settings';
+export type AdminView = 'dashboard' | 'customers' | 'devices' | 'plans' | 'notices' | 'logs' | 'settings';

@@ -178,7 +178,7 @@ export function PlaylistsScreen() {
   const handleClearAllContent = () => {
     clearAllImportedContent();
     setConfirmClearAll(false);
-    setMessage('Todas as listas e conteúdos foram removidos.');
+    setMessage('Todas as conteúdos foram removidos.');
     setError(null);
   };
 
@@ -553,12 +553,12 @@ export function SettingsScreen() {
 
           {activeSection === 'list' && (
             <div className="max-w-5xl divide-y divide-white/10">
-              <SettingRow label="Gerenciar listas" value="Abrir">
+              <SettingRow label="Acesso do aparelho" value="Abrir">
                 <button
-                  onClick={() => setScreen('playlists')}
+                  onClick={() => setScreen('settings')}
                   className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white"
                 >
-                  Abrir listas
+                  Atualizar acesso
                 </button>
               </SettingRow>
 

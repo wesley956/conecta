@@ -8,7 +8,6 @@ export function HomeScreen() {
     channels,
     movies,
     series,
-    playlists,
     deviceCode,
     daysRemaining,
   } = useAppStore();
@@ -22,7 +21,6 @@ export function HomeScreen() {
   }, []);
 
   const quickStats = [
-    { label: 'Listas', value: playlists.length },
     { label: 'Canais', value: channels.length },
     { label: 'Filmes', value: movies.length },
     { label: 'Séries', value: series.length },
@@ -31,7 +29,8 @@ export function HomeScreen() {
   const quickActions = [
     { icon: '▣', title: 'Assistir TV', subtitle: 'Abrir canais ao vivo', action: () => setScreen('channels') },
     { icon: '▶', title: 'Filmes', subtitle: 'Catálogo de filmes', action: () => setScreen('movies') },
-    { icon: '☰', title: 'Listas', subtitle: 'Gerenciar fontes', action: () => setScreen('playlists') },
+    { icon: '▤', title: 'Séries', subtitle: 'Catálogo de séries', action: () => setScreen('series') },
+    { icon: '★', title: 'Favoritos', subtitle: 'Seus conteúdos salvos', action: () => setScreen('favorites') },
   ];
 
   return (
@@ -46,7 +45,7 @@ export function HomeScreen() {
           </div>
 
           <div className="roneca-topbar-info">
-            <span>{deviceCode || 'RonecaPlayTV'}</span>
+            <span>{deviceCode || 'Cruz Stars'}</span>
             <span>{today}</span>
             <span>{daysRemaining > 0 ? `${daysRemaining} dias` : 'Verificar acesso'}</span>
           </div>

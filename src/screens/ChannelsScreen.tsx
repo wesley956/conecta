@@ -260,13 +260,13 @@ export function ChannelsScreen() {
               <p className="text-5xl">▣</p>
               <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>
               <p className="mx-auto mt-3 max-w-2xl text-lg font-light">
-                Adicione uma lista autorizada em Listas. Depois disso, ao entrar em TV Ao Vivo, o conteúdo será carregado automaticamente.
+                Aguarde a liberação do aparelho e a lista vinculada pelo painel. Se já foi liberado, atualize o acesso nas configurações.
               </p>
               <button
-                onClick={() => setScreen('playlists')}
+                onClick={() => setScreen('settings')}
                 className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-white"
               >
-                Adicionar lista
+                Ver configurações
               </button>
             </div>
           ) : (
