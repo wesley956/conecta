@@ -87,6 +87,32 @@ function normalizeWhatsapp(value: unknown) {
     .trim();
 }
 
+
+async function writeAudit(
+  supabase: any,
+  payload: {
+    action: string;
+    entityType?: string | null;
+    entityId?: string | null;
+    description?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  const { error } = await supabase
+    .from('panel_audit_logs')
+    .insert({
+      action: payload.action,
+      entity_type: payload.entityType ?? null,
+      entity_id: payload.entityId ?? null,
+      description: payload.description ?? null,
+      metadata: payload.metadata ?? {},
+    });
+
+  if (error) {
+    console.error('panel_audit_log_error', error.message);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -106,6 +132,34 @@ serve(async (req) => {
     const url = new URL(req.url);
     const body = await readBody(req);
     const action = String(body.action || url.searchParams.get('action') || '').trim();
+
+
+    if (action === 'listAuditLogs') {
+      const rawLimit = Number(body.limit ?? 100);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.max(1, Math.min(200, Math.floor(rawLimit)))
+        : 100;
+
+      const { data, error } = await supabase
+        .from('panel_audit_logs')
+        .select('id, action, entity_type, entity_id, description, metadata, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) return json({ error: error.message }, 500);
+
+      return json({
+        logs: (data ?? []).map((log: any) => ({
+          id: log.id,
+          action: log.action,
+          entityType: log.entity_type,
+          entityId: log.entity_id,
+          description: log.description,
+          metadata: log.metadata ?? {},
+          createdAt: log.created_at,
+        })),
+      });
+    }
 
     if (action === 'listCustomers') {
       const { data: customers, error } = await supabase
@@ -200,6 +254,14 @@ serve(async (req) => {
         .eq('id', id);
 
       if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'customer.deleted',
+        entityType: 'customer',
+        entityId: id,
+        description: 'Cliente excluído',
+        metadata: {},
+      });
 
       return json({ ok: true });
     }
@@ -330,6 +392,14 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'device.deleted',
+        entityType: 'device',
+        entityId: id,
+        description: 'Aparelho excluído',
+        metadata: {},
+      });
+
       return json({ ok: true });
     }
 
@@ -374,6 +444,14 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'playlist.updated',
+        entityType: 'playlist',
+        entityId: id,
+        description: 'Lista atualizada',
+        metadata: { updates },
+      });
+
       return json({ ok: true });
     }
 
@@ -391,6 +469,14 @@ serve(async (req) => {
         .eq('id', id);
 
       if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'playlist.deleted',
+        entityType: 'playlist',
+        entityId: id,
+        description: 'Lista excluída',
+        metadata: {},
+      });
 
       return json({ ok: true });
     }
