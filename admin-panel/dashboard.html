@@ -697,6 +697,135 @@ tbody tr:hover td {
   }
 }
 
+
+/* ===== FASE 2B-3: MODAIS DE DETALHES ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(33,200,255,.12), transparent 34%),
+    rgba(0, 0, 0, .66);
+  backdrop-filter: blur(12px);
+}
+
+.modal.open {
+  display: flex;
+}
+
+.modal-card {
+  width: min(980px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 20px;
+  border-radius: 28px;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-title h2 {
+  font-size: 26px;
+}
+
+.modal-close {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-box {
+  grid-column: span 4;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.052);
+}
+
+.detail-box.wide {
+  grid-column: span 12;
+}
+
+.detail-box.half {
+  grid-column: span 6;
+}
+
+.detail-box small {
+  display: block;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 7px;
+}
+
+.detail-box strong {
+  display: block;
+  font-size: 16px;
+  word-break: break-word;
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.detail-table {
+  margin-top: 10px;
+  min-width: 740px;
+}
+
+.copy-ok {
+  color: var(--green);
+}
+
+@media (max-width: 820px) {
+  .modal {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .modal-card {
+    max-height: 94vh;
+    padding: 16px;
+  }
+
+  .detail-box,
+  .detail-box.half {
+    grid-column: span 12;
+  }
+}
+
 </style>
 </head>
 
@@ -913,6 +1042,21 @@ tbody tr:hover td {
         </div>
       </div>
     </section>
+
+
+    <div id="detailsModal" class="modal" onclick="modalBackdropClose(event)">
+      <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-head">
+          <div class="modal-title">
+            <h2 id="modalTitle">Detalhes</h2>
+            <div id="modalSubtitle" class="muted">—</div>
+          </div>
+          <button class="modal-close" onclick="closeDetails()">×</button>
+        </div>
+
+        <div id="modalContent"></div>
+      </div>
+    </div>
 
     <div id="msg" class="msg">Painel carregado.</div>
   </main>
@@ -1228,6 +1372,7 @@ function renderCustomers() {
         <td class="muted">${fmtDate(c.createdAt)}</td>
         <td>
           <div class="actions">
+            <button class="btn" onclick="showCustomerDetails('${esc(c.id)}')">Detalhes</button>
             <button class="btn green" onclick="updateCustomer('${esc(c.id)}')">Salvar</button>
             <button class="btn red" onclick="deleteCustomer('${esc(c.id)}')">Excluir</button>
           </div>
@@ -1262,6 +1407,7 @@ function renderPlaylists() {
         <td>${esc(p.devicesCount || 0)}</td>
         <td>
           <div class="actions">
+            <button class="btn" onclick="showPlaylistDetails('${esc(p.id)}')">Detalhes</button>
             <button class="btn green" onclick="updatePlaylist('${esc(p.id)}')">Salvar</button>
             <button class="btn red" onclick="deletePlaylist('${esc(p.id)}')">Excluir</button>
           </div>
@@ -1316,9 +1462,11 @@ function deviceRow(d) {
       <td class="muted">${fmtDate(d.lastSeenAt)}</td>
       <td>
         <div class="actions">
+          <button class="btn" onclick="showDeviceDetails('${esc(d.id)}')">Detalhes</button>
           <button class="btn green" onclick="saveDevice('${esc(d.id)}')">Salvar</button>
           <button class="btn orange" onclick="renewDevice('${esc(d.id)}')">Renovar 30d</button>
           <button class="btn red" onclick="blockDevice('${esc(d.id)}')">Bloquear</button>
+          <button class="btn red" onclick="deleteDevice('${esc(d.id)}')">Excluir</button>
         </div>
       </td>
     </tr>
@@ -1499,6 +1647,310 @@ async function activatePending(id) {
     setTab('devices');
   } catch (err) {
     show(err.message, true);
+  }
+}
+
+
+function openDetails(title, subtitle, html) {
+  $('modalTitle').textContent = title;
+  $('modalSubtitle').innerHTML = subtitle || '—';
+  $('modalContent').innerHTML = html;
+  $('detailsModal').classList.add('open');
+}
+
+function closeDetails() {
+  $('detailsModal').classList.remove('open');
+}
+
+function modalBackdropClose(event) {
+  if (event.target && event.target.id === 'detailsModal') {
+    closeDetails();
+  }
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeDetails();
+});
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.left = '-9999px';
+      document.body.appendChild(area);
+      area.focus();
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    show('Copiado: ' + text);
+  } catch {
+    show('Não consegui copiar automaticamente.', true);
+  }
+}
+
+function deviceMiniRows(list) {
+  if (!list.length) {
+    return '<p class="muted">Nenhum aparelho vinculado.</p>';
+  }
+
+  return `
+    <div class="tablewrap">
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Status</th>
+            <th>Cliente</th>
+            <th>Lista</th>
+            <th>Validade</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(d => `
+            <tr>
+              <td><span class="mono">${esc(d.deviceCode)}</span></td>
+              <td>${badge(d.status)}</td>
+              <td>${esc(d.customerName || 'Sem cliente')}</td>
+              <td>${esc(d.playlistName || 'Sem lista')}</td>
+              <td>${fmtDate(d.expiresAt)} ${validityLabel(d.expiresAt)}</td>
+              <td>
+                <div class="actions">
+                  <button class="btn" onclick="copyText('${esc(d.deviceCode)}')">Copiar</button>
+                  <button class="btn orange" onclick="renewDevice('${esc(d.id)}')">Renovar</button>
+                  <button class="btn" onclick="showDeviceDetails('${esc(d.id)}')">Abrir</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function showCustomerDetails(id) {
+  const customer = customers.find(c => c.id === id);
+  if (!customer) {
+    show('Cliente não encontrado.', true);
+    return;
+  }
+
+  const linkedDevices = devices.filter(d => d.customerId === id);
+  const wa = whatsappUrl(customer.whatsapp);
+
+  openDetails(
+    'Cliente',
+    `<span class="mono">${esc(customer.name)}</span>`,
+    `
+      <div class="detail-grid">
+        <div class="detail-box">
+          <small>Nome</small>
+          <strong>${esc(customer.name)}</strong>
+        </div>
+        <div class="detail-box">
+          <small>WhatsApp</small>
+          <strong>${esc(customer.whatsapp)}</strong>
+          ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">Abrir WhatsApp</a>` : ''}
+        </div>
+        <div class="detail-box">
+          <small>Aparelhos vinculados</small>
+          <strong>${linkedDevices.length}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Cadastrado em</small>
+          <strong>${fmtDate(customer.createdAt)}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Atualizado em</small>
+          <strong>${fmtDate(customer.updatedAt)}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Status comercial</small>
+          <strong>${linkedDevices.some(d => d.status === 'active') ? 'Cliente ativo' : 'Sem aparelho ativo'}</strong>
+        </div>
+        <div class="detail-box wide">
+          <small>Aparelhos desse cliente</small>
+          ${deviceMiniRows(linkedDevices)}
+        </div>
+      </div>
+
+      <div class="detail-actions">
+        ${wa ? `<a class="btn green" href="${wa}" target="_blank" rel="noreferrer">Abrir WhatsApp</a>` : ''}
+        <button class="btn" onclick="setTab('devices'); closeDetails()">Ver aparelhos</button>
+        <button class="btn" onclick="setTab('customers'); closeDetails()">Editar na tabela</button>
+      </div>
+    `
+  );
+}
+
+function showPlaylistDetails(id) {
+  const playlist = playlists.find(p => p.id === id);
+  if (!playlist) {
+    show('Lista não encontrada.', true);
+    return;
+  }
+
+  const linkedDevices = devices.filter(d => d.playlistId === id);
+
+  openDetails(
+    'Lista',
+    `<span class="mono">${esc(playlist.name)}</span>`,
+    `
+      <div class="detail-grid">
+        <div class="detail-box">
+          <small>Nome</small>
+          <strong>${esc(playlist.name)}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Tipo</small>
+          <strong>${esc(playlist.playlistType || 'm3u')}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Status</small>
+          <strong>${playlist.active ? 'Ativa' : 'Inativa'}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Aparelhos usando</small>
+          <strong>${linkedDevices.length}</strong>
+        </div>
+        <div class="detail-box half">
+          <small>Atualizada em</small>
+          <strong>${fmtDate(playlist.playlistUpdatedAt)}</strong>
+        </div>
+        <div class="detail-box half">
+          <small>Cadastrada em</small>
+          <strong>${fmtDate(playlist.createdAt)}</strong>
+        </div>
+        <div class="detail-box wide">
+          <small>URL da lista</small>
+          <strong class="mono">${esc(playlist.playlistUrl)}</strong>
+        </div>
+        <div class="detail-box wide">
+          <small>Aparelhos vinculados a esta lista</small>
+          ${deviceMiniRows(linkedDevices)}
+        </div>
+      </div>
+
+      <div class="detail-actions">
+        <button class="btn" onclick="copyText('${esc(playlist.playlistUrl)}')">Copiar URL</button>
+        <button class="btn" onclick="setTab('playlists'); closeDetails()">Editar na tabela</button>
+        <button class="btn" onclick="setTab('devices'); closeDetails()">Ver aparelhos</button>
+      </div>
+    `
+  );
+}
+
+function showDeviceDetails(id) {
+  const device = devices.find(d => d.id === id);
+  if (!device) {
+    show('Aparelho não encontrado.', true);
+    return;
+  }
+
+  const wa = whatsappUrl(device.customerWhatsapp);
+
+  openDetails(
+    'Aparelho',
+    `<span class="mono">${esc(device.deviceCode)}</span> · ${badge(device.status)}`,
+    `
+      <div class="detail-grid">
+        <div class="detail-box">
+          <small>Código</small>
+          <strong class="mono">${esc(device.deviceCode)}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Status</small>
+          <strong>${badge(device.status)}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Validade</small>
+          <strong>${fmtDate(device.expiresAt)}</strong>
+          ${validityLabel(device.expiresAt)}
+        </div>
+
+        <div class="detail-box">
+          <small>Cliente</small>
+          <strong>${esc(device.customerName || 'Sem cliente')}</strong>
+          ${device.customerWhatsapp ? `<div class="small muted">${esc(device.customerWhatsapp)}</div>` : ''}
+          ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
+        </div>
+        <div class="detail-box">
+          <small>Lista vinculada</small>
+          <strong>${esc(device.playlistName || 'Sem lista')}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Tipo / App</small>
+          <strong>${esc(device.deviceType || 'androidtv')}</strong>
+          <div class="small muted">${esc(device.appVersion || 'Sem versão')}</div>
+        </div>
+
+        <div class="detail-box half">
+          <small>UUID</small>
+          <strong class="mono">${esc(device.deviceUuid || '—')}</strong>
+        </div>
+        <div class="detail-box half">
+          <small>Último IP</small>
+          <strong>${esc(device.ip || '—')}</strong>
+        </div>
+        <div class="detail-box half">
+          <small>Criado em</small>
+          <strong>${fmtDate(device.createdAt)}</strong>
+        </div>
+        <div class="detail-box half">
+          <small>Último acesso</small>
+          <strong>${fmtDate(device.lastSeenAt)}</strong>
+        </div>
+      </div>
+
+      <div class="detail-actions">
+        <button class="btn" onclick="copyText('${esc(device.deviceCode)}')">Copiar código</button>
+        <button class="btn orange" onclick="renewDevice('${esc(device.id)}')">Renovar 30 dias</button>
+        <button class="btn green" onclick="setDeviceStatus('${esc(device.id)}', 'active')">Ativar</button>
+        <button class="btn red" onclick="setDeviceStatus('${esc(device.id)}', 'blocked')">Bloquear</button>
+        <button class="btn red" onclick="deleteDevice('${esc(device.id)}')">Excluir aparelho</button>
+        <button class="btn orange" onclick="setDeviceStatus('${esc(device.id)}', 'expired')">Marcar vencido</button>
+        <button class="btn" onclick="setTab('devices'); closeDetails()">Editar na tabela</button>
+      </div>
+    `
+  );
+}
+
+async function setDeviceStatus(id, status) {
+  try {
+    await api('updateDevice', { id, status });
+    await loadAll();
+    show('Status do aparelho atualizado.');
+    showDeviceDetails(id);
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+
+async function deleteDevice(id) {
+  const device = devices.find(d => d.id === id);
+  const code = device?.deviceCode || id;
+
+  if (!confirm(`Excluir o aparelho ${code}?`)) return;
+  if (!confirm('Tem certeza absoluta? Essa ação apaga o aparelho do banco e não é igual a bloquear.')) return;
+
+  try {
+    await api('deleteDevice', { id });
+    await loadAll();
+
+    if (typeof closeDetails === 'function') {
+      closeDetails();
+    }
+
+    show('Aparelho excluído.');
+  } catch (err) {
+    show(err.message || 'Erro ao excluir aparelho.', true);
   }
 }
 

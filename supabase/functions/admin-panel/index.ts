@@ -320,6 +320,19 @@ serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === 'deleteDevice') {
+      const id = requiredText(body.id, 'ID do aparelho');
+
+      const { error } = await supabase
+        .from('panel_devices')
+        .delete()
+        .eq('id', id);
+
+      if (error) return json({ error: error.message }, 500);
+
+      return json({ ok: true });
+    }
+
     if (action === 'createPlaylist') {
       const name = requiredText(body.name, 'Nome da lista');
       const playlistUrl = requiredText(body.playlistUrl, 'URL da lista');
