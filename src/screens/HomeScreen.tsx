@@ -45,7 +45,7 @@ export function HomeScreen() {
           </div>
 
           <div className="roneca-topbar-info">
-            <span>{deviceCode || 'Cruz Stars'}</span>
+            <span>{deviceCode || 'RonecaPlayTV'}</span>
             <span>{today}</span>
             <span>{daysRemaining > 0 ? `${daysRemaining} dias` : 'Verificar acesso'}</span>
           </div>
