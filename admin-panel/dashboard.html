@@ -165,7 +165,7 @@
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 12px;
     }
 
@@ -348,6 +348,44 @@
       align-items: center;
     }
 
+    .filterbar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0 8px;
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.045);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+
+    .filterbar .wide {
+      grid-column: span 2;
+    }
+
+    .validity-note {
+      margin-top: 7px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .ok-text { color: var(--green); }
+    .warn-text { color: var(--orange); }
+    .danger-text { color: var(--red); }
+
+    .whats-link {
+      display: inline-flex;
+      margin-top: 7px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      color: #d7ffe8;
+      background: rgba(40,227,154,.10);
+      border: 1px solid rgba(40,227,154,.24);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
     @media (max-width: 1100px) {
       .col4, .col5, .col7, .col8 { grid-column: span 12; }
       .stats { grid-template-columns: repeat(2, 1fr); }
@@ -399,6 +437,7 @@
             <div class="stat"><small>Aparelhos</small><strong id="stDevices">0</strong></div>
             <div class="stat"><small>Ativos</small><strong id="stActive">0</strong></div>
             <div class="stat"><small>Pendentes</small><strong id="stPending">0</strong></div>
+            <div class="stat"><small>Vencendo 7d</small><strong id="stExpiring">0</strong></div>
             <div class="stat"><small>Listas</small><strong id="stPlaylists">0</strong></div>
           </div>
         </div>
@@ -410,14 +449,9 @@
         </div>
 
         <div class="card col5">
-          <h2>Regras do painel</h2>
-          <p class="sub">Fluxo comercial definido.</p>
-          <div class="quick-list">
-            <div class="quick-item">Cliente tem somente nome + WhatsApp.</div>
-            <div class="quick-item">Lista fica salva na biblioteca.</div>
-            <div class="quick-item">A lista só vai para o APK se for vinculada ao aparelho.</div>
-            <div class="quick-item">Cada aparelho pode ter cliente, lista e vencimento próprios.</div>
-          </div>
+          <h2>Vencendo em 7 dias</h2>
+          <p class="sub">Aparelhos ativos com vencimento próximo.</p>
+          <div id="expiringQuick" class="quick-list"></div>
         </div>
       </div>
     </section>
@@ -441,6 +475,11 @@
         <div class="card col8">
           <h2>Clientes cadastrados</h2>
           <p class="sub">Edite ou remova clientes. Aparelhos vinculados não são apagados.</p>
+
+          <div class="filterbar">
+            <input id="customerSearch" class="wide" placeholder="Buscar por nome ou WhatsApp..." oninput="renderCustomers()" />
+            <button class="btn" onclick="document.getElementById('customerSearch').value=''; renderCustomers()">Limpar busca</button>
+          </div>
 
           <div class="tablewrap">
             <table>
@@ -487,6 +526,16 @@
           <h2>Biblioteca de Listas</h2>
           <p class="sub">Links ativos guardados para vincular em aparelhos específicos.</p>
 
+          <div class="filterbar">
+            <input id="playlistSearch" class="wide" placeholder="Buscar lista por nome ou URL..." oninput="renderPlaylists()" />
+            <select id="playlistActiveFilter" onchange="renderPlaylists()">
+              <option value="">Todas</option>
+              <option value="active">Ativas</option>
+              <option value="inactive">Inativas</option>
+            </select>
+            <button class="btn" onclick="clearPlaylistFilters()">Limpar filtros</button>
+          </div>
+
           <div class="tablewrap">
             <table>
               <thead>
@@ -510,6 +559,21 @@
       <div class="card">
         <h2>Aparelhos</h2>
         <p class="sub">Vincule cliente e lista. O APK só recebe a lista escolhida aqui.</p>
+
+        <div class="filterbar">
+          <input id="deviceSearch" class="wide" placeholder="Buscar por código, cliente, WhatsApp ou lista..." oninput="renderDevices()" />
+          <select id="deviceStatusFilter" onchange="renderDevices()">
+            <option value="">Todos os status</option>
+            <option value="pending">Pendentes</option>
+            <option value="active">Ativos</option>
+            <option value="blocked">Bloqueados</option>
+            <option value="expired">Vencidos</option>
+            <option value="inactive">Inativos</option>
+          </select>
+          <button class="btn" onclick="clearDeviceFilters()">Limpar filtros</button>
+          <select id="deviceCustomerFilter" onchange="renderDevices()"></select>
+          <select id="devicePlaylistFilter" onchange="renderDevices()"></select>
+        </div>
 
         <div class="tablewrap">
           <table>
@@ -589,6 +653,133 @@ function setTab(tab) {
   $('section-' + tab).classList.add('active');
 }
 
+function normalize(value) {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function daysLeft(value) {
+  if (!value) return null;
+  const end = new Date(value);
+  if (Number.isNaN(end.getTime())) return null;
+  const today = new Date();
+  const diff = end.getTime() - today.getTime();
+  return Math.ceil(diff / 86400000);
+}
+
+function isExpiringSoon(device) {
+  if (device.status !== 'active') return false;
+  const left = daysLeft(device.expiresAt);
+  return left !== null && left >= 0 && left <= 7;
+}
+
+function validityLabel(value) {
+  const left = daysLeft(value);
+
+  if (left === null) {
+    return '<div class="validity-note warn-text">Sem vencimento</div>';
+  }
+
+  if (left < 0) {
+    return '<div class="validity-note danger-text">Vencido há ' + Math.abs(left) + ' dia(s)</div>';
+  }
+
+  if (left <= 7) {
+    return '<div class="validity-note warn-text">Vence em ' + left + ' dia(s)</div>';
+  }
+
+  return '<div class="validity-note ok-text">Faltam ' + left + ' dia(s)</div>';
+}
+
+function whatsappUrl(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const phone = digits.startsWith('55') ? digits : '55' + digits;
+  return 'https://wa.me/' + phone;
+}
+
+function filteredCustomers() {
+  const term = normalize($('customerSearch')?.value || '');
+
+  if (!term) return customers;
+
+  return customers.filter(c =>
+    normalize(c.name).includes(term) ||
+    normalize(c.whatsapp).includes(term)
+  );
+}
+
+function filteredPlaylists() {
+  const term = normalize($('playlistSearch')?.value || '');
+  const active = $('playlistActiveFilter')?.value || '';
+
+  return playlists.filter(p => {
+    const matchTerm = !term ||
+      normalize(p.name).includes(term) ||
+      normalize(p.playlistUrl).includes(term);
+
+    const matchActive = !active ||
+      (active === 'active' && p.active) ||
+      (active === 'inactive' && !p.active);
+
+    return matchTerm && matchActive;
+  });
+}
+
+function filteredDevices() {
+  const term = normalize($('deviceSearch')?.value || '');
+  const status = $('deviceStatusFilter')?.value || '';
+  const customerId = $('deviceCustomerFilter')?.value || '';
+  const playlistId = $('devicePlaylistFilter')?.value || '';
+
+  return devices.filter(d => {
+    const matchTerm = !term ||
+      normalize(d.deviceCode).includes(term) ||
+      normalize(d.customerName).includes(term) ||
+      normalize(d.customerWhatsapp).includes(term) ||
+      normalize(d.playlistName).includes(term) ||
+      normalize(d.deviceUuid).includes(term);
+
+    const matchStatus = !status || d.status === status;
+    const matchCustomer = !customerId || d.customerId === customerId;
+    const matchPlaylist = !playlistId || d.playlistId === playlistId;
+
+    return matchTerm && matchStatus && matchCustomer && matchPlaylist;
+  });
+}
+
+function clearDeviceFilters() {
+  $('deviceSearch').value = '';
+  $('deviceStatusFilter').value = '';
+  $('deviceCustomerFilter').value = '';
+  $('devicePlaylistFilter').value = '';
+  renderDevices();
+}
+
+function clearPlaylistFilters() {
+  $('playlistSearch').value = '';
+  $('playlistActiveFilter').value = '';
+  renderPlaylists();
+}
+
+function renderFilters() {
+  const customerFilter = $('deviceCustomerFilter');
+  const playlistFilter = $('devicePlaylistFilter');
+
+  if (!customerFilter || !playlistFilter) return;
+
+  const selectedCustomer = customerFilter.value;
+  const selectedPlaylist = playlistFilter.value;
+
+  customerFilter.innerHTML = '<option value="">Todos os clientes</option>' +
+    customers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+
+  playlistFilter.innerHTML = '<option value="">Todas as listas</option>' +
+    playlists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+
+  customerFilter.value = selectedCustomer;
+  playlistFilter.value = selectedPlaylist;
+}
+
 async function api(action, payload = {}) {
   const res = await fetch(API, {
     method: 'POST',
@@ -635,6 +826,7 @@ async function loadAll() {
 
 function renderAll() {
   renderStats();
+  renderFilters();
   renderDashboard();
   renderCustomers();
   renderPlaylists();
@@ -647,6 +839,7 @@ function renderStats() {
   $('stDevices').textContent = devices.length;
   $('stActive').textContent = devices.filter(d => d.status === 'active').length;
   $('stPending').textContent = devices.filter(d => d.status === 'pending').length;
+  $('stExpiring').textContent = devices.filter(isExpiringSoon).length;
   $('stPlaylists').textContent = playlists.length;
 }
 
@@ -692,6 +885,7 @@ function thirtyDaysDate() {
 
 function renderDashboard() {
   const pending = devices.filter(d => d.status === 'pending').slice(0, 6);
+  const expiring = devices.filter(isExpiringSoon).slice(0, 6);
 
   $('pendingQuick').innerHTML = pending.length
     ? pending.map(d => `
@@ -704,14 +898,34 @@ function renderDashboard() {
       </div>
     `).join('')
     : '<div class="quick-item muted">Nenhum aparelho pendente agora.</div>';
+
+  $('expiringQuick').innerHTML = expiring.length
+    ? expiring.map(d => `
+      <div class="quick-item">
+        <div>
+          <div class="mono">${esc(d.deviceCode)}</div>
+          <div class="small">${esc(d.customerName || 'Sem cliente')}</div>
+          <div class="small warn-text">Vence em ${daysLeft(d.expiresAt)} dia(s)</div>
+        </div>
+        <button class="btn orange" onclick="setTab('devices')">Ver</button>
+      </div>
+    `).join('')
+    : '<div class="quick-item muted">Nenhum aparelho vencendo nos próximos 7 dias.</div>';
 }
 
 function renderCustomers() {
-  $('customersBody').innerHTML = customers.length
-    ? customers.map(c => `
+  const list = filteredCustomers();
+
+  $('customersBody').innerHTML = list.length
+    ? list.map(c => {
+      const wa = whatsappUrl(c.whatsapp);
+      return `
       <tr>
         <td><input class="table-input" id="cust-name-${esc(c.id)}" value="${esc(c.name)}"></td>
-        <td><input class="table-input" id="cust-whats-${esc(c.id)}" value="${esc(c.whatsapp)}"></td>
+        <td>
+          <input class="table-input" id="cust-whats-${esc(c.id)}" value="${esc(c.whatsapp)}">
+          ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">Abrir WhatsApp</a>` : ''}
+        </td>
         <td>${esc(c.devicesCount || 0)}</td>
         <td class="muted">${fmtDate(c.createdAt)}</td>
         <td>
@@ -721,13 +935,16 @@ function renderCustomers() {
           </div>
         </td>
       </tr>
-    `).join('')
-    : '<tr><td colspan="5" class="muted">Nenhum cliente cadastrado.</td></tr>';
+    `;
+    }).join('')
+    : '<tr><td colspan="5" class="muted">Nenhum cliente encontrado.</td></tr>';
 }
 
 function renderPlaylists() {
-  $('playlistsBody').innerHTML = playlists.length
-    ? playlists.map(p => `
+  const list = filteredPlaylists();
+
+  $('playlistsBody').innerHTML = list.length
+    ? list.map(p => `
       <tr>
         <td><input class="table-input" id="pl-name-${esc(p.id)}" value="${esc(p.name)}"></td>
         <td><input class="table-input" id="pl-url-${esc(p.id)}" value="${esc(p.playlistUrl)}"></td>
@@ -753,13 +970,15 @@ function renderPlaylists() {
         </td>
       </tr>
     `).join('')
-    : '<tr><td colspan="6" class="muted">Nenhuma lista cadastrada.</td></tr>';
+    : '<tr><td colspan="6" class="muted">Nenhuma lista encontrada.</td></tr>';
 }
 
 function renderDevices() {
-  $('devicesBody').innerHTML = devices.length
-    ? devices.map(d => deviceRow(d, false)).join('')
-    : '<tr><td colspan="7" class="muted">Nenhum aparelho encontrado.</td></tr>';
+  const list = filteredDevices();
+
+  $('devicesBody').innerHTML = list.length
+    ? list.map(d => deviceRow(d, false)).join('')
+    : '<tr><td colspan="7" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
 }
 
 function renderPending() {
@@ -771,6 +990,8 @@ function renderPending() {
 }
 
 function deviceRow(d) {
+  const wa = whatsappUrl(d.customerWhatsapp);
+
   return `
     <tr>
       <td>
@@ -780,6 +1001,7 @@ function deviceRow(d) {
       <td>
         <select class="table-select" id="dev-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select>
         <div class="small muted">${esc(d.customerName || 'Sem cliente')}</div>
+        ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
       </td>
       <td>
         <select class="table-select" id="dev-status-${esc(d.id)}">${statusOptions(d.status)}</select>
@@ -791,6 +1013,7 @@ function deviceRow(d) {
       </td>
       <td>
         <input class="table-input" id="dev-exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}">
+        ${validityLabel(d.expiresAt)}
       </td>
       <td class="muted">${fmtDate(d.lastSeenAt)}</td>
       <td>
