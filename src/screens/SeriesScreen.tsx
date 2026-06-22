@@ -47,6 +47,7 @@ export function SeriesScreen() {
     setScreen,
     setCurrentMovie,
     setCurrentSeries,
+    toggleSeriesFavorite,
   } = useAppStore();
 
   const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:series:selectedCategory') ?? 'all');
@@ -376,6 +377,30 @@ export function SeriesScreen() {
                   className="group text-left roneca-poster-card disabled:opacity-55"
                 >
                   <div className="relative h-[230px] overflow-hidden rounded-2xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleSeriesFavorite(item.id);
+                      }}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          toggleSeriesFavorite(item.id);
+                        }
+                      }}
+                      className={`absolute right-3 top-3 z-20 rounded-full border px-3 py-1.5 text-2xl transition ${
+                        item.isFavorite
+                          ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
+                          : 'border-white/10 bg-black/35 text-white/55 hover:text-white'
+                      }`}
+                      aria-label={item.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    >
+                      {item.isFavorite ? '★' : '☆'}
+                    </span>
                     {item.cover ? (
                       <img src={item.cover} alt="" className="h-full w-full object-cover" />
                     ) : (
