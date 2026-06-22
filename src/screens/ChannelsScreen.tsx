@@ -37,6 +37,7 @@ export function ChannelsScreen() {
     playlists,
     setScreen,
     setCurrentChannel,
+    toggleChannelFavorite,
     replaceM3UPlaylist,
   } = useAppStore();
 
@@ -284,7 +285,7 @@ export function ChannelsScreen() {
                   <button
                     key={channel.id}
                     onClick={() => playChannel(channel)}
-                    className="flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
+                    className="group relative flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 pr-16 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
                   >
                     <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
                       {safeLogo ? (
@@ -297,6 +298,31 @@ export function ChannelsScreen() {
                     <span className="min-w-0">
                       <span className="block truncate text-2xl font-light">{channel.name}</span>
                       <span className="block truncate text-sm text-white/35">{getGroupName(channel)}</span>
+                    </span>
+
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleChannelFavorite(channel.id);
+                      }}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          toggleChannelFavorite(channel.id);
+                        }
+                      }}
+                      className={`absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border px-3 py-1.5 text-2xl transition ${
+                        channel.isFavorite
+                          ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
+                          : 'border-white/10 bg-black/30 text-white/45 group-hover:text-white'
+                      }`}
+                      aria-label={channel.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    >
+                      {channel.isFavorite ? '★' : '☆'}
                     </span>
                   </button>
                 );
