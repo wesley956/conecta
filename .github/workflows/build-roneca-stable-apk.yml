@@ -1,0 +1,86 @@
+name: Build RonecaPlayTV Stable APK
+
+on:
+  push:
+    branches:
+      - feature/roneca-logo-from-stable
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify frontend
+        run: npm run verify
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Add Android platform
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Generate Android assets
+        run: npx capacitor-assets generate --android
+
+      - name: Force Android landscape orientation
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+
+          if 'android:screenOrientation=' not in text:
+              text = text.replace(
+                  'android:name=".MainActivity"',
+                  'android:name=".MainActivity"\n            android:screenOrientation="landscape"',
+                  1
+              )
+
+          manifest.write_text(text, encoding='utf-8')
+          print('OK: Android landscape')
+          PY
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Copy APK
+        run: |
+          mkdir -p build-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk build-apk/RonecaPlayTV-stable-debug.apk
+          ls -lh build-apk/RonecaPlayTV-stable-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RonecaPlayTV-stable-debug-apk
+          path: build-apk/RonecaPlayTV-stable-debug.apk
