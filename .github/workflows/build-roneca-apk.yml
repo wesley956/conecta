@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Android assets
+        run: npx capacitor-assets generate --android
+
       - name: Verify frontend
         run: npm run verify
 
