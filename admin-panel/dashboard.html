@@ -4,67 +4,152 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Cruz Stars — Dashboard</title>
-  <style>
-    * { box-sizing: border-box; }
 
-    body {
-      margin: 0;
-      min-height: 100vh;
-      color: #eef7ff;
-      font-family: Arial, sans-serif;
-      background:
-        linear-gradient(180deg, rgba(2,8,23,.20), rgba(2,8,23,.78)),
-        url("./assets/universe-bg.png") center center / cover fixed no-repeat,
-        #020817;
+  <style>
+    :root {
+      --bg: #020817;
+      --card: rgba(5, 14, 38, .78);
+      --card2: rgba(8, 22, 55, .68);
+      --line: rgba(110, 231, 255, .28);
+      --line2: rgba(255,255,255,.10);
+      --text: #eef7ff;
+      --muted: #a9bbdd;
+      --cyan: #6ee7ff;
+      --blue: #21c8ff;
+      --violet: #7b5cff;
+      --green: #28e39a;
+      --red: #ff6575;
+      --orange: #ffb05c;
+      --yellow: #ffd166;
     }
 
-    main {
-      max-width: 1260px;
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: var(--bg);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(2,8,23,.16), rgba(2,8,23,.78)),
+        radial-gradient(circle at 18% 12%, rgba(123,92,255,.16), transparent 30%),
+        radial-gradient(circle at 80% 22%, rgba(33,200,255,.15), transparent 32%),
+        url("./assets/universe-bg.png") center center / cover fixed no-repeat;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      max-width: 1380px;
       margin: 0 auto;
       padding: 24px;
     }
 
-    .top, .card {
-      background: rgba(5, 14, 38, .78);
-      border: 1px solid rgba(110, 231, 255, .28);
+    .topbar,
+    .card,
+    .modal-card {
+      background: linear-gradient(180deg, rgba(5,14,38,.82), rgba(3,10,32,.88));
+      border: 1px solid var(--line);
       border-radius: 24px;
-      box-shadow: 0 28px 90px rgba(0,0,0,.38);
+      box-shadow:
+        0 0 0 1px rgba(112,210,255,.06) inset,
+        0 28px 90px rgba(0,0,0,.38),
+        0 0 34px rgba(33,200,255,.08);
       backdrop-filter: blur(16px);
     }
 
-    .top {
-      padding: 18px 20px;
+    .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 18px;
+      padding: 18px 22px;
       margin-bottom: 18px;
     }
 
-    h1, h2 { margin: 0; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
 
-    p {
-      color: #a9bbdd;
+    .brand-logo {
+      width: 92px;
+      height: 92px;
+      object-fit: contain;
+      filter:
+        drop-shadow(0 0 18px rgba(110,231,255,.34))
+        drop-shadow(0 0 34px rgba(123,92,255,.18));
+    }
+
+    h1, h2, h3 { margin: 0; }
+
+    .brand h1 {
+      font-size: 32px;
+      line-height: 1;
+    }
+
+    .brand p,
+    .sub,
+    .muted {
+      color: var(--muted);
+    }
+
+    .brand p {
       margin: 8px 0 0;
     }
 
-    .btn {
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 12px;
-      padding: 11px 14px;
-      background: rgba(255,255,255,.08);
-      color: #eef7ff;
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .tab {
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.07);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 12px 16px;
       font-weight: 900;
       cursor: pointer;
     }
 
-    .primary { background: linear-gradient(90deg, #7b5cff, #21c8ff); color: #fff; }
-    .green { background: rgba(40,227,154,.14); color: #c9ffeb; }
-    .red { background: rgba(255,101,117,.14); color: #ffd7dc; }
+    .tab.active {
+      color: #031226;
+      background: linear-gradient(90deg, var(--violet), var(--blue));
+      border-color: rgba(255,255,255,.22);
+      box-shadow: 0 0 26px rgba(33,200,255,.24);
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(12, 1fr);
+      grid-template-columns: repeat(12, minmax(0, 1fr));
       gap: 16px;
     }
 
@@ -73,59 +158,117 @@
       padding: 18px;
     }
 
+    .col4 { grid-column: span 4; }
     .col5 { grid-column: span 5; }
     .col7 { grid-column: span 7; }
+    .col8 { grid-column: span 8; }
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 12px;
     }
 
     .stat {
-      padding: 15px;
+      padding: 16px;
       border-radius: 18px;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.055);
+      border: 1px solid var(--line2);
     }
 
     .stat small {
       display: block;
-      color: #a9bbdd;
+      color: var(--muted);
       text-transform: uppercase;
       letter-spacing: .08em;
+      font-size: 11px;
       margin-bottom: 8px;
     }
 
-    .stat strong { font-size: 30px; }
-
-    input, select {
-      width: 100%;
-      border: 1px solid rgba(110,231,255,.24);
-      outline: none;
-      border-radius: 12px;
-      padding: 11px 12px;
-      color: #eef7ff;
-      background: rgba(255,255,255,.07);
+    .stat strong {
+      font-size: 30px;
     }
 
     label {
       display: block;
       margin: 12px 0 7px;
-      color: #dbeaff;
-      font-weight: 800;
+      color: #dcecff;
+      font-weight: 900;
       font-size: 13px;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid rgba(110,231,255,.24);
+      outline: 0;
+      border-radius: 13px;
+      padding: 11px 12px;
+      color: var(--text);
+      background: rgba(255,255,255,.07);
+    }
+
+    input:focus, select:focus {
+      border-color: rgba(110,231,255,.70);
+      box-shadow: 0 0 0 4px rgba(110,231,255,.10);
+    }
+
+    button {
+      font-family: inherit;
+    }
+
+    .btn {
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 11px 14px;
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      font-weight: 900;
+      cursor: pointer;
+      transition: .15s ease;
+    }
+
+    .btn:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    .primary {
+      background: linear-gradient(90deg, var(--violet), var(--blue));
+      color: #fff;
+      border-color: rgba(255,255,255,.20);
+    }
+
+    .green {
+      background: rgba(40,227,154,.14);
+      color: #c9ffeb;
+      border-color: rgba(40,227,154,.28);
+    }
+
+    .red {
+      background: rgba(255,101,117,.14);
+      color: #ffd7dc;
+      border-color: rgba(255,101,117,.28);
+    }
+
+    .orange {
+      background: rgba(255,176,92,.14);
+      color: #ffe1bd;
+      border-color: rgba(255,176,92,.28);
+    }
+
+    .tablewrap {
+      overflow-x: auto;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      margin-top: 12px;
     }
 
     th, td {
       border-bottom: 1px solid rgba(255,255,255,.08);
-      padding: 10px;
+      padding: 11px 10px;
       text-align: left;
       vertical-align: top;
       font-size: 14px;
@@ -136,80 +279,238 @@
       text-transform: uppercase;
       font-size: 12px;
       letter-spacing: .06em;
+      white-space: nowrap;
     }
 
-    .mono { font-family: monospace; color: #6ee7ff; font-weight: 900; }
-    .muted { color: #a9bbdd; }
+    tbody tr:hover {
+      background: rgba(255,255,255,.035);
+    }
 
-    .actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--cyan);
+      font-weight: 900;
+    }
+
+    .small {
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+
+    .badge.active { color: #c8ffe4; background: rgba(40,227,154,.12); }
+    .badge.pending { color: #ffe2aa; background: rgba(255,176,92,.12); }
+    .badge.blocked { color: #ffd0d5; background: rgba(255,101,117,.12); }
+    .badge.expired { color: #ffe1bd; background: rgba(255,176,92,.12); }
+    .badge.inactive { color: #cbd5e1; background: rgba(148,163,184,.12); }
+
+    .table-input, .table-select {
+      min-width: 150px;
+      padding: 10px;
+      border-radius: 12px;
     }
 
     .msg {
-      margin-top: 14px;
-      padding: 12px;
+      margin: 14px 0 0;
+      padding: 12px 14px;
       border-radius: 14px;
       background: rgba(255,255,255,.07);
-      border: 1px solid rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.10);
       color: #dff7ff;
     }
 
-    @media(max-width: 900px) {
-      .col5, .col7 { grid-column: span 12; }
+    .msg.err {
+      color: #ffd7dc;
+      background: rgba(255,101,117,.10);
+      border-color: rgba(255,101,117,.28);
+    }
+
+    .quick-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .quick-item {
+      padding: 13px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    @media (max-width: 1100px) {
+      .col4, .col5, .col7, .col8 { grid-column: span 12; }
       .stats { grid-template-columns: repeat(2, 1fr); }
-      .tablewrap { overflow-x: auto; }
-      table { min-width: 950px; }
+    }
+
+    @media (max-width: 760px) {
+      .app { padding: 14px; }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .brand-logo { width: 72px; height: 72px; }
+      .brand h1 { font-size: 25px; }
+      .stats { grid-template-columns: 1fr; }
+      table { min-width: 1050px; }
     }
   </style>
 </head>
+
 <body>
-  <main>
-    <header class="top">
-      <div>
-        <h1>Cruz Stars</h1>
-        <p>Painel separado para aparelhos, ativações e playlists.</p>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-logo" src="./assets/cruz-stars-logo.png" alt="Cruz Stars" />
+        <div>
+          <h1>Cruz Stars</h1>
+          <p>Painel separado para clientes, aparelhos e playlists.</p>
+        </div>
       </div>
+
       <div class="actions">
         <button class="btn" onclick="loadAll()">Atualizar</button>
         <button class="btn red" onclick="logout()">Sair</button>
       </div>
     </header>
 
-    <section class="grid">
-      <div class="card">
-        <h2>Resumo</h2>
-        <div class="stats">
-          <div class="stat"><small>Aparelhos</small><strong id="stTotal">0</strong></div>
-          <div class="stat"><small>Ativos</small><strong id="stActive">0</strong></div>
-          <div class="stat"><small>Pendentes</small><strong id="stPending">0</strong></div>
-          <div class="stat"><small>Playlists</small><strong id="stLists">0</strong></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard" onclick="setTab('dashboard')">Dashboard</button>
+      <button class="tab" data-tab="customers" onclick="setTab('customers')">Clientes</button>
+      <button class="tab" data-tab="playlists" onclick="setTab('playlists')">Listas</button>
+      <button class="tab" data-tab="devices" onclick="setTab('devices')">Aparelhos</button>
+      <button class="tab" data-tab="pending" onclick="setTab('pending')">Pendentes</button>
+    </nav>
+
+    <section id="section-dashboard" class="section active">
+      <div class="grid">
+        <div class="card">
+          <h2>Resumo Geral</h2>
+          <p class="sub">Controle rápido do Cruz Stars.</p>
+          <div class="stats">
+            <div class="stat"><small>Clientes</small><strong id="stCustomers">0</strong></div>
+            <div class="stat"><small>Aparelhos</small><strong id="stDevices">0</strong></div>
+            <div class="stat"><small>Ativos</small><strong id="stActive">0</strong></div>
+            <div class="stat"><small>Pendentes</small><strong id="stPending">0</strong></div>
+            <div class="stat"><small>Listas</small><strong id="stPlaylists">0</strong></div>
+          </div>
+        </div>
+
+        <div class="card col7">
+          <h2>Pendentes recentes</h2>
+          <p class="sub">Aparelhos que instalaram o APK e aguardam liberação.</p>
+          <div id="pendingQuick" class="quick-list"></div>
+        </div>
+
+        <div class="card col5">
+          <h2>Regras do painel</h2>
+          <p class="sub">Fluxo comercial definido.</p>
+          <div class="quick-list">
+            <div class="quick-item">Cliente tem somente nome + WhatsApp.</div>
+            <div class="quick-item">Lista fica salva na biblioteca.</div>
+            <div class="quick-item">A lista só vai para o APK se for vinculada ao aparelho.</div>
+            <div class="quick-item">Cada aparelho pode ter cliente, lista e vencimento próprios.</div>
+          </div>
         </div>
       </div>
+    </section>
 
-      <div class="card col5">
-        <h2>Criar playlist</h2>
-        <label>Nome</label>
-        <input id="plName" placeholder="Lista Premium" />
-        <label>URL</label>
-        <input id="plUrl" placeholder="https://.../lista.m3u" />
-        <label>Tipo</label>
-        <select id="plType">
-          <option value="m3u">M3U</option>
-          <option value="xtream">Xtream</option>
-        </select>
-        <br><br>
-        <button class="btn primary" onclick="createPlaylist()">Salvar playlist</button>
+    <section id="section-customers" class="section">
+      <div class="grid">
+        <div class="card col4">
+          <h2>Novo Cliente</h2>
+          <p class="sub">Cadastro simples: nome e WhatsApp.</p>
+
+          <label>Nome</label>
+          <input id="newCustomerName" placeholder="Ex: João Silva" />
+
+          <label>WhatsApp</label>
+          <input id="newCustomerWhatsapp" placeholder="Ex: 19999999999" />
+
+          <br><br>
+          <button class="btn primary" onclick="createCustomer()">Cadastrar cliente</button>
+        </div>
+
+        <div class="card col8">
+          <h2>Clientes cadastrados</h2>
+          <p class="sub">Edite ou remova clientes. Aparelhos vinculados não são apagados.</p>
+
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>WhatsApp</th>
+                  <th>Aparelhos</th>
+                  <th>Criado em</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="customersBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <div class="card col7">
-        <h2>Playlists</h2>
-        <div id="listsBox" class="muted">Carregando...</div>
+    <section id="section-playlists" class="section">
+      <div class="grid">
+        <div class="card col4">
+          <h2>Nova Lista</h2>
+          <p class="sub">A lista salva aqui fica na biblioteca. Ela não vai automaticamente para todos.</p>
+
+          <label>Nome da lista</label>
+          <input id="newPlaylistName" placeholder="Ex: Lista Premium 01" />
+
+          <label>URL M3U</label>
+          <input id="newPlaylistUrl" placeholder="https://.../lista.m3u" />
+
+          <label>Tipo</label>
+          <select id="newPlaylistType">
+            <option value="m3u">M3U</option>
+            <option value="xtream">Xtream</option>
+            <option value="stalker">Stalker</option>
+          </select>
+
+          <br><br>
+          <button class="btn primary" onclick="createPlaylist()">Salvar lista</button>
+        </div>
+
+        <div class="card col8">
+          <h2>Biblioteca de Listas</h2>
+          <p class="sub">Links ativos guardados para vincular em aparelhos específicos.</p>
+
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>URL</th>
+                  <th>Tipo</th>
+                  <th>Ativa</th>
+                  <th>Aparelhos</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="playlistsBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
+    </section>
 
+    <section id="section-devices" class="section">
       <div class="card">
         <h2>Aparelhos</h2>
+        <p class="sub">Vincule cliente e lista. O APK só recebe a lista escolhida aqui.</p>
+
         <div class="tablewrap">
           <table>
             <thead>
@@ -217,14 +518,35 @@
                 <th>Código</th>
                 <th>Cliente</th>
                 <th>Status</th>
-                <th>Playlist</th>
+                <th>Lista</th>
+                <th>Validade</th>
+                <th>Último acesso</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="devicesBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="section-pending" class="section">
+      <div class="card">
+        <h2>Aparelhos Pendentes</h2>
+        <p class="sub">Fluxo rápido para cliente novo: escolher cliente, lista, vencimento e liberar.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Cliente</th>
+                <th>Lista</th>
                 <th>Validade</th>
                 <th>Ações</th>
               </tr>
             </thead>
-            <tbody id="devicesBody">
-              <tr><td colspan="6" class="muted">Carregando...</td></tr>
-            </tbody>
+            <tbody id="pendingBody"></tbody>
           </table>
         </div>
       </div>
@@ -237,8 +559,9 @@
 const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
 const KEY = 'cruz-stars-admin-token';
 
-let devices = [];
+let customers = [];
 let playlists = [];
+let devices = [];
 
 const $ = id => document.getElementById(id);
 
@@ -254,8 +577,16 @@ function esc(value) {
     .replaceAll('"','&quot;');
 }
 
-function show(text) {
-  $('msg').textContent = text;
+function show(text, error = false) {
+  const el = $('msg');
+  el.textContent = text;
+  el.className = error ? 'msg err' : 'msg';
+}
+
+function setTab(tab) {
+  document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+  $('section-' + tab).classList.add('active');
 }
 
 async function api(action, payload = {}) {
@@ -285,45 +616,60 @@ async function loadAll() {
   }
 
   try {
-    const d = await api('listDevices');
-    const p = await api('listPlaylists').catch(() => ({ playlists: [] }));
+    const [customersRes, playlistsRes, devicesRes] = await Promise.all([
+      api('listCustomers'),
+      api('listPlaylists'),
+      api('listDevices')
+    ]);
 
-    devices = d.devices || [];
-    playlists = p.playlists || [];
+    customers = customersRes.customers || [];
+    playlists = playlistsRes.playlists || [];
+    devices = devicesRes.devices || [];
 
-    render();
+    renderAll();
     show('Painel atualizado.');
   } catch (err) {
-    show(err.message || 'Erro ao carregar.');
+    show(err.message || 'Erro ao carregar painel.', true);
   }
 }
 
-function render() {
-  $('stTotal').textContent = devices.length;
+function renderAll() {
+  renderStats();
+  renderDashboard();
+  renderCustomers();
+  renderPlaylists();
+  renderDevices();
+  renderPending();
+}
+
+function renderStats() {
+  $('stCustomers').textContent = customers.length;
+  $('stDevices').textContent = devices.length;
   $('stActive').textContent = devices.filter(d => d.status === 'active').length;
   $('stPending').textContent = devices.filter(d => d.status === 'pending').length;
-  $('stLists').textContent = playlists.length;
+  $('stPlaylists').textContent = playlists.length;
+}
 
-  $('listsBox').innerHTML = playlists.length
-    ? playlists.map(p => `<p><b>${esc(p.name)}</b><br><span class="mono">${esc(p.playlistUrl)}</span></p>`).join('')
-    : 'Nenhuma playlist.';
+function customerOptions(selectedId) {
+  return ['<option value="">Sem cliente</option>']
+    .concat(customers.map(c => `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)} — ${esc(c.whatsapp)}</option>`))
+    .join('');
+}
 
-  $('devicesBody').innerHTML = devices.length
-    ? devices.map(d => {
-      const opts = ['<option value="">Sem playlist</option>']
-        .concat(playlists.map(p => `<option value="${esc(p.id)}" ${p.id === d.playlistId ? 'selected' : ''}>${esc(p.name)}</option>`))
-        .join('');
+function playlistOptions(selectedId) {
+  return ['<option value="">Sem lista</option>']
+    .concat(playlists.map(p => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}</option>`))
+    .join('');
+}
 
-      return `<tr>
-        <td><span class="mono">${esc(d.deviceCode)}</span><br><span class="muted">${esc(d.deviceUuid || '')}</span></td>
-        <td><input id="name-${esc(d.id)}" value="${esc(d.clientName || '')}"></td>
-        <td><select id="status-${esc(d.id)}">${['pending','active','blocked','expired','inactive'].map(s => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-        <td><select id="playlist-${esc(d.id)}">${opts}</select></td>
-        <td><input id="exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}"></td>
-        <td><div class="actions"><button class="btn green" onclick="saveDevice('${esc(d.id)}')">Salvar</button><button class="btn red" onclick="blockDevice('${esc(d.id)}')">Bloquear</button></div></td>
-      </tr>`;
-    }).join('')
-    : '<tr><td colspan="6">Nenhum aparelho.</td></tr>';
+function statusOptions(selectedStatus) {
+  return ['pending','active','blocked','expired','inactive']
+    .map(s => `<option value="${s}" ${s === selectedStatus ? 'selected' : ''}>${s}</option>`)
+    .join('');
+}
+
+function badge(status) {
+  return `<span class="badge ${esc(status)}">${esc(status)}</span>`;
 }
 
 function dateInput(value) {
@@ -332,19 +678,276 @@ function dateInput(value) {
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10);
 }
 
+function fmtDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
+}
+
+function thirtyDaysDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  return d.toISOString().slice(0,10);
+}
+
+function renderDashboard() {
+  const pending = devices.filter(d => d.status === 'pending').slice(0, 6);
+
+  $('pendingQuick').innerHTML = pending.length
+    ? pending.map(d => `
+      <div class="quick-item">
+        <div>
+          <div class="mono">${esc(d.deviceCode)}</div>
+          <div class="small muted">${esc(d.deviceType || 'androidtv')} · ${esc(d.appVersion || '')}</div>
+        </div>
+        <button class="btn orange" onclick="setTab('pending')">Liberar</button>
+      </div>
+    `).join('')
+    : '<div class="quick-item muted">Nenhum aparelho pendente agora.</div>';
+}
+
+function renderCustomers() {
+  $('customersBody').innerHTML = customers.length
+    ? customers.map(c => `
+      <tr>
+        <td><input class="table-input" id="cust-name-${esc(c.id)}" value="${esc(c.name)}"></td>
+        <td><input class="table-input" id="cust-whats-${esc(c.id)}" value="${esc(c.whatsapp)}"></td>
+        <td>${esc(c.devicesCount || 0)}</td>
+        <td class="muted">${fmtDate(c.createdAt)}</td>
+        <td>
+          <div class="actions">
+            <button class="btn green" onclick="updateCustomer('${esc(c.id)}')">Salvar</button>
+            <button class="btn red" onclick="deleteCustomer('${esc(c.id)}')">Excluir</button>
+          </div>
+        </td>
+      </tr>
+    `).join('')
+    : '<tr><td colspan="5" class="muted">Nenhum cliente cadastrado.</td></tr>';
+}
+
+function renderPlaylists() {
+  $('playlistsBody').innerHTML = playlists.length
+    ? playlists.map(p => `
+      <tr>
+        <td><input class="table-input" id="pl-name-${esc(p.id)}" value="${esc(p.name)}"></td>
+        <td><input class="table-input" id="pl-url-${esc(p.id)}" value="${esc(p.playlistUrl)}"></td>
+        <td>
+          <select class="table-select" id="pl-type-${esc(p.id)}">
+            <option value="m3u" ${p.playlistType === 'm3u' ? 'selected' : ''}>M3U</option>
+            <option value="xtream" ${p.playlistType === 'xtream' ? 'selected' : ''}>Xtream</option>
+            <option value="stalker" ${p.playlistType === 'stalker' ? 'selected' : ''}>Stalker</option>
+          </select>
+        </td>
+        <td>
+          <select class="table-select" id="pl-active-${esc(p.id)}">
+            <option value="true" ${p.active ? 'selected' : ''}>Ativa</option>
+            <option value="false" ${!p.active ? 'selected' : ''}>Inativa</option>
+          </select>
+        </td>
+        <td>${esc(p.devicesCount || 0)}</td>
+        <td>
+          <div class="actions">
+            <button class="btn green" onclick="updatePlaylist('${esc(p.id)}')">Salvar</button>
+            <button class="btn red" onclick="deletePlaylist('${esc(p.id)}')">Excluir</button>
+          </div>
+        </td>
+      </tr>
+    `).join('')
+    : '<tr><td colspan="6" class="muted">Nenhuma lista cadastrada.</td></tr>';
+}
+
+function renderDevices() {
+  $('devicesBody').innerHTML = devices.length
+    ? devices.map(d => deviceRow(d, false)).join('')
+    : '<tr><td colspan="7" class="muted">Nenhum aparelho encontrado.</td></tr>';
+}
+
+function renderPending() {
+  const pending = devices.filter(d => d.status === 'pending');
+
+  $('pendingBody').innerHTML = pending.length
+    ? pending.map(d => pendingRow(d)).join('')
+    : '<tr><td colspan="5" class="muted">Nenhum aparelho pendente.</td></tr>';
+}
+
+function deviceRow(d) {
+  return `
+    <tr>
+      <td>
+        <span class="mono">${esc(d.deviceCode)}</span><br>
+        <span class="small muted">${esc(d.deviceUuid || '')}</span>
+      </td>
+      <td>
+        <select class="table-select" id="dev-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select>
+        <div class="small muted">${esc(d.customerName || 'Sem cliente')}</div>
+      </td>
+      <td>
+        <select class="table-select" id="dev-status-${esc(d.id)}">${statusOptions(d.status)}</select>
+        <div style="margin-top:7px">${badge(d.status)}</div>
+      </td>
+      <td>
+        <select class="table-select" id="dev-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select>
+        <div class="small muted">${esc(d.playlistName || 'Sem lista')}</div>
+      </td>
+      <td>
+        <input class="table-input" id="dev-exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}">
+      </td>
+      <td class="muted">${fmtDate(d.lastSeenAt)}</td>
+      <td>
+        <div class="actions">
+          <button class="btn green" onclick="saveDevice('${esc(d.id)}')">Salvar</button>
+          <button class="btn orange" onclick="renewDevice('${esc(d.id)}')">Renovar 30d</button>
+          <button class="btn red" onclick="blockDevice('${esc(d.id)}')">Bloquear</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function pendingRow(d) {
+  return `
+    <tr>
+      <td>
+        <span class="mono">${esc(d.deviceCode)}</span><br>
+        <span class="small muted">${esc(d.deviceUuid || '')}</span>
+      </td>
+      <td><select class="table-select" id="pend-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select></td>
+      <td><select class="table-select" id="pend-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></td>
+      <td><input class="table-input" id="pend-exp-${esc(d.id)}" type="date" value="${thirtyDaysDate()}"></td>
+      <td>
+        <button class="btn primary" onclick="activatePending('${esc(d.id)}')">Liberar aparelho</button>
+      </td>
+    </tr>
+  `;
+}
+
+async function createCustomer() {
+  try {
+    await api('createCustomer', {
+      name: $('newCustomerName').value.trim(),
+      whatsapp: $('newCustomerWhatsapp').value.trim()
+    });
+
+    $('newCustomerName').value = '';
+    $('newCustomerWhatsapp').value = '';
+
+    await loadAll();
+    show('Cliente cadastrado.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function updateCustomer(id) {
+  try {
+    await api('updateCustomer', {
+      id,
+      name: $('cust-name-' + id).value.trim(),
+      whatsapp: $('cust-whats-' + id).value.trim()
+    });
+
+    await loadAll();
+    show('Cliente atualizado.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function deleteCustomer(id) {
+  if (!confirm('Excluir este cliente? Os aparelhos não serão apagados, apenas ficarão sem cliente.')) return;
+
+  try {
+    await api('deleteCustomer', { id });
+    await loadAll();
+    show('Cliente excluído.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function createPlaylist() {
+  try {
+    await api('createPlaylist', {
+      name: $('newPlaylistName').value.trim(),
+      playlistUrl: $('newPlaylistUrl').value.trim(),
+      playlistType: $('newPlaylistType').value,
+      active: true
+    });
+
+    $('newPlaylistName').value = '';
+    $('newPlaylistUrl').value = '';
+    $('newPlaylistType').value = 'm3u';
+
+    await loadAll();
+    show('Lista salva na biblioteca.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function updatePlaylist(id) {
+  try {
+    await api('updatePlaylist', {
+      id,
+      name: $('pl-name-' + id).value.trim(),
+      playlistUrl: $('pl-url-' + id).value.trim(),
+      playlistType: $('pl-type-' + id).value,
+      active: $('pl-active-' + id).value === 'true'
+    });
+
+    await loadAll();
+    show('Lista atualizada.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function deletePlaylist(id) {
+  if (!confirm('Excluir esta lista? Aparelhos que usam essa lista ficarão sem playlist.')) return;
+
+  try {
+    await api('deletePlaylist', { id });
+    await loadAll();
+    show('Lista excluída.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
 async function saveDevice(id) {
   try {
-    const expires = $('exp-' + id).value;
+    const exp = $('dev-exp-' + id).value;
+
     await api('updateDevice', {
       id,
-      clientName: $('name-' + id).value.trim(),
-      status: $('status-' + id).value,
-      playlistId: $('playlist-' + id).value || null,
-      expiresAt: expires ? new Date(expires + 'T23:59:59').toISOString() : null
+      customerId: $('dev-customer-' + id).value || null,
+      status: $('dev-status-' + id).value,
+      playlistId: $('dev-playlist-' + id).value || null,
+      expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : null
     });
+
     await loadAll();
+    show('Aparelho atualizado.');
   } catch (err) {
-    show(err.message);
+    show(err.message, true);
+  }
+}
+
+async function renewDevice(id) {
+  try {
+    const exp = new Date();
+    exp.setDate(exp.getDate() + 30);
+
+    await api('updateDevice', {
+      id,
+      status: 'active',
+      expiresAt: exp.toISOString()
+    });
+
+    await loadAll();
+    show('Aparelho renovado por 30 dias.');
+  } catch (err) {
+    show(err.message, true);
   }
 }
 
@@ -352,24 +955,29 @@ async function blockDevice(id) {
   try {
     await api('updateDevice', { id, status: 'blocked' });
     await loadAll();
+    show('Aparelho bloqueado.');
   } catch (err) {
-    show(err.message);
+    show(err.message, true);
   }
 }
 
-async function createPlaylist() {
+async function activatePending(id) {
   try {
-    await api('createPlaylist', {
-      name: $('plName').value.trim(),
-      playlistUrl: $('plUrl').value.trim(),
-      playlistType: $('plType').value,
-      active: true
+    const exp = $('pend-exp-' + id).value;
+
+    await api('updateDevice', {
+      id,
+      customerId: $('pend-customer-' + id).value || null,
+      playlistId: $('pend-playlist-' + id).value || null,
+      status: 'active',
+      expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : null
     });
-    $('plName').value = '';
-    $('plUrl').value = '';
+
     await loadAll();
+    show('Aparelho liberado.');
+    setTab('devices');
   } catch (err) {
-    show(err.message);
+    show(err.message, true);
   }
 }
 
