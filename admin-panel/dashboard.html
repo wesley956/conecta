@@ -504,6 +504,7 @@ body::before {
 .tab[data-tab="playlists"]::before { content: "▤"; }
 .tab[data-tab="devices"]::before { content: "▣"; }
 .tab[data-tab="pending"]::before { content: "⚡"; }
+.tab[data-tab="audit"]::before { content: "◷"; }
 
 .tab.active {
   color: #ffffff !important;
@@ -852,6 +853,7 @@ tbody tr:hover td {
       <button class="tab" data-tab="playlists" onclick="setTab('playlists')">Listas</button>
       <button class="tab" data-tab="devices" onclick="setTab('devices')">Aparelhos</button>
       <button class="tab" data-tab="pending" onclick="setTab('pending')">Pendentes</button>
+      <button class="tab" data-tab="audit" onclick="setTab('audit')">Histórico</button>
     </nav>
 
     <section id="section-dashboard" class="section active">
@@ -1044,6 +1046,43 @@ tbody tr:hover td {
     </section>
 
 
+
+    <section id="section-audit" class="section">
+      <div class="card">
+        <h2>Histórico do painel</h2>
+        <p class="sub">Registro das ações feitas no Cruz Stars Admin.</p>
+
+        <div class="filterbar">
+          <input id="auditSearch" class="wide" placeholder="Buscar por ação, descrição ou entidade..." oninput="renderAuditLogs()" />
+          <select id="auditActionFilter" onchange="renderAuditLogs()">
+            <option value="">Todas as ações</option>
+            <option value="customer">Clientes</option>
+            <option value="playlist">Listas</option>
+            <option value="device">Aparelhos</option>
+          </select>
+          <button class="btn" onclick="clearAuditFilters()">Limpar filtros</button>
+        </div>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Ação</th>
+                <th>Entidade</th>
+                <th>Descrição</th>
+                <th>Detalhes</th>
+              </tr>
+            </thead>
+            <tbody id="auditBody">
+              <tr><td colspan="5" class="muted">Carregando histórico...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
     <div id="detailsModal" class="modal" onclick="modalBackdropClose(event)">
       <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-head">
@@ -1068,6 +1107,7 @@ const KEY = 'cruz-stars-admin-token';
 let customers = [];
 let playlists = [];
 let devices = [];
+let auditLogs = [];
 
 const $ = id => document.getElementById(id);
 
@@ -1249,15 +1289,17 @@ async function loadAll() {
   }
 
   try {
-    const [customersRes, playlistsRes, devicesRes] = await Promise.all([
+    const [customersRes, playlistsRes, devicesRes, auditRes] = await Promise.all([
       api('listCustomers'),
       api('listPlaylists'),
-      api('listDevices')
+      api('listDevices'),
+      api('listAuditLogs', { limit: 200 }).catch(() => ({ logs: [] }))
     ]);
 
     customers = customersRes.customers || [];
     playlists = playlistsRes.playlists || [];
     devices = devicesRes.devices || [];
+    auditLogs = auditRes.logs || [];
 
     renderAll();
     show('Painel atualizado.');
@@ -1274,6 +1316,7 @@ function renderAll() {
   renderPlaylists();
   renderDevices();
   renderPending();
+  renderAuditLogs();
 }
 
 function renderStats() {
@@ -1952,6 +1995,89 @@ async function deleteDevice(id) {
   } catch (err) {
     show(err.message || 'Erro ao excluir aparelho.', true);
   }
+}
+
+
+function actionLabel(action) {
+  const map = {
+    'customer.created': 'Cliente criado',
+    'customer.updated': 'Cliente editado',
+    'customer.deleted': 'Cliente excluído',
+    'playlist.created': 'Lista criada',
+    'playlist.updated': 'Lista editada',
+    'playlist.deleted': 'Lista excluída',
+    'device.updated': 'Aparelho editado',
+    'device.deleted': 'Aparelho excluído',
+  };
+
+  return map[action] || action || 'Ação';
+}
+
+function entityLabel(value) {
+  const map = {
+    customer: 'Cliente',
+    playlist: 'Lista',
+    device: 'Aparelho',
+  };
+
+  return map[value] || value || '—';
+}
+
+function metadataPreview(metadata) {
+  if (!metadata || typeof metadata !== 'object') return '—';
+
+  const text = JSON.stringify(metadata);
+
+  if (text === '{}' || text === 'null') return '—';
+
+  return text.length > 150 ? text.slice(0, 150) + '...' : text;
+}
+
+function filteredAuditLogs() {
+  const term = normalize($('auditSearch')?.value || '');
+  const group = $('auditActionFilter')?.value || '';
+
+  return auditLogs.filter(log => {
+    const action = String(log.action || '');
+    const matchGroup = !group || action.startsWith(group + '.');
+
+    const text = normalize([
+      log.action,
+      log.description,
+      log.entityType,
+      log.entityId,
+      JSON.stringify(log.metadata || {})
+    ].join(' '));
+
+    const matchTerm = !term || text.includes(term);
+
+    return matchGroup && matchTerm;
+  });
+}
+
+function renderAuditLogs() {
+  const body = $('auditBody');
+  if (!body) return;
+
+  const list = filteredAuditLogs();
+
+  body.innerHTML = list.length
+    ? list.map(log => `
+      <tr>
+        <td class="muted">${fmtDate(log.createdAt)}</td>
+        <td><span class="badge active">${esc(actionLabel(log.action))}</span></td>
+        <td>${esc(entityLabel(log.entityType))}<br><span class="small muted mono">${esc(log.entityId || '')}</span></td>
+        <td>${esc(log.description || '—')}</td>
+        <td><span class="small mono">${esc(metadataPreview(log.metadata))}</span></td>
+      </tr>
+    `).join('')
+    : '<tr><td colspan="5" class="muted">Nenhum registro encontrado.</td></tr>';
+}
+
+function clearAuditFilters() {
+  $('auditSearch').value = '';
+  $('auditActionFilter').value = '';
+  renderAuditLogs();
 }
 
 function logout() {

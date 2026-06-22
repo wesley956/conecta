@@ -1,6 +1,8 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
+const ADMIN_PANEL_AUDIT_BUILD = '2026-06-22T03:42:21.651747Z';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
@@ -107,9 +109,8 @@ async function writeAudit(
       description: payload.description ?? null,
       metadata: payload.metadata ?? {},
     });
-
   if (error) {
-    console.error('panel_audit_log_error', error.message);
+    throw new Error(`Falha ao registrar auditoria: ${error.message}`);
   }
 }
 
@@ -159,6 +160,18 @@ serve(async (req) => {
           createdAt: log.created_at,
         })),
       });
+    }
+
+    if (action === 'auditPing') {
+      await writeAudit(supabase, {
+        action: 'audit.ping',
+        entityType: 'system',
+        entityId: null,
+        description: 'Teste manual de auditoria',
+        metadata: { source: 'manual-test' },
+      });
+
+      return json({ ok: true });
     }
 
     if (action === 'listCustomers') {
@@ -213,6 +226,14 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'customer.created',
+        entityType: 'customer',
+        entityId: data?.id ?? null,
+        description: `Cliente criado: ${name}`,
+        metadata: { name, whatsapp },
+      });
+
       return json({ ok: true, id: data?.id });
     }
 
@@ -236,6 +257,14 @@ serve(async (req) => {
         .eq('id', id);
 
       if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'customer.updated',
+        entityType: 'customer',
+        entityId: id,
+        description: 'Cliente atualizado',
+        metadata: { updates },
+      });
 
       return json({ ok: true });
     }
@@ -379,6 +408,14 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'device.updated',
+        entityType: 'device',
+        entityId: id,
+        description: 'Aparelho atualizado',
+        metadata: { updates },
+      });
+
       return json({ ok: true });
     }
 
@@ -421,6 +458,14 @@ serve(async (req) => {
         .single();
 
       if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'playlist.created',
+        entityType: 'playlist',
+        entityId: data?.id ?? null,
+        description: `Lista criada: ${name}`,
+        metadata: { name, playlistUrl, playlistType },
+      });
 
       return json({ ok: true, id: data?.id });
     }
