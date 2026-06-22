@@ -8,7 +8,7 @@ import {
   fetchXtreamSeriesEpisodes,
 } from '@/utils/xtreamSeries';
 
-const SERIES_RENDER_BATCH_SIZE = 60;
+const SERIES_RENDER_BATCH_SIZE = 48;
 
 interface CategoryOption {
   id: string;
@@ -24,6 +24,22 @@ function sortByName(a: CategoryOption, b: CategoryOption) {
   return a.name.localeCompare(b.name, 'pt-BR');
 }
 
+function normalizeSeriesSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function sortSeriesForDisplay(a: XtreamSeries, b: XtreamSeries) {
+  const categoryCompare = normalizeSeriesSearch(a.category || '').localeCompare(normalizeSeriesSearch(b.category || ''), 'pt-BR');
+  if (categoryCompare !== 0) return categoryCompare;
+
+  return normalizeSeriesSearch(a.name || '').localeCompare(normalizeSeriesSearch(b.name || ''), 'pt-BR');
+}
+
 export function SeriesScreen() {
   const {
     series,
@@ -34,6 +50,7 @@ export function SeriesScreen() {
   } = useAppStore();
 
   const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:series:selectedCategory') ?? 'all');
+  const [searchTerm, setSearchTerm] = useState(() => window.sessionStorage.getItem('roneca:series:searchTerm') ?? '');
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:series:visibleCount')) || SERIES_RENDER_BATCH_SIZE);
   const [remoteSeries, setRemoteSeries] = useState<XtreamSeries[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
@@ -92,7 +109,7 @@ export function SeriesScreen() {
       map.set(item.id, item);
     }
 
-    return [...map.values()];
+    return [...map.values()].sort(sortSeriesForDisplay);
   }, [series, remoteSeries]);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
@@ -118,21 +135,36 @@ export function SeriesScreen() {
   }, [allSeries]);
 
   const filteredSeries = useMemo(() => {
-    if (selectedCategory === 'all') return allSeries;
-    if (selectedCategory === 'favorites') return allSeries.filter(item => item.isFavorite);
-    if (selectedCategory === 'continue') return allSeries.filter(item => (item.progress ?? 0) > 0);
+    const query = normalizeSeriesSearch(searchTerm);
 
-    return allSeries.filter(item => item.category === selectedCategory);
-  }, [allSeries, selectedCategory]);
+    const byCategory = (() => {
+      if (selectedCategory === 'all') return allSeries;
+      if (selectedCategory === 'favorites') return allSeries.filter(item => item.isFavorite);
+      if (selectedCategory === 'continue') return allSeries.filter(item => (item.progress ?? 0) > 0);
+
+      return allSeries.filter(item => item.category === selectedCategory);
+    })();
+
+    if (!query) return byCategory;
+
+    return byCategory.filter(item => {
+      const haystack = normalizeSeriesSearch(`${item.name} ${item.category} ${item.synopsis ?? ''}`);
+      return haystack.includes(query);
+    });
+  }, [allSeries, selectedCategory, searchTerm]);
 
   useEffect(() => {
     const saved = Number(window.sessionStorage.getItem('roneca:series:visibleCount'));
     setVisibleCount(Number.isFinite(saved) && saved > SERIES_RENDER_BATCH_SIZE ? saved : SERIES_RENDER_BATCH_SIZE);
-  }, [selectedCategory, allSeries.length]);
+  }, [selectedCategory, allSeries.length, searchTerm]);
 
   useEffect(() => {
     window.sessionStorage.setItem('roneca:series:selectedCategory', selectedCategory);
   }, [selectedCategory]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem('roneca:series:searchTerm', searchTerm);
+  }, [searchTerm]);
 
   useEffect(() => {
     window.sessionStorage.setItem('roneca:series:visibleCount', String(visibleCount));
@@ -277,18 +309,30 @@ export function SeriesScreen() {
               <h1 className="clean-tv-title text-4xl">{selectedLabel}</h1>
             </div>
 
-            <button
-              onClick={() => setScreen('search')}
-              className="text-5xl text-white/80 transition-colors hover:text-white"
-            >
-              ⌕
-            </button>
+            <div className="flex min-w-[320px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3">
+              <span className="text-2xl text-white/35">⌕</span>
+              <input
+                value={searchTerm}
+                onChange={event => setSearchTerm(event.target.value)}
+                placeholder="Buscar série"
+                className="w-full bg-transparent text-xl font-light text-white outline-none placeholder:text-white/30"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="text-xl text-white/45 hover:text-white"
+                  aria-label="Limpar busca"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </header>
 
           <div className="mb-8 flex items-center justify-between gap-8 pr-8">
             <div>
               <p className="text-2xl font-light text-white/72">
-                {isLoadingCatalog ? 'Carregando séries...' : filteredSeries.length === 0 ? 'Nenhum item' : 'Escolha uma série'}
+                {isLoadingCatalog ? 'Carregando séries...' : filteredSeries.length === 0 ? 'Nenhum item' : 'Escolha uma série ou use a busca'}
               </p>
 
               {seriesError && (
@@ -313,7 +357,7 @@ export function SeriesScreen() {
             <div className="mt-24 text-center text-white/45">
               <p className="text-5xl">{isLoadingCatalog ? '⏳' : '🎥'}</p>
               <p className="mt-5 text-3xl font-light">
-                {isLoadingCatalog ? 'Buscando catálogo de séries' : 'Nenhuma série nesta categoria'}
+                {isLoadingCatalog ? 'Buscando catálogo de séries' : 'Nenhuma série encontrada'}
               </p>
             </div>
           ) : (
