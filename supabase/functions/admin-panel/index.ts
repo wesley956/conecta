@@ -1,6 +1,8 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
+const ADMIN_PANEL_AUDIT_BUILD = '2026-06-22T03:42:21.651747Z';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
@@ -55,6 +57,12 @@ function textOrNull(value: unknown) {
   return text || null;
 }
 
+function requiredText(value: unknown, label: string) {
+  const text = textOrNull(value);
+  if (!text) throw new Error(`${label} é obrigatório.`);
+  return text;
+}
+
 function normalizeStatus(value: unknown) {
   const status = String(value ?? '').trim();
 
@@ -73,6 +81,37 @@ function normalizePlaylistType(value: unknown) {
   }
 
   return 'm3u';
+}
+
+function normalizeWhatsapp(value: unknown) {
+  return String(value ?? '')
+    .replace(/[^\d+]/g, '')
+    .trim();
+}
+
+
+async function writeAudit(
+  supabase: any,
+  payload: {
+    action: string;
+    entityType?: string | null;
+    entityId?: string | null;
+    description?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  const { error } = await supabase
+    .from('panel_audit_logs')
+    .insert({
+      action: payload.action,
+      entity_type: payload.entityType ?? null,
+      entity_id: payload.entityId ?? null,
+      description: payload.description ?? null,
+      metadata: payload.metadata ?? {},
+    });
+  if (error) {
+    throw new Error(`Falha ao registrar auditoria: ${error.message}`);
+  }
 }
 
 serve(async (req) => {
@@ -95,6 +134,167 @@ serve(async (req) => {
     const body = await readBody(req);
     const action = String(body.action || url.searchParams.get('action') || '').trim();
 
+
+    if (action === 'listAuditLogs') {
+      const rawLimit = Number(body.limit ?? 100);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.max(1, Math.min(200, Math.floor(rawLimit)))
+        : 100;
+
+      const { data, error } = await supabase
+        .from('panel_audit_logs')
+        .select('id, action, entity_type, entity_id, description, metadata, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) return json({ error: error.message }, 500);
+
+      return json({
+        logs: (data ?? []).map((log: any) => ({
+          id: log.id,
+          action: log.action,
+          entityType: log.entity_type,
+          entityId: log.entity_id,
+          description: log.description,
+          metadata: log.metadata ?? {},
+          createdAt: log.created_at,
+        })),
+      });
+    }
+
+    if (action === 'auditPing') {
+      await writeAudit(supabase, {
+        action: 'audit.ping',
+        entityType: 'system',
+        entityId: null,
+        description: 'Teste manual de auditoria',
+        metadata: { source: 'manual-test' },
+      });
+
+      return json({ ok: true });
+    }
+
+    if (action === 'listCustomers') {
+      const { data: customers, error } = await supabase
+        .from('panel_customers')
+        .select('id, name, whatsapp, created_at, updated_at')
+        .order('created_at', { ascending: false });
+
+      if (error) return json({ error: error.message }, 500);
+
+      const { data: devices, error: devicesError } = await supabase
+        .from('panel_devices')
+        .select('id, customer_id');
+
+      if (devicesError) return json({ error: devicesError.message }, 500);
+
+      const counts = new Map<string, number>();
+      for (const device of devices ?? []) {
+        if (!device.customer_id) continue;
+        counts.set(device.customer_id, (counts.get(device.customer_id) ?? 0) + 1);
+      }
+
+      return json({
+        customers: (customers ?? []).map((customer: any) => ({
+          id: customer.id,
+          name: customer.name,
+          whatsapp: customer.whatsapp,
+          createdAt: customer.created_at,
+          updatedAt: customer.updated_at,
+          devicesCount: counts.get(customer.id) ?? 0,
+        })),
+      });
+    }
+
+    if (action === 'createCustomer') {
+      const name = requiredText(body.name, 'Nome do cliente');
+      const whatsapp = normalizeWhatsapp(body.whatsapp);
+
+      if (!whatsapp) {
+        return json({ error: 'WhatsApp é obrigatório.' }, 400);
+      }
+
+      const { data, error } = await supabase
+        .from('panel_customers')
+        .insert({
+          name,
+          whatsapp,
+          updated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'customer.created',
+        entityType: 'customer',
+        entityId: data?.id ?? null,
+        description: `Cliente criado: ${name}`,
+        metadata: { name, whatsapp },
+      });
+
+      return json({ ok: true, id: data?.id });
+    }
+
+    if (action === 'updateCustomer') {
+      const id = requiredText(body.id, 'ID do cliente');
+
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if ('name' in body) updates.name = requiredText(body.name, 'Nome do cliente');
+      if ('whatsapp' in body) {
+        const whatsapp = normalizeWhatsapp(body.whatsapp);
+        if (!whatsapp) return json({ error: 'WhatsApp é obrigatório.' }, 400);
+        updates.whatsapp = whatsapp;
+      }
+
+      const { error } = await supabase
+        .from('panel_customers')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'customer.updated',
+        entityType: 'customer',
+        entityId: id,
+        description: 'Cliente atualizado',
+        metadata: { updates },
+      });
+
+      return json({ ok: true });
+    }
+
+    if (action === 'deleteCustomer') {
+      const id = requiredText(body.id, 'ID do cliente');
+
+      await supabase
+        .from('panel_devices')
+        .update({ customer_id: null, updated_at: new Date().toISOString() })
+        .eq('customer_id', id);
+
+      const { error } = await supabase
+        .from('panel_customers')
+        .delete()
+        .eq('id', id);
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'customer.deleted',
+        entityType: 'customer',
+        entityId: id,
+        description: 'Cliente excluído',
+        metadata: {},
+      });
+
+      return json({ ok: true });
+    }
+
     if (action === 'listDevices') {
       const { data, error } = await supabase
         .from('panel_devices')
@@ -103,6 +303,7 @@ serve(async (req) => {
           device_code,
           device_uuid,
           client_name,
+          customer_id,
           status,
           playlist_id,
           subscription_expires_at,
@@ -112,6 +313,11 @@ serve(async (req) => {
           device_type,
           app_version,
           last_ip,
+          customer:panel_customers (
+            id,
+            name,
+            whatsapp
+          ),
           playlist:panel_playlists (
             id,
             name,
@@ -131,6 +337,9 @@ serve(async (req) => {
           deviceCode: device.device_code,
           deviceUuid: device.device_uuid,
           clientName: device.client_name,
+          customerId: device.customer_id,
+          customerName: device.customer?.name || null,
+          customerWhatsapp: device.customer?.whatsapp || null,
           status: device.status,
           playlistId: device.playlist_id,
           expiresAt: device.subscription_expires_at,
@@ -146,15 +355,27 @@ serve(async (req) => {
     }
 
     if (action === 'listPlaylists') {
-      const { data, error } = await supabase
+      const { data: playlists, error } = await supabase
         .from('panel_playlists')
         .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, created_at')
         .order('created_at', { ascending: false });
 
       if (error) return json({ error: error.message }, 500);
 
+      const { data: devices, error: devicesError } = await supabase
+        .from('panel_devices')
+        .select('id, playlist_id');
+
+      if (devicesError) return json({ error: devicesError.message }, 500);
+
+      const counts = new Map<string, number>();
+      for (const device of devices ?? []) {
+        if (!device.playlist_id) continue;
+        counts.set(device.playlist_id, (counts.get(device.playlist_id) ?? 0) + 1);
+      }
+
       return json({
-        playlists: (data ?? []).map((playlist: any) => ({
+        playlists: (playlists ?? []).map((playlist: any) => ({
           id: playlist.id,
           name: playlist.name,
           playlistUrl: playlist.playlist_url,
@@ -162,13 +383,13 @@ serve(async (req) => {
           active: playlist.active,
           playlistUpdatedAt: playlist.playlist_updated_at,
           createdAt: playlist.created_at,
+          devicesCount: counts.get(playlist.id) ?? 0,
         })),
       });
     }
 
     if (action === 'updateDevice') {
-      const id = textOrNull(body.id);
-      if (!id) return json({ error: 'ID do aparelho é obrigatório.' }, 400);
+      const id = requiredText(body.id, 'ID do aparelho');
 
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -176,6 +397,7 @@ serve(async (req) => {
 
       if ('status' in body) updates.status = normalizeStatus(body.status);
       if ('clientName' in body) updates.client_name = textOrNull(body.clientName);
+      if ('customerId' in body) updates.customer_id = textOrNull(body.customerId);
       if ('playlistId' in body) updates.playlist_id = textOrNull(body.playlistId);
       if ('expiresAt' in body) updates.subscription_expires_at = textOrNull(body.expiresAt);
 
@@ -186,17 +408,42 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'device.updated',
+        entityType: 'device',
+        entityId: id,
+        description: 'Aparelho atualizado',
+        metadata: { updates },
+      });
+
+      return json({ ok: true });
+    }
+
+    if (action === 'deleteDevice') {
+      const id = requiredText(body.id, 'ID do aparelho');
+
+      const { error } = await supabase
+        .from('panel_devices')
+        .delete()
+        .eq('id', id);
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'device.deleted',
+        entityType: 'device',
+        entityId: id,
+        description: 'Aparelho excluído',
+        metadata: {},
+      });
+
       return json({ ok: true });
     }
 
     if (action === 'createPlaylist') {
-      const name = textOrNull(body.name);
-      const playlistUrl = textOrNull(body.playlistUrl);
+      const name = requiredText(body.name, 'Nome da lista');
+      const playlistUrl = requiredText(body.playlistUrl, 'URL da lista');
       const playlistType = normalizePlaylistType(body.playlistType);
-
-      if (!name || !playlistUrl) {
-        return json({ error: 'Nome e URL da lista são obrigatórios.' }, 400);
-      }
 
       const { data, error } = await supabase
         .from('panel_playlists')
@@ -212,19 +459,26 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'playlist.created',
+        entityType: 'playlist',
+        entityId: data?.id ?? null,
+        description: `Lista criada: ${name}`,
+        metadata: { name, playlistUrl, playlistType },
+      });
+
       return json({ ok: true, id: data?.id });
     }
 
     if (action === 'updatePlaylist') {
-      const id = textOrNull(body.id);
-      if (!id) return json({ error: 'ID da lista é obrigatório.' }, 400);
+      const id = requiredText(body.id, 'ID da lista');
 
       const updates: Record<string, unknown> = {
         playlist_updated_at: new Date().toISOString(),
       };
 
-      if ('name' in body) updates.name = textOrNull(body.name);
-      if ('playlistUrl' in body) updates.playlist_url = textOrNull(body.playlistUrl);
+      if ('name' in body) updates.name = requiredText(body.name, 'Nome da lista');
+      if ('playlistUrl' in body) updates.playlist_url = requiredText(body.playlistUrl, 'URL da lista');
       if ('playlistType' in body) updates.playlist_type = normalizePlaylistType(body.playlistType);
       if ('active' in body) updates.active = body.active !== false;
 
@@ -235,12 +489,24 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      await writeAudit(supabase, {
+        action: 'playlist.updated',
+        entityType: 'playlist',
+        entityId: id,
+        description: 'Lista atualizada',
+        metadata: { updates },
+      });
+
       return json({ ok: true });
     }
 
     if (action === 'deletePlaylist') {
-      const id = textOrNull(body.id);
-      if (!id) return json({ error: 'ID da lista é obrigatório.' }, 400);
+      const id = requiredText(body.id, 'ID da lista');
+
+      await supabase
+        .from('panel_devices')
+        .update({ playlist_id: null, updated_at: new Date().toISOString() })
+        .eq('playlist_id', id);
 
       const { error } = await supabase
         .from('panel_playlists')
@@ -248,6 +514,14 @@ serve(async (req) => {
         .eq('id', id);
 
       if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'playlist.deleted',
+        entityType: 'playlist',
+        entityId: id,
+        description: 'Lista excluída',
+        metadata: {},
+      });
 
       return json({ ok: true });
     }
