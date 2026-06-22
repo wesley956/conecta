@@ -1,25 +1,30 @@
 import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
+import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 
-// ===== PLAYLISTS SCREEN =====
+// ===== SETTINGS SCREEN =====
 export function SettingsScreen() {
   const {
     settings,
     updateSettings,
     setScreen,
     deviceCode,
+    setDeviceCode,
+    setDeviceActivated,
+    setSubscription,
+    setActiveNotice,
     expiresAt,
     daysRemaining,
     uiMode,
     setUIMode,
   } = useAppStore();
 
-  const [activeSection, setActiveSection] = useState<'player' | 'list' | 'language' | 'appearance' | 'device' | 'about'>('player');
+  const [activeSection, setActiveSection] = useState<'player' | 'access' | 'language' | 'appearance' | 'device' | 'about'>('access');
 
   const sections = [
+    { id: 'access' as const, icon: '✓', label: 'Acesso' },
     { id: 'player' as const, icon: '▷', label: 'Player' },
-    { id: 'list' as const, icon: '▤', label: 'Lista' },
     { id: 'language' as const, icon: '◎', label: 'Idioma' },
     { id: 'appearance' as const, icon: '◇', label: 'Aparência' },
     { id: 'device' as const, icon: '▣', label: 'Dispositivo' },
@@ -27,6 +32,58 @@ export function SettingsScreen() {
   ];
 
   const title = sections.find(section => section.id === activeSection)?.label ?? 'Configurações';
+  const [accessStatus, setAccessStatus] = useState('Não verificado');
+  const [refreshingAccess, setRefreshingAccess] = useState(false);
+
+  const refreshAccess = async () => {
+    setRefreshingAccess(true);
+
+    try {
+      if (!isDevicePanelEnabled()) {
+        setAccessStatus('Painel não configurado');
+        setActiveNotice('⚠️ Painel de ativação não configurado neste build.');
+        return;
+      }
+
+      const activation = await activateDeviceWithPanel();
+      const activeDeviceCode = activation.deviceCode || deviceCode;
+
+      if (activation.deviceCode && activation.deviceCode !== deviceCode) {
+        setDeviceCode(activation.deviceCode);
+      }
+
+      const config = await fetchDevicePanelConfig(activeDeviceCode);
+
+      if (!config.active) {
+        setDeviceActivated(false);
+        setAccessStatus(config.status === 'blocked' ? 'Bloqueado' : config.status === 'expired' ? 'Vencido' : 'Aguardando liberação');
+        setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
+
+        if (config.status === 'blocked') setScreen('blocked');
+        else if (config.status === 'expired') setScreen('expired');
+
+        return;
+      }
+
+      setDeviceActivated(true);
+      setAccessStatus(config.playlistUrl ? 'Ativo com conteúdo vinculado' : 'Ativo sem conteúdo vinculado');
+
+      if (config.expiresAt) {
+        const expires = new Date(config.expiresAt);
+        const now = new Date();
+        const days = Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / 86400000));
+        setSubscription(days > 0, config.expiresAt, days);
+      }
+
+      setActiveNotice(config.playlistUrl ? '✅ Acesso atualizado pelo painel.' : '✅ Aparelho ativo, mas ainda sem conteúdo vinculado.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
+      setAccessStatus('Erro ao verificar');
+      setActiveNotice(`⚠️ ${message}`);
+    } finally {
+      setRefreshingAccess(false);
+    }
+  };
 
   return (
     <AppLayout>
@@ -61,6 +118,24 @@ export function SettingsScreen() {
 
         <main className="min-w-0 flex-1 overflow-y-auto pb-16 pr-6">
           <h2 className="clean-tv-title mb-8 text-4xl">{title}</h2>
+
+          {activeSection === 'access' && (
+            <div className="max-w-5xl divide-y divide-white/10">
+              <SettingRow label="Status do acesso" value={accessStatus} />
+              <SettingRow label="Código do aparelho" value={deviceCode || 'Gerando...'} />
+              <SettingRow label="Vencimento" value={expiresAt || 'Não informado'} />
+              <SettingRow label="Dias restantes" value={daysRemaining > 0 ? `${daysRemaining}` : 'Verificar'} />
+              <SettingRow label="Atualizar com o painel" value="Verificar agora">
+                <button
+                  onClick={refreshAccess}
+                  disabled={refreshingAccess}
+                  className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white disabled:opacity-45"
+                >
+                  {refreshingAccess ? 'Verificando...' : 'Atualizar acesso'}
+                </button>
+              </SettingRow>
+            </div>
+          )}
 
           {activeSection === 'player' && (
             <div className="max-w-5xl divide-y divide-white/10">
@@ -109,23 +184,6 @@ export function SettingsScreen() {
                   {settings.autoReconnect ? 'Ligado' : 'Desligado'}
                 </button>
               </SettingRow>
-            </div>
-          )}
-
-          {activeSection === 'list' && (
-            <div className="max-w-5xl divide-y divide-white/10">
-              <SettingRow label="Acesso do aparelho" value="Abrir">
-                <button
-                  onClick={() => setScreen('settings')}
-                  className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white"
-                >
-                  Atualizar acesso
-                </button>
-              </SettingRow>
-
-              <SettingRow label="Importação M3U" value="Ativa" />
-              <SettingRow label="Fontes autorizadas" value="Obrigatório" />
-              <SettingRow label="HTTP em HTTPS" value="Bloqueado pelo navegador" />
             </div>
           )}
 
@@ -184,18 +242,18 @@ export function SettingsScreen() {
           {activeSection === 'about' && (
             <div className="max-w-4xl">
               <p className="mb-8 text-2xl font-light leading-relaxed text-white/62">
-                RonecaPlayTV é um player legal para fontes autorizadas.
+                Cruz Stars é um player autorizado para conteúdo vinculado pelo painel.
               </p>
 
               <div className="divide-y divide-white/10">
-                <SettingRow label="Aplicativo" value="RonecaPlayTV" />
+                <SettingRow label="Aplicativo" value="Cruz Stars" />
                 <SettingRow label="Tipo" value="Player IPTV/P2P" />
                 <SettingRow label="Conteúdo incluso" value="Não fornece conteúdo" />
-                <SettingRow label="Uso correto" value="Somente listas autorizadas" />
+                <SettingRow label="Uso correto" value="Somente conteúdo autorizado pelo painel" />
               </div>
 
               <p className="mt-10 text-lg font-light leading-relaxed text-white/42">
-                O app não fornece canais, filmes, séries, listas piratas, desbloqueio de conteúdo pago, DRM bypass ou qualquer conteúdo sem autorização.
+                O app não fornece canais, filmes, séries ou conteúdo próprio. O acesso depende de liberação e vínculo no painel administrativo.
               </p>
             </div>
           )}
