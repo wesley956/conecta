@@ -25,10 +25,10 @@ export function FavoritesScreen() {
         <BottomNav />
 
         <main className="min-w-0 flex-1 overflow-y-auto pr-8">
-          <h1 className="clean-tv-title mb-10 text-5xl">Playback</h1>
+          <h1 className="clean-tv-title mb-10 text-5xl">Favoritos</h1>
 
           <section className="mb-12">
-            <h2 className="clean-tv-title mb-5 text-3xl">Ao vivo</h2>
+            <h2 className="clean-tv-title mb-5 text-3xl">Canais favoritos</h2>
 
             {favoriteChannels.length === 0 ? (
               <CleanEmpty title="Sem canais favoritos" />
@@ -53,7 +53,7 @@ export function FavoritesScreen() {
           </section>
 
           <section className="mb-12">
-            <h2 className="clean-tv-title mb-5 text-3xl">Playback & VOD</h2>
+            <h2 className="clean-tv-title mb-5 text-3xl">Continuar assistindo</h2>
 
             {playbackMovies.length === 0 && playbackSeries.length === 0 ? (
               <CleanEmpty title="Nenhum vídeo em andamento" />
@@ -92,7 +92,7 @@ export function FavoritesScreen() {
           </section>
 
           <section>
-            <h2 className="clean-tv-title mb-5 text-3xl">Favoritos</h2>
+            <h2 className="clean-tv-title mb-5 text-3xl">Filmes e séries favoritas</h2>
 
             <div className="grid grid-cols-6 gap-x-10 gap-y-9">
               {favoriteMovies.map(movie => (

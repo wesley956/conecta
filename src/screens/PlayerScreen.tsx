@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { useAppStore } from '@/stores/appStore';
@@ -78,6 +78,7 @@ export function PlayerScreen() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const content = currentMovie || currentChannel;
   const isLive = Boolean(currentChannel && !currentMovie);
@@ -93,6 +94,25 @@ export function PlayerScreen() {
   const streamUrl = playbackCandidates[playbackUrlIndex] || '';
   const playbackUrl = useMemo(() => toMediaProxyUrl(streamUrl), [streamUrl]);
   const hasNextPlaybackUrl = playbackUrlIndex + 1 < playbackCandidates.length;
+
+  const recoverPlayback = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    setError(null);
+    setReady(false);
+
+    try {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    } catch {
+      // ignora falha do elemento de vídeo
+    }
+
+    setReloadNonce(value => value + 1);
+    setShowControls(true);
+  }, [streamUrl]);
 
   const quickChannels = useMemo(() => {
     return channels.filter(channel => channel.url?.trim()).slice(0, 36);
@@ -122,6 +142,28 @@ export function PlayerScreen() {
     let tsPlayer: any = null;
     const isHls = isHlsUrl(streamUrl);
     const isMpegTs = isMpegTsUrl(streamUrl);
+    let recoveryTimer: number | null = null;
+
+    const clearRecoveryTimer = () => {
+      if (recoveryTimer !== null) {
+        window.clearTimeout(recoveryTimer);
+        recoveryTimer = null;
+      }
+    };
+
+    const scheduleStallRecovery = () => {
+      if (!isLive) return;
+      clearRecoveryTimer();
+
+      recoveryTimer = window.setTimeout(() => {
+        recoverPlayback();
+      }, 8000);
+    };
+
+    video.addEventListener('waiting', scheduleStallRecovery);
+    video.addEventListener('stalled', scheduleStallRecovery);
+    video.addEventListener('playing', clearRecoveryTimer);
+    video.addEventListener('canplay', clearRecoveryTimer);
 
     const tryNextPlaybackUrl = (message: string) => {
       if (playbackUrlIndex + 1 < playbackCandidates.length) {
@@ -146,9 +188,12 @@ export function PlayerScreen() {
           url: playbackUrl,
         },
         {
-          enableWorker: false,
+          enableWorker: true,
           liveBufferLatencyChasing: true,
-          stashInitialSize: 384 * 1024,
+          enableStashBuffer: true,
+          lazyLoad: false,
+          liveBufferLatencyMaxLatency: 10,
+          stashInitialSize: isLive ? 1024 * 1024 : 512 * 1024,
         }
       );
 
@@ -171,6 +216,11 @@ export function PlayerScreen() {
       tsPlayer.on?.(mpegts.Events.ERROR, markError);
 
       return () => {
+        clearRecoveryTimer();
+        video.removeEventListener('waiting', scheduleStallRecovery);
+        video.removeEventListener('stalled', scheduleStallRecovery);
+        video.removeEventListener('playing', clearRecoveryTimer);
+        video.removeEventListener('canplay', clearRecoveryTimer);
         video.removeEventListener('loadedmetadata', markReady);
         video.removeEventListener('canplay', markReady);
         video.removeEventListener('error', markError);
@@ -181,8 +231,14 @@ export function PlayerScreen() {
     if (isHls && Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: isLive,
-        backBufferLength: 60,
+        lowLatencyMode: false,
+        backBufferLength: isLive ? 30 : 60,
+        maxBufferLength: isLive ? 30 : 60,
+        maxMaxBufferLength: isLive ? 60 : 120,
+        maxBufferHole: 0.5,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
+        fragLoadingMaxRetry: 6,
       });
 
       hls.loadSource(playbackUrl);
@@ -194,10 +250,20 @@ export function PlayerScreen() {
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          hls?.destroy();
-          tryNextPlaybackUrl('Não foi possível reproduzir esta fonte HLS.');
+        if (!data.fatal) return;
+
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls?.startLoad();
+          return;
         }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls?.recoverMediaError();
+          return;
+        }
+
+        hls?.destroy();
+        tryNextPlaybackUrl('Não foi possível reproduzir esta fonte HLS.');
       });
     } else {
       video.src = playbackUrl;
@@ -209,12 +275,17 @@ export function PlayerScreen() {
     }
 
     return () => {
+      clearRecoveryTimer();
+      video.removeEventListener('waiting', scheduleStallRecovery);
+      video.removeEventListener('stalled', scheduleStallRecovery);
+      video.removeEventListener('playing', clearRecoveryTimer);
+      video.removeEventListener('canplay', clearRecoveryTimer);
       hls?.destroy();
       tsPlayer?.destroy?.();
       video.onloadedmetadata = null;
       video.onerror = null;
     };
-  }, [streamUrl, playbackUrl, isLive, playbackUrlIndex, playbackCandidates]);
+  }, [streamUrl, playbackUrl, isLive, playbackUrlIndex, playbackCandidates, reloadNonce, recoverPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;

@@ -5,7 +5,6 @@ import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled }
 
 export function ActivationScreen() {
   const { deviceCode, setScreen, setDeviceActivated, setDeviceCode, setSubscription, setActiveNotice } = useAppStore();
-  const [requested, setRequested] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -82,17 +81,17 @@ export function ActivationScreen() {
                 R
               </div>
               <div>
-                <h1 className="text-4xl font-light text-white/82">RonecaPlayTV</h1>
+                <h1 className="text-4xl font-light text-white/82">Cruz Stars</h1>
                 <p className="text-lg font-light text-white/38">Player autorizado</p>
               </div>
             </div>
 
             <h2 className="max-w-3xl text-6xl font-light leading-tight text-white/82">
-              Ative este dispositivo com seu provedor.
+              Ative este aparelho pelo painel.
             </h2>
 
             <p className="mt-8 max-w-3xl text-2xl font-light leading-relaxed text-white/42">
-              Envie o código do aparelho para o suporte. Assim que for liberado, o app acessa apenas listas e conteúdos autorizados.
+              Envie este código para o suporte. Depois que o aparelho for liberado no painel, o app carregará somente o conteúdo autorizado para este dispositivo.
             </p>
           </section>
 
@@ -111,25 +110,16 @@ export function ActivationScreen() {
             </p>
 
             <div className="mt-10 space-y-4">
-              {!requested ? (
-                <button
-                  onClick={() => setRequested(true)}
-                  className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-white"
-                >
-                  Solicitar acesso
-                </button>
-              ) : (
-                <button
-                  onClick={retryActivation}
-                  disabled={loading}
-                  className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-white disabled:opacity-45"
-                >
-                  {loading ? 'Verificando...' : 'Tentar novamente'}
-                </button>
-              )}
+              <button
+                onClick={retryActivation}
+                disabled={loading}
+                className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-white disabled:opacity-45"
+              >
+                {loading ? 'Verificando acesso...' : 'Verificar liberação'}
+              </button>
 
               <a
-                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu RonecaPlayTV. Código: ${deviceCode}`)}`}
+                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu Cruz Stars. Código: ${deviceCode}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full rounded-md bg-white/[0.055] px-8 py-5 text-center text-2xl font-light text-white/72 hover:text-white"
@@ -137,16 +127,10 @@ export function ActivationScreen() {
                 Enviar pelo WhatsApp
               </a>
 
-              <button
-                onClick={() => setScreen('home')}
-                className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:text-white/70"
-              >
-                Entrar em demonstração
-              </button>
             </div>
 
             <p className="mt-10 text-center text-base font-light leading-relaxed text-white/28">
-              O RonecaPlayTV não fornece canais, filmes, séries ou listas.
+              O Cruz Stars não fornece conteúdo. O acesso depende da liberação do aparelho no painel.
             </p>
           </section>
         </main>

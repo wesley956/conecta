@@ -199,7 +199,6 @@ export function BottomNav() {
     { id: 'channels', icon: '▣', label: 'TV ao vivo', action: () => setScreen('channels'), active: ['channels'].includes(activeScreen) },
     { id: 'movies', icon: '▶', label: 'Filmes', action: () => setScreen('movies'), active: ['movies'].includes(activeScreen) },
     { id: 'series', icon: '▤', label: 'Séries', action: () => setScreen('series'), active: ['series'].includes(activeScreen) },
-    { id: 'playlists', icon: '☰', label: 'Listas', action: () => setScreen('playlists'), active: ['playlists'].includes(activeScreen) },
     { id: 'settings', icon: '⚙', label: 'Config', action: () => setScreen('settings'), active: ['settings', 'favorites', 'search'].includes(activeScreen) },
   ];
 

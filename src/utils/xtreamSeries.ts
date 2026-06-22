@@ -24,6 +24,55 @@ const REQUEST_HEADERS = {
   'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
 };
 
+const seriesCatalogCache = new Map<string, Series[]>();
+const seriesEpisodesCache = new Map<string, Season[]>();
+const SERIES_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+function cacheHash(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash) + value.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash).toString(36);
+}
+
+function readStorageCache<T>(key: string): T | null {
+  try {
+    if (typeof window === 'undefined') return null;
+
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as { savedAt?: number; data?: T };
+    const savedAt = Number(parsed.savedAt ?? 0);
+
+    if (!savedAt || Date.now() - savedAt > SERIES_CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStorageCache<T>(key: string, data: T) {
+  try {
+    if (typeof window === 'undefined') return;
+
+    window.sessionStorage.setItem(key, JSON.stringify({
+      savedAt: Date.now(),
+      data,
+    }));
+  } catch {
+    // cache é otimização; se falhar, ignora
+  }
+}
+
 function isNativeRuntime() {
   if (typeof window === 'undefined') return false;
 
@@ -156,12 +205,67 @@ function asText(value: unknown, fallback = '') {
   return text || fallback;
 }
 
+function normalizeLabel(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanSeriesCategory(value: string) {
+  const text = asText(value, 'Sem categoria')
+    .replace(/\b(FHD|HD|SD|4K|UHD|DUB|DUBLADO|LEG|LEGENDADO)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return text || 'Sem categoria';
+}
+
+function cloneSeasons(seasons: Season[]) {
+  return seasons.map(season => ({
+    ...season,
+    episodes: season.episodes.map(episode => ({ ...episode })),
+  }));
+}
+
+function cloneSeries(items: Series[]) {
+  return items.map(item => ({
+    ...item,
+    seasons: cloneSeasons(item.seasons),
+  }));
+}
+
+function sortSeriesList(items: Series[]) {
+  return [...items].sort((a, b) => {
+    const categoryCompare = normalizeLabel(a.category || '').localeCompare(normalizeLabel(b.category || ''), 'pt-BR');
+    if (categoryCompare !== 0) return categoryCompare;
+
+    return normalizeLabel(a.name || '').localeCompare(normalizeLabel(b.name || ''), 'pt-BR');
+  });
+}
+
 function parseNumber(value: unknown, fallback = 1) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Series[]> {
+  const cacheKey = playlistUrl.trim();
+
+  const cached = seriesCatalogCache.get(cacheKey);
+  if (cached) return cloneSeries(cached);
+
+  const storageKey = `roneca:xtream:series:catalog:${cacheHash(cacheKey)}`;
+  const stored = readStorageCache<Series[]>(storageKey);
+
+  if (stored) {
+    const cloned = cloneSeries(stored);
+    seriesCatalogCache.set(cacheKey, cloneSeries(cloned));
+    return cloned;
+  }
+
   const source = parseXtreamSource(playlistUrl);
 
   if (!source) {
@@ -175,29 +279,50 @@ export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Ser
 
   const categoryMap = buildCategoryMap(categories);
 
-  return (Array.isArray(seriesItems) ? seriesItems : [])
-    .filter(item => item.series_id)
-    .map((item, index) => {
-      const seriesId = item.series_id as string | number;
-      const name = asText(item.name || item.title, `Série ${seriesId}`);
-      const category = categoryMap.get(String(item.category_id ?? '')) || 'Séries';
+  const loaded = sortSeriesList(
+    (Array.isArray(seriesItems) ? seriesItems : [])
+      .filter(item => item.series_id)
+      .map((item, index) => {
+        const seriesId = item.series_id as string | number;
+        const name = asText(item.name || item.title, `Série ${seriesId}`);
+        const category = cleanSeriesCategory(categoryMap.get(String(item.category_id ?? '')) || 'Sem categoria');
 
-      return {
-        id: `xtream-sr-${seriesId}`,
-        name,
-        cover: asText(item.cover) || undefined,
-        category,
-        synopsis: asText(item.plot, 'Série importada da lista Xtream autorizada.'),
-        seasons: [],
-        isFavorite: false,
-        progress: 0,
-        xtreamSeriesId: seriesId,
-        xtreamIndex: index,
-      } as Series & { xtreamSeriesId: string | number; xtreamIndex: number };
-    });
+        return {
+          id: `xtream-sr-${seriesId}`,
+          name,
+          cover: asText(item.cover) || undefined,
+          category,
+          synopsis: asText(item.plot, 'Série autorizada pelo painel.'),
+          seasons: [],
+          isFavorite: false,
+          progress: 0,
+          xtreamSeriesId: seriesId,
+          xtreamIndex: index,
+        } as Series & { xtreamSeriesId: string | number; xtreamIndex: number };
+      })
+  );
+
+  seriesCatalogCache.set(cacheKey, cloneSeries(loaded));
+  writeStorageCache(storageKey, cloneSeries(loaded));
+
+  return cloneSeries(loaded);
 }
 
 export async function fetchXtreamSeriesEpisodes(playlistUrl: string, seriesId: string | number): Promise<Season[]> {
+  const cacheKey = `${playlistUrl.trim()}::${String(seriesId)}`;
+
+  const cached = seriesEpisodesCache.get(cacheKey);
+  if (cached) return cloneSeasons(cached);
+
+  const storageKey = `roneca:xtream:series:episodes:${cacheHash(cacheKey)}`;
+  const stored = readStorageCache<Season[]>(storageKey);
+
+  if (stored) {
+    const cloned = cloneSeasons(stored);
+    seriesEpisodesCache.set(cacheKey, cloneSeasons(cloned));
+    return cloned;
+  }
+
   const source = parseXtreamSource(playlistUrl);
 
   if (!source) {
@@ -243,5 +368,9 @@ export async function fetchXtreamSeriesEpisodes(playlistUrl: string, seriesId: s
     }
   }
 
-  return seasons.sort((a, b) => a.number - b.number);
+  const loaded = seasons.sort((a, b) => a.number - b.number);
+  seriesEpisodesCache.set(cacheKey, cloneSeasons(loaded));
+  writeStorageCache(storageKey, cloneSeasons(loaded));
+
+  return cloneSeasons(loaded);
 }

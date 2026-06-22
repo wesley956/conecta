@@ -14,7 +14,7 @@ import { MoviesScreen } from '@/screens/MoviesScreen';
 import { SeriesScreen } from '@/screens/SeriesScreen';
 import { PlayerScreen } from '@/screens/PlayerScreen';
 import { FavoritesScreen, SearchScreen } from '@/screens/FavoritesSearchScreen';
-import { PlaylistsScreen, SettingsScreen } from '@/screens/PlaylistsSettingsScreen';
+import { SettingsScreen } from '@/screens/PlaylistsSettingsScreen';
 import { ExpiredScreen, BlockedScreen, NoInternetScreen } from '@/screens/ErrorScreens';
 
 // Admin
@@ -34,7 +34,6 @@ function AppScreen({ screen }: { screen: AppState }) {
     case 'player': return <PlayerScreen />;
     case 'favorites': return <FavoritesScreen />;
     case 'search': return <SearchScreen />;
-    case 'playlists': return <PlaylistsScreen />;
     case 'settings': return <SettingsScreen />;
     default: return <HomeScreen />;
   }
@@ -300,7 +299,7 @@ export default function App() {
         case '3': setScreen('series'); break;
         case '4': setScreen('favorites'); break;
         case '5': setScreen('settings'); break;
-        case '6': setScreen('playlists'); break;
+        case '6': setScreen('settings'); break;
       }
     }
   }, []);

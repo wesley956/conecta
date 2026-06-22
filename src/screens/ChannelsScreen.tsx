@@ -6,7 +6,7 @@ import { fetchM3UContent } from '@/utils/fetchM3U';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
 import type { Channel } from '@/types';
 
-const CHANNEL_RENDER_BATCH_SIZE = 120;
+const CHANNEL_RENDER_BATCH_SIZE = 180;
 
 function humanizeGroupName(group: string) {
   return group
@@ -37,6 +37,7 @@ export function ChannelsScreen() {
     playlists,
     setScreen,
     setCurrentChannel,
+    toggleChannelFavorite,
     replaceM3UPlaylist,
   } = useAppStore();
 
@@ -115,13 +116,13 @@ export function ChannelsScreen() {
 
   const categoryOptions = useMemo(() => {
     const fixed = [
-      { id: 'all', name: 'Todos', icon: '▤' },
-      { id: 'favorites', name: 'Favoritos', icon: '★' },
-      { id: 'playback', name: 'Playback', icon: '◉' },
-      { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z' },
+      { id: 'all', name: 'Todos', icon: '▤', count: channels.length },
+      { id: 'favorites', name: 'Favoritos', icon: '★', count: channels.filter(channel => channel.isFavorite).length },
+      { id: 'playback', name: 'Playback', icon: '◉', count: channels.length },
+      { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z', count: channels.length },
     ];
 
-    const byId = new Map<string, { id: string; name: string; icon: string }>();
+    const byId = new Map<string, { id: string; name: string; icon: string; count: number }>();
 
     for (const category of fixed) {
       byId.set(category.id, category);
@@ -129,13 +130,18 @@ export function ChannelsScreen() {
 
     for (const channel of channels) {
       const id = channel.group || 'outros';
+      const current = byId.get(id);
 
-      if (byId.has(id)) continue;
+      if (current) {
+        byId.set(id, { ...current, count: current.count + 1 });
+        continue;
+      }
 
       byId.set(id, {
         id,
         name: getGroupName(channel),
         icon: '▤',
+        count: 1,
       });
     }
 
@@ -220,7 +226,7 @@ export function ChannelsScreen() {
             ⌂
           </button>
 
-          <div className="space-y-1">
+          <div className="max-h-[calc(100vh-112px)] space-y-1 overflow-y-auto pr-2">
             {categoryOptions.map(category => (
               <button
                 key={category.id}
@@ -230,7 +236,8 @@ export function ChannelsScreen() {
                 }`}
               >
                 <span className="w-8 text-2xl">{category.icon}</span>
-                <span className="truncate text-2xl font-light">{category.name}</span>
+                <span className="min-w-0 flex-1 truncate text-2xl font-light">{category.name}</span>
+                <span className="shrink-0 text-base text-white/35">{category.count}</span>
               </button>
             ))}
           </div>
@@ -260,13 +267,13 @@ export function ChannelsScreen() {
               <p className="text-5xl">▣</p>
               <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>
               <p className="mx-auto mt-3 max-w-2xl text-lg font-light">
-                Adicione uma lista autorizada em Listas. Depois disso, ao entrar em TV Ao Vivo, o conteúdo será carregado automaticamente.
+                Aguarde a liberação do aparelho e a lista vinculada pelo painel. Se já foi liberado, atualize o acesso nas configurações.
               </p>
               <button
-                onClick={() => setScreen('playlists')}
+                onClick={() => setScreen('settings')}
                 className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-white"
               >
-                Adicionar lista
+                Atualizar acesso
               </button>
             </div>
           ) : (
@@ -278,7 +285,7 @@ export function ChannelsScreen() {
                   <button
                     key={channel.id}
                     onClick={() => playChannel(channel)}
-                    className="flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
+                    className="group relative flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 pr-16 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
                   >
                     <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
                       {safeLogo ? (
@@ -291,6 +298,31 @@ export function ChannelsScreen() {
                     <span className="min-w-0">
                       <span className="block truncate text-2xl font-light">{channel.name}</span>
                       <span className="block truncate text-sm text-white/35">{getGroupName(channel)}</span>
+                    </span>
+
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleChannelFavorite(channel.id);
+                      }}
+                      onKeyDown={event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          toggleChannelFavorite(channel.id);
+                        }
+                      }}
+                      className={`absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border px-3 py-1.5 text-2xl transition ${
+                        channel.isFavorite
+                          ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
+                          : 'border-white/10 bg-black/30 text-white/45 group-hover:text-white'
+                      }`}
+                      aria-label={channel.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                    >
+                      {channel.isFavorite ? '★' : '☆'}
                     </span>
                   </button>
                 );
