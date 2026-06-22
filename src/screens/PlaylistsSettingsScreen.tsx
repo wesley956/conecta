@@ -242,11 +242,11 @@ export function SettingsScreen() {
           {activeSection === 'about' && (
             <div className="max-w-4xl">
               <p className="mb-8 text-2xl font-light leading-relaxed text-white/62">
-                Cruz Stars é um player autorizado para conteúdo vinculado pelo painel.
+                RonecaPlayTV é um player autorizado para conteúdo vinculado pelo painel.
               </p>
 
               <div className="divide-y divide-white/10">
-                <SettingRow label="Aplicativo" value="Cruz Stars" />
+                <SettingRow label="Aplicativo" value="RonecaPlayTV" />
                 <SettingRow label="Tipo" value="Player IPTV/P2P" />
                 <SettingRow label="Conteúdo incluso" value="Não fornece conteúdo" />
                 <SettingRow label="Uso correto" value="Somente conteúdo autorizado pelo painel" />

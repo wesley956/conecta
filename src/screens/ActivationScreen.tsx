@@ -77,12 +77,16 @@ export function ActivationScreen() {
         <main className="grid w-full grid-cols-[1fr_520px] gap-20">
           <section className="flex flex-col justify-center">
             <div className="mb-14 flex items-center gap-5">
-              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-[#2396f2] text-4xl font-light text-white">
-                R
-              </div>
-              <div>
-                <h1 className="text-4xl font-light text-white/82">Cruz Stars</h1>
-                <p className="text-lg font-light text-white/38">Player autorizado</p>
+              <div className="flex items-center gap-4">
+                <img
+                  src="/roneca.png"
+                  alt="RonecaPlayTV"
+                  className="h-24 w-auto object-contain"
+                />
+                <div>
+                  <h1 className="text-4xl font-light text-white/82">RonecaPlayTV</h1>
+                  <p className="text-lg font-light text-white/38">Player autorizado</p>
+                </div>
               </div>
             </div>
 
@@ -119,7 +123,7 @@ export function ActivationScreen() {
               </button>
 
               <a
-                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu Cruz Stars. Código: ${deviceCode}`)}`}
+                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu RonecaPlayTV. Código: ${deviceCode}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full rounded-md bg-white/[0.055] px-8 py-5 text-center text-2xl font-light text-white/72 hover:text-white"
@@ -130,7 +134,7 @@ export function ActivationScreen() {
             </div>
 
             <p className="mt-10 text-center text-base font-light leading-relaxed text-white/28">
-              O Cruz Stars não fornece conteúdo. O acesso depende da liberação do aparelho no painel.
+              O RonecaPlayTV não fornece conteúdo. O acesso depende da liberação do aparelho no painel.
             </p>
           </section>
         </main>

@@ -1,0 +1,56 @@
+name: Build RonecaPlayTV APK
+
+on:
+  push:
+    branches:
+      - feature/apk-roneca-logo
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify frontend
+        run: npm run verify
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Copy APK
+        run: |
+          mkdir -p build-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk build-apk/RonecaPlayTV-debug.apk
+          ls -lh build-apk/RonecaPlayTV-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RonecaPlayTV-debug-apk
+          path: build-apk/RonecaPlayTV-debug.apk
