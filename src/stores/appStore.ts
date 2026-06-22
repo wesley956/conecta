@@ -10,6 +10,7 @@ if (typeof window !== 'undefined') {
     // Versões antigas salvaram listas/canais grandes no localStorage e podem estourar quota.
     localStorage.removeItem('ronecaplaytv-local-state-v1');
     localStorage.removeItem('ronecaplaytv-local-state-v2');
+    localStorage.removeItem('ronecaplaytv-local-state-v3');
   } catch {
     // ignora falha de limpeza
   }
@@ -397,19 +398,13 @@ export const useAppStore = create<AppStore>()(
   setSplashDone: (val) => set({ splashDone: val }),
     }),
     {
-      name: 'ronecaplaytv-local-state-v3',
+      name: 'ronecaplaytv-local-state-v4',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         uiMode: state.uiMode,
         deviceCode: state.deviceCode,
-        deviceActivated: state.deviceActivated,
-        subscriptionActive: state.subscriptionActive,
-        expiresAt: state.expiresAt,
-        daysRemaining: state.daysRemaining,
-        // Não persistir channels/movies/series/watchHistory aqui.
-        // Listas M3U grandes estouram o limite do localStorage.
-        playlists: state.playlists,
-        settings: state.settings,      }),
+        settings: state.settings,
+      }),
     }
   )
 );

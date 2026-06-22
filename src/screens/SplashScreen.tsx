@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import { isDevicePanelEnabled } from '@/utils/devicePanel';
 
 export function SplashScreen() {
   const { setScreen, setSplashDone, deviceActivated, subscriptionActive } = useAppStore();
@@ -28,7 +29,9 @@ export function SplashScreen() {
       } else {
         setSplashDone(true);
         // Determine next screen
-        if (!deviceActivated) {
+        if (isDevicePanelEnabled() && !deviceActivated) {
+          setScreen('activation');
+        } else if (!deviceActivated) {
           setScreen('activation');
         } else if (!subscriptionActive) {
           setScreen('expired');
@@ -56,35 +59,18 @@ export function SplashScreen() {
       <div className="absolute inset-0 bg-pattern opacity-50" />
       <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-neon-orange/5 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-neon-cyan/5 rounded-full blur-3xl" />
-
-      {/* Spinning ring */}
-      <div className="relative mb-8">
-        <div className="w-32 h-32 rounded-full border-4 border-white/10 animate-spin-slow">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 w-4 h-4 bg-neon-orange rounded-full glow-orange" />
-        </div>
-        {/* Inner logo area */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-3xl font-extrabold">
-              <span className="text-neon-orange glow-orange-text">R</span>
-              <span className="text-neon-cyan glow-cyan-text">P</span>
-            </div>
-            <div className="text-[8px] text-text-gray tracking-widest mt-1">TV</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Logo Text */}
-      <div className="relative z-10 mb-8 animate-fade-in">
-        <h1 className="text-4xl font-extrabold tracking-wider text-center">
-          <span className="text-neon-orange glow-orange-text">RONECA</span>
-          <span className="text-neon-cyan glow-cyan-text">PLAY</span>
-          <span className="text-text-gray text-2xl ml-1">TV</span>
-        </h1>
-        <p className="text-text-gray/60 text-xs text-center mt-2 tracking-wider">PLAYER IPTV/P2P LEGAL</p>
+      {/* Logo real */}
+      <div className="relative z-10 mb-8 flex flex-col items-center animate-fade-in">
+        <img
+          src="/roneca.png"
+          alt="RonecaPlayTV"
+          className="h-36 w-auto max-w-[86vw] object-contain drop-shadow-[0_0_28px_rgba(35,150,242,.38)] sm:h-48 md:h-56"
+        />
+        <p className="mt-4 text-center text-xs uppercase tracking-[0.32em] text-text-gray/70">Conteúdo autorizado apenas pelo painel</p>
       </div>
 
       {/* Status icons row */}
+
       <div className="relative z-10 flex items-center gap-6 mb-6 animate-fade-in">
         <div className={`flex flex-col items-center gap-1 ${progress >= 20 ? 'opacity-100' : 'opacity-30'} transition-opacity`}>
           <span className="text-xl">📡</span>

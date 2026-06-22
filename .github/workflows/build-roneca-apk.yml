@@ -45,6 +45,9 @@ jobs:
             npx cap add android
           fi
 
+      - name: Prepare branded launcher and splash sources
+        run: node scripts/prepare-apk-assets.cjs
+
       - name: Generate Android assets
         run: npx capacitor-assets generate --android
 

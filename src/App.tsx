@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
-import { loadContentCache, saveContentCache } from '@/utils/contentCache';
+import { clearContentCache, loadContentCache, saveContentCache } from '@/utils/contentCache';
 import type { AppState } from '@/types';
 
 // Screens
@@ -47,8 +47,10 @@ function AppScreen({ screen }: { screen: AppState }) {
 // ===== CONTENT CACHE HYDRATOR =====
 function ContentCacheHydrator() {
   const hydratedRef = useRef(false);
+  const deviceActivated = useAppStore(state => state.deviceActivated);
 
   useEffect(() => {
+    if (isDevicePanelEnabled() && !deviceActivated) return;
     if (hydratedRef.current) return;
 
     hydratedRef.current = true;
@@ -76,7 +78,7 @@ function ContentCacheHydrator() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [deviceActivated]);
 
   useEffect(() => {
     let saveTimer: number | undefined;
@@ -174,6 +176,8 @@ function DevicePanelSync() {
         if (cancelled) return;
 
         if (!config.active) {
+          await clearContentCache();
+          useAppStore.getState().clearAllImportedContent();
           setDeviceActivated(false);
           setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
 
@@ -248,6 +252,8 @@ function DevicePanelSync() {
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
+          setDeviceActivated(false);
+          setScreen('activation');
           setActiveNotice(`⚠️ ${message}`);
         }
       } finally {
@@ -275,7 +281,12 @@ function DevicePanelSync() {
 
 // ===== MAIN APP =====
 export default function App() {
-  const { currentScreen } = useAppStore();
+  const currentScreen = useAppStore(state => state.currentScreen);
+  const deviceActivated = useAppStore(state => state.deviceActivated);
+  const protectedScreens: AppState[] = ['home', 'channels', 'movies', 'series', 'player', 'favorites', 'search', 'settings'];
+  const effectiveScreen: AppState = isDevicePanelEnabled() && !deviceActivated && protectedScreens.includes(currentScreen)
+    ? 'activation'
+    : currentScreen;
 
     // Keyboard navigation for TV remote control
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -320,10 +331,10 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 return (
-    <div className="h-screen w-screen bg-bg-primary overflow-hidden">
+    <div className="min-h-screen w-screen bg-bg-primary overflow-x-hidden overflow-y-auto">
       <ContentCacheHydrator />
       <DevicePanelSync />
-      <AppScreen screen={currentScreen} />
+      <AppScreen screen={effectiveScreen} />
     </div>
   );
 }

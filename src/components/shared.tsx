@@ -7,7 +7,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { uiMode, activeNotice } = useAppStore();
 
   return (
-    <div className={`h-full w-full premium-bg overflow-hidden flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
+    <div className={`min-h-screen w-full premium-bg overflow-x-hidden overflow-y-auto flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
       {activeNotice && (
         <div className="absolute left-[4.5vw] right-[4.5vw] top-4 z-50 rounded-2xl border border-neon-orange/30 bg-bg-dark/88 px-4 py-3 text-neon-orange shadow-[0_0_26px_rgba(255,122,26,.18)] backdrop-blur-xl animate-fade-in">
           <div className="flex items-center justify-between gap-4 text-sm">
@@ -19,7 +19,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-x-hidden overflow-y-auto">
         {children}
       </div>
     </div>

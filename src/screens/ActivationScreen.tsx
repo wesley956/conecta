@@ -73,43 +73,43 @@ export function ActivationScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full items-center px-24 py-16">
-        <main className="grid w-full grid-cols-[1fr_520px] gap-20">
+      <div className="min-h-full overflow-y-auto px-4 py-6 sm:px-8 lg:px-24 lg:py-16">
+        <main className="grid w-full grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_520px] lg:gap-20">
           <section className="flex flex-col justify-center">
-            <div className="mb-14 flex items-center gap-5">
+            <div className="mb-8 flex flex-col items-start gap-4 sm:mb-12 sm:flex-row sm:items-center sm:gap-5">
               <div className="flex items-center gap-4">
                 <img
                   src="/roneca.png"
                   alt="RonecaPlayTV"
-                  className="h-24 w-auto object-contain"
+                  className="h-28 max-h-[28vh] w-auto max-w-[78vw] object-contain drop-shadow-[0_0_22px_rgba(35,150,242,.35)] sm:h-36 lg:h-32"
                 />
                 <div>
-                  <h1 className="text-4xl font-light text-white/82">RonecaPlayTV</h1>
-                  <p className="text-lg font-light text-white/38">Player autorizado</p>
+                  <h1 className="text-3xl font-light text-white/82 sm:text-4xl">RonecaPlayTV</h1>
+                  <p className="text-base font-light text-white/38 sm:text-lg">Player autorizado</p>
                 </div>
               </div>
             </div>
 
-            <h2 className="max-w-3xl text-6xl font-light leading-tight text-white/82">
+            <h2 className="max-w-3xl text-3xl font-light leading-tight text-white/82 sm:text-4xl lg:text-6xl">
               Ative este aparelho pelo painel.
             </h2>
 
-            <p className="mt-8 max-w-3xl text-2xl font-light leading-relaxed text-white/42">
+            <p className="mt-5 max-w-3xl text-base font-light leading-relaxed text-white/50 sm:mt-8 sm:text-xl lg:text-2xl">
               Envie este código para o suporte. Depois que o aparelho for liberado no painel, o app carregará somente o conteúdo autorizado para este dispositivo.
             </p>
           </section>
 
           <section className="self-center">
-            <p className="mb-4 text-2xl font-light text-white/55">Código do dispositivo</p>
+            <p className="mb-3 text-lg font-light text-white/55 sm:mb-4 sm:text-2xl">Código do dispositivo</p>
 
             <button
               onClick={copyCode}
-              className="w-full rounded-md bg-white/[0.055] px-8 py-8 text-center font-mono text-6xl font-light tracking-[0.16em] text-white transition-colors hover:bg-[#2396f2]"
+              className="w-full rounded-md bg-white/[0.055] px-4 py-5 text-center font-mono text-3xl font-light tracking-[0.12em] text-white transition-colors hover:bg-[#2396f2] sm:px-8 sm:py-8 sm:text-5xl lg:text-6xl"
             >
               {deviceCode}
             </button>
 
-            <p className="mt-4 text-center text-lg font-light text-white/38">
+            <p className="mt-3 text-center text-sm font-light text-white/38 sm:mt-4 sm:text-lg">
               {copied ? 'Código copiado' : 'Clique no código para copiar'}
             </p>
 
@@ -117,7 +117,7 @@ export function ActivationScreen() {
               <button
                 onClick={retryActivation}
                 disabled={loading}
-                className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-white disabled:opacity-45"
+                className="w-full rounded-md bg-[#2396f2] px-6 py-4 text-xl font-light text-white disabled:opacity-45 sm:px-8 sm:py-5 sm:text-2xl lg:text-3xl"
               >
                 {loading ? 'Verificando acesso...' : 'Verificar liberação'}
               </button>
@@ -126,7 +126,7 @@ export function ActivationScreen() {
                 href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu RonecaPlayTV. Código: ${deviceCode}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full rounded-md bg-white/[0.055] px-8 py-5 text-center text-2xl font-light text-white/72 hover:text-white"
+                className="block w-full rounded-md bg-white/[0.055] px-6 py-4 text-center text-lg font-light text-white/72 hover:text-white sm:px-8 sm:py-5 sm:text-xl lg:text-2xl"
               >
                 Enviar pelo WhatsApp
               </a>
