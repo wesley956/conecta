@@ -6,7 +6,7 @@ import { fetchM3UContent } from '@/utils/fetchM3U';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
 import type { Channel } from '@/types';
 
-const CHANNEL_RENDER_BATCH_SIZE = 120;
+const CHANNEL_RENDER_BATCH_SIZE = 180;
 
 function humanizeGroupName(group: string) {
   return group
@@ -115,13 +115,13 @@ export function ChannelsScreen() {
 
   const categoryOptions = useMemo(() => {
     const fixed = [
-      { id: 'all', name: 'Todos', icon: '▤' },
-      { id: 'favorites', name: 'Favoritos', icon: '★' },
-      { id: 'playback', name: 'Playback', icon: '◉' },
-      { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z' },
+      { id: 'all', name: 'Todos', icon: '▤', count: channels.length },
+      { id: 'favorites', name: 'Favoritos', icon: '★', count: channels.filter(channel => channel.isFavorite).length },
+      { id: 'playback', name: 'Playback', icon: '◉', count: channels.length },
+      { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z', count: channels.length },
     ];
 
-    const byId = new Map<string, { id: string; name: string; icon: string }>();
+    const byId = new Map<string, { id: string; name: string; icon: string; count: number }>();
 
     for (const category of fixed) {
       byId.set(category.id, category);
@@ -129,13 +129,18 @@ export function ChannelsScreen() {
 
     for (const channel of channels) {
       const id = channel.group || 'outros';
+      const current = byId.get(id);
 
-      if (byId.has(id)) continue;
+      if (current) {
+        byId.set(id, { ...current, count: current.count + 1 });
+        continue;
+      }
 
       byId.set(id, {
         id,
         name: getGroupName(channel),
         icon: '▤',
+        count: 1,
       });
     }
 
@@ -220,7 +225,7 @@ export function ChannelsScreen() {
             ⌂
           </button>
 
-          <div className="space-y-1">
+          <div className="max-h-[calc(100vh-112px)] space-y-1 overflow-y-auto pr-2">
             {categoryOptions.map(category => (
               <button
                 key={category.id}
@@ -230,7 +235,8 @@ export function ChannelsScreen() {
                 }`}
               >
                 <span className="w-8 text-2xl">{category.icon}</span>
-                <span className="truncate text-2xl font-light">{category.name}</span>
+                <span className="min-w-0 flex-1 truncate text-2xl font-light">{category.name}</span>
+                <span className="shrink-0 text-base text-white/35">{category.count}</span>
               </button>
             ))}
           </div>
@@ -266,7 +272,7 @@ export function ChannelsScreen() {
                 onClick={() => setScreen('settings')}
                 className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-white"
               >
-                Ver configurações
+                Atualizar acesso
               </button>
             </div>
           ) : (

@@ -299,7 +299,7 @@ export function SeriesScreen() {
 
               {!xtreamPlaylist && allSeries.length === 0 && !isLoadingCatalog && (
                 <p className="mt-2 max-w-3xl text-base text-white/38">
-                  Séries sob demanda serão carregadas automaticamente quando a lista Xtream estiver disponível.
+                  As séries serão carregadas automaticamente quando a lista vinculada estiver disponível.
                 </p>
               )}
             </div>
@@ -341,7 +341,7 @@ export function SeriesScreen() {
                     )}
 
                     <span className="absolute bottom-3 left-3 rounded bg-black/45 px-2 py-1 text-xs text-white/70">
-                      {item.seasons.length > 0 ? `${item.seasons.length} temp.` : 'Sob demanda'}
+                      {item.seasons.length > 0 ? `${item.seasons.length} temp.` : 'Carregar episódios'}
                     </span>
 
                     {loadingSeriesId === item.id && (
