@@ -60,6 +60,9 @@ jobs:
             npx cap add android
           fi
 
+      - name: Prepare Roneca launcher icon
+        run: node scripts/prepare-roneca-icon.cjs
+
       - name: Generate Android assets
         run: npx -y @capacitor/assets generate --android
 
