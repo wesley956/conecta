@@ -253,7 +253,13 @@ export function SeriesScreen() {
         return;
       }
 
-      setSeriesDetail({ item, seasons });
+      const itemWithSeasons = { ...item, seasons };
+
+      setRemoteSeries(current => current.map(seriesItem =>
+        seriesItem.id === item.id ? itemWithSeasons : seriesItem
+      ));
+
+      setSeriesDetail({ item: itemWithSeasons, seasons });
       setSelectedSeasonNumber(seasons[0].number);
     } catch (error) {
       setSeriesError(error instanceof Error ? error.message : 'Não foi possível carregar episódios.');
@@ -385,12 +391,12 @@ export function SeriesScreen() {
                     )}
 
                     <span className="absolute bottom-3 left-3 rounded bg-black/45 px-2 py-1 text-xs text-white/70">
-                      {item.seasons.length > 0 ? `${item.seasons.length} temp.` : 'Carregar episódios'}
+                      {item.seasons.length > 0 ? `${item.seasons.length} temp.` : 'Abrir série'}
                     </span>
 
                     {loadingSeriesId === item.id && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/65 text-xl text-white">
-                        Carregando...
+                        Carregando episódios...
                       </div>
                     )}
                   </div>
