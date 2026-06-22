@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - fix/player-stability-audit-1
+      - feature/working-apk-roneca-logo
 
 jobs:
   build-android:
@@ -58,6 +59,12 @@ jobs:
           if [ ! -d android ]; then
             npx cap add android
           fi
+
+      - name: Prepare Roneca launcher icon
+        run: node scripts/prepare-roneca-icon.cjs
+
+      - name: Generate Android assets
+        run: npx -y @capacitor/assets generate --android
 
       - name: Sync Capacitor Android
         run: npx cap sync android
