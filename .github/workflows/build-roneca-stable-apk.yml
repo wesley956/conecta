@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Generate Android assets
-        run: npx capacitor-assets generate --android
+        run: npx -y @capacitor/assets generate --android
 
       - name: Force Android landscape orientation
         run: |
