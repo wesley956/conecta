@@ -81,7 +81,7 @@ export function ActivationScreen() {
                 R
               </div>
               <div>
-                <h1 className="text-4xl font-light text-white/82">Cruz Stars</h1>
+                <h1 className="text-4xl font-light text-white/82">RonecaPlayTV</h1>
                 <p className="text-lg font-light text-white/38">Player autorizado</p>
               </div>
             </div>
@@ -119,7 +119,7 @@ export function ActivationScreen() {
               </button>
 
               <a
-                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu Cruz Stars. Código: ${deviceCode}`)}`}
+                href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu RonecaPlayTV. Código: ${deviceCode}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full rounded-md bg-white/[0.055] px-8 py-5 text-center text-2xl font-light text-white/72 hover:text-white"
@@ -130,7 +130,7 @@ export function ActivationScreen() {
             </div>
 
             <p className="mt-10 text-center text-base font-light leading-relaxed text-white/28">
-              O Cruz Stars não fornece conteúdo. O acesso depende da liberação do aparelho no painel.
+              O RonecaPlayTV não fornece conteúdo. O acesso depende da liberação do aparelho no painel.
             </p>
           </section>
         </main>
