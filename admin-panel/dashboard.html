@@ -399,7 +399,305 @@
       .stats { grid-template-columns: 1fr; }
       table { min-width: 1050px; }
     }
-  </style>
+  
+/* ===== FASE 2B-2: LAYOUT PROFISSIONAL COM SIDEBAR ===== */
+body::before {
+  background:
+    linear-gradient(90deg, rgba(2,8,23,.96) 0%, rgba(2,8,23,.76) 34%, rgba(2,8,23,.52) 100%),
+    radial-gradient(circle at 18% 12%, rgba(123,92,255,.20), transparent 30%),
+    radial-gradient(circle at 80% 22%, rgba(33,200,255,.18), transparent 32%),
+    url("./assets/universe-bg.png") center center / cover fixed no-repeat !important;
+}
+
+.app {
+  max-width: 1520px !important;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  gap: 18px;
+  padding: 20px !important;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  border-radius: 28px !important;
+  padding: 16px 20px !important;
+}
+
+.brand {
+  gap: 16px !important;
+}
+
+.brand-logo {
+  width: 78px !important;
+  height: 78px !important;
+}
+
+.brand h1 {
+  font-size: 30px !important;
+  letter-spacing: .02em;
+}
+
+.brand p {
+  font-size: 14px;
+}
+
+.tabs {
+  grid-column: 1;
+  grid-row: 2;
+  position: sticky;
+  top: 18px;
+  align-self: start;
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 18px;
+  border-radius: 28px;
+  border: 1px solid rgba(110, 231, 255, .24);
+  background:
+    linear-gradient(180deg, rgba(5,14,38,.86), rgba(3,10,32,.92));
+  box-shadow:
+    0 0 0 1px rgba(112,210,255,.05) inset,
+    0 28px 80px rgba(0,0,0,.36),
+    0 0 34px rgba(33,200,255,.08);
+  backdrop-filter: blur(18px);
+}
+
+.tabs::before {
+  content: "Navegação";
+  display: block;
+  margin: 2px 4px 8px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tab {
+  width: 100%;
+  border-radius: 18px !important;
+  padding: 14px 15px !important;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,.045) !important;
+}
+
+.tab::before {
+  width: 28px;
+  height: 28px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(110,231,255,.08);
+  border: 1px solid rgba(110,231,255,.16);
+  color: var(--cyan);
+}
+
+.tab[data-tab="dashboard"]::before { content: "⌂"; }
+.tab[data-tab="customers"]::before { content: "◉"; }
+.tab[data-tab="playlists"]::before { content: "▤"; }
+.tab[data-tab="devices"]::before { content: "▣"; }
+.tab[data-tab="pending"]::before { content: "⚡"; }
+
+.tab.active {
+  color: #ffffff !important;
+  background:
+    linear-gradient(90deg, rgba(123,92,255,.92), rgba(33,200,255,.82)) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.12) inset,
+    0 0 26px rgba(33,200,255,.28);
+}
+
+.tab.active::before {
+  background: rgba(255,255,255,.16);
+  border-color: rgba(255,255,255,.22);
+  color: #fff;
+}
+
+.section {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+}
+
+#msg {
+  grid-column: 2;
+  grid-row: 3;
+  margin: 0 !important;
+}
+
+.card {
+  border-radius: 26px !important;
+  background:
+    linear-gradient(180deg, rgba(7,18,48,.82), rgba(4,11,31,.88)) !important;
+}
+
+.card h2 {
+  font-size: 22px;
+  letter-spacing: .01em;
+}
+
+.sub {
+  margin-top: 7px;
+  font-size: 14px;
+}
+
+.stats {
+  margin-top: 16px;
+}
+
+.stat {
+  position: relative;
+  overflow: hidden;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(110,231,255,.14), transparent 42%),
+    rgba(255,255,255,.055) !important;
+}
+
+.stat::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -18px;
+  width: 74px;
+  height: 74px;
+  border-radius: 999px;
+  border: 1px solid rgba(110,231,255,.14);
+}
+
+.stat strong {
+  position: relative;
+  z-index: 1;
+  font-size: 34px !important;
+  line-height: 1;
+}
+
+.filterbar {
+  grid-template-columns: minmax(240px, 2fr) repeat(3, minmax(150px, 1fr)) !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.060), rgba(255,255,255,.035)) !important;
+}
+
+input,
+select {
+  background: rgba(2,8,26,.54) !important;
+  border-color: rgba(110,231,255,.22) !important;
+}
+
+.tablewrap {
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(2,8,26,.28);
+}
+
+table {
+  margin-top: 0 !important;
+}
+
+th {
+  background: rgba(255,255,255,.045);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+th:first-child {
+  border-top-left-radius: 20px;
+}
+
+th:last-child {
+  border-top-right-radius: 20px;
+}
+
+td {
+  background: rgba(255,255,255,.012);
+}
+
+tbody tr:hover td {
+  background: rgba(110,231,255,.045);
+}
+
+.quick-item {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.060), rgba(255,255,255,.035)) !important;
+}
+
+.btn {
+  white-space: nowrap;
+}
+
+.primary {
+  box-shadow: 0 0 26px rgba(33,200,255,.20);
+}
+
+@media (max-width: 980px) {
+  .app {
+    display: block;
+    padding: 14px !important;
+  }
+
+  .topbar {
+    margin-bottom: 14px;
+  }
+
+  .tabs {
+    position: relative;
+    top: auto;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 14px !important;
+  }
+
+  .tabs::before {
+    grid-column: 1 / -1;
+  }
+
+  .section {
+    min-width: 0;
+  }
+
+  #msg {
+    margin-top: 14px !important;
+  }
+
+  .filterbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .filterbar .wide {
+    grid-column: span 1 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: stretch !important;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions .btn {
+    flex: 1;
+  }
+}
+
+</style>
 </head>
 
 <body>
@@ -409,7 +707,7 @@
         <img class="brand-logo" src="./assets/cruz-stars-logo.png" alt="Cruz Stars" />
         <div>
           <h1>Cruz Stars</h1>
-          <p>Painel separado para clientes, aparelhos e playlists.</p>
+          <p>Gestão de clientes, aparelhos, listas, liberações e vencimentos.</p>
         </div>
       </div>
 
@@ -430,8 +728,8 @@
     <section id="section-dashboard" class="section active">
       <div class="grid">
         <div class="card">
-          <h2>Resumo Geral</h2>
-          <p class="sub">Controle rápido do Cruz Stars.</p>
+          <h2>Visão geral da operação</h2>
+          <p class="sub">Acompanhe ativações, pendências, vencimentos e listas vinculadas.</p>
           <div class="stats">
             <div class="stat"><small>Clientes</small><strong id="stCustomers">0</strong></div>
             <div class="stat"><small>Aparelhos</small><strong id="stDevices">0</strong></div>
