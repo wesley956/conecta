@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cruz Stars — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: #eef7ff;
+      font-family: Arial, sans-serif;
+      background:
+        linear-gradient(180deg, rgba(2,8,23,.20), rgba(2,8,23,.78)),
+        url("./assets/universe-bg.png") center center / cover fixed no-repeat,
+        #020817;
+    }
+
+    main {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .top, .card {
+      background: rgba(5, 14, 38, .78);
+      border: 1px solid rgba(110, 231, 255, .28);
+      border-radius: 24px;
+      box-shadow: 0 28px 90px rgba(0,0,0,.38);
+      backdrop-filter: blur(16px);
+    }
+
+    .top {
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1, h2 { margin: 0; }
+
+    p {
+      color: #a9bbdd;
+      margin: 8px 0 0;
+    }
+
+    .btn {
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 12px;
+      padding: 11px 14px;
+      background: rgba(255,255,255,.08);
+      color: #eef7ff;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .primary { background: linear-gradient(90deg, #7b5cff, #21c8ff); color: #fff; }
+    .green { background: rgba(40,227,154,.14); color: #c9ffeb; }
+    .red { background: rgba(255,101,117,.14); color: #ffd7dc; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      grid-column: span 12;
+      padding: 18px;
+    }
+
+    .col5 { grid-column: span 5; }
+    .col7 { grid-column: span 7; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 15px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+
+    .stat small {
+      display: block;
+      color: #a9bbdd;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+
+    .stat strong { font-size: 30px; }
+
+    input, select {
+      width: 100%;
+      border: 1px solid rgba(110,231,255,.24);
+      outline: none;
+      border-radius: 12px;
+      padding: 11px 12px;
+      color: #eef7ff;
+      background: rgba(255,255,255,.07);
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 7px;
+      color: #dbeaff;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      color: #cfe4ff;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: .06em;
+    }
+
+    .mono { font-family: monospace; color: #6ee7ff; font-weight: 900; }
+    .muted { color: #a9bbdd; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .msg {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+      color: #dff7ff;
+    }
+
+    @media(max-width: 900px) {
+      .col5, .col7 { grid-column: span 12; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .tablewrap { overflow-x: auto; }
+      table { min-width: 950px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="top">
+      <div>
+        <h1>Cruz Stars</h1>
+        <p>Painel separado para aparelhos, ativações e playlists.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="loadAll()">Atualizar</button>
+        <button class="btn red" onclick="logout()">Sair</button>
+      </div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Resumo</h2>
+        <div class="stats">
+          <div class="stat"><small>Aparelhos</small><strong id="stTotal">0</strong></div>
+          <div class="stat"><small>Ativos</small><strong id="stActive">0</strong></div>
+          <div class="stat"><small>Pendentes</small><strong id="stPending">0</strong></div>
+          <div class="stat"><small>Playlists</small><strong id="stLists">0</strong></div>
+        </div>
+      </div>
+
+      <div class="card col5">
+        <h2>Criar playlist</h2>
+        <label>Nome</label>
+        <input id="plName" placeholder="Lista Premium" />
+        <label>URL</label>
+        <input id="plUrl" placeholder="https://.../lista.m3u" />
+        <label>Tipo</label>
+        <select id="plType">
+          <option value="m3u">M3U</option>
+          <option value="xtream">Xtream</option>
+        </select>
+        <br><br>
+        <button class="btn primary" onclick="createPlaylist()">Salvar playlist</button>
+      </div>
+
+      <div class="card col7">
+        <h2>Playlists</h2>
+        <div id="listsBox" class="muted">Carregando...</div>
+      </div>
+
+      <div class="card">
+        <h2>Aparelhos</h2>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Cliente</th>
+                <th>Status</th>
+                <th>Playlist</th>
+                <th>Validade</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="devicesBody">
+              <tr><td colspan="6" class="muted">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div id="msg" class="msg">Painel carregado.</div>
+  </main>
+
+<script>
+const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
+const KEY = 'cruz-stars-admin-token';
+
+let devices = [];
+let playlists = [];
+
+const $ = id => document.getElementById(id);
+
+function token() {
+  return localStorage.getItem(KEY) || '';
+}
+
+function esc(value) {
+  return String(value ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;');
+}
+
+function show(text) {
+  $('msg').textContent = text;
+}
+
+async function api(action, payload = {}) {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'x-admin-token': token()
+    },
+    body: JSON.stringify({ action, ...payload })
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    throw new Error(data.error || data.message || 'Erro no painel.');
+  }
+
+  return data;
+}
+
+async function loadAll() {
+  if (!token()) {
+    window.location.href = './index.html';
+    return;
+  }
+
+  try {
+    const d = await api('listDevices');
+    const p = await api('listPlaylists').catch(() => ({ playlists: [] }));
+
+    devices = d.devices || [];
+    playlists = p.playlists || [];
+
+    render();
+    show('Painel atualizado.');
+  } catch (err) {
+    show(err.message || 'Erro ao carregar.');
+  }
+}
+
+function render() {
+  $('stTotal').textContent = devices.length;
+  $('stActive').textContent = devices.filter(d => d.status === 'active').length;
+  $('stPending').textContent = devices.filter(d => d.status === 'pending').length;
+  $('stLists').textContent = playlists.length;
+
+  $('listsBox').innerHTML = playlists.length
+    ? playlists.map(p => `<p><b>${esc(p.name)}</b><br><span class="mono">${esc(p.playlistUrl)}</span></p>`).join('')
+    : 'Nenhuma playlist.';
+
+  $('devicesBody').innerHTML = devices.length
+    ? devices.map(d => {
+      const opts = ['<option value="">Sem playlist</option>']
+        .concat(playlists.map(p => `<option value="${esc(p.id)}" ${p.id === d.playlistId ? 'selected' : ''}>${esc(p.name)}</option>`))
+        .join('');
+
+      return `<tr>
+        <td><span class="mono">${esc(d.deviceCode)}</span><br><span class="muted">${esc(d.deviceUuid || '')}</span></td>
+        <td><input id="name-${esc(d.id)}" value="${esc(d.clientName || '')}"></td>
+        <td><select id="status-${esc(d.id)}">${['pending','active','blocked','expired','inactive'].map(s => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+        <td><select id="playlist-${esc(d.id)}">${opts}</select></td>
+        <td><input id="exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}"></td>
+        <td><div class="actions"><button class="btn green" onclick="saveDevice('${esc(d.id)}')">Salvar</button><button class="btn red" onclick="blockDevice('${esc(d.id)}')">Bloquear</button></div></td>
+      </tr>`;
+    }).join('')
+    : '<tr><td colspan="6">Nenhum aparelho.</td></tr>';
+}
+
+function dateInput(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10);
+}
+
+async function saveDevice(id) {
+  try {
+    const expires = $('exp-' + id).value;
+    await api('updateDevice', {
+      id,
+      clientName: $('name-' + id).value.trim(),
+      status: $('status-' + id).value,
+      playlistId: $('playlist-' + id).value || null,
+      expiresAt: expires ? new Date(expires + 'T23:59:59').toISOString() : null
+    });
+    await loadAll();
+  } catch (err) {
+    show(err.message);
+  }
+}
+
+async function blockDevice(id) {
+  try {
+    await api('updateDevice', { id, status: 'blocked' });
+    await loadAll();
+  } catch (err) {
+    show(err.message);
+  }
+}
+
+async function createPlaylist() {
+  try {
+    await api('createPlaylist', {
+      name: $('plName').value.trim(),
+      playlistUrl: $('plUrl').value.trim(),
+      playlistType: $('plType').value,
+      active: true
+    });
+    $('plName').value = '';
+    $('plUrl').value = '';
+    await loadAll();
+  } catch (err) {
+    show(err.message);
+  }
+}
+
+function logout() {
+  localStorage.removeItem(KEY);
+  window.location.href = './index.html';
+}
+
+loadAll();
+</script>
+</body>
+</html>

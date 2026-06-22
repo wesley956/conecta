@@ -1,3 +1,558 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RonecaPlayTV Admin</title><style>body{margin:0;background:#080b12;color:#f8fafc;font-family:Arial,sans-serif}main{max-width:1180px;margin:auto;padding:24px}h1{margin:0 0 8px;font-size:34px}p{color:#94a3b8}.card{background:#111827;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:16px;margin:14px 0}input,select{background:#020617;color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;width:100%}button{border:0;border-radius:10px;padding:10px 12px;font-weight:800;cursor:pointer;background:#1f2937;color:#fff}.orange{background:#f97316;color:#111827}.green{background:#14532d;color:#22c55e}.red{background:#7f1d1d;color:#fecaca}.cyan{background:#164e63;color:#22d3ee}.row{display:grid;grid-template-columns:1fr auto;gap:10px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border-bottom:1px solid rgba(255,255,255,.1);padding:10px;text-align:left;font-size:14px}th{color:#94a3b8}.mono{font-family:monospace;color:#22d3ee;font-weight:900}.msg{display:none;padding:12px;border-radius:12px;margin:12px 0}.ok{display:block;background:#052e16;color:#22c55e}.err{display:block;background:#450a0a;color:#fecaca}@media(max-width:800px){.row,.grid{grid-template-columns:1fr}.scroll{overflow:auto}table{min-width:900px}}</style></head><body><main><h1>RonecaPlayTV Admin</h1><p>Painel separado do APK. Use para liberar, bloquear e vincular listas aos aparelhos.</p><section class="card"><h2>Acesso</h2><div class="row"><input id="token" type="password" placeholder="ADMIN_PANEL_TOKEN"><button class="orange" onclick="saveToken()">Entrar</button></div></section><div id="msg" class="msg"></div><section class="card"><h2>Nova playlist</h2><div class="grid"><input id="plName" placeholder="Nome da lista"><input id="plUrl" placeholder="URL M3U"><select id="plType"><option value="m3u">M3U</option><option value="xtream">Xtream</option><option value="stalker">Stalker</option></select><button class="orange" onclick="createPlaylist()">Cadastrar</button></div></section><section class="card"><div class="row"><h2>Aparelhos</h2><button class="cyan" onclick="loadAll()">Recarregar</button></div><div class="scroll"><table><thead><tr><th>Código</th><th>Cliente</th><th>Status</th><th>Lista</th><th>Vencimento</th><th>Ações</th></tr></thead><tbody id="devices"><tr><td colspan="6">Entre com o token.</td></tr></tbody></table></div></section></main><script>
-const API='https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';const KEY='roneca-admin-token';let devices=[],playlists=[];function $(id){return document.getElementById(id)}function esc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')}function msg(t,ok=true){$('msg').className='msg '+(ok?'ok':'err');$('msg').textContent=t}function token(){return localStorage.getItem(KEY)||''}function saveToken(){localStorage.setItem(KEY,$('token').value.trim());loadAll()}async function api(action,payload={}){const res=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json','x-admin-token':token()},body:JSON.stringify({action,...payload})});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Erro no painel');return data}async function loadAll(){try{$('token').value=token();const d=await api('listDevices');const p=await api('listPlaylists');devices=d.devices||[];playlists=p.playlists||[];render();msg('Painel carregado.')}catch(e){msg(e.message,false)}}function dateInput(v){if(!v)return'';const d=new Date(v);return isNaN(d.getTime())?'':d.toISOString().slice(0,10)}function render(){$('devices').innerHTML=devices.map(d=>{const opts=['<option value="">Sem lista</option>'].concat(playlists.map(p=>`<option value="${esc(p.id)}" ${p.id===d.playlistId?'selected':''}>${esc(p.name)}</option>`)).join('');return `<tr><td class="mono">${esc(d.deviceCode)}</td><td><input id="name-${d.id}" value="${esc(d.clientName||'')}" placeholder="Cliente"></td><td><select id="status-${d.id}">${['pending','active','blocked','expired','inactive'].map(s=>`<option value="${s}" ${s===d.status?'selected':''}>${s}</option>`).join('')}</select></td><td><select id="playlist-${d.id}">${opts}</select></td><td><input id="exp-${d.id}" type="date" value="${dateInput(d.expiresAt)}"></td><td><button class="green" onclick="saveDevice('${d.id}')">Salvar</button> <button class="red" onclick="blockDevice('${d.id}')">Bloquear</button></td></tr>`}).join('')||'<tr><td colspan="6">Nenhum aparelho.</td></tr>'}async function saveDevice(id){try{const exp=$(`exp-${id}`).value;await api('updateDevice',{id,clientName:$(`name-${id}`).value,status:$(`status-${id}`).value,playlistId:$(`playlist-${id}`).value,expiresAt:exp?new Date(exp+'T23:59:59').toISOString():''});await loadAll();msg('Aparelho salvo.')}catch(e){msg(e.message,false)}}async function blockDevice(id){try{await api('updateDevice',{id,status:'blocked'});await loadAll();msg('Aparelho bloqueado.')}catch(e){msg(e.message,false)}}async function createPlaylist(){try{await api('createPlaylist',{name:$('plName').value.trim(),playlistUrl:$('plUrl').value.trim(),playlistType:$('plType').value,active:true});$('plName').value='';$('plUrl').value='';await loadAll();msg('Playlist criada.')}catch(e){msg(e.message,false)}}$('token').value=token();if(token())loadAll();
-</script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cruz Stars — Acesso</title>
+  <style>
+    :root {
+      --bg: #030816;
+      --card: rgba(5, 14, 38, .72);
+      --card-strong: rgba(4, 11, 31, .88);
+      --line: rgba(110, 231, 255, .34);
+      --text: #eef7ff;
+      --muted: #a9bbdd;
+      --cyan: #6ee7ff;
+      --blue: #21c8ff;
+      --violet: #7b5cff;
+      --silver: #f4f8ff;
+      --red: #ff6575;
+      --green: #28e39a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, rgba(1, 6, 20, .08), rgba(1, 6, 20, .58)),
+        radial-gradient(circle at 50% 18%, rgba(78, 160, 255, .16), transparent 30%),
+        radial-gradient(circle at 50% 82%, rgba(123, 92, 255, .14), transparent 34%),
+        url("./assets/universe-bg.png") center center / cover no-repeat;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(1px 1px at 14% 18%, rgba(255,255,255,.9), transparent),
+        radial-gradient(1px 1px at 24% 62%, rgba(255,255,255,.65), transparent),
+        radial-gradient(1px 1px at 71% 24%, rgba(255,255,255,.9), transparent),
+        radial-gradient(1px 1px at 84% 66%, rgba(110,231,255,.75), transparent),
+        radial-gradient(1px 1px at 56% 44%, rgba(123,92,255,.75), transparent);
+      opacity: .8;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+    }
+
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 18px;
+    }
+
+    .login-wrap {
+      width: min(720px, 100%);
+      text-align: center;
+      transform: translateY(-10px);
+    }
+
+    .brand-mark {
+      width: min(360px, 82vw);
+      height: 210px;
+      margin: 0 auto 2px;
+      position: relative;
+      filter:
+        drop-shadow(0 0 20px rgba(110,231,255,.36))
+        drop-shadow(0 0 42px rgba(123,92,255,.20));
+    }
+
+    .brand-symbol {
+      position: relative;
+      width: 180px;
+      height: 150px;
+      margin: 0 auto -8px;
+    }
+
+    .brand-c {
+      position: absolute;
+      left: 33px;
+      top: 12px;
+      width: 112px;
+      height: 112px;
+      border-radius: 50%;
+      border: 21px solid transparent;
+      border-left-color: rgba(244,248,255,.96);
+      border-top-color: rgba(244,248,255,.92);
+      border-bottom-color: rgba(180,205,242,.86);
+      transform: rotate(-42deg);
+      filter:
+        drop-shadow(0 0 9px rgba(255,255,255,.26))
+        drop-shadow(0 0 18px rgba(110,231,255,.18));
+    }
+
+    .brand-c::after {
+      content: "";
+      position: absolute;
+      inset: -21px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,.34);
+    }
+
+    .play {
+      position: absolute;
+      left: 74px;
+      top: 55px;
+      width: 0;
+      height: 0;
+      border-top: 23px solid transparent;
+      border-bottom: 23px solid transparent;
+      border-left: 36px solid #76e6ff;
+      filter:
+        drop-shadow(0 0 10px rgba(110,231,255,.72))
+        drop-shadow(0 0 18px rgba(123,92,255,.42));
+    }
+
+    .orbit {
+      position: absolute;
+      left: 1px;
+      top: 42px;
+      width: 177px;
+      height: 72px;
+      border-radius: 50%;
+      border: 5px solid transparent;
+      border-bottom-color: #64e4ff;
+      border-top-color: #7b5cff;
+      transform: rotate(-18deg);
+      filter:
+        drop-shadow(0 0 8px rgba(110,231,255,.84))
+        drop-shadow(0 0 18px rgba(123,92,255,.60));
+    }
+
+    .star {
+      position: absolute;
+      right: 20px;
+      top: 21px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      clip-path: polygon(50% 0%, 61% 38%, 100% 50%, 61% 62%, 50% 100%, 39% 62%, 0% 50%, 39% 38%);
+      box-shadow:
+        0 0 14px #fff,
+        0 0 32px var(--cyan),
+        0 0 52px var(--blue);
+    }
+
+    .constellation {
+      position: absolute;
+      right: -4px;
+      top: 64px;
+      width: 72px;
+      height: 48px;
+      opacity: .9;
+      background:
+        radial-gradient(circle at 10% 82%, #9deaff 0 3px, transparent 4px),
+        radial-gradient(circle at 42% 42%, #9deaff 0 3px, transparent 4px),
+        radial-gradient(circle at 78% 74%, #9deaff 0 3px, transparent 4px),
+        linear-gradient(34deg, transparent 0 22%, rgba(157,234,255,.70) 22% 25%, transparent 25% 100%),
+        linear-gradient(148deg, transparent 0 43%, rgba(157,234,255,.70) 43% 46%, transparent 46% 100%);
+    }
+
+    .brand-text {
+      margin-top: 0;
+      font-size: clamp(44px, 8.5vw, 76px);
+      line-height: .9;
+      font-weight: 900;
+      letter-spacing: .035em;
+      background:
+        linear-gradient(90deg, #f4f8ff 0%, #d6e2f5 28%, #7b86ff 56%, #72ecff 100%);
+      color: transparent;
+      -webkit-background-clip: text;
+      background-clip: text;
+      text-shadow:
+        0 0 18px rgba(110,231,255,.16),
+        0 0 42px rgba(123,92,255,.10);
+    }
+
+    .brand-subtitle {
+      margin: 10px 0 28px;
+      color: #d7e6ff;
+      text-transform: uppercase;
+      letter-spacing: .34em;
+      font-size: 13px;
+      opacity: .92;
+      text-shadow: 0 0 18px rgba(110,231,255,.24);
+    }
+
+    .access-card {
+      width: min(590px, 100%);
+      margin: 0 auto;
+      position: relative;
+      padding: 34px 34px 30px;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(8,22,55,.66), rgba(3,9,28,.84));
+      box-shadow:
+        0 0 0 1px rgba(112, 210, 255, .08) inset,
+        0 0 44px rgba(47, 164, 255, .22),
+        0 30px 90px rgba(0, 0, 0, .46);
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+    }
+
+    .access-card::before {
+      content: "";
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      top: -1px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #8eeaff, #7b5cff, transparent);
+      box-shadow: 0 0 22px rgba(110, 231, 255, .95);
+    }
+
+    .access-card::after {
+      content: "";
+      position: absolute;
+      left: 18%;
+      right: 18%;
+      bottom: -1px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #7b5cff, #5ee7ff, transparent);
+      box-shadow: 0 0 22px rgba(110, 231, 255, .78);
+    }
+
+    .access-title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #dbeaff;
+      text-shadow: 0 0 18px rgba(110,231,255,.22);
+    }
+
+    .access-title span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      margin-right: 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(110, 231, 255, .35);
+      color: var(--cyan);
+      font-size: 15px;
+      vertical-align: middle;
+    }
+
+    .access-sub {
+      margin: 12px 0 28px;
+      color: #c7d7f6;
+      font-size: 15px;
+    }
+
+    .field {
+      text-align: left;
+      margin-bottom: 18px;
+    }
+
+    .field label {
+      display: block;
+      color: #eef7ff;
+      font-weight: 800;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .token-field {
+      position: relative;
+    }
+
+    .token-field input {
+      width: 100%;
+      border: 1px solid rgba(116, 185, 255, .45);
+      outline: none;
+      border-radius: 14px;
+      padding: 16px 48px 16px 48px;
+      color: var(--text);
+      background: rgba(2, 8, 26, .58);
+      box-shadow:
+        0 0 0 1px rgba(123, 92, 255, .14) inset,
+        0 0 24px rgba(123, 92, 255, .10);
+    }
+
+    .token-field input:focus {
+      border-color: rgba(110, 231, 255, .82);
+      box-shadow:
+        0 0 0 4px rgba(110, 231, 255, .12),
+        0 0 30px rgba(110, 231, 255, .24);
+    }
+
+    .lock {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aec5e8;
+      opacity: .85;
+    }
+
+    .spark {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--cyan);
+      opacity: .9;
+    }
+
+    .enter-btn {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.28);
+      outline: none;
+      cursor: pointer;
+      border-radius: 14px;
+      padding: 17px 20px;
+      font-size: 20px;
+      font-weight: 900;
+      color: white;
+      background: linear-gradient(90deg, var(--violet), var(--blue));
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.12) inset,
+        0 0 34px rgba(33,200,255,.38),
+        0 14px 36px rgba(33,200,255,.20);
+      transition: .18s ease;
+    }
+
+    .enter-btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.08);
+    }
+
+    .footer-secure {
+      margin: 28px auto 0;
+      width: min(520px, 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #c6d8f5;
+      font-size: 15px;
+      opacity: .9;
+    }
+
+    .footer-secure::before,
+    .footer-secure::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: linear-gradient(90deg, transparent, rgba(110,231,255,.35));
+    }
+
+    .footer-secure::after {
+      background: linear-gradient(90deg, rgba(110,231,255,.35), transparent);
+    }
+
+    .msg {
+      display: none;
+      margin: 16px auto 0;
+      width: min(590px, 100%);
+      padding: 13px 16px;
+      border-radius: 999px;
+      font-weight: 800;
+      border: 1px solid rgba(255, 255, 255, .12);
+      backdrop-filter: blur(12px);
+    }
+
+    .msg.show {
+      display: block;
+    }
+
+    .msg.err {
+      color: #ffd7dc;
+      background: rgba(255, 101, 117, .12);
+      border-color: rgba(255, 101, 117, .28);
+    }
+
+    @media (max-width: 720px) {
+      .login-wrap {
+        transform: none;
+      }
+
+      .brand-mark {
+        height: 178px;
+      }
+
+      .brand-symbol {
+        transform: scale(.82);
+        margin-bottom: -24px;
+      }
+
+      .brand-subtitle {
+        letter-spacing: .18em;
+        margin-top: 4px;
+      }
+
+      .access-card {
+        padding: 26px 18px 22px;
+        border-radius: 24px;
+      }
+
+      .enter-btn {
+        font-size: 17px;
+      }
+    }
+  
+/* ===== LOGO PNG REAL TRANSPARENTE ===== */
+.brand-logo-real {
+  width: min(460px, 90vw);
+  margin: 0 auto 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  filter:
+    drop-shadow(0 0 22px rgba(110,231,255,.38))
+    drop-shadow(0 0 48px rgba(123,92,255,.22));
+}
+
+.brand-logo-real img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.mini-logo {
+  width: 92px !important;
+  height: 92px !important;
+  overflow: visible !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+.mini-logo img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  mix-blend-mode: normal !important;
+  filter:
+    drop-shadow(0 0 16px rgba(110,231,255,.35))
+    drop-shadow(0 0 34px rgba(123,92,255,.16)) !important;
+}
+
+</style>
+</head>
+
+<body>
+  <main class="app">
+    <section class="login-screen">
+      <div class="login-wrap">
+        <div class="brand-logo-real">
+          <img src="./assets/cruz-stars-logo.png" alt="Cruz Stars" />
+        </div>
+
+        <p class="brand-subtitle">Painel Administrativo</p>
+
+        <div class="access-card">
+          <h1 class="access-title"><span>♢</span>Acesso Restrito</h1>
+          <p class="access-sub">Informe seu token de acesso para entrar no painel</p>
+
+          <div class="field">
+            <label for="tokenInput">Token de acesso</label>
+            <div class="token-field">
+              <span class="lock">▣</span>
+              <input id="tokenInput" type="password" placeholder="Cole seu token aqui..." autocomplete="current-password" autofocus />
+              <span class="spark">✦</span>
+            </div>
+          </div>
+
+          <button class="enter-btn" onclick="login()">↪ Entrar no painel</button>
+        </div>
+
+        <div id="msg" class="msg err"></div>
+
+        <div class="footer-secure">
+          ♢ Seguro • Confiável • Protegido
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
+    const KEY = 'cruz-stars-admin-token';
+
+    const tokenInput = document.getElementById('tokenInput');
+    const msg = document.getElementById('msg');
+
+    function showError(text) {
+      msg.textContent = text;
+      msg.className = 'msg err show';
+    }
+
+    async function login() {
+      const token = tokenInput.value.trim();
+
+      if (!token) {
+        showError('Digite o token de acesso.');
+        return;
+      }
+
+      try {
+        const response = await fetch(API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'x-admin-token': token
+          },
+          body: JSON.stringify({ action: 'listDevices' })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || data.message || 'Token inválido.');
+        }
+
+        localStorage.setItem(KEY, token);
+        window.location.href = './dashboard.html';
+      } catch (error) {
+        showError(error.message || 'Falha ao entrar.');
+      }
+    }
+
+    tokenInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>
