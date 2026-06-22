@@ -127,12 +127,6 @@ export function ActivationScreen() {
                 Enviar pelo WhatsApp
               </a>
 
-              <button
-                onClick={() => setScreen('home')}
-                className="w-full px-8 py-4 text-center text-xl font-light text-white/38 hover:text-white/70"
-              >
-                Entrar em demonstração
-              </button>
             </div>
 
             <p className="mt-10 text-center text-base font-light leading-relaxed text-white/28">
