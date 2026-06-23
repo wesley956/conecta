@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
@@ -275,6 +276,7 @@ function DevicePanelSync() {
 
 // ===== MAIN APP =====
 export default function App() {
+  useTvRemoteNavigation();
   const { currentScreen } = useAppStore();
 
     // Keyboard navigation for TV remote control

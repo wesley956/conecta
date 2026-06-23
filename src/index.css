@@ -2192,3 +2192,27 @@ input[type="range"].player-progress-slim:disabled {
     font-size: clamp(1.45rem, 4.8vw, 2.15rem) !important;
   }
 }
+
+/* Android TV / TV Box remote focus */
+.tv-focusable {
+  outline: none;
+}
+
+.tv-focusable:focus,
+.tv-focusable:focus-visible {
+  outline: 4px solid rgba(35, 150, 242, 0.98) !important;
+  outline-offset: 4px !important;
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, 0.18),
+    0 0 36px rgba(35, 150, 242, 0.78) !important;
+  transform: scale(1.035);
+  z-index: 50;
+}
+
+button:focus,
+a:focus,
+[role="button"]:focus,
+[data-tv-focusable="true"]:focus {
+  outline: 4px solid rgba(35, 150, 242, 0.98) !important;
+  outline-offset: 4px !important;
+}
