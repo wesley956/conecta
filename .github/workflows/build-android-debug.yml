@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - fix/player-stability-audit-1
+      - fix/tv-remote-navigation
       - feature/working-apk-roneca-logo
 
 jobs:
