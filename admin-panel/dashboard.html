@@ -849,6 +849,7 @@ tbody tr:hover td {
 
     <nav class="tabs">
       <button class="tab active" data-tab="dashboard" onclick="setTab('dashboard')">Dashboard</button>
+      <button class="tab" data-tab="commercial" onclick="setTab('commercial')">Comercial</button>
       <button class="tab" data-tab="customers" onclick="setTab('customers')">Clientes</button>
       <button class="tab" data-tab="playlists" onclick="setTab('playlists')">Listas</button>
       <button class="tab" data-tab="devices" onclick="setTab('devices')">Aparelhos</button>
@@ -881,6 +882,149 @@ tbody tr:hover td {
           <h2>Vencendo em 7 dias</h2>
           <p class="sub">Aparelhos ativos com vencimento próximo.</p>
           <div id="expiringQuick" class="quick-list"></div>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="section-commercial" class="section">
+      <div class="grid">
+        <div class="card">
+          <h2>Comercial — Vendedores, Créditos e Planos</h2>
+          <p class="sub">Base para controlar venda real: saldo de vendedores, planos e movimentações de crédito.</p>
+
+          <div class="stats">
+            <div class="stat"><small>Vendedores</small><strong id="stSellers">0</strong></div>
+            <div class="stat"><small>Créditos totais</small><strong id="stCredits">0</strong></div>
+            <div class="stat"><small>Planos</small><strong id="stPlans">0</strong></div>
+            <div class="stat"><small>Movimentações</small><strong id="stLedger">0</strong></div>
+            <div class="stat"><small>Ativos</small><strong id="stActiveSellers">0</strong></div>
+            <div class="stat"><small>Bloqueados</small><strong id="stBlockedSellers">0</strong></div>
+          </div>
+        </div>
+
+        <div class="card col4">
+          <h2>Novo Vendedor</h2>
+          <p class="sub">Crie revendedores e controle saldo por crédito.</p>
+
+          <label>Nome</label>
+          <input id="newSellerName" placeholder="Ex: Revendedor João" />
+
+          <label>WhatsApp</label>
+          <input id="newSellerWhatsapp" placeholder="Ex: 19999999999" />
+
+          <label>E-mail opcional</label>
+          <input id="newSellerEmail" placeholder="email@exemplo.com" />
+
+          <label>Créditos iniciais</label>
+          <input id="newSellerInitialCredits" type="number" min="0" value="0" />
+
+          <label>
+            <input id="newSellerCanGoNegative" type="checkbox" />
+            Permitir saldo negativo
+          </label>
+
+          <br>
+          <button class="btn primary" onclick="createSeller()">Cadastrar vendedor</button>
+        </div>
+
+        <div class="card col4">
+          <h2>Novo Plano</h2>
+          <p class="sub">Defina duração e custo em créditos.</p>
+
+          <label>Nome do plano</label>
+          <input id="newPlanName" placeholder="Ex: Mensal 1 tela" />
+
+          <label>Duração em dias</label>
+          <input id="newPlanDurationDays" type="number" min="1" value="30" />
+
+          <label>Custo em créditos</label>
+          <input id="newPlanCreditCost" type="number" min="1" value="1" />
+
+          <label>Máx. aparelhos</label>
+          <input id="newPlanMaxDevices" type="number" min="1" value="1" />
+
+          <br><br>
+          <button class="btn primary" onclick="createPlan()">Cadastrar plano</button>
+        </div>
+
+        <div class="card col4">
+          <h2>Adicionar Créditos</h2>
+          <p class="sub">Toda entrada vira extrato/auditoria.</p>
+
+          <label>Vendedor</label>
+          <select id="sellerCreditSeller"></select>
+
+          <label>Quantidade</label>
+          <input id="sellerCreditAmount" type="number" min="1" value="1" />
+
+          <label>Descrição</label>
+          <input id="sellerCreditDescription" placeholder="Ex: Pagamento recebido" />
+
+          <br><br>
+          <button class="btn green" onclick="addSellerCredits()">Adicionar créditos</button>
+        </div>
+
+        <div class="card col7">
+          <h2>Vendedores</h2>
+          <p class="sub">Gerencie saldo, status e permissão de saldo negativo.</p>
+
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>WhatsApp</th>
+                  <th>Saldo</th>
+                  <th>Status</th>
+                  <th>Negativo</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="sellersBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card col5">
+          <h2>Planos</h2>
+          <p class="sub">Planos usados na ativação/renovação.</p>
+
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Plano</th>
+                  <th>Dias</th>
+                  <th>Créditos</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="plansBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Extrato de Créditos</h2>
+          <p class="sub">Histórico de entradas, saídas, ativações, renovações e estornos.</p>
+
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Vendedor</th>
+                  <th>Tipo</th>
+                  <th>Qtd</th>
+                  <th>Saldo após</th>
+                  <th>Descrição</th>
+                </tr>
+              </thead>
+              <tbody id="creditLedgerBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -1107,6 +1251,9 @@ const KEY = 'cruz-stars-admin-token';
 let customers = [];
 let playlists = [];
 let devices = [];
+let sellers = [];
+let plans = [];
+let creditLedger = [];
 let auditLogs = [];
 
 const $ = id => document.getElementById(id);
@@ -1289,16 +1436,20 @@ async function loadAll() {
   }
 
   try {
-    const [customersRes, playlistsRes, devicesRes, auditRes] = await Promise.all([
+    const [customersRes, playlistsRes, devicesRes, commercialRes, auditRes] = await Promise.all([
       api('listCustomers'),
       api('listPlaylists'),
       api('listDevices'),
+      api('listCommercialData').catch(() => ({ sellers: [], plans: [], creditLedger: [] })),
       api('listAuditLogs', { limit: 200 }).catch(() => ({ logs: [] }))
     ]);
 
     customers = customersRes.customers || [];
     playlists = playlistsRes.playlists || [];
     devices = devicesRes.devices || [];
+    sellers = commercialRes.sellers || [];
+    plans = commercialRes.plans || [];
+    creditLedger = commercialRes.creditLedger || [];
     auditLogs = auditRes.logs || [];
 
     renderAll();
@@ -1312,6 +1463,7 @@ function renderAll() {
   renderStats();
   renderFilters();
   renderDashboard();
+  renderCommercial();
   renderCustomers();
   renderPlaylists();
   renderDevices();
@@ -2079,6 +2231,229 @@ function clearAuditFilters() {
   $('auditActionFilter').value = '';
   renderAuditLogs();
 }
+
+
+function sellerStatusOptions(value) {
+  return `
+    <option value="active" ${value === 'active' ? 'selected' : ''}>Ativo</option>
+    <option value="blocked" ${value === 'blocked' ? 'selected' : ''}>Bloqueado</option>
+    <option value="inactive" ${value === 'inactive' ? 'selected' : ''}>Inativo</option>
+  `;
+}
+
+function planStatusOptions(value) {
+  return `
+    <option value="active" ${value === 'active' ? 'selected' : ''}>Ativo</option>
+    <option value="inactive" ${value === 'inactive' ? 'selected' : ''}>Inativo</option>
+  `;
+}
+
+function ledgerTypeLabel(type) {
+  const map = {
+    purchase: 'Compra',
+    activation: 'Ativação',
+    renewal: 'Renovação',
+    refund: 'Estorno',
+    manual_add: 'Entrada manual',
+    manual_remove: 'Saída manual'
+  };
+
+  return map[type] || type || '—';
+}
+
+function renderCommercial() {
+  const totalCredits = sellers.reduce((sum, seller) => sum + Number(seller.creditBalance || 0), 0);
+
+  if ($('stSellers')) $('stSellers').textContent = sellers.length;
+  if ($('stCredits')) $('stCredits').textContent = totalCredits;
+  if ($('stPlans')) $('stPlans').textContent = plans.length;
+  if ($('stLedger')) $('stLedger').textContent = creditLedger.length;
+  if ($('stActiveSellers')) $('stActiveSellers').textContent = sellers.filter(s => s.status === 'active').length;
+  if ($('stBlockedSellers')) $('stBlockedSellers').textContent = sellers.filter(s => s.status === 'blocked').length;
+
+  const sellerCreditSelect = $('sellerCreditSeller');
+  if (sellerCreditSelect) {
+    const selected = sellerCreditSelect.value;
+    sellerCreditSelect.innerHTML = '<option value="">Escolha um vendedor</option>' +
+      sellers.map(s => `<option value="${esc(s.id)}">${esc(s.name)} — ${Number(s.creditBalance || 0)} crédito(s)</option>`).join('');
+    sellerCreditSelect.value = selected;
+  }
+
+  const sellersBody = $('sellersBody');
+  if (sellersBody) {
+    sellersBody.innerHTML = sellers.length
+      ? sellers.map(seller => `
+        <tr>
+          <td>
+            <input id="seller-name-${esc(seller.id)}" value="${esc(seller.name)}" />
+            <div class="small muted">${esc(seller.email || 'Sem e-mail')}</div>
+          </td>
+          <td><input id="seller-whats-${esc(seller.id)}" value="${esc(seller.whatsapp)}" /></td>
+          <td><strong>${Number(seller.creditBalance || 0)}</strong><br><span class="small muted">crédito(s)</span></td>
+          <td>
+            <select id="seller-status-${esc(seller.id)}">
+              ${sellerStatusOptions(seller.status)}
+            </select>
+          </td>
+          <td>
+            <label class="small">
+              <input id="seller-negative-${esc(seller.id)}" type="checkbox" ${seller.canGoNegative ? 'checked' : ''} />
+              permitir
+            </label>
+          </td>
+          <td>
+            <button class="btn" onclick="updateSeller('${esc(seller.id)}')">Salvar</button>
+          </td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="6" class="muted">Nenhum vendedor cadastrado.</td></tr>';
+  }
+
+  const plansBody = $('plansBody');
+  if (plansBody) {
+    plansBody.innerHTML = plans.length
+      ? plans.map(plan => `
+        <tr>
+          <td><input id="plan-name-${esc(plan.id)}" value="${esc(plan.name)}" /></td>
+          <td><input id="plan-days-${esc(plan.id)}" type="number" min="1" value="${Number(plan.durationDays || 30)}" /></td>
+          <td><input id="plan-cost-${esc(plan.id)}" type="number" min="1" value="${Number(plan.creditCost || 1)}" /></td>
+          <td>
+            <select id="plan-status-${esc(plan.id)}">
+              ${planStatusOptions(plan.status)}
+            </select>
+          </td>
+          <td>
+            <button class="btn" onclick="updatePlan('${esc(plan.id)}')">Salvar</button>
+          </td>
+        </tr>
+      `).join('')
+      : '<tr><td colspan="5" class="muted">Nenhum plano cadastrado.</td></tr>';
+  }
+
+  const ledgerBody = $('creditLedgerBody');
+  if (ledgerBody) {
+    ledgerBody.innerHTML = creditLedger.length
+      ? creditLedger.map(entry => {
+        const positive = Number(entry.amount || 0) >= 0;
+        return `
+          <tr>
+            <td class="muted">${fmtDate(entry.createdAt)}</td>
+            <td>${esc(entry.sellerName || '—')}<br><span class="small muted mono">${esc(entry.sellerId || '')}</span></td>
+            <td><span class="badge ${positive ? 'active' : 'blocked'}">${esc(ledgerTypeLabel(entry.type))}</span></td>
+            <td><strong class="${positive ? 'ok-text' : 'danger-text'}">${positive ? '+' : ''}${Number(entry.amount || 0)}</strong></td>
+            <td>${Number(entry.balanceAfter || 0)}</td>
+            <td>${esc(entry.description || '—')}</td>
+          </tr>
+        `;
+      }).join('')
+      : '<tr><td colspan="6" class="muted">Nenhuma movimentação de crédito.</td></tr>';
+  }
+}
+
+async function createSeller() {
+  try {
+    await api('createSeller', {
+      name: $('newSellerName').value.trim(),
+      whatsapp: $('newSellerWhatsapp').value.trim(),
+      email: $('newSellerEmail').value.trim() || null,
+      initialCredits: Number($('newSellerInitialCredits').value || 0),
+      canGoNegative: $('newSellerCanGoNegative').checked,
+      status: 'active'
+    });
+
+    $('newSellerName').value = '';
+    $('newSellerWhatsapp').value = '';
+    $('newSellerEmail').value = '';
+    $('newSellerInitialCredits').value = '0';
+    $('newSellerCanGoNegative').checked = false;
+
+    await loadAll();
+    show('Vendedor cadastrado.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function updateSeller(id) {
+  try {
+    await api('updateSeller', {
+      id,
+      name: $('seller-name-' + id).value.trim(),
+      whatsapp: $('seller-whats-' + id).value.trim(),
+      status: $('seller-status-' + id).value,
+      canGoNegative: $('seller-negative-' + id).checked
+    });
+
+    await loadAll();
+    show('Vendedor atualizado.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function addSellerCredits() {
+  try {
+    const sellerId = $('sellerCreditSeller').value;
+    const amount = Number($('sellerCreditAmount').value || 0);
+
+    if (!sellerId) throw new Error('Escolha um vendedor.');
+    if (!amount || amount < 1) throw new Error('Informe uma quantidade válida de créditos.');
+
+    await api('addSellerCredits', {
+      sellerId,
+      amount,
+      description: $('sellerCreditDescription').value.trim() || 'Crédito adicionado manualmente'
+    });
+
+    $('sellerCreditAmount').value = '1';
+    $('sellerCreditDescription').value = '';
+
+    await loadAll();
+    show('Créditos adicionados.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function createPlan() {
+  try {
+    await api('createPlan', {
+      name: $('newPlanName').value.trim(),
+      durationDays: Number($('newPlanDurationDays').value || 30),
+      creditCost: Number($('newPlanCreditCost').value || 1),
+      maxDevices: Number($('newPlanMaxDevices').value || 1),
+      status: 'active'
+    });
+
+    $('newPlanName').value = '';
+    $('newPlanDurationDays').value = '30';
+    $('newPlanCreditCost').value = '1';
+    $('newPlanMaxDevices').value = '1';
+
+    await loadAll();
+    show('Plano cadastrado.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
+async function updatePlan(id) {
+  try {
+    await api('updatePlan', {
+      id,
+      name: $('plan-name-' + id).value.trim(),
+      durationDays: Number($('plan-days-' + id).value || 30),
+      creditCost: Number($('plan-cost-' + id).value || 1),
+      status: $('plan-status-' + id).value
+    });
+
+    await loadAll();
+    show('Plano atualizado.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
+
 
 function logout() {
   localStorage.removeItem(KEY);
