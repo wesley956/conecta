@@ -55,7 +55,7 @@ export function ActivationScreen() {
       const normalizedSellerCode = sellerCode.trim().toLowerCase();
 
       if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(normalizedSellerCode)) {
-        setError('Código público do vendedor inválido.');
+        setActiveNotice('Código público do vendedor inválido.');
         return;
       }
 
