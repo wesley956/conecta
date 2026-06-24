@@ -102,7 +102,7 @@ button {
 }
 
 .premium-bg::after {
-  content: "▭  ▷  R  📶  ⟳  ⚙  ▭  ▷  R  📶";
+  content: "";
   position: absolute;
   inset: auto -4vw 4vh auto;
   z-index: -1;

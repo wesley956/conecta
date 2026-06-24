@@ -4,10 +4,10 @@ import type { Channel, ChannelCategory, Movie, Series, Customer, Device, Plan, P
 export const channelCategories: ChannelCategory[] = [
   { id: 'all', name: 'Todos', icon: '📺', count: 48 },
   { id: 'favorites', name: 'Favoritos', icon: '⭐', count: 5 },
-  { id: 'open', name: 'Abertos', icon: '📡', count: 12 },
+  { id: 'open', name: 'Abertos', icon: 'tv', count: 12 },
   { id: 'news', name: 'Notícias', icon: '📰', count: 8 },
-  { id: 'movies', name: 'Filmes', icon: '🎬', count: 6 },
-  { id: 'series', name: 'Séries', icon: '🎥', count: 4 },
+  { id: 'movies', name: 'Filmes', icon: 'movies', count: 6 },
+  { id: 'series', name: 'Séries', icon: 'series', count: 4 },
   { id: 'kids', name: 'Infantil', icon: '🧸', count: 5 },
   { id: 'sports', name: 'Esportes', icon: '⚽', count: 7 },
   { id: 'docs', name: 'Documentários', icon: '🔬', count: 3 },
