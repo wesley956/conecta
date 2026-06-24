@@ -224,6 +224,38 @@
       .hero, .section-title { align-items: flex-start; flex-direction: column; }
       .wrap { width: min(100% - 18px, 1180px); padding-top: 16px; }
     }
+  
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 180px 210px auto;
+      gap: 10px;
+      align-items: end;
+      margin-top: 14px;
+    }
+
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--text);
+      padding: 13px 14px;
+      border-radius: 14px;
+      outline: none;
+      font: inherit;
+    }
+
+    .result-count {
+      color: var(--muted);
+      margin-top: 10px;
+      font-size: .9rem;
+    }
+
+    @media (max-width: 820px) {
+      .filters {
+        grid-template-columns: 1fr;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -273,7 +305,42 @@
             <p class="muted">Aparelhos vinculados a este vendedor.</p>
           </div>
         </div>
-        <div class="tablewrap">
+
+        <div class="filters">
+          <div>
+            <label for="deviceSearch">Buscar</label>
+            <input id="deviceSearch" placeholder="Código, cliente ou plano" oninput="renderDevicesTable()" />
+          </div>
+          <div>
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter" onchange="renderDevicesTable()">
+              <option value="">Todos</option>
+              <option value="active">Ativos</option>
+              <option value="pending">Pendentes</option>
+              <option value="expired">Vencidos</option>
+              <option value="blocked">Bloqueados</option>
+              <option value="inactive">Inativos</option>
+            </select>
+          </div>
+          <div>
+            <label for="expiryFilter">Vencimento</label>
+            <select id="expiryFilter" onchange="renderDevicesTable()">
+              <option value="">Todos</option>
+              <option value="expired">Já vencidos</option>
+              <option value="today">Vence hoje</option>
+              <option value="7">Vence em até 7 dias</option>
+              <option value="30">Vence em até 30 dias</option>
+              <option value="ok">Mais de 30 dias</option>
+            </select>
+          </div>
+          <div>
+            <button onclick="clearDeviceFilters()">Limpar</button>
+          </div>
+        </div>
+
+        <div id="resultCount" class="result-count"></div>
+
+        <div class="tablewrap" style="margin-top:14px;">
           <table>
             <thead>
               <tr>
@@ -305,6 +372,7 @@
   <script>
     const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
     const TOKEN_KEY = 'roneca_seller_token';
+    let currentPortalData = null;
 
     function $(id) {
       return document.getElementById(id);
@@ -402,54 +470,58 @@
       }
     }
 
-    function render(data) {
-      const seller = data.seller || {};
-      const stats = data.stats || {};
+
+    function normalizeText(value) {
+      return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function filteredDevices() {
+      const data = currentPortalData || {};
       const devices = data.devices || [];
-      const ledger = data.creditLedger || [];
-      const balance = Number(seller.creditBalance || 0);
+      const term = normalizeText($('deviceSearch')?.value || '');
+      const status = $('statusFilter')?.value || '';
+      const expiry = $('expiryFilter')?.value || '';
 
-      $('sellerName').textContent = seller.name || 'Portal do Vendedor';
-      $('sellerSub').textContent = `${seller.whatsapp || ''}${seller.email ? ' · ' + seller.email : ''}`;
+      return devices.filter(device => {
+        const matchTerm = !term ||
+          normalizeText(device.deviceCode).includes(term) ||
+          normalizeText(device.deviceUuid).includes(term) ||
+          normalizeText(device.customerName).includes(term) ||
+          normalizeText(device.customerWhatsapp).includes(term) ||
+          normalizeText(device.planName).includes(term);
 
-      $('statsGrid').innerHTML = `
-        <div class="metric"><small>Saldo atual</small><strong class="${balance < 0 ? 'negative' : 'positive'}">${number(balance)}</strong></div>
-        <div class="metric"><small>Aparelhos ativos</small><strong>${number(stats.activeDevices)}</strong></div>
-        <div class="metric"><small>Vencendo 7 dias</small><strong class="warn">${number(stats.expiringSoon)}</strong></div>
-        <div class="metric"><small>Vencidos</small><strong class="negative">${number(stats.expiredDevices)}</strong></div>
-        <div class="metric"><small>Pendentes</small><strong>${number(stats.pendingDevices)}</strong></div>
-        <div class="metric"><small>Bloqueados</small><strong>${number(stats.blockedDevices)}</strong></div>
-        <div class="metric"><small>Créditos adicionados</small><strong class="positive">${number(stats.creditsAdded)}</strong></div>
-        <div class="metric"><small>Créditos consumidos</small><strong class="negative">${number(stats.creditsConsumed)}</strong></div>
-      `;
+        const matchStatus = !status || device.status === status;
 
-      $('devicesBody').innerHTML = devices.length
-        ? devices.map(device => {
-          const wa = whatsappUrl(device.customerWhatsapp);
-          const days = device.daysLeft;
-          const validity = days === null
-            ? '—'
-            : days < 0
-              ? `<span class="negative">${Math.abs(days)} dia(s) vencido</span>`
-              : days <= 7
-                ? `<span class="warn">${days} dia(s)</span>`
-                : `${days} dia(s)`;
+        const days = Number(device.daysLeft);
+        let matchExpiry = true;
 
-          return `
-            <tr>
-              <td><span class="mono">${esc(device.deviceCode)}</span><br><span class="muted">${esc(device.deviceUuid || '')}</span></td>
-              <td>
-                ${esc(device.customerName || 'Sem cliente')}
-                ${wa ? `<br><a class="btn" href="${wa}" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>` : ''}
-              </td>
-              <td>${badge(device.status)}</td>
-              <td>${esc(device.planName || 'Sem plano')}<br><span class="muted">${esc(device.planCreditCost ? String(device.planCreditCost) + ' crédito(s)' : '')}</span></td>
-              <td>${fmtDate(device.expiresAt)}<br>${validity}</td>
-              <td>${fmtDate(device.lastSeenAt)}</td>
-            </tr>
-          `;
-        }).join('')
-        : '<tr><td colspan="6" class="muted">Nenhum aparelho vinculado.</td></tr>';
+        if (expiry === 'expired') matchExpiry = Number.isFinite(days) && days < 0;
+        if (expiry === 'today') matchExpiry = Number.isFinite(days) && days === 0;
+        if (expiry === '7') matchExpiry = Number.isFinite(days) && days >= 0 && days <= 7;
+        if (expiry === '30') matchExpiry = Number.isFinite(days) && days >= 0 && days <= 30;
+        if (expiry === 'ok') matchExpiry = Number.isFinite(days) && days > 30;
+
+        return matchTerm && matchStatus && matchExpiry;
+      });
+    }
+
+    function clearDeviceFilters() {
+      $('deviceSearch').value = '';
+      $('statusFilter').value = '';
+      $('expiryFilter').value = '';
+      renderDevicesTable();
+    }
+
+    function renderDevicesTable() {
+      const devices = filteredDevices();
+      const total = (currentPortalData?.devices || []).length;
+
+      $('resultCount').textContent = `${devices.length} de ${total} aparelho(s) exibido(s).`;
+
+      renderDevicesTable();
 
       $('ledgerList').innerHTML = ledger.length
         ? ledger.map(entry => {
