@@ -105,6 +105,12 @@ function parseXtreamSource(rawUrl: string): XtreamSourceInfo | null {
   }
 }
 
+function isSupportedXtreamEndpoint(pathname: string) {
+  const path = pathname.toLowerCase();
+
+  return path.endsWith('/get.php') || path.endsWith('/player_api.php');
+}
+
 export function canLoadXtreamSeriesFromPlaylist(rawUrl?: string | null) {
   if (!rawUrl) return false;
 
@@ -112,7 +118,7 @@ export function canLoadXtreamSeriesFromPlaylist(rawUrl?: string | null) {
     const url = new URL(rawUrl.trim());
 
     return (
-      url.pathname.toLowerCase().endsWith('/get.php') &&
+      isSupportedXtreamEndpoint(url.pathname) &&
       Boolean(url.searchParams.get('username')) &&
       Boolean(url.searchParams.get('password'))
     );
@@ -251,6 +257,53 @@ function parseNumber(value: unknown, fallback = 1) {
   return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
+function normalizeEpisodeGroups(info: any): Array<[string, any[]]> {
+  const rawEpisodes = info?.episodes ?? {};
+
+  if (Array.isArray(rawEpisodes)) {
+    return [['1', rawEpisodes]];
+  }
+
+  if (rawEpisodes && typeof rawEpisodes === 'object') {
+    return Object.entries(rawEpisodes).flatMap(([seasonKey, value]) => {
+      if (Array.isArray(value)) {
+        return [[seasonKey, value] as [string, any[]]];
+      }
+
+      if (value && typeof value === 'object') {
+        const nested = Object.values(value).filter(Array.isArray).flat() as any[];
+
+        return nested.length > 0 ? [[seasonKey, nested] as [string, any[]]] : [];
+      }
+
+      return [];
+    });
+  }
+
+  return [];
+}
+
+function cleanEpisodeExtension(value: unknown) {
+  const ext = String(value || 'mp4')
+    .replace('.', '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase()
+    .trim();
+
+  return ext || 'mp4';
+}
+
+function episodeDuration(raw: any) {
+  return asText(
+    raw?.info?.duration ||
+    raw?.info?.duration_secs ||
+    raw?.duration ||
+    raw?.duration_secs ||
+    raw?.durationSec,
+    '—'
+  );
+}
+
 export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Series[]> {
   const cacheKey = playlistUrl.trim();
 
@@ -333,20 +386,29 @@ export async function fetchXtreamSeriesEpisodes(playlistUrl: string, seriesId: s
     series_id: seriesId,
   }), 'Episódios da série');
 
-  const episodesBySeason = info?.episodes ?? {};
   const seasons: Season[] = [];
 
-  for (const [seasonKey, rawEpisodes] of Object.entries(episodesBySeason)) {
-    const seasonNumber = parseNumber(seasonKey, seasons.length + 1);
+  for (const [seasonKey, rawEpisodes] of normalizeEpisodeGroups(info)) {
+    const seasonsApi = Array.isArray(info?.seasons) ? info.seasons : [];
+    const seasonFromEpisode = rawEpisodes.find(raw => raw?.season || raw?.season_number || raw?.seasonNumber);
+    const seasonNumber = parseNumber(
+      seasonFromEpisode?.season ??
+      seasonFromEpisode?.season_number ??
+      seasonFromEpisode?.seasonNumber ??
+      seasonsApi.find((season: any) => String(season?.season_number ?? season?.seasonNumber ?? season?.number ?? '') === String(seasonKey))?.season_number ??
+      seasonKey,
+      seasons.length + 1
+    );
+
     const episodes: Episode[] = [];
 
-    for (const raw of Array.isArray(rawEpisodes) ? rawEpisodes : []) {
+    for (const raw of rawEpisodes) {
       const episodeId = raw.id ?? raw.episode_id ?? raw.stream_id;
 
       if (!episodeId) continue;
 
       const episodeNumber = parseNumber(raw.episode_num ?? raw.episode_number ?? raw.number, episodes.length + 1);
-      const extension = raw.container_extension ?? raw.containerExtension ?? 'mp4';
+      const extension = cleanEpisodeExtension(raw.container_extension ?? raw.containerExtension ?? raw.info?.container_extension);
       const url = seriesStreamUrl(source, episodeId, extension);
 
       episodes.push({
@@ -355,7 +417,7 @@ export async function fetchXtreamSeriesEpisodes(playlistUrl: string, seriesId: s
         name: asText(raw.title || raw.name, `Episódio ${episodeNumber}`),
         url,
         playbackUrls: [url],
-        duration: asText(raw.info?.duration || raw.duration, '—'),
+        duration: episodeDuration(raw),
         progress: 0,
       });
     }
