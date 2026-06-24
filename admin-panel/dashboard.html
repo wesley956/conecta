@@ -2767,12 +2767,20 @@ function renderSellerReports() {
         </div>
 
         <div style="margin:14px 0;">
-          <label for="seller-token-${esc(seller.id)}">Token do vendedor</label>
+          <label for="seller-public-code-${esc(seller.id)}">Código público do vendedor para o APK</label>
+          <input class="table-input" id="seller-public-code-${esc(seller.id)}" value="${esc(seller.publicCode || '')}" placeholder="Ex: ronaldo-123456">
+          <p class="muted" style="margin-top:6px;">Esse é o código que o cliente digita no APK. Não é a senha do portal.</p>
+        </div>
+
+        <div style="margin:14px 0;">
+          <label for="seller-token-${esc(seller.id)}">Token privado do vendedor para o portal</label>
           <input class="table-input" id="seller-token-${esc(seller.id)}" value="${esc(seller.accessToken || '')}" placeholder="Defina um token de acesso">
         </div>
 
         <div class="actions">
           <button class="btn" onclick="openSellerDeviceFilter('${esc(seller.id)}')">Ver aparelhos</button>
+          <button class="btn green" onclick="saveSellerPublicCode('${esc(seller.id)}')">Salvar código público</button>
+          <button class="btn" onclick="copyText($('seller-public-code-${esc(seller.id)}').value)">Copiar código público</button>
           <button class="btn green" onclick="saveSellerToken('${esc(seller.id)}')">Salvar token</button>
           <button class="btn" onclick="copyText($('seller-token-${esc(seller.id)}').value)">Copiar token</button>
           <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Portal vendedor</a>
@@ -2789,6 +2797,27 @@ function renderSellerReports() {
 }
 
 
+
+
+async function saveSellerPublicCode(id) {
+  try {
+    const publicCode = $('seller-public-code-' + id).value.trim();
+
+    if (!publicCode) {
+      throw new Error('Digite um código público para o vendedor.');
+    }
+
+    await api('updateSeller', {
+      id,
+      publicCode
+    });
+
+    await loadAll();
+    show('Código público do vendedor salvo.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
 
 async function saveSellerToken(id) {
   try {

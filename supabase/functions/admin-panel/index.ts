@@ -307,7 +307,7 @@ serve(async (req) => {
     if (action === 'listCommercialData') {
       const { data: sellers, error: sellersError } = await supabase
         .from('panel_sellers')
-        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, created_at, updated_at')
+        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, public_code, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (sellersError) return json({ error: sellersError.message }, 500);
@@ -350,7 +350,8 @@ serve(async (req) => {
           status: seller.status,
           creditBalance: seller.credit_balance,
           canGoNegative: seller.can_go_negative,
-          accessToken: seller.access_token || null,
+          accessToken: seller.access_token,
+      publicCode: seller.public_code, public_code || null,
           createdAt: seller.created_at,
           updatedAt: seller.updated_at,
         })),
@@ -384,6 +385,7 @@ serve(async (req) => {
       const whatsapp = normalizeWhatsapp(body.whatsapp);
       const email = textOrNull(body.email);
       const accessToken = textOrNull(body.accessToken) || createSellerAccessToken();
+      const publicCode = textOrNull(body.publicCode);
       const initialCredits = intOrDefault(body.initialCredits, 0, 0);
 
       if (!whatsapp) {
@@ -399,7 +401,7 @@ serve(async (req) => {
           status: normalizeSellerStatus(body.status),
           credit_balance: initialCredits,
           can_go_negative: body.canGoNegative === true,
-          access_token: accessToken,
+          access_token, public_code: accessToken,
           updated_at: new Date().toISOString(),
         })
         .select('id')
@@ -446,7 +448,7 @@ serve(async (req) => {
       if ('accessToken' in body) {
         const accessToken = textOrNull(body.accessToken);
         if (!accessToken) return json({ error: 'Token do vendedor é obrigatório.' }, 400);
-        updates.access_token = accessToken;
+        updates.access_token, public_code = accessToken;
       }
       if ('status' in body) updates.status = normalizeSellerStatus(body.status);
       if ('canGoNegative' in body) updates.can_go_negative = body.canGoNegative === true;
