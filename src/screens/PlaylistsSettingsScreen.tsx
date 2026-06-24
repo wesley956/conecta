@@ -58,7 +58,7 @@ export function SettingsScreen() {
       if (!config.active) {
         setDeviceActivated(false);
         setAccessStatus(config.status === 'blocked' ? 'Bloqueado' : config.status === 'expired' ? 'Vencido' : 'Aguardando liberação');
-        setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
+        setActiveNotice(config.message || 'Aparelho aguardando liberação no painel.');
 
         if (config.status === 'blocked') setScreen('blocked');
         else if (config.status === 'expired') setScreen('expired');

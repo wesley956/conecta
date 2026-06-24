@@ -73,7 +73,7 @@ export function ActivationScreen() {
 
       if (!config.active) {
         setDeviceActivated(false);
-        setActiveNotice(config.message || '⏳ Aparelho aguardando liberação no painel.');
+        setActiveNotice(config.message || 'Aparelho aguardando liberação no painel.');
 
         if (config.status === 'blocked') {
           setScreen('blocked');
