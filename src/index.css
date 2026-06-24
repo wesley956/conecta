@@ -2216,3 +2216,42 @@ a:focus,
   outline: 4px solid rgba(35, 150, 242, 0.98) !important;
   outline-offset: 4px !important;
 }
+
+/* ===== AUDIT FIX: TV/REMOTE FOCUS VISIBILITY ===== */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+.tv-focusable:focus-visible {
+  outline: 3px solid #22d3ee !important;
+  outline-offset: 4px !important;
+  box-shadow:
+    0 0 0 4px rgba(34, 211, 238, 0.22),
+    0 0 26px rgba(34, 211, 238, 0.42) !important;
+}
+
+.clean-tv-sidebar button:focus-visible,
+.roneca-sidebar button:focus-visible,
+.premium-card:focus-visible,
+.content-card:focus-visible,
+.channel-card:focus-visible,
+.movie-card:focus-visible,
+.series-card:focus-visible {
+  outline: 3px solid #22d3ee !important;
+  outline-offset: 3px !important;
+  border-color: rgba(34, 211, 238, 0.78) !important;
+  transform: translateY(-1px) scale(1.015);
+}
+
+@media (hover: none) {
+  button:focus,
+  a:focus,
+  input:focus,
+  select:focus,
+  [role="button"]:focus {
+    outline: 3px solid #22d3ee !important;
+    outline-offset: 4px !important;
+  }
+}

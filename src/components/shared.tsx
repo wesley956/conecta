@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import { Home, Tv, Film, Library, Settings } from 'lucide-react';
 
 // ===== LAYOUT COMPONENTS =====
 
@@ -195,11 +196,11 @@ export function BottomNav() {
   const setScreen = store.setScreen as (screen: string) => void;
 
   const items = [
-    { id: 'home', icon: '⌂', label: 'Início', action: () => setScreen('home'), active: ['home'].includes(activeScreen) },
-    { id: 'channels', icon: '▣', label: 'TV ao vivo', action: () => setScreen('channels'), active: ['channels'].includes(activeScreen) },
-    { id: 'movies', icon: '▶', label: 'Filmes', action: () => setScreen('movies'), active: ['movies'].includes(activeScreen) },
-    { id: 'series', icon: '▤', label: 'Séries', action: () => setScreen('series'), active: ['series'].includes(activeScreen) },
-    { id: 'settings', icon: '⚙', label: 'Config', action: () => setScreen('settings'), active: ['settings', 'favorites', 'search'].includes(activeScreen) },
+    { id: 'home', icon: <Home aria-hidden="true" size={22} strokeWidth={2.4} />, label: 'Início', action: () => setScreen('home'), active: ['home'].includes(activeScreen) },
+    { id: 'channels', icon: <Tv aria-hidden="true" size={22} strokeWidth={2.4} />, label: 'TV ao vivo', action: () => setScreen('channels'), active: ['channels'].includes(activeScreen) },
+    { id: 'movies', icon: <Film aria-hidden="true" size={22} strokeWidth={2.4} />, label: 'Filmes', action: () => setScreen('movies'), active: ['movies'].includes(activeScreen) },
+    { id: 'series', icon: <Library aria-hidden="true" size={22} strokeWidth={2.4} />, label: 'Séries', action: () => setScreen('series'), active: ['series'].includes(activeScreen) },
+    { id: 'settings', icon: <Settings aria-hidden="true" size={22} strokeWidth={2.4} />, label: 'Config', action: () => setScreen('settings'), active: ['settings', 'favorites', 'search'].includes(activeScreen) },
   ];
 
   return (
