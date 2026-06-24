@@ -451,9 +451,9 @@
     function filteredDevices() {
       const data = currentPortalData || {};
       const devices = data.devices || [];
-      const term = normalizeText($('deviceSearch')?.value || '');
-      const status = $('statusFilter')?.value || '';
-      const expiry = $('expiryFilter')?.value || '';
+      const term = normalizeText(($('deviceSearch') && $('deviceSearch').value) || '');
+      const status = (($('statusFilter') && $('statusFilter').value) || '');
+      const expiry = (($('expiryFilter') && $('expiryFilter').value) || '');
 
       return devices.filter(device => {
         const matchTerm = !term ||
@@ -486,7 +486,7 @@
 
     function renderDevicesTable() {
       const devices = filteredDevices();
-      const total = (currentPortalData?.devices || []).length;
+      const total = ((currentPortalData && currentPortalData.devices) || []).length;
       $('resultCount').textContent = devices.length + ' de ' + total + ' aparelho(s) exibido(s).';
 
       $('devicesBody').innerHTML = devices.length
@@ -561,7 +561,7 @@
       $('dashboardView').classList.add('hide');
     }
 
-    $('sellerToken')?.addEventListener('keydown', event => {
+    if ($('sellerToken')) $('sellerToken').addEventListener('keydown', event => {
       if (event.key === 'Enter') login();
     });
 
