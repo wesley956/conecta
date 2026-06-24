@@ -7,6 +7,8 @@ import https from 'node:https';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+const ENABLE_SINGLE_FILE = process.env.SINGLE_FILE === 'true' || process.env.VITE_SINGLE_FILE === 'true';
+
 const execFileAsync = promisify(execFile);
 const MAX_MEDIA_REDIRECTS = 6;
 
@@ -326,8 +328,24 @@ export default defineConfig({
     tailwindcss(),
     devM3UProxy(),
     devMediaProxy(),
-    viteSingleFile(),
+    ENABLE_SINGLE_FILE ? viteSingleFile() : null,
   ],
+
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('hls.js')) return 'hls';
+          if (id.includes('mpegts.js')) return 'mpegts';
+          if (id.includes('lucide-react')) return 'icons';
+          if (id.includes('zustand')) return 'zustand';
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor';
+          return 'vendor-misc';
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': '/src',

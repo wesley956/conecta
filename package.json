@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "audit:ui": "node scripts/audit-ui-crud.cjs",
     "serve:prod": "npm run build && node server.mjs",
-    "serve:dist": "node server.mjs"
+    "serve:dist": "node server.mjs",
+    "build:singlefile": "SINGLE_FILE=true vite build"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",

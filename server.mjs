@@ -111,7 +111,11 @@ function serveStatic(req, res) {
     ext === '.json' ? 'application/json; charset=utf-8' :
     'application/octet-stream';
 
-  res.writeHead(200, { 'content-type': contentType, 'cache-control': 'no-store' });
+  const cacheControl = ext === '.html'
+    ? 'no-cache'
+    : 'public, max-age=31536000, immutable';
+
+  res.writeHead(200, { 'content-type': contentType, 'cache-control': cacheControl });
   fs.createReadStream(filePath).pipe(res);
 }
 
