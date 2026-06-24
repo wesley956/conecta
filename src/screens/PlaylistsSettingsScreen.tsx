@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
 import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import { Home, Tv } from 'lucide-react';
 
 // ===== SETTINGS SCREEN =====
 export function SettingsScreen() {
@@ -27,7 +28,7 @@ export function SettingsScreen() {
     { id: 'player' as const, icon: '▷', label: 'Player' },
     { id: 'language' as const, icon: '◎', label: 'Idioma' },
     { id: 'appearance' as const, icon: '◇', label: 'Aparência' },
-    { id: 'device' as const, icon: '▣', label: 'Dispositivo' },
+    { id: 'device' as const, icon: <Tv aria-hidden="true" size={20} strokeWidth={2.4} />, label: 'Dispositivo' },
     { id: 'about' as const, icon: 'ⓘ', label: 'Sobre' },
   ];
 
@@ -95,7 +96,7 @@ export function SettingsScreen() {
             onClick={() => setScreen('home')}
             className="mb-8 text-5xl text-white/45 hover:text-white"
           >
-            ⌂
+            <Home aria-hidden="true" size={22} strokeWidth={2.4} />
           </button>
 
           <h1 className="clean-tv-title mb-8 text-5xl">Config</h1>

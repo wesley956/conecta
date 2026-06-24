@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import { RadioTower, Film, Clapperboard, Settings } from 'lucide-react';
 
 export function SplashScreen() {
   const { setScreen, setSplashDone, deviceActivated, subscriptionActive } = useAppStore();
@@ -87,19 +88,19 @@ export function SplashScreen() {
       {/* Status icons row */}
       <div className="relative z-10 flex items-center gap-6 mb-6 animate-fade-in">
         <div className={`flex flex-col items-center gap-1 ${progress >= 20 ? 'opacity-100' : 'opacity-30'} transition-opacity`}>
-          <span className="text-xl">📡</span>
+          <RadioTower aria-hidden="true" size={22} strokeWidth={2.4} />
           <span className="text-[10px] text-text-gray">Live</span>
         </div>
         <div className={`flex flex-col items-center gap-1 ${progress >= 45 ? 'opacity-100' : 'opacity-30'} transition-opacity`}>
-          <span className="text-xl">🎬</span>
+          <Film aria-hidden="true" size={22} strokeWidth={2.4} />
           <span className="text-[10px] text-text-gray">Filmes</span>
         </div>
         <div className={`flex flex-col items-center gap-1 ${progress >= 70 ? 'opacity-100' : 'opacity-30'} transition-opacity`}>
-          <span className="text-xl">🎥</span>
+          <Clapperboard aria-hidden="true" size={22} strokeWidth={2.4} />
           <span className="text-[10px] text-text-gray">Séries</span>
         </div>
         <div className={`flex flex-col items-center gap-1 ${progress >= 90 ? 'opacity-100' : 'opacity-30'} transition-opacity`}>
-          <span className="text-xl">⚙️</span>
+          <Settings aria-hidden="true" size={22} strokeWidth={2.4} />
           <span className="text-[10px] text-text-gray">Config</span>
         </div>
       </div>

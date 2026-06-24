@@ -1,5 +1,6 @@
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
+import { Clock, Ban, RadioTower, Settings, RefreshCw, LogOut } from 'lucide-react';
 
 
 // ===== EXPIRED SCREEN =====
@@ -11,7 +12,7 @@ export function ExpiredScreen() {
       <div className="h-full flex flex-col items-center justify-center">
         <div className="glass-panel rounded-[1.6rem] p-8 max-w-md w-full animate-scale-in text-center">
           <div className="w-20 h-20 bg-alert-yellow/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">⏰</span>
+            <Clock aria-hidden="true" size={44} strokeWidth={2.4} />
           </div>
           <h2 className="text-2xl font-bold text-alert-yellow mb-2">Acesso Vencido</h2>
           <p className="text-text-gray text-sm mb-1">
@@ -28,13 +29,13 @@ export function ExpiredScreen() {
               onClick={() => setScreen('activation')}
               className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
             >
-              🔄 Tentar Novamente
+              <RefreshCw aria-hidden="true" size={18} className="inline-block mr-2" />Tentar novamente
             </button>
             <button
               onClick={() => setScreen('activation')}
               className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-error-red/50 transition-colors"
             >
-              🚪 Sair
+              <LogOut aria-hidden="true" size={18} className="inline-block mr-2" />Sair
             </button>
           </div>
         </div>
@@ -52,7 +53,7 @@ export function BlockedScreen() {
       <div className="h-full flex flex-col items-center justify-center">
         <div className="glass-panel rounded-[1.6rem] p-8 max-w-md w-full animate-scale-in text-center">
           <div className="w-20 h-20 bg-error-red/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">🚫</span>
+            <Ban aria-hidden="true" size={44} strokeWidth={2.4} />
           </div>
           <h2 className="text-2xl font-bold text-error-red mb-2">Dispositivo Bloqueado</h2>
           <p className="text-text-gray text-sm mb-6">
@@ -69,7 +70,7 @@ export function BlockedScreen() {
               }}
               className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
             >
-              🔄 Tentar Novamente
+              <RefreshCw aria-hidden="true" size={18} className="inline-block mr-2" />Tentar novamente
             </button>
           </div>
         </div>
@@ -87,7 +88,7 @@ export function NoInternetScreen() {
       <div className="h-full flex flex-col items-center justify-center">
         <div className="glass-panel rounded-[1.6rem] p-8 max-w-md w-full animate-scale-in text-center">
           <div className="w-20 h-20 bg-neon-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">📡</span>
+            <RadioTower aria-hidden="true" size={44} strokeWidth={2.4} />
           </div>
           <h2 className="text-2xl font-bold text-neon-cyan mb-2">Sem Conexão</h2>
           <p className="text-text-gray text-sm mb-6">
@@ -98,13 +99,13 @@ export function NoInternetScreen() {
               onClick={() => setScreen('home')}
               className="w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:bg-neon-orange/80 transition-colors"
             >
-              🔄 Tentar Novamente
+              <RefreshCw aria-hidden="true" size={18} className="inline-block mr-2" />Tentar novamente
             </button>
             <button
               onClick={() => setScreen('settings')}
               className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
             >
-              ⚙️ Abrir Configurações
+              <Settings aria-hidden="true" size={18} className="inline-block mr-2" />Abrir configurações
             </button>
           </div>
         </div>

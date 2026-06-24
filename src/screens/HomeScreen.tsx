@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
+import { Tv, Film, Library, Star } from 'lucide-react';
 
 export function HomeScreen() {
   const {
@@ -27,10 +28,10 @@ export function HomeScreen() {
   ];
 
   const quickActions = [
-    { icon: '▣', title: 'Assistir TV', subtitle: 'Abrir canais ao vivo', action: () => setScreen('channels') },
-    { icon: '▶', title: 'Filmes', subtitle: 'Catálogo de filmes', action: () => setScreen('movies') },
-    { icon: '▤', title: 'Séries', subtitle: 'Catálogo de séries', action: () => setScreen('series') },
-    { icon: '★', title: 'Favoritos', subtitle: 'Seus conteúdos salvos', action: () => setScreen('favorites') },
+    { icon: <Tv aria-hidden="true" size={30} strokeWidth={2.4} />, title: 'Assistir TV', subtitle: 'Abrir canais ao vivo', action: () => setScreen('channels') },
+    { icon: <Film aria-hidden="true" size={30} strokeWidth={2.4} />, title: 'Filmes', subtitle: 'Catálogo de filmes', action: () => setScreen('movies') },
+    { icon: <Library aria-hidden="true" size={30} strokeWidth={2.4} />, title: 'Séries', subtitle: 'Catálogo de séries', action: () => setScreen('series') },
+    { icon: <Star aria-hidden="true" size={30} strokeWidth={2.4} />, title: 'Favoritos', subtitle: 'Seus conteúdos salvos', action: () => setScreen('favorites') },
   ];
 
   return (
