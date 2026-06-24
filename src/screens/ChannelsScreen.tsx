@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
 import { channelCategories } from '@/data/mock';
@@ -123,7 +123,7 @@ export function ChannelsScreen() {
       { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z', count: channels.length },
     ];
 
-    const byId = new Map<string, { id: string; name: string; icon: string; count: number }>();
+    const byId = new Map<string, { id: string; name: string; icon: ReactNode; count: number }>();
 
     for (const category of fixed) {
       byId.set(category.id, category);
