@@ -170,7 +170,7 @@ export function ActivationScreen() {
                   <input
                     value={sellerCode}
                     onChange={(event) => setSellerCode(event.target.value)}
-                    placeholder="Ex: ronaldo2026"
+                    placeholder="Ex: ronaldo-123456"
                     className="w-full rounded-md border border-white/10 bg-black/25 px-5 py-4 text-2xl font-light text-white outline-none"
                   />
                 </div>
