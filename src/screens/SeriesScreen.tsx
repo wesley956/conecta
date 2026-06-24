@@ -3,11 +3,11 @@ import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Series, Movie, Season, Episode } from '@/types';
 import {
-import { Home as HomeIcon, Clapperboard as SeriesIcon, Star as StarIcon, Loader2 as LoaderIcon } from 'lucide-react';
   canLoadXtreamSeriesFromPlaylist,
   fetchXtreamSeriesCatalog,
   fetchXtreamSeriesEpisodes,
 } from '@/utils/xtreamSeries';
+import { Home as HomeIcon, Clapperboard as SeriesIcon, Star as StarIcon, Loader2 as LoaderIcon } from 'lucide-react';
 
 const SERIES_RENDER_BATCH_SIZE = 48;
 

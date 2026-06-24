@@ -162,7 +162,7 @@ export function MoviesScreen() {
 
           {filteredMovies.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
-              <p className="text-5xl">🎬</p>
+              <MovieIcon aria-hidden="true" size={52} strokeWidth={2.2} className="mx-auto" />
               <p className="mt-5 text-3xl font-light">Nenhum filme nesta categoria</p>
             </div>
           ) : (
