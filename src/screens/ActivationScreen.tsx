@@ -105,8 +105,8 @@ export function ActivationScreen() {
 
   return (
     <AppLayout>
-      <div className="flex h-full items-center px-20 py-12">
-        <main className="grid w-full grid-cols-[1fr_560px] gap-16">
+      <div className="flex min-h-full items-center px-4 py-6 sm:px-8 lg:px-20 lg:py-12">
+        <main className="grid w-full grid-cols-1 gap-8 lg:grid-cols-[1fr_560px] lg:gap-16">
           <section className="flex flex-col justify-center">
             <div className="mb-12 flex items-center gap-5">
               <div className="flex h-16 w-16 items-center justify-center rounded-md bg-[#2396f2] text-4xl font-light text-white">
@@ -118,11 +118,11 @@ export function ActivationScreen() {
               </div>
             </div>
 
-            <h2 className="max-w-3xl text-6xl font-light leading-tight text-white/82">
+            <h2 className="max-w-3xl text-4xl font-light leading-tight text-white/82 sm:text-5xl lg:text-6xl">
               Ative este aparelho pelo painel.
             </h2>
 
-            <p className="mt-8 max-w-3xl text-2xl font-light leading-relaxed text-white/42">
+            <p className="mt-6 max-w-3xl text-xl font-light leading-relaxed text-white/42 lg:mt-8 lg:text-2xl">
               Preencha seus dados para o suporte localizar seu aparelho mais rápido. O código do vendedor ajuda a organizar a liberação.
             </p>
           </section>
@@ -133,7 +133,7 @@ export function ActivationScreen() {
 
               <button
                 onClick={copyCode}
-                className="w-full rounded-md bg-white/[0.055] px-8 py-7 text-center font-mono text-5xl font-light tracking-[0.14em] text-white transition-colors hover:bg-[#2396f2]"
+                className="w-full rounded-md bg-white/[0.055] px-4 py-6 text-center font-mono text-3xl font-light tracking-[0.12em] text-white transition-colors hover:bg-[#2396f2] sm:text-4xl lg:px-8 lg:py-7 lg:text-5xl"
               >
                 {deviceCode}
               </button>
@@ -183,14 +183,9 @@ export function ActivationScreen() {
                   {loading ? 'Enviando dados...' : 'Enviar dados e verificar liberação'}
                 </button>
 
-                <a
-                  href={`https://wa.me/5511999999999?text=${encodeURIComponent(`Olá, preciso liberar meu RonecaPlayTV. Código: ${deviceCode}. Nome: ${customerName}. WhatsApp: ${customerWhatsapp}. Vendedor: ${sellerCode}.`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full rounded-md bg-white/[0.055] px-8 py-5 text-center text-2xl font-light text-white/72 hover:text-white"
-                >
-                  Enviar pelo WhatsApp
-                </a>
+                <p className="rounded-md bg-white/[0.045] px-5 py-4 text-center text-lg font-light text-white/45">
+                  Envie esses dados para o responsável pela sua liberação caso o aparelho ainda apareça como pendente.
+                </p>
               </div>
             </div>
 

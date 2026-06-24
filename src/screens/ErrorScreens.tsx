@@ -11,11 +11,6 @@ function nextMonthDate(days = 30) {
 export function ExpiredScreen() {
   const { expiresAt, daysRemaining, setSubscription, setScreen } = useAppStore();
 
-  const retryAccess = () => {
-    setSubscription(true, nextMonthDate(30), 30);
-    setScreen('home');
-  };
-
   return (
     <AppLayout>
       <div className="h-full flex flex-col items-center justify-center">
@@ -40,7 +35,7 @@ export function ExpiredScreen() {
               💬 Renovar pelo WhatsApp
             </a>
             <button
-              onClick={retryAccess}
+              onClick={() => setScreen('activation')}
               className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
             >
               🔄 Tentar Novamente
