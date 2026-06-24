@@ -16,8 +16,18 @@ export interface DevicePanelActivation {
   status?: 'pending' | 'active' | 'blocked' | 'expired' | 'inactive';
   deviceCode: string;
   clientName?: string | null;
+  customerName?: string | null;
+  customerWhatsapp?: string | null;
+  sellerLinked?: boolean;
+  sellerName?: string | null;
   expiresAt?: string | null;
   message?: string | null;
+}
+
+export interface DeviceActivationProfile {
+  customerName?: string;
+  customerWhatsapp?: string;
+  sellerCode?: string;
 }
 
 const DEVICE_UUID_STORAGE_KEY = 'ronecaplaytv-device-uuid';
@@ -76,7 +86,7 @@ export function setStoredDeviceCode(deviceCode: string) {
   }
 }
 
-export async function activateDeviceWithPanel(): Promise<DevicePanelActivation> {
+export async function activateDeviceWithPanel(profile: DeviceActivationProfile = {}): Promise<DevicePanelActivation> {
   const baseUrl = getDeviceActivationUrl();
 
   if (!baseUrl) {
@@ -96,6 +106,9 @@ export async function activateDeviceWithPanel(): Promise<DevicePanelActivation> 
       deviceUuid,
       deviceType: 'androidtv',
       appVersion: '1.0.0',
+      customerName: profile.customerName || '',
+      customerWhatsapp: profile.customerWhatsapp || '',
+      sellerCode: profile.sellerCode || '',
     }),
   });
 

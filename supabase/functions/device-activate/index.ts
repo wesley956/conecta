@@ -1,5 +1,5 @@
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'\;
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'\;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +37,17 @@ function makeDeviceCode() {
   return `RPTV-${suffix}`;
 }
 
+function normalizeWhatsapp(value: unknown) {
+  return String(value ?? '')
+    .replace(/[^\d+]/g, '')
+    .trim();
+}
+
+function textOrNull(value: unknown) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
 async function readPayload(request: Request) {
   if (request.method === 'GET') {
     const url = new URL(request.url);
@@ -45,6 +56,9 @@ async function readPayload(request: Request) {
       deviceUuid: url.searchParams.get('deviceUuid'),
       deviceType: url.searchParams.get('deviceType'),
       appVersion: url.searchParams.get('appVersion'),
+      customerName: url.searchParams.get('customerName'),
+      customerWhatsapp: url.searchParams.get('customerWhatsapp'),
+      sellerCode: url.searchParams.get('sellerCode'),
     };
   }
 
@@ -53,6 +67,86 @@ async function readPayload(request: Request) {
   } catch {
     return {};
   }
+}
+
+async function findSellerByCode(supabase: any, sellerCode: string | null) {
+  if (!sellerCode) return null;
+
+  const { data, error } = await supabase
+    .from('panel_sellers')
+    .select('id, name, status, public_code, access_token')
+    .or(`public_code.eq.${sellerCode},access_token.eq.${sellerCode}`)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Falha ao localizar vendedor: ${error.message}`);
+  }
+
+  if (!data) return null;
+
+  if (data.status !== 'active') {
+    throw new Error('Código de vendedor bloqueado ou inativo.');
+  }
+
+  return data;
+}
+
+async function upsertBasicCustomer(
+  supabase: any,
+  customerName: string | null,
+  customerWhatsapp: string | null,
+  sellerId: string | null,
+) {
+  if (!customerName && !customerWhatsapp) return null;
+
+  const safeName = customerName || 'Cliente sem nome';
+  const safeWhatsapp = customerWhatsapp || 'sem-whatsapp';
+
+  if (customerWhatsapp) {
+    const { data: existing, error: findError } = await supabase
+      .from('panel_customers')
+      .select('id, name, whatsapp, seller_id')
+      .eq('whatsapp', customerWhatsapp)
+      .limit(1)
+      .maybeSingle();
+
+    if (findError) {
+      throw new Error(`Falha ao buscar cliente: ${findError.message}`);
+    }
+
+    if (existing) {
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (customerName && existing.name !== customerName) updates.name = customerName;
+      if (sellerId && !existing.seller_id) updates.seller_id = sellerId;
+
+      if (Object.keys(updates).length > 1) {
+        await supabase.from('panel_customers').update(updates).eq('id', existing.id);
+      }
+
+      return existing.id;
+    }
+  }
+
+  const { data: created, error: createError } = await supabase
+    .from('panel_customers')
+    .insert({
+      name: safeName,
+      whatsapp: safeWhatsapp,
+      status: 'active',
+      seller_id: sellerId,
+      updated_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (createError) {
+    throw new Error(`Falha ao criar cliente básico: ${createError.message}`);
+  }
+
+  return created.id;
 }
 
 serve(async request => {
@@ -74,7 +168,10 @@ serve(async request => {
   const payload = await readPayload(request);
   const deviceUuid = String(payload.deviceUuid ?? '').trim();
   const deviceType = String(payload.deviceType ?? 'androidtv').trim() || 'androidtv';
-  const appVersion = String(payload.appVersion ?? '').trim() || null;
+  const appVersion = textOrNull(payload.appVersion);
+  const customerName = textOrNull(payload.customerName);
+  const customerWhatsapp = normalizeWhatsapp(payload.customerWhatsapp) || null;
+  const sellerCode = textOrNull(payload.sellerCode);
   const lastIp = getClientIp(request);
 
   if (!deviceUuid) {
@@ -87,77 +184,104 @@ serve(async request => {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: existingDevice, error: existingError } = await supabase
-    .from('panel_devices')
-    .select('id, device_code, client_name, status, subscription_expires_at')
-    .eq('device_uuid', deviceUuid)
-    .maybeSingle();
+  try {
+    const seller = await findSellerByCode(supabase, sellerCode);
+    const sellerId = seller?.id ?? null;
+    const customerId = await upsertBasicCustomer(supabase, customerName, customerWhatsapp, sellerId);
 
-  if (existingError) {
-    return json({ active: false, status: 'pending', message: existingError.message }, 500);
-  }
-
-  if (existingDevice) {
-    await supabase
+    const { data: existingDevice, error: existingError } = await supabase
       .from('panel_devices')
-      .update({
-        device_type: deviceType,
-        app_version: appVersion,
-        last_ip: lastIp,
-        last_seen_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existingDevice.id);
+      .select('id, device_code, client_name, status, subscription_expires_at, customer_id, seller_id')
+      .eq('device_uuid', deviceUuid)
+      .maybeSingle();
 
-    return json({
-      active: existingDevice.status === 'active',
-      status: existingDevice.status,
-      deviceCode: existingDevice.device_code,
-      clientName: existingDevice.client_name,
-      expiresAt: existingDevice.subscription_expires_at,
-      message: existingDevice.status === 'active'
-        ? 'Aparelho já ativo.'
-        : 'Aparelho aguardando liberação no painel.',
-    });
-  }
+    if (existingError) {
+      return json({ active: false, status: 'pending', message: existingError.message }, 500);
+    }
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const deviceCode = makeDeviceCode();
+    const baseUpdate: Record<string, unknown> = {
+      device_type: deviceType,
+      app_version: appVersion,
+      last_ip: lastIp,
+      last_seen_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
 
-    const { data, error } = await supabase
-      .from('panel_devices')
-      .insert({
-        device_code: deviceCode,
-        device_uuid: deviceUuid,
-        status: 'pending',
-        device_type: deviceType,
-        app_version: appVersion,
-        last_ip: lastIp,
-        last_seen_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select('id, device_code, status')
-      .single();
+    if (customerName) baseUpdate.client_name = customerName;
+    if (customerId) baseUpdate.customer_id = customerId;
+    if (sellerId) baseUpdate.seller_id = sellerId;
 
-    if (!error && data) {
+    if (existingDevice) {
+      await supabase
+        .from('panel_devices')
+        .update(baseUpdate)
+        .eq('id', existingDevice.id);
+
       return json({
-        active: false,
-        status: 'pending',
-        deviceCode: data.device_code,
-        message: 'Aparelho criado e aguardando liberação no painel.',
+        active: existingDevice.status === 'active',
+        status: existingDevice.status,
+        deviceCode: existingDevice.device_code,
+        clientName: customerName || existingDevice.client_name,
+        customerName,
+        customerWhatsapp,
+        sellerLinked: Boolean(sellerId || existingDevice.seller_id),
+        sellerName: seller?.name ?? null,
+        expiresAt: existingDevice.subscription_expires_at,
+        message: existingDevice.status === 'active'
+          ? 'Aparelho já ativo.'
+          : 'Aparelho aguardando liberação no painel.',
       });
     }
 
-    const message = String(error?.message ?? '');
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const deviceCode = makeDeviceCode();
 
-    if (!message.includes('duplicate') && !message.includes('unique')) {
-      return json({ active: false, status: 'pending', message }, 500);
+      const { data, error } = await supabase
+        .from('panel_devices')
+        .insert({
+          device_code: deviceCode,
+          device_uuid: deviceUuid,
+          client_name: customerName,
+          customer_id: customerId,
+          seller_id: sellerId,
+          status: 'pending',
+          device_type: deviceType,
+          app_version: appVersion,
+          last_ip: lastIp,
+          last_seen_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select('id, device_code, status')
+        .single();
+
+      if (!error && data) {
+        return json({
+          active: false,
+          status: 'pending',
+          deviceCode: data.device_code,
+          clientName: customerName,
+          customerName,
+          customerWhatsapp,
+          sellerLinked: Boolean(sellerId),
+          sellerName: seller?.name ?? null,
+          message: 'Aparelho criado e aguardando liberação no painel.',
+        });
+      }
+
+      const message = String(error?.message ?? '');
+
+      if (!message.includes('duplicate') && !message.includes('unique')) {
+        return json({ active: false, status: 'pending', message }, 500);
+      }
     }
-  }
 
-  return json({
-    active: false,
-    status: 'pending',
-    message: 'Não foi possível gerar um código único para o aparelho.',
-  }, 500);
+    return json({
+      active: false,
+      status: 'pending',
+      message: 'Não foi possível gerar um código único para o aparelho.',
+    }, 500);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Falha no cadastro do aparelho.';
+    return json({ active: false, status: 'pending', message }, 400);
+  }
 });
