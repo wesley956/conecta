@@ -172,7 +172,7 @@ async function consumeSellerCredits(
 
   const { data: seller, error: sellerError } = await supabase
     .from('panel_sellers')
-    .select('id, name, status, credit_balance, can_go_negative')
+    .select('id, name, status, credit_balance, can_go_negative, public_code')
     .eq('id', payload.sellerId)
     .single();
 
@@ -307,7 +307,7 @@ serve(async (req) => {
     if (action === 'listCommercialData') {
       const { data: sellers, error: sellersError } = await supabase
         .from('panel_sellers')
-        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, public_code, created_at, updated_at')
+        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, created_at, updated_at, public_code')
         .order('created_at', { ascending: false });
 
       if (sellersError) return json({ error: sellersError.message }, 500);
@@ -350,8 +350,7 @@ serve(async (req) => {
           status: seller.status,
           creditBalance: seller.credit_balance,
           canGoNegative: seller.can_go_negative,
-          accessToken: seller.access_token,
-      publicCode: seller.public_code, public_code || null,
+          accessToken: seller.access_token || null,
           createdAt: seller.created_at,
           updatedAt: seller.updated_at,
         })),
@@ -401,7 +400,8 @@ serve(async (req) => {
           status: normalizeSellerStatus(body.status),
           credit_balance: initialCredits,
           can_go_negative: body.canGoNegative === true,
-          access_token, public_code: accessToken,
+          access_token: accessToken,
+          public_code: publicCode,
           updated_at: new Date().toISOString(),
         })
         .select('id')
@@ -448,7 +448,12 @@ serve(async (req) => {
       if ('accessToken' in body) {
         const accessToken = textOrNull(body.accessToken);
         if (!accessToken) return json({ error: 'Token do vendedor é obrigatório.' }, 400);
-        updates.access_token, public_code = accessToken;
+        updates.access_token = accessToken;
+      }
+      if ('publicCode' in body) {
+        const publicCode = textOrNull(body.publicCode);
+        if (!publicCode) return json({ error: 'Código público do vendedor é obrigatório.' }, 400);
+        updates.public_code = publicCode;
       }
       if ('status' in body) updates.status = normalizeSellerStatus(body.status);
       if ('canGoNegative' in body) updates.can_go_negative = body.canGoNegative === true;
@@ -478,7 +483,7 @@ serve(async (req) => {
 
       const { data: seller, error: sellerError } = await supabase
         .from('panel_sellers')
-        .select('id, name, credit_balance')
+        .select('id, name, credit_balance, public_code')
         .eq('id', sellerId)
         .single();
 
