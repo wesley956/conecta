@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Hls from 'hls.js';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
 import { Play as PlayIcon, Pause as PauseIcon, Tv as TvIcon } from 'lucide-react';
@@ -138,7 +137,7 @@ export function PlayerScreen() {
       return;
     }
 
-    let hls: Hls | null = null;
+    let hls: any = null;
     let tsPlayer: any = null;
     const isHls = isHlsUrl(streamUrl);
     const isMpegTs = isMpegTsUrl(streamUrl);
@@ -256,56 +255,98 @@ export function PlayerScreen() {
           tsPlayer?.destroy?.();
         };
       }
-    if (isHls && Hls.isSupported()) {
-      hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: isLive ? 30 : 60,
-        maxBufferLength: isLive ? 60 : 90,
-        maxMaxBufferLength: isLive ? 120 : 180,
-        maxBufferSize: 60 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 1000,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
-      });
+    if (isHls) {
+      let cancelled = false;
 
-      hls.loadSource(playbackUrl);
-      hls.attachMedia(video);
+      const attachNativePlayback = () => {
+        if (cancelled) return;
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setReady(true);
-        video.play().catch(() => setShowControls(true));
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (!data.fatal) return;
-
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          window.setTimeout(() => hls?.startLoad(), 1200);
-          return;
-        }
-
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          hls?.recoverMediaError();
-          return;
-        }
-
-        hls?.destroy();
-        tryNextPlaybackUrl('Não foi possível reproduzir esta fonte HLS.');
-      });
-    } else {
-      video.src = playbackUrl;
-      video.onloadedmetadata = () => {
-        setReady(true);
-        video.play().catch(() => setShowControls(true));
+        video.src = playbackUrl;
+        video.onloadedmetadata = () => {
+          setReady(true);
+          video.play().catch(() => setShowControls(true));
+        };
+        video.onerror = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte.');
       };
-      video.onerror = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte.');
+
+      void import('hls.js')
+        .then((module) => {
+          if (cancelled) return;
+
+          const Hls = (module as any).default ?? module;
+
+          if (!Hls?.isSupported?.()) {
+            attachNativePlayback();
+            return;
+          }
+
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: isLive ? 30 : 60,
+            maxBufferLength: isLive ? 60 : 90,
+            maxMaxBufferLength: isLive ? 120 : 180,
+            maxBufferSize: 60 * 1000 * 1000,
+            maxBufferHole: 0.5,
+            manifestLoadingMaxRetry: 4,
+            manifestLoadingRetryDelay: 1000,
+            levelLoadingMaxRetry: 4,
+            levelLoadingRetryDelay: 1000,
+            fragLoadingMaxRetry: 6,
+            fragLoadingRetryDelay: 1000,
+          });
+
+          hls.loadSource(playbackUrl);
+          hls.attachMedia(video);
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (cancelled) return;
+
+            setReady(true);
+            video.play().catch(() => setShowControls(true));
+          });
+
+          hls.on(Hls.Events.ERROR, (_event: unknown, data: any) => {
+            if (cancelled || !data.fatal) return;
+
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              window.setTimeout(() => hls?.startLoad(), 1200);
+              return;
+            }
+
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls?.recoverMediaError();
+              return;
+            }
+
+            hls?.destroy();
+            tryNextPlaybackUrl('Não foi possível reproduzir esta fonte HLS.');
+          });
+        })
+        .catch(() => {
+          attachNativePlayback();
+        });
+
+      return () => {
+        cancelled = true;
+        clearRecoveryTimer();
+        video.removeEventListener('waiting', scheduleStallRecovery);
+        video.removeEventListener('stalled', scheduleStallRecovery);
+        video.removeEventListener('playing', clearRecoveryTimer);
+        video.removeEventListener('canplay', clearRecoveryTimer);
+        hls?.destroy();
+        tsPlayer?.destroy?.();
+        video.onloadedmetadata = null;
+        video.onerror = null;
+      };
     }
 
+    video.src = playbackUrl;
+    video.onloadedmetadata = () => {
+      setReady(true);
+      video.play().catch(() => setShowControls(true));
+    };
+    video.onerror = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte.');
     return () => {
       clearRecoveryTimer();
       video.removeEventListener('waiting', scheduleStallRecovery);
