@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import mpegts from 'mpegts.js';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
 import { Play as PlayIcon, Pause as PauseIcon, Tv as TvIcon } from 'lucide-react';
@@ -176,59 +175,87 @@ export function PlayerScreen() {
       setError(message);
     };
 
-    if (isMpegTs) {
-      if (!mpegts?.getFeatureList?.().mseLivePlayback && !mpegts?.getFeatureList?.().msePlayback) {
-        setError('Este navegador não tem suporte para MPEG-TS via MSE.');
-        return;
+      if (isMpegTs) {
+        let cancelled = false;
+        let markReady: (() => void) | null = null;
+        let markError: (() => void) | null = null;
+
+        void import('mpegts.js')
+          .then((module) => {
+            if (cancelled) return;
+
+            const mpegts = (module as any).default ?? module;
+
+            if (!mpegts?.getFeatureList?.().mseLivePlayback && !mpegts?.getFeatureList?.().msePlayback) {
+              setError('Este navegador não tem suporte para MPEG-TS via MSE.');
+              return;
+            }
+
+            tsPlayer = mpegts.createPlayer(
+              {
+                type: 'mpegts',
+                isLive,
+                url: playbackUrl,
+              },
+              {
+                enableWorker: true,
+                liveBufferLatencyChasing: true,
+                enableStashBuffer: true,
+                lazyLoad: false,
+                liveBufferLatencyMaxLatency: 10,
+                stashInitialSize: isLive ? 1024 * 1024 : 512 * 1024,
+              }
+            );
+
+            if (cancelled) {
+              tsPlayer?.destroy?.();
+              return;
+            }
+
+            tsPlayer.attachMediaElement(video);
+            tsPlayer.load();
+
+            const playResult = tsPlayer.play?.();
+
+            if (playResult?.catch) {
+              playResult.catch(() => setShowControls(true));
+            }
+
+            markReady = () => setReady(true);
+            markError = () => tryNextPlaybackUrl('Não foi possível reproduzir este canal MPEG-TS.');
+
+            video.addEventListener('loadedmetadata', markReady);
+            video.addEventListener('canplay', markReady);
+            video.addEventListener('error', markError);
+
+            tsPlayer.on?.(mpegts.Events.ERROR, markError);
+          })
+          .catch(() => {
+            if (!cancelled) {
+              tryNextPlaybackUrl('Não foi possível carregar o suporte MPEG-TS.');
+            }
+          });
+
+        return () => {
+          cancelled = true;
+          clearRecoveryTimer();
+          video.removeEventListener('waiting', scheduleStallRecovery);
+          video.removeEventListener('stalled', scheduleStallRecovery);
+          video.removeEventListener('playing', clearRecoveryTimer);
+          video.removeEventListener('canplay', clearRecoveryTimer);
+
+          if (markReady) {
+            video.removeEventListener('loadedmetadata', markReady);
+            video.removeEventListener('canplay', markReady);
+          }
+
+          if (markError) {
+            video.removeEventListener('error', markError);
+          }
+
+          tsPlayer?.destroy?.();
+        };
       }
-
-      tsPlayer = mpegts.createPlayer(
-        {
-          type: 'mpegts',
-          isLive,
-          url: playbackUrl,
-        },
-        {
-          enableWorker: true,
-          liveBufferLatencyChasing: true,
-          enableStashBuffer: true,
-          lazyLoad: false,
-          liveBufferLatencyMaxLatency: 10,
-          stashInitialSize: isLive ? 1024 * 1024 : 512 * 1024,
-        }
-      );
-
-      tsPlayer.attachMediaElement(video);
-      tsPlayer.load();
-
-      const playResult = tsPlayer.play?.();
-
-      if (playResult?.catch) {
-        playResult.catch(() => setShowControls(true));
-      }
-
-      const markReady = () => setReady(true);
-      const markError = () => tryNextPlaybackUrl('Não foi possível reproduzir este canal MPEG-TS.');
-
-      video.addEventListener('loadedmetadata', markReady);
-      video.addEventListener('canplay', markReady);
-      video.addEventListener('error', markError);
-
-      tsPlayer.on?.(mpegts.Events.ERROR, markError);
-
-      return () => {
-        clearRecoveryTimer();
-        video.removeEventListener('waiting', scheduleStallRecovery);
-        video.removeEventListener('stalled', scheduleStallRecovery);
-        video.removeEventListener('playing', clearRecoveryTimer);
-        video.removeEventListener('canplay', clearRecoveryTimer);
-        video.removeEventListener('loadedmetadata', markReady);
-        video.removeEventListener('canplay', markReady);
-        video.removeEventListener('error', markError);
-        tsPlayer?.destroy?.();
-      };
-    }
-
     if (isHls && Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
