@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Portal do Vendedor · RonecaPlayTV</title>
+  <style>
+    :root {
+      --bg: #070b18;
+      --panel: rgba(255,255,255,.06);
+      --panel2: rgba(255,255,255,.09);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --line: rgba(255,255,255,.12);
+      --green: #4ade80;
+      --red: #fb7185;
+      --orange: #fb923c;
+      --blue: #60a5fa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 10%, rgba(59,130,246,.26), transparent 30%),
+        radial-gradient(circle at 85% 5%, rgba(168,85,247,.22), transparent 34%),
+        linear-gradient(135deg, #050816, #111827 60%, #020617);
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .brand {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .logo {
+      width: 50px;
+      height: 50px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      box-shadow: 0 20px 70px rgba(37,99,235,.32);
+      font-weight: 950;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 { font-size: clamp(1.4rem, 3vw, 2.3rem); }
+
+    .muted { color: var(--muted); }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 26px 90px rgba(0,0,0,.22);
+      backdrop-filter: blur(12px);
+      margin-bottom: 16px;
+    }
+
+    .login {
+      max-width: 560px;
+      margin: 12vh auto 0;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: .9rem;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,.25);
+      color: var(--text);
+      padding: 13px 14px;
+      border-radius: 14px;
+      outline: none;
+      font: inherit;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    button, .btn {
+      border: 0;
+      color: white;
+      background: rgba(255,255,255,.12);
+      padding: 10px 13px;
+      border-radius: 13px;
+      cursor: pointer;
+      font-weight: 800;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button.primary, .btn.primary { background: linear-gradient(135deg, #2563eb, #7c3aed); }
+    button.red { background: rgba(251,113,133,.18); color: #fecdd3; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      background: rgba(0,0,0,.22);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .metric small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .metric strong {
+      font-size: 1.45rem;
+    }
+
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .warn { color: var(--orange); }
+
+    .tablewrap {
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+    }
+
+    table {
+      width: 100%;
+      min-width: 880px;
+      border-collapse: collapse;
+      background: rgba(0,0,0,.16);
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: .92rem;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .badge {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: .78rem;
+      font-weight: 900;
+      background: rgba(255,255,255,.08);
+    }
+
+    .badge.active { color: #bbf7d0; border-color: rgba(74,222,128,.35); }
+    .badge.pending { color: #fed7aa; border-color: rgba(251,146,60,.35); }
+    .badge.blocked, .badge.expired { color: #fecdd3; border-color: rgba(251,113,133,.35); }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .ledger {
+      display: grid;
+      gap: 10px;
+    }
+
+    .ledger-item {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(0,0,0,.18);
+      padding: 12px;
+    }
+
+    .hide { display: none !important; }
+
+    @media (max-width: 720px) {
+      .hero, .section-title { align-items: flex-start; flex-direction: column; }
+      .wrap { width: min(100% - 18px, 1180px); padding-top: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section id="loginView" class="card login">
+      <div class="brand" style="margin-bottom:18px;">
+        <div class="logo">R</div>
+        <div>
+          <h1>Portal do Vendedor</h1>
+          <p class="muted">RonecaPlayTV · acesso comercial</p>
+        </div>
+      </div>
+
+      <label for="sellerToken">Token do vendedor</label>
+      <input id="sellerToken" type="password" autocomplete="off" placeholder="Cole o token recebido pelo administrador" />
+
+      <div class="actions">
+        <button class="primary" onclick="login()">Entrar</button>
+      </div>
+
+      <p id="loginMsg" class="muted" style="margin-top:14px;"></p>
+    </section>
+
+    <section id="dashboardView" class="hide">
+      <div class="hero">
+        <div class="brand">
+          <div class="logo">R</div>
+          <div>
+            <h1 id="sellerName">Portal do Vendedor</h1>
+            <p class="muted" id="sellerSub">Resumo comercial</p>
+          </div>
+        </div>
+        <div class="actions">
+          <button onclick="loadPortal()">Atualizar</button>
+          <button class="red" onclick="logout()">Sair</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid" id="statsGrid"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Meus aparelhos</h2>
+            <p class="muted">Aparelhos vinculados a este vendedor.</p>
+          </div>
+        </div>
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Cliente</th>
+                <th>Status</th>
+                <th>Plano</th>
+                <th>Validade</th>
+                <th>Último acesso</th>
+              </tr>
+            </thead>
+            <tbody id="devicesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Extrato de créditos</h2>
+            <p class="muted">Últimas movimentações da sua conta.</p>
+          </div>
+        </div>
+        <div id="ledgerList" class="ledger"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel'\;
+    const TOKEN_KEY = 'roneca_seller_token';
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function esc(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function fmtDate(value) {
+      if (!value) return '—';
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
+    }
+
+    function badge(status) {
+      return `<span class="badge ${esc(status)}">${esc(status || '—')}</span>`;
+    }
+
+    function number(value) {
+      return Number(value || 0).toLocaleString('pt-BR');
+    }
+
+    function ledgerTypeText(type) {
+      const map = {
+        purchase: 'Compra',
+        activation: 'Ativação',
+        renewal: 'Renovação',
+        refund: 'Estorno',
+        manual_add: 'Crédito manual',
+        manual_remove: 'Remoção manual'
+      };
+      return map[type] || type || 'Movimento';
+    }
+
+    function whatsappUrl(value) {
+      const digits = String(value || '').replace(/\D/g, '');
+      if (!digits) return '';
+      const phone = digits.startsWith('55') ? digits : '55' + digits;
+      return 'https://wa.me/' + phone;
+    }
+
+    async function fetchPortal(token) {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-seller-token': token
+        },
+        body: JSON.stringify({ action: 'dashboard' })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || 'Erro ao carregar portal.');
+      return data;
+    }
+
+    async function login() {
+      const token = $('sellerToken').value.trim();
+      if (!token) {
+        $('loginMsg').textContent = 'Digite o token do vendedor.';
+        return;
+      }
+
+      try {
+        const data = await fetchPortal(token);
+        localStorage.setItem(TOKEN_KEY, token);
+        render(data);
+      } catch (err) {
+        $('loginMsg').textContent = err.message || 'Token inválido.';
+      }
+    }
+
+    async function loadPortal() {
+      const token = localStorage.getItem(TOKEN_KEY) || '';
+      if (!token) {
+        $('loginView').classList.remove('hide');
+        $('dashboardView').classList.add('hide');
+        return;
+      }
+
+      try {
+        const data = await fetchPortal(token);
+        render(data);
+      } catch (err) {
+        localStorage.removeItem(TOKEN_KEY);
+        $('loginMsg').textContent = err.message || 'Faça login novamente.';
+        $('loginView').classList.remove('hide');
+        $('dashboardView').classList.add('hide');
+      }
+    }
+
+    function render(data) {
+      const seller = data.seller || {};
+      const stats = data.stats || {};
+      const devices = data.devices || [];
+      const ledger = data.creditLedger || [];
+      const balance = Number(seller.creditBalance || 0);
+
+      $('sellerName').textContent = seller.name || 'Portal do Vendedor';
+      $('sellerSub').textContent = `${seller.whatsapp || ''}${seller.email ? ' · ' + seller.email : ''}`;
+
+      $('statsGrid').innerHTML = `
+        <div class="metric"><small>Saldo atual</small><strong class="${balance < 0 ? 'negative' : 'positive'}">${number(balance)}</strong></div>
+        <div class="metric"><small>Aparelhos ativos</small><strong>${number(stats.activeDevices)}</strong></div>
+        <div class="metric"><small>Vencendo 7 dias</small><strong class="warn">${number(stats.expiringSoon)}</strong></div>
+        <div class="metric"><small>Vencidos</small><strong class="negative">${number(stats.expiredDevices)}</strong></div>
+        <div class="metric"><small>Pendentes</small><strong>${number(stats.pendingDevices)}</strong></div>
+        <div class="metric"><small>Bloqueados</small><strong>${number(stats.blockedDevices)}</strong></div>
+        <div class="metric"><small>Créditos adicionados</small><strong class="positive">${number(stats.creditsAdded)}</strong></div>
+        <div class="metric"><small>Créditos consumidos</small><strong class="negative">${number(stats.creditsConsumed)}</strong></div>
+      `;
+
+      $('devicesBody').innerHTML = devices.length
+        ? devices.map(device => {
+          const wa = whatsappUrl(device.customerWhatsapp);
+          const days = device.daysLeft;
+          const validity = days === null
+            ? '—'
+            : days < 0
+              ? `<span class="negative">${Math.abs(days)} dia(s) vencido</span>`
+              : days <= 7
+                ? `<span class="warn">${days} dia(s)</span>`
+                : `${days} dia(s)`;
+
+          return `
+            <tr>
+              <td><span class="mono">${esc(device.deviceCode)}</span><br><span class="muted">${esc(device.deviceUuid || '')}</span></td>
+              <td>
+                ${esc(device.customerName || 'Sem cliente')}
+                ${wa ? `<br><a class="btn" href="${wa}" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>` : ''}
+              </td>
+              <td>${badge(device.status)}</td>
+              <td>${esc(device.planName || 'Sem plano')}<br><span class="muted">${device.planCreditCost ? esc(device.planCreditCost + ' crédito(s)') : ''}</span></td>
+              <td>${fmtDate(device.expiresAt)}<br>${validity}</td>
+              <td>${fmtDate(device.lastSeenAt)}</td>
+            </tr>
+          `;
+        }).join('')
+        : '<tr><td colspan="6" class="muted">Nenhum aparelho vinculado.</td></tr>';
+
+      $('ledgerList').innerHTML = ledger.length
+        ? ledger.map(entry => {
+          const amount = Number(entry.amount || 0);
+          return `
+            <div class="ledger-item">
+              <strong>${esc(ledgerTypeText(entry.type))}</strong>
+              <span class="${amount >= 0 ? 'positive' : 'negative'}" style="font-weight:900;">${amount > 0 ? '+' : ''}${number(amount)}</span>
+              <div class="muted">${esc(entry.description || 'Sem descrição')}</div>
+              <div class="muted">${fmtDate(entry.createdAt)} · saldo após: ${number(entry.balanceAfter)}</div>
+            </div>
+          `;
+        }).join('')
+        : '<div class="muted">Nenhuma movimentação ainda.</div>';
+
+      $('loginView').classList.add('hide');
+      $('dashboardView').classList.remove('hide');
+    }
+
+    function logout() {
+      localStorage.removeItem(TOKEN_KEY);
+      $('sellerToken').value = '';
+      $('loginView').classList.remove('hide');
+      $('dashboardView').classList.add('hide');
+    }
+
+    $('sellerToken')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') login();
+    });
+
+    loadPortal();
+  </script>
+</body>
+</html>

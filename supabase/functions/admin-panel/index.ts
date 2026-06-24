@@ -119,6 +119,11 @@ function intOrDefault(value: unknown, fallback: number, min = 0) {
 }
 
 
+function createSellerAccessToken() {
+  return crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
+}
+
+
 function timestampOrZero(value: unknown) {
   if (!value) return 0;
   const date = new Date(String(value));
@@ -302,7 +307,7 @@ serve(async (req) => {
     if (action === 'listCommercialData') {
       const { data: sellers, error: sellersError } = await supabase
         .from('panel_sellers')
-        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, created_at, updated_at')
+        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (sellersError) return json({ error: sellersError.message }, 500);
@@ -345,6 +350,7 @@ serve(async (req) => {
           status: seller.status,
           creditBalance: seller.credit_balance,
           canGoNegative: seller.can_go_negative,
+          accessToken: seller.access_token || null,
           createdAt: seller.created_at,
           updatedAt: seller.updated_at,
         })),
@@ -392,6 +398,7 @@ serve(async (req) => {
           status: normalizeSellerStatus(body.status),
           credit_balance: initialCredits,
           can_go_negative: body.canGoNegative === true,
+          access_token: createSellerAccessToken(),
           updated_at: new Date().toISOString(),
         })
         .select('id')

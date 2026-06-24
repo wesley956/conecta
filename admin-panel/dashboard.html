@@ -2768,6 +2768,8 @@ function renderSellerReports() {
 
         <div class="actions">
           <button class="btn" onclick="openSellerDeviceFilter('${esc(seller.id)}')">Ver aparelhos</button>
+          <button class="btn" onclick="copyText('${esc(seller.accessToken || '')}')">Copiar token</button>
+          <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Portal vendedor</a>
           <button class="btn green" onclick="$('sellerCreditSeller').value='${esc(seller.id)}'; $('sellerCreditAmount').focus();">Adicionar créditos</button>
         </div>
 
