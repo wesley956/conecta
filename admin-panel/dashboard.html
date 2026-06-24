@@ -1145,6 +1145,8 @@ tbody tr:hover td {
           </select>
           <button class="btn" onclick="clearDeviceFilters()">Limpar filtros</button>
           <select id="deviceCustomerFilter" onchange="renderDevices()"></select>
+          <select id="deviceSellerFilter" onchange="renderDevices()"></select>
+          <select id="devicePlanFilter" onchange="renderDevices()"></select>
           <select id="devicePlaylistFilter" onchange="renderDevices()"></select>
         </div>
 
@@ -1154,6 +1156,8 @@ tbody tr:hover td {
               <tr>
                 <th>Código</th>
                 <th>Cliente</th>
+                <th>Vendedor</th>
+                <th>Plano</th>
                 <th>Status</th>
                 <th>Lista</th>
                 <th>Validade</th>
@@ -1178,6 +1182,8 @@ tbody tr:hover td {
               <tr>
                 <th>Código</th>
                 <th>Cliente</th>
+                <th>Vendedor</th>
+                <th>Plano</th>
                 <th>Lista</th>
                 <th>Validade</th>
                 <th>Ações</th>
@@ -1358,6 +1364,8 @@ function filteredDevices() {
   const term = normalize($('deviceSearch')?.value || '');
   const status = $('deviceStatusFilter')?.value || '';
   const customerId = $('deviceCustomerFilter')?.value || '';
+  const sellerId = $('deviceSellerFilter')?.value || '';
+  const planId = $('devicePlanFilter')?.value || '';
   const playlistId = $('devicePlaylistFilter')?.value || '';
 
   return devices.filter(d => {
@@ -1365,14 +1373,18 @@ function filteredDevices() {
       normalize(d.deviceCode).includes(term) ||
       normalize(d.customerName).includes(term) ||
       normalize(d.customerWhatsapp).includes(term) ||
+      normalize(d.sellerName).includes(term) ||
+      normalize(d.planName).includes(term) ||
       normalize(d.playlistName).includes(term) ||
       normalize(d.deviceUuid).includes(term);
 
     const matchStatus = !status || d.status === status;
     const matchCustomer = !customerId || d.customerId === customerId;
+    const matchSeller = !sellerId || d.sellerId === sellerId;
+    const matchPlan = !planId || d.planId === planId;
     const matchPlaylist = !playlistId || d.playlistId === playlistId;
 
-    return matchTerm && matchStatus && matchCustomer && matchPlaylist;
+    return matchTerm && matchStatus && matchCustomer && matchSeller && matchPlan && matchPlaylist;
   });
 }
 
@@ -1380,6 +1392,8 @@ function clearDeviceFilters() {
   $('deviceSearch').value = '';
   $('deviceStatusFilter').value = '';
   $('deviceCustomerFilter').value = '';
+  $('deviceSellerFilter').value = '';
+  $('devicePlanFilter').value = '';
   $('devicePlaylistFilter').value = '';
   renderDevices();
 }
@@ -1392,20 +1406,32 @@ function clearPlaylistFilters() {
 
 function renderFilters() {
   const customerFilter = $('deviceCustomerFilter');
+  const sellerFilter = $('deviceSellerFilter');
+  const planFilter = $('devicePlanFilter');
   const playlistFilter = $('devicePlaylistFilter');
 
-  if (!customerFilter || !playlistFilter) return;
+  if (!customerFilter || !sellerFilter || !planFilter || !playlistFilter) return;
 
   const selectedCustomer = customerFilter.value;
+  const selectedSeller = sellerFilter.value;
+  const selectedPlan = planFilter.value;
   const selectedPlaylist = playlistFilter.value;
 
   customerFilter.innerHTML = '<option value="">Todos os clientes</option>' +
     customers.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
 
+  sellerFilter.innerHTML = '<option value="">Todos os vendedores</option>' +
+    sellers.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+
+  planFilter.innerHTML = '<option value="">Todos os planos</option>' +
+    plans.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+
   playlistFilter.innerHTML = '<option value="">Todas as listas</option>' +
     playlists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
 
   customerFilter.value = selectedCustomer;
+  sellerFilter.value = selectedSeller;
+  planFilter.value = selectedPlan;
   playlistFilter.value = selectedPlaylist;
 }
 
@@ -1489,6 +1515,18 @@ function customerOptions(selectedId) {
 function playlistOptions(selectedId) {
   return ['<option value="">Sem lista</option>']
     .concat(playlists.map(p => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)}</option>`))
+    .join('');
+}
+
+function sellerOptions(selectedId) {
+  return ['<option value="">Sem vendedor</option>']
+    .concat(sellers.map(s => `<option value="${esc(s.id)}" ${s.id === selectedId ? 'selected' : ''}>${esc(s.name)} — ${Number(s.creditBalance || 0)} crédito(s)</option>`))
+    .join('');
+}
+
+function planOptions(selectedId) {
+  return ['<option value="">Sem plano</option>']
+    .concat(plans.map(p => `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(p.name)} — ${Number(p.creditCost || 1)} crédito(s)</option>`))
     .join('');
 }
 
@@ -1617,7 +1655,7 @@ function renderDevices() {
 
   $('devicesBody').innerHTML = list.length
     ? list.map(d => deviceRow(d, false)).join('')
-    : '<tr><td colspan="7" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
+    : '<tr><td colspan="9" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
 }
 
 function renderPending() {
@@ -1625,7 +1663,7 @@ function renderPending() {
 
   $('pendingBody').innerHTML = pending.length
     ? pending.map(d => pendingRow(d)).join('')
-    : '<tr><td colspan="5" class="muted">Nenhum aparelho pendente.</td></tr>';
+    : '<tr><td colspan="7" class="muted">Nenhum aparelho pendente.</td></tr>';
 }
 
 function deviceRow(d) {
@@ -1641,6 +1679,15 @@ function deviceRow(d) {
         <select class="table-select" id="dev-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select>
         <div class="small muted">${esc(d.customerName || 'Sem cliente')}</div>
         ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
+      </td>
+      <td>
+        <select class="table-select" id="dev-seller-${esc(d.id)}">${sellerOptions(d.sellerId)}</select>
+        <div class="small muted">${esc(d.sellerName || 'Sem vendedor')}</div>
+        <div class="small muted">${d.sellerCreditBalance === null || d.sellerCreditBalance === undefined ? '' : esc(d.sellerCreditBalance + ' crédito(s)')}</div>
+      </td>
+      <td>
+        <select class="table-select" id="dev-plan-${esc(d.id)}">${planOptions(d.planId)}</select>
+        <div class="small muted">${esc(d.planName || 'Sem plano')}</div>
       </td>
       <td>
         <select class="table-select" id="dev-status-${esc(d.id)}">${statusOptions(d.status)}</select>
@@ -1676,6 +1723,8 @@ function pendingRow(d) {
         <span class="small muted">${esc(d.deviceUuid || '')}</span>
       </td>
       <td><select class="table-select" id="pend-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select></td>
+      <td><select class="table-select" id="pend-seller-${esc(d.id)}">${sellerOptions(d.sellerId)}</select></td>
+      <td><select class="table-select" id="pend-plan-${esc(d.id)}">${planOptions(d.planId)}</select></td>
       <td><select class="table-select" id="pend-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></td>
       <td><input class="table-input" id="pend-exp-${esc(d.id)}" type="date" value="${thirtyDaysDate()}"></td>
       <td>
@@ -1785,6 +1834,8 @@ async function saveDevice(id) {
     await api('updateDevice', {
       id,
       customerId: $('dev-customer-' + id).value || null,
+      sellerId: $('dev-seller-' + id).value || null,
+      planId: $('dev-plan-' + id).value || null,
       status: $('dev-status-' + id).value,
       playlistId: $('dev-playlist-' + id).value || null,
       expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : null
@@ -1832,6 +1883,8 @@ async function activatePending(id) {
     await api('updateDevice', {
       id,
       customerId: $('pend-customer-' + id).value || null,
+      sellerId: $('pend-seller-' + id).value || null,
+      planId: $('pend-plan-' + id).value || null,
       playlistId: $('pend-playlist-' + id).value || null,
       status: 'active',
       expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : null
@@ -1901,6 +1954,8 @@ function deviceMiniRows(list) {
             <th>Código</th>
             <th>Status</th>
             <th>Cliente</th>
+            <th>Vendedor</th>
+            <th>Plano</th>
             <th>Lista</th>
             <th>Validade</th>
             <th>Ações</th>
@@ -1912,6 +1967,8 @@ function deviceMiniRows(list) {
               <td><span class="mono">${esc(d.deviceCode)}</span></td>
               <td>${badge(d.status)}</td>
               <td>${esc(d.customerName || 'Sem cliente')}</td>
+              <td>${esc(d.sellerName || 'Sem vendedor')}</td>
+              <td>${esc(d.planName || 'Sem plano')}</td>
               <td>${esc(d.playlistName || 'Sem lista')}</td>
               <td>${fmtDate(d.expiresAt)} ${validityLabel(d.expiresAt)}</td>
               <td>

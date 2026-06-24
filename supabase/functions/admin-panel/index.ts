@@ -90,6 +90,35 @@ function normalizeWhatsapp(value: unknown) {
 }
 
 
+function normalizeSellerStatus(value: unknown) {
+  const status = String(value ?? 'active').trim();
+
+  if (['active', 'blocked', 'inactive'].includes(status)) {
+    return status;
+  }
+
+  return 'active';
+}
+
+function normalizePlanStatus(value: unknown) {
+  const status = String(value ?? 'active').trim();
+
+  if (['active', 'inactive'].includes(status)) {
+    return status;
+  }
+
+  return 'active';
+}
+
+function intOrDefault(value: unknown, fallback: number, min = 0) {
+  const num = Number(value);
+
+  if (!Number.isFinite(num)) return fallback;
+
+  return Math.max(min, Math.floor(num));
+}
+
+
 async function writeAudit(
   supabase: any,
   payload: {
@@ -135,6 +164,276 @@ serve(async (req) => {
     const action = String(body.action || url.searchParams.get('action') || '').trim();
 
 
+
+    if (action === 'listCommercialData') {
+      const { data: sellers, error: sellersError } = await supabase
+        .from('panel_sellers')
+        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, created_at, updated_at')
+        .order('created_at', { ascending: false });
+
+      if (sellersError) return json({ error: sellersError.message }, 500);
+
+      const { data: plans, error: plansError } = await supabase
+        .from('panel_plans')
+        .select('id, name, duration_days, credit_cost, max_devices, status, created_at, updated_at')
+        .order('created_at', { ascending: false });
+
+      if (plansError) return json({ error: plansError.message }, 500);
+
+      const { data: ledger, error: ledgerError } = await supabase
+        .from('panel_credit_ledger')
+        .select(`
+          id,
+          seller_id,
+          amount,
+          type,
+          reference_id,
+          description,
+          balance_after,
+          performed_by,
+          created_at,
+          seller:panel_sellers (
+            id,
+            name
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (ledgerError) return json({ error: ledgerError.message }, 500);
+
+      return json({
+        sellers: (sellers ?? []).map((seller: any) => ({
+          id: seller.id,
+          name: seller.name,
+          whatsapp: seller.whatsapp,
+          email: seller.email,
+          status: seller.status,
+          creditBalance: seller.credit_balance,
+          canGoNegative: seller.can_go_negative,
+          createdAt: seller.created_at,
+          updatedAt: seller.updated_at,
+        })),
+        plans: (plans ?? []).map((plan: any) => ({
+          id: plan.id,
+          name: plan.name,
+          durationDays: plan.duration_days,
+          creditCost: plan.credit_cost,
+          maxDevices: plan.max_devices,
+          status: plan.status,
+          createdAt: plan.created_at,
+          updatedAt: plan.updated_at,
+        })),
+        creditLedger: (ledger ?? []).map((entry: any) => ({
+          id: entry.id,
+          sellerId: entry.seller_id,
+          sellerName: entry.seller?.name || null,
+          amount: entry.amount,
+          type: entry.type,
+          referenceId: entry.reference_id,
+          description: entry.description,
+          balanceAfter: entry.balance_after,
+          performedBy: entry.performed_by,
+          createdAt: entry.created_at,
+        })),
+      });
+    }
+
+    if (action === 'createSeller') {
+      const name = requiredText(body.name, 'Nome do vendedor');
+      const whatsapp = normalizeWhatsapp(body.whatsapp);
+      const email = textOrNull(body.email);
+      const initialCredits = intOrDefault(body.initialCredits, 0, 0);
+
+      if (!whatsapp) {
+        return json({ error: 'WhatsApp do vendedor é obrigatório.' }, 400);
+      }
+
+      const { data, error } = await supabase
+        .from('panel_sellers')
+        .insert({
+          name,
+          whatsapp,
+          email,
+          status: normalizeSellerStatus(body.status),
+          credit_balance: initialCredits,
+          can_go_negative: body.canGoNegative === true,
+          updated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (error) return json({ error: error.message }, 500);
+
+      if (initialCredits > 0) {
+        await supabase.from('panel_credit_ledger').insert({
+          seller_id: data.id,
+          amount: initialCredits,
+          type: 'manual_add',
+          description: 'Créditos iniciais do vendedor',
+          balance_after: initialCredits,
+          performed_by: 'admin',
+        });
+      }
+
+      await writeAudit(supabase, {
+        action: 'seller.created',
+        entityType: 'seller',
+        entityId: data?.id ?? null,
+        description: `Vendedor criado: ${name}`,
+        metadata: { name, whatsapp, email, initialCredits },
+      });
+
+      return json({ ok: true, id: data?.id });
+    }
+
+    if (action === 'updateSeller') {
+      const id = requiredText(body.id, 'ID do vendedor');
+
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if ('name' in body) updates.name = requiredText(body.name, 'Nome do vendedor');
+      if ('whatsapp' in body) {
+        const whatsapp = normalizeWhatsapp(body.whatsapp);
+        if (!whatsapp) return json({ error: 'WhatsApp do vendedor é obrigatório.' }, 400);
+        updates.whatsapp = whatsapp;
+      }
+      if ('email' in body) updates.email = textOrNull(body.email);
+      if ('status' in body) updates.status = normalizeSellerStatus(body.status);
+      if ('canGoNegative' in body) updates.can_go_negative = body.canGoNegative === true;
+
+      const { error } = await supabase
+        .from('panel_sellers')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'seller.updated',
+        entityType: 'seller',
+        entityId: id,
+        description: 'Vendedor atualizado',
+        metadata: { updates },
+      });
+
+      return json({ ok: true });
+    }
+
+    if (action === 'addSellerCredits') {
+      const sellerId = requiredText(body.sellerId, 'ID do vendedor');
+      const amount = intOrDefault(body.amount, 0, 1);
+      const description = textOrNull(body.description) || 'Crédito adicionado manualmente';
+
+      const { data: seller, error: sellerError } = await supabase
+        .from('panel_sellers')
+        .select('id, name, credit_balance')
+        .eq('id', sellerId)
+        .single();
+
+      if (sellerError) return json({ error: sellerError.message }, 500);
+
+      const balanceAfter = Number(seller.credit_balance || 0) + amount;
+
+      const { error: updateError } = await supabase
+        .from('panel_sellers')
+        .update({
+          credit_balance: balanceAfter,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sellerId);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      const { error: ledgerError } = await supabase
+        .from('panel_credit_ledger')
+        .insert({
+          seller_id: sellerId,
+          amount,
+          type: 'manual_add',
+          description,
+          balance_after: balanceAfter,
+          performed_by: 'admin',
+        });
+
+      if (ledgerError) return json({ error: ledgerError.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'credit.added',
+        entityType: 'seller',
+        entityId: sellerId,
+        description: `${amount} crédito(s) adicionados para ${seller.name}`,
+        metadata: { amount, balanceAfter, description },
+      });
+
+      return json({ ok: true, balanceAfter });
+    }
+
+    if (action === 'createPlan') {
+      const name = requiredText(body.name, 'Nome do plano');
+      const durationDays = intOrDefault(body.durationDays, 30, 1);
+      const creditCost = intOrDefault(body.creditCost, 1, 1);
+      const maxDevices = intOrDefault(body.maxDevices, 1, 1);
+
+      const { data, error } = await supabase
+        .from('panel_plans')
+        .insert({
+          name,
+          duration_days: durationDays,
+          credit_cost: creditCost,
+          max_devices: maxDevices,
+          status: normalizePlanStatus(body.status),
+          updated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'plan.created',
+        entityType: 'plan',
+        entityId: data?.id ?? null,
+        description: `Plano criado: ${name}`,
+        metadata: { name, durationDays, creditCost, maxDevices },
+      });
+
+      return json({ ok: true, id: data?.id });
+    }
+
+    if (action === 'updatePlan') {
+      const id = requiredText(body.id, 'ID do plano');
+
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if ('name' in body) updates.name = requiredText(body.name, 'Nome do plano');
+      if ('durationDays' in body) updates.duration_days = intOrDefault(body.durationDays, 30, 1);
+      if ('creditCost' in body) updates.credit_cost = intOrDefault(body.creditCost, 1, 1);
+      if ('maxDevices' in body) updates.max_devices = intOrDefault(body.maxDevices, 1, 1);
+      if ('status' in body) updates.status = normalizePlanStatus(body.status);
+
+      const { error } = await supabase
+        .from('panel_plans')
+        .update(updates)
+        .eq('id', id);
+
+      if (error) return json({ error: error.message }, 500);
+
+      await writeAudit(supabase, {
+        action: 'plan.updated',
+        entityType: 'plan',
+        entityId: id,
+        description: 'Plano atualizado',
+        metadata: { updates },
+      });
+
+      return json({ ok: true });
+    }
+
     if (action === 'listAuditLogs') {
       const rawLimit = Number(body.limit ?? 100);
       const limit = Number.isFinite(rawLimit)
@@ -177,7 +476,21 @@ serve(async (req) => {
     if (action === 'listCustomers') {
       const { data: customers, error } = await supabase
         .from('panel_customers')
-        .select('id, name, whatsapp, created_at, updated_at')
+        .select(`
+          id,
+          name,
+          whatsapp,
+          status,
+          seller_id,
+          created_at,
+          updated_at,
+          seller:panel_sellers (
+            id,
+            name,
+            status,
+            credit_balance
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) return json({ error: error.message }, 500);
@@ -199,6 +512,11 @@ serve(async (req) => {
           id: customer.id,
           name: customer.name,
           whatsapp: customer.whatsapp,
+          status: customer.status || 'active',
+          sellerId: customer.seller_id || null,
+          sellerName: customer.seller?.name || null,
+          sellerStatus: customer.seller?.status || null,
+          sellerCreditBalance: customer.seller?.credit_balance ?? null,
           createdAt: customer.created_at,
           updatedAt: customer.updated_at,
           devicesCount: counts.get(customer.id) ?? 0,
@@ -219,6 +537,8 @@ serve(async (req) => {
         .insert({
           name,
           whatsapp,
+          status: normalizeSellerStatus(body.status),
+          seller_id: textOrNull(body.sellerId),
           updated_at: new Date().toISOString(),
         })
         .select('id')
@@ -250,6 +570,8 @@ serve(async (req) => {
         if (!whatsapp) return json({ error: 'WhatsApp é obrigatório.' }, 400);
         updates.whatsapp = whatsapp;
       }
+      if ('status' in body) updates.status = normalizeSellerStatus(body.status);
+      if ('sellerId' in body) updates.seller_id = textOrNull(body.sellerId);
 
       const { error } = await supabase
         .from('panel_customers')
@@ -304,6 +626,8 @@ serve(async (req) => {
           device_uuid,
           client_name,
           customer_id,
+          seller_id,
+          plan_id,
           status,
           playlist_id,
           subscription_expires_at,
@@ -317,6 +641,19 @@ serve(async (req) => {
             id,
             name,
             whatsapp
+          ),
+          seller:panel_sellers (
+            id,
+            name,
+            status,
+            credit_balance
+          ),
+          plan:panel_plans (
+            id,
+            name,
+            duration_days,
+            credit_cost,
+            status
           ),
           playlist:panel_playlists (
             id,
@@ -340,6 +677,13 @@ serve(async (req) => {
           customerId: device.customer_id,
           customerName: device.customer?.name || null,
           customerWhatsapp: device.customer?.whatsapp || null,
+          sellerId: device.seller_id || null,
+          sellerName: device.seller?.name || null,
+          sellerCreditBalance: device.seller?.credit_balance ?? null,
+          planId: device.plan_id || null,
+          planName: device.plan?.name || null,
+          planDurationDays: device.plan?.duration_days ?? null,
+          planCreditCost: device.plan?.credit_cost ?? null,
           status: device.status,
           playlistId: device.playlist_id,
           expiresAt: device.subscription_expires_at,
@@ -398,6 +742,8 @@ serve(async (req) => {
       if ('status' in body) updates.status = normalizeStatus(body.status);
       if ('clientName' in body) updates.client_name = textOrNull(body.clientName);
       if ('customerId' in body) updates.customer_id = textOrNull(body.customerId);
+      if ('sellerId' in body) updates.seller_id = textOrNull(body.sellerId);
+      if ('planId' in body) updates.plan_id = textOrNull(body.planId);
       if ('playlistId' in body) updates.playlist_id = textOrNull(body.playlistId);
       if ('expiresAt' in body) updates.subscription_expires_at = textOrNull(body.expiresAt);
 
