@@ -331,7 +331,7 @@ export default defineConfig({
     ENABLE_SINGLE_FILE ? viteSingleFile() : null,
   ],
 
-  build: {
+  build: ENABLE_SINGLE_FILE ? {} : {
     rollupOptions: {
       output: {
         manualChunks(id) {
