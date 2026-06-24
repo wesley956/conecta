@@ -7,12 +7,13 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run typecheck && npm run build",
+    "verify": "npm run check:m3u-parser && npm run typecheck && npm run build",
     "preview": "vite preview",
     "audit:ui": "node scripts/audit-ui-crud.cjs",
     "serve:prod": "npm run build && node server.mjs",
     "serve:dist": "node server.mjs",
-    "build:singlefile": "SINGLE_FILE=true vite build"
+    "build:singlefile": "SINGLE_FILE=true vite build",
+    "check:m3u-parser": "node scripts/check-m3u-parser.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",

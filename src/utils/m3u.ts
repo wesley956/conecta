@@ -345,11 +345,16 @@ function mergeCategoryVariants<T extends { category: string }>(items: T[]): T[] 
 }
 
 function cleanMovieName(name: string): string {
-  return name
-    .replace(/\b(19\d{2}|20\d{2})\b/g, '')
-    .replace(/\s*[-–]\s*$/g, '')
+  const cleaned = name
+    .replace(/\b(?:19|20)\d{2}\b/g, '')
+    .replace(/\(\s*\)|\[\s*\]|\{\s*\}/g, '')
+    .replace(/\b(4K|UHD|FHD|HD|SD|DUB|DUBLADO|LEG|LEGENDADO|DUAL AUDIO|BLURAY|WEB-DL|WEBRIP|BRRIP|X264|X265|H264|H265)\b/gi, '')
+    .replace(/[._]+/g, ' ')
+    .replace(/\s*[-–|]\s*$/g, '')
     .replace(/\s{2,}/g, ' ')
-    .trim() || name;
+    .trim();
+
+  return cleaned || name.trim() || 'Filme sem nome';
 }
 
 function parseEpisodeInfo(name: string) {
