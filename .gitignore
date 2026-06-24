@@ -20,3 +20,5 @@ android/.gradle/
 android/build/
 android/app/build/
 *.apk
+
+.admin-token-local.txt
