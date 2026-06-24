@@ -1530,6 +1530,52 @@ function planOptions(selectedId) {
     .join('');
 }
 
+function dateTimeForCreditCheck(value) {
+  if (!value) return 0;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function confirmCreditConsumption(deviceId, sellerId, planId, actionLabel) {
+  const device = devices.find(d => d.id === deviceId);
+  const seller = sellers.find(s => s.id === sellerId);
+  const plan = plans.find(p => p.id === planId);
+
+  if (!sellerId || !seller) {
+    show('Escolha um vendedor antes de consumir créditos.', true);
+    return false;
+  }
+
+  if (!planId || !plan) {
+    show('Escolha um plano antes de consumir créditos.', true);
+    return false;
+  }
+
+  const cost = Math.max(1, Number(plan.creditCost || 1));
+  const balance = Number(seller.creditBalance || 0);
+  const after = balance - cost;
+  const canNegative = seller.canGoNegative === true;
+
+  const deviceCode = device?.deviceCode || deviceId;
+  const negativeText = after < 0
+    ? (canNegative
+      ? `\n\nAtenção: o saldo ficará negativo: ${after} crédito(s).`
+      : `\n\nAtenção: o saldo é insuficiente. A operação será bloqueada pelo servidor.`)
+    : '';
+
+  return confirm(
+    `${actionLabel}\n\n` +
+    `Aparelho: ${deviceCode}\n` +
+    `Vendedor: ${seller.name}\n` +
+    `Plano: ${plan.name}\n` +
+    `Custo: ${cost} crédito(s)\n` +
+    `Saldo atual: ${balance}\n` +
+    `Saldo após operação: ${after}` +
+    negativeText +
+    `\n\nDeseja continuar?`
+  );
+}
+
 function statusOptions(selectedStatus) {
   return ['pending','active','blocked','expired','inactive']
     .map(s => `<option value="${s}" ${s === selectedStatus ? 'selected' : ''}>${s}</option>`)
@@ -1829,20 +1875,40 @@ async function deletePlaylist(id) {
 
 async function saveDevice(id) {
   try {
-    const exp = $('dev-exp-' + id).value;
+    const device = devices.find(d => d.id === id);
+    const nextSellerId = $('dev-seller-' + id).value || null;
+    const nextPlanId = $('dev-plan-' + id).value || null;
+    const nextStatus = $('dev-status-' + id).value;
+    const nextExpiresAt = $('dev-exp-' + id).value || null;
+
+    const isActivation = device && device.status !== 'active' && nextStatus === 'active';
+    const isRenewal =
+      device &&
+      device.status === 'active' &&
+      nextStatus === 'active' &&
+      dateTimeForCreditCheck(nextExpiresAt) > dateTimeForCreditCheck(device.expiresAt);
+
+    if ((isActivation || isRenewal) && !confirmCreditConsumption(
+      id,
+      nextSellerId,
+      nextPlanId,
+      isActivation ? 'Ativar aparelho' : 'Renovar aparelho'
+    )) {
+      return;
+    }
 
     await api('updateDevice', {
       id,
       customerId: $('dev-customer-' + id).value || null,
-      sellerId: $('dev-seller-' + id).value || null,
-      planId: $('dev-plan-' + id).value || null,
-      status: $('dev-status-' + id).value,
+      sellerId: nextSellerId,
+      planId: nextPlanId,
+      status: nextStatus,
       playlistId: $('dev-playlist-' + id).value || null,
-      expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : null
+      expiresAt: nextExpiresAt
     });
 
     await loadAll();
-    show('Aparelho atualizado.');
+    show('Aparelho salvo.');
   } catch (err) {
     show(err.message, true);
   }
@@ -1850,13 +1916,18 @@ async function saveDevice(id) {
 
 async function renewDevice(id) {
   try {
-    const exp = new Date();
-    exp.setDate(exp.getDate() + 30);
+    const device = devices.find(d => d.id === id);
+    const sellerId = device?.sellerId || null;
+    const planId = device?.planId || null;
+
+    if (!confirmCreditConsumption(id, sellerId, planId, 'Renovar aparelho por 30 dias')) {
+      return;
+    }
 
     await api('updateDevice', {
       id,
       status: 'active',
-      expiresAt: exp.toISOString()
+      expiresAt: thirtyDaysDate()
     });
 
     await loadAll();
@@ -1878,26 +1949,29 @@ async function blockDevice(id) {
 
 async function activatePending(id) {
   try {
-    const exp = $('pend-exp-' + id).value;
+    const sellerId = $('pend-seller-' + id).value || null;
+    const planId = $('pend-plan-' + id).value || null;
+
+    if (!confirmCreditConsumption(id, sellerId, planId, 'Liberar aparelho pendente')) {
+      return;
+    }
 
     await api('updateDevice', {
       id,
       customerId: $('pend-customer-' + id).value || null,
-      sellerId: $('pend-seller-' + id).value || null,
-      planId: $('pend-plan-' + id).value || null,
+      sellerId,
+      planId,
       playlistId: $('pend-playlist-' + id).value || null,
       status: 'active',
-      expiresAt: exp ? new Date(exp + 'T23:59:59').toISOString() : null
+      expiresAt: $('pend-exp-' + id).value || thirtyDaysDate()
     });
 
     await loadAll();
     show('Aparelho liberado.');
-    setTab('devices');
   } catch (err) {
     show(err.message, true);
   }
 }
-
 
 function openDetails(title, subtitle, html) {
   $('modalTitle').textContent = title;
