@@ -1,15 +1,10 @@
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
 
-function nextMonthDate(days = 30) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 // ===== EXPIRED SCREEN =====
 export function ExpiredScreen() {
-  const { expiresAt, daysRemaining, setSubscription, setScreen } = useAppStore();
+  const { expiresAt, daysRemaining, setScreen } = useAppStore();
 
   return (
     <AppLayout>
@@ -26,14 +21,9 @@ export function ExpiredScreen() {
             Dias em atraso: {Math.abs(daysRemaining)}
           </p>
           <div className="space-y-3">
-            <a
-              href="https://wa.me/5511999999999"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full bg-active-green text-bg-primary font-bold py-3 rounded-xl hover:bg-active-green/80 transition-colors text-center"
-            >
-              💬 Renovar pelo WhatsApp
-            </a>
+            <p className="rounded-md bg-white/[0.055] px-6 py-4 text-center text-xl font-light text-white/55">
+              Entre em contato com o responsável pela sua liberação.
+            </p>
             <button
               onClick={() => setScreen('activation')}
               className="w-full bg-white/[0.04] border border-white/10 text-text-gray font-medium py-3 rounded-xl hover:border-neon-orange/50 transition-colors"
@@ -69,14 +59,9 @@ export function BlockedScreen() {
             Este aparelho não está autorizado a acessar o sistema.
           </p>
           <div className="space-y-3">
-            <a
-              href="https://wa.me/5511999999999"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full bg-neon-orange text-bg-primary font-bold py-3 rounded-xl hover:bg-neon-orange/80 transition-colors text-center"
-            >
-              💬 Falar com Suporte
-            </a>
+            <p className="rounded-md bg-white/[0.055] px-6 py-4 text-center text-xl font-light text-white/55">
+              Entre em contato com o responsável pela sua liberação.
+            </p>
             <button
               onClick={() => {
                 setDeviceActivated(false);

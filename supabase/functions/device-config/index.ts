@@ -86,6 +86,15 @@ serve(async request => {
     })
     .eq('id', device.id);
 
+  if (device.device_uuid && deviceUuid && device.device_uuid !== deviceUuid) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: code,
+      message: 'Código pertence a outro aparelho. Solicite um novo código no app.',
+    }, 403);
+  }
+
   const expiresAt = device.subscription_expires_at;
   const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
   const playlist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
