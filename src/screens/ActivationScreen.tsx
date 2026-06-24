@@ -46,8 +46,9 @@ export function ActivationScreen() {
 
     try {
       if (!isDevicePanelEnabled()) {
-        setDeviceActivated(true);
-        setScreen('home');
+        setDeviceActivated(false);
+        setActiveNotice('Atenção: painel de ativação não configurado neste build.');
+        setScreen('activation');
         return;
       }
 
