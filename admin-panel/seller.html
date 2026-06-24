@@ -303,7 +303,7 @@
   </main>
 
   <script>
-    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel'\;
+    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
     const TOKEN_KEY = 'roneca_seller_token';
 
     function $(id) {
@@ -443,7 +443,7 @@
                 ${wa ? `<br><a class="btn" href="${wa}" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>` : ''}
               </td>
               <td>${badge(device.status)}</td>
-              <td>${esc(device.planName || 'Sem plano')}<br><span class="muted">${device.planCreditCost ? esc(device.planCreditCost + ' crédito(s)') : ''}</span></td>
+              <td>${esc(device.planName || 'Sem plano')}<br><span class="muted">${esc(device.planCreditCost ? String(device.planCreditCost) + ' crédito(s)' : '')}</span></td>
               <td>${fmtDate(device.expiresAt)}<br>${validity}</td>
               <td>${fmtDate(device.lastSeenAt)}</td>
             </tr>
