@@ -5,6 +5,7 @@ import { channelCategories } from '@/data/mock';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
 import type { Channel } from '@/types';
+import { Home as HomeIcon, Tv as TvIcon, List as ListIcon, Star as StarIcon } from 'lucide-react';
 
 const CHANNEL_RENDER_BATCH_SIZE = 180;
 
@@ -116,8 +117,8 @@ export function ChannelsScreen() {
 
   const categoryOptions = useMemo(() => {
     const fixed = [
-      { id: 'all', name: 'Todos', icon: '▤', count: channels.length },
-      { id: 'favorites', name: 'Favoritos', icon: '★', count: channels.filter(channel => channel.isFavorite).length },
+      { id: 'all', name: 'Todos', icon: <ListIcon aria-hidden="true" size={20} strokeWidth={2.4} />, count: channels.length },
+      { id: 'favorites', name: 'Favoritos', icon: <StarIcon aria-hidden="true" size={20} strokeWidth={2.4} fill="currentColor" />, count: channels.filter(channel => channel.isFavorite).length },
       { id: 'playback', name: 'Playback', icon: '◉', count: channels.length },
       { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z', count: channels.length },
     ];
@@ -140,7 +141,7 @@ export function ChannelsScreen() {
       byId.set(id, {
         id,
         name: getGroupName(channel),
-        icon: '▤',
+        icon: <ListIcon aria-hidden="true" size={20} strokeWidth={2.4} />,
         count: 1,
       });
     }
@@ -223,7 +224,7 @@ export function ChannelsScreen() {
             onClick={() => setScreen('home')}
             className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
           >
-            ⌂
+            <HomeIcon aria-hidden="true" size={22} strokeWidth={2.4} />
           </button>
 
           <div className="max-h-[calc(100vh-112px)] space-y-1 overflow-y-auto pr-2">
@@ -264,7 +265,7 @@ export function ChannelsScreen() {
             </div>
           ) : filteredChannels.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
-              <p className="text-5xl">▣</p>
+              <TvIcon aria-hidden="true" size={52} strokeWidth={2.2} className="mx-auto" />
               <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>
               <p className="mx-auto mt-3 max-w-2xl text-lg font-light">
                 Aguarde a liberação do aparelho e a lista vinculada pelo painel. Se já foi liberado, atualize o acesso nas configurações.
@@ -322,7 +323,7 @@ export function ChannelsScreen() {
                       }`}
                       aria-label={channel.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                     >
-                      {channel.isFavorite ? '★' : '☆'}
+                      <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={channel.isFavorite ? "currentColor" : "none"} />
                     </span>
                   </button>
                 );

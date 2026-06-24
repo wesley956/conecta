@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Movie } from '@/types';
+import { Home as HomeIcon, Clapperboard as MovieIcon, Star as StarIcon, Play as PlayIcon } from 'lucide-react';
 
 const MOVIE_RENDER_BATCH_SIZE = 60;
 
@@ -113,7 +114,7 @@ export function MoviesScreen() {
             onClick={() => setScreen('home')}
             className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
           >
-            ⌂
+            <HomeIcon aria-hidden="true" size={22} strokeWidth={2.4} />
           </button>
 
           <h2 className="mb-4 px-5 text-xl font-light text-white/38">Categorias</h2>
@@ -195,13 +196,13 @@ export function MoviesScreen() {
                       }`}
                       aria-label={movie.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                     >
-                      {movie.isFavorite ? '★' : '☆'}
+                      <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={movie.isFavorite ? "currentColor" : "none"} />
                     </span>
                     {movie.cover ? (
                       <img src={movie.cover} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center bg-gradient-to-br from-white/[0.08] to-white/[0.015] text-6xl">
-                        🎬
+                        <MovieIcon aria-hidden="true" size={18} strokeWidth={2.4} />
                       </div>
                     )}
 
@@ -248,7 +249,7 @@ export function MoviesScreen() {
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-white/5 text-6xl text-white/30">
-                      ▶
+                      <PlayIcon aria-hidden="true" size={18} strokeWidth={2.4} />
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#06111f] via-transparent to-transparent md:bg-gradient-to-r" />
@@ -292,7 +293,7 @@ export function MoviesScreen() {
                       }}
                       className="rounded-full bg-sky-400 px-7 py-3 text-base font-black text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-300"
                     >
-                      ▶ Assistir agora
+                      <PlayIcon aria-hidden="true" size={18} strokeWidth={2.4} /> Assistir agora
                     </button>
 
                     <button

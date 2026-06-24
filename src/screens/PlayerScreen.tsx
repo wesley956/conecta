@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
+import { Play as PlayIcon, Pause as PauseIcon, Tv as TvIcon } from 'lucide-react';
 
 function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
@@ -560,7 +561,7 @@ export function PlayerScreen() {
                 className="group flex h-[clamp(82px,10vw,138px)] w-[clamp(82px,10vw,138px)] items-center justify-center rounded-full border border-white/25 bg-white/[0.16] text-[clamp(34px,4.3vw,58px)] text-white shadow-[0_24px_90px_rgba(35,150,242,0.22)] backdrop-blur-2xl transition-all duration-200 hover:scale-105 hover:border-white/40 hover:bg-white/[0.24] active:scale-95"
                 aria-label={isPlaying ? 'Pausar' : 'Reproduzir'}
               >
-                {isPlaying ? '⏸' : '▶'}
+                {isPlaying ? <PauseIcon aria-hidden="true" size={22} fill="currentColor" /> : <PlayIcon aria-hidden="true" size={22} fill="currentColor" />}
               </button>
 
               {!isLive ? (
@@ -802,7 +803,7 @@ export function PlayerScreen() {
                     currentChannel?.id === channel.id ? 'active' : ''
                   }`}
                 >
-                  <span className="w-8 text-2xl">▣</span>
+                  <TvIcon aria-hidden="true" size={26} strokeWidth={2.4} className="w-8" />
                   <span className="truncate text-2xl font-light">{channel.name}</span>
                 </button>
               ))}

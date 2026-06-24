@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
+import { Tv as TvIcon, Clapperboard as MovieIcon, Library as SeriesIcon } from 'lucide-react';
 
 export function FavoritesScreen() {
   const {
@@ -43,7 +44,7 @@ export function FavoritesScreen() {
                     }}
                     className="clean-tv-tile rounded-md p-5 text-left"
                   >
-                    <p className="text-3xl">▣</p>
+                    <TvIcon aria-hidden="true" size={32} strokeWidth={2.4} className="mx-auto" />
                     <p className="mt-5 truncate text-2xl font-light">{channel.name}</p>
                     <p className="mt-2 text-base opacity-55">Canal favorito</p>
                   </button>
@@ -105,7 +106,7 @@ export function FavoritesScreen() {
                   className="group text-left"
                 >
                   <div className="flex h-[210px] items-center justify-center rounded-xl bg-white/[0.045] text-6xl transition-transform group-hover:scale-[1.035]">
-                    🎬
+                    <MovieIcon aria-hidden="true" size={32} strokeWidth={2.4} />
                   </div>
                   <p className="mt-3 truncate text-2xl font-light text-white/72 group-hover:text-white">
                     {movie.name}
@@ -120,7 +121,7 @@ export function FavoritesScreen() {
                   className="group text-left"
                 >
                   <div className="flex h-[210px] items-center justify-center rounded-xl bg-white/[0.045] text-6xl transition-transform group-hover:scale-[1.035]">
-                    🎥
+                    <SeriesIcon aria-hidden="true" size={32} strokeWidth={2.4} />
                   </div>
                   <p className="mt-3 truncate text-2xl font-light text-white/72 group-hover:text-white">
                     {item.name}
@@ -193,7 +194,7 @@ export function SearchScreen() {
                   }}
                   className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
                 >
-                  <span className="text-3xl">▣</span>
+                  <TvIcon aria-hidden="true" size={32} strokeWidth={2.4} />
                   <span className="truncate text-2xl font-light">{channel.name}</span>
                 </button>
               ))}
@@ -209,7 +210,7 @@ export function SearchScreen() {
                   }}
                   className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
                 >
-                  <span className="text-3xl">🎬</span>
+                  <MovieIcon aria-hidden="true" size={32} strokeWidth={2.4} />
                   <span className="truncate text-2xl font-light">{movie.name}</span>
                 </button>
               ))}
@@ -222,7 +223,7 @@ export function SearchScreen() {
                   onClick={() => setScreen('series')}
                   className="clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left"
                 >
-                  <span className="text-3xl">🎥</span>
+                  <SeriesIcon aria-hidden="true" size={32} strokeWidth={2.4} />
                   <span className="truncate text-2xl font-light">{item.name}</span>
                 </button>
               ))}

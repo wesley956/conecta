@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Series, Movie, Season, Episode } from '@/types';
 import {
+import { Home as HomeIcon, Clapperboard as SeriesIcon, Star as StarIcon, Loader2 as LoaderIcon } from 'lucide-react';
   canLoadXtreamSeriesFromPlaylist,
   fetchXtreamSeriesCatalog,
   fetchXtreamSeriesEpisodes,
@@ -288,7 +289,7 @@ export function SeriesScreen() {
             onClick={() => setScreen('home')}
             className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
           >
-            ⌂
+            <HomeIcon aria-hidden="true" size={22} strokeWidth={2.4} />
           </button>
 
           <h2 className="mb-4 px-5 text-xl font-light text-white/38">Categorias</h2>
@@ -362,7 +363,7 @@ export function SeriesScreen() {
 
           {filteredSeries.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
-              <p className="text-5xl">{isLoadingCatalog ? '⏳' : '🎥'}</p>
+              <div className="flex justify-center text-white/60">{isLoadingCatalog ? <LoaderIcon aria-hidden="true" size={52} className="animate-spin" /> : <SeriesIcon aria-hidden="true" size={52} strokeWidth={2.2} />}</div>
               <p className="mt-5 text-3xl font-light">
                 {isLoadingCatalog ? 'Buscando catálogo de séries' : 'Nenhuma série encontrada'}
               </p>
@@ -399,13 +400,13 @@ export function SeriesScreen() {
                       }`}
                       aria-label={item.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
                     >
-                      {item.isFavorite ? '★' : '☆'}
+                      <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={item.isFavorite ? "currentColor" : "none"} />
                     </span>
                     {item.cover ? (
                       <img src={item.cover} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center bg-gradient-to-br from-white/[0.08] to-white/[0.015] text-6xl">
-                        🎥
+                        <SeriesIcon aria-hidden="true" size={18} strokeWidth={2.4} />
                       </div>
                     )}
 
