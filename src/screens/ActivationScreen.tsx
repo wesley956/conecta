@@ -105,7 +105,7 @@ export function ActivationScreen() {
       setScreen('home');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
-      setActiveNotice(`⚠️ ${message}`);
+      setActiveNotice(`Atenção: ${message}`);
     } finally {
       setLoading(false);
     }

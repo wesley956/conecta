@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
-import { Tv as TvIcon, Clapperboard as MovieIcon, Library as SeriesIcon } from 'lucide-react';
+import { Search as SearchIcon, Tv as TvIcon, Clapperboard as MovieIcon, Library as SeriesIcon } from 'lucide-react';
 
 export function FavoritesScreen() {
   const {
@@ -173,7 +173,7 @@ export function SearchScreen() {
 
         <main className="min-w-0 flex-1">
           <header className="mb-10 flex items-center gap-6">
-            <span className="text-5xl text-white/75">⌕</span>
+            <span className="text-5xl text-white/75"><SearchIcon aria-hidden="true" size={44} strokeWidth={2.2} /></span>
             <input
               value={query}
               onChange={event => setQuery(event.target.value)}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Movie } from '@/types';
-import { Home as HomeIcon, Clapperboard as MovieIcon, Star as StarIcon, Play as PlayIcon } from 'lucide-react';
+import { Home as HomeIcon, Clapperboard as MovieIcon, Star as StarIcon, Play as PlayIcon, Search as SearchIcon, X as XIcon } from 'lucide-react';
 
 const MOVIE_RENDER_BATCH_SIZE = 60;
 
@@ -146,7 +146,7 @@ export function MoviesScreen() {
               onClick={() => setScreen('search')}
               className="text-5xl text-white/80 transition-colors hover:text-white"
             >
-              ⌕
+              <SearchIcon aria-hidden="true" size={44} strokeWidth={2.2} />
             </button>
           </header>
 
@@ -273,7 +273,7 @@ export function MoviesScreen() {
                       className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-2xl font-bold text-white hover:bg-white/20"
                       aria-label="Fechar detalhes"
                     >
-                      ×
+                      <XIcon aria-hidden="true" size={22} strokeWidth={2.4} />
                     </button>
                   </div>
 

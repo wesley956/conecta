@@ -249,7 +249,7 @@ function DevicePanelSync() {
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
-          setActiveNotice(`⚠️ ${message}`);
+          setActiveNotice(`Atenção: ${message}`);
         }
       } finally {
         syncingRef.current = false;

@@ -42,7 +42,7 @@ export function SettingsScreen() {
     try {
       if (!isDevicePanelEnabled()) {
         setAccessStatus('Painel não configurado');
-        setActiveNotice('⚠️ Painel de ativação não configurado neste build.');
+        setActiveNotice('Atenção: Painel de ativação não configurado neste build.');
         return;
       }
 
@@ -80,7 +80,7 @@ export function SettingsScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
       setAccessStatus('Erro ao verificar');
-      setActiveNotice(`⚠️ ${message}`);
+      setActiveNotice(`Atenção: ${message}`);
     } finally {
       setRefreshingAccess(false);
     }

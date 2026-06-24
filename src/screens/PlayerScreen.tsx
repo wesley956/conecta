@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
-import { Play as PlayIcon, Pause as PauseIcon, Tv as TvIcon } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ChevronDown, Maximize, Play as PlayIcon, Pause as PauseIcon, RotateCcw, RotateCw, Tv as TvIcon, Volume2, VolumeX } from 'lucide-react';
 
 function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
@@ -572,7 +572,7 @@ export function PlayerScreen() {
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-black">
             <div className="w-[min(90vw,560px)] text-center">
-              <p className="text-6xl text-white/35">⚠</p>
+              <p className="flex justify-center text-white/35"><AlertTriangle aria-hidden="true" size={64} strokeWidth={2.2} /></p>
               <h1 className="mt-6 text-[clamp(22px,3.4vw,36px)] font-light text-white/82">Reprodução indisponível</h1>
               <p className="mt-4 text-[clamp(15px,2vw,20px)] font-light text-white/42">{error}</p>
 
@@ -618,7 +618,7 @@ export function PlayerScreen() {
                   className="group flex h-[clamp(62px,8vw,106px)] w-[clamp(62px,8vw,106px)] items-center justify-center rounded-full border border-white/15 bg-white/[0.075] text-[clamp(17px,2.1vw,30px)] font-light text-white shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-2xl transition-all duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/[0.14] active:scale-95"
                   aria-label="Retroceder 10 segundos"
                 >
-                  ↺ 10
+                  <><RotateCcw aria-hidden="true" size={28} strokeWidth={2.3} /><span>10</span></>
                 </button>
               ) : (
                 <div className="h-[clamp(58px,8vw,104px)] w-[clamp(58px,8vw,104px)]" />
@@ -646,7 +646,7 @@ export function PlayerScreen() {
                   className="group flex h-[clamp(62px,8vw,106px)] w-[clamp(62px,8vw,106px)] items-center justify-center rounded-full border border-white/15 bg-white/[0.075] text-[clamp(17px,2.1vw,30px)] font-light text-white shadow-[0_20px_70px_rgba(0,0,0,0.55)] backdrop-blur-2xl transition-all duration-200 hover:scale-105 hover:border-white/30 hover:bg-white/[0.14] active:scale-95"
                   aria-label="Avançar 10 segundos"
                 >
-                  10 ↻
+                  <><span>10</span><RotateCw aria-hidden="true" size={28} strokeWidth={2.3} /></>
                 </button>
               ) : (
                 <div className="h-[clamp(58px,8vw,104px)] w-[clamp(58px,8vw,104px)]" />
@@ -703,7 +703,7 @@ export function PlayerScreen() {
                 onClick={toggleMute}
                 className="justify-self-start rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
               >
-                {muted || volume === 0 ? '🔇' : '🔊'}
+                {muted || volume === 0 ? <VolumeX aria-hidden="true" size={24} strokeWidth={2.4} /> : <Volume2 aria-hidden="true" size={24} strokeWidth={2.4} />}
               </button>
 
               <div className="contents">
@@ -714,7 +714,7 @@ export function PlayerScreen() {
                   title="Opções"
                   className="player-settings-arrow justify-self-center rounded-full border border-white/10 bg-white/[0.09] px-6 py-2 text-[clamp(28px,3.4vw,42px)] font-black leading-none text-white/90 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.15] active:scale-95"
                 >
-                  ⌄
+                  <ChevronDown aria-hidden="true" size={34} strokeWidth={2.5} />
                 </button>
 
                 <button
@@ -722,7 +722,7 @@ export function PlayerScreen() {
                   onClick={toggleFullscreen}
                   className="justify-self-end rounded-full border border-white/10 bg-white/[0.075] px-4 py-2 text-[clamp(13px,1.25vw,18px)] text-white/82 shadow-lg backdrop-blur transition-all duration-200 hover:border-white/20 hover:bg-white/[0.13] active:scale-95"
                 >
-                  ⛶
+                  <Maximize aria-hidden="true" size={24} strokeWidth={2.4} />
                 </button>
               </div>
 
@@ -832,7 +832,7 @@ export function PlayerScreen() {
                 onClick={goBack}
                 className="player-back-button text-7xl font-light leading-none text-white/76 hover:text-white"
               >
-                ←
+                <ArrowLeft aria-hidden="true" size={44} strokeWidth={2.2} />
               </button>
 
               <div>

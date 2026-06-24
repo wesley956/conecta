@@ -7,7 +7,7 @@ import {
   fetchXtreamSeriesCatalog,
   fetchXtreamSeriesEpisodes,
 } from '@/utils/xtreamSeries';
-import { Home as HomeIcon, Clapperboard as SeriesIcon, Star as StarIcon, Loader2 as LoaderIcon } from 'lucide-react';
+import { Home as HomeIcon, Clapperboard as SeriesIcon, Star as StarIcon, Loader2 as LoaderIcon, Search as SearchIcon, X as XIcon } from 'lucide-react';
 
 const SERIES_RENDER_BATCH_SIZE = 48;
 
@@ -318,7 +318,7 @@ export function SeriesScreen() {
             </div>
 
             <div className="flex min-w-[320px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-5 py-3">
-              <span className="text-2xl text-white/35">⌕</span>
+              <span className="text-2xl text-white/35"><SearchIcon aria-hidden="true" size={30} strokeWidth={2.2} /></span>
               <input
                 value={searchTerm}
                 onChange={event => setSearchTerm(event.target.value)}
@@ -331,7 +331,7 @@ export function SeriesScreen() {
                   className="text-xl text-white/45 hover:text-white"
                   aria-label="Limpar busca"
                 >
-                  ×
+                  <XIcon aria-hidden="true" size={22} strokeWidth={2.4} />
                 </button>
               )}
             </div>
@@ -466,7 +466,7 @@ export function SeriesScreen() {
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-white/5 text-6xl text-white/30">
-                      ▦
+                      <SeriesIcon aria-hidden="true" size={52} strokeWidth={2.2} />
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#06111f] via-transparent to-transparent md:bg-gradient-to-r" />
@@ -490,7 +490,7 @@ export function SeriesScreen() {
                       className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-2xl font-bold text-white hover:bg-white/20"
                       aria-label="Fechar detalhes"
                     >
-                      ×
+                      <XIcon aria-hidden="true" size={22} strokeWidth={2.4} />
                     </button>
                   </div>
 

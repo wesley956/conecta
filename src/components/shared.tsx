@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
-import { Home, Tv, Film, Library, Settings } from 'lucide-react';
+import { ArrowLeft, Home, Tv, Film, Library, Settings } from 'lucide-react';
 
 // ===== LAYOUT COMPONENTS =====
 
@@ -51,7 +51,7 @@ export function Header({ title, showBack, onBack, showSearch, showUser }: {
       <div className="flex items-center gap-4">
         {showBack && (
           <button onClick={onBack || (() => setScreen('home'))} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-orange hover:text-neon-orange">
-            ←
+            <ArrowLeft aria-hidden="true" size={22} strokeWidth={2.4} />
           </button>
         )}
 
