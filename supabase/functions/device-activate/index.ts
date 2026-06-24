@@ -195,8 +195,24 @@ serve(async request => {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   try {
+      if (!sellerCode) {
+        return json({
+          active: false,
+          status: 'pending',
+          message: 'Informe o código público do vendedor.',
+        }, 400);
+      }
+
     const seller = await findSellerByCode(supabase, sellerCode);
-    const sellerId = seller?.id ?? null;
+
+      if (!seller) {
+        return json({
+          active: false,
+          status: 'pending',
+          message: 'Código público do vendedor não encontrado.',
+        }, 404);
+      }
+    const sellerId = seller.id;
     const customerId = await upsertBasicCustomer(supabase, customerName, customerWhatsapp, sellerId);
 
     const { data: existingDevice, error: existingError } = await supabase
