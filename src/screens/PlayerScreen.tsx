@@ -234,12 +234,16 @@ export function PlayerScreen() {
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: isLive ? 30 : 60,
-        maxBufferLength: isLive ? 30 : 60,
-        maxMaxBufferLength: isLive ? 60 : 120,
+        maxBufferLength: isLive ? 60 : 90,
+        maxMaxBufferLength: isLive ? 120 : 180,
+        maxBufferSize: 60 * 1000 * 1000,
         maxBufferHole: 0.5,
         manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
         levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
         fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
       });
 
       hls.loadSource(playbackUrl);
@@ -254,7 +258,7 @@ export function PlayerScreen() {
         if (!data.fatal) return;
 
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          hls?.startLoad();
+          window.setTimeout(() => hls?.startLoad(), 1200);
           return;
         }
 
