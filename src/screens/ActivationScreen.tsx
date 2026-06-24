@@ -51,13 +51,15 @@ export function ActivationScreen() {
         return;
       }
 
+      const normalizedWhatsapp = customerWhatsapp.replace(/\D/g, '');
+
       setStoredValue(PROFILE_NAME_KEY, customerName.trim());
-      setStoredValue(PROFILE_WPP_KEY, customerWhatsapp.trim());
+      setStoredValue(PROFILE_WPP_KEY, normalizedWhatsapp);
       setStoredValue(SELLER_CODE_KEY, sellerCode.trim());
 
       const activation = await activateDeviceWithPanel({
         customerName: customerName.trim(),
-        customerWhatsapp: customerWhatsapp.trim(),
+        customerWhatsapp: normalizedWhatsapp,
         sellerCode: sellerCode.trim(),
       });
 
@@ -164,7 +166,7 @@ export function ActivationScreen() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-lg font-light text-white/55">Código do vendedor</label>
+                  <label className="mb-2 block text-lg font-light text-white/55">Código público do vendedor</label>
                   <input
                     value={sellerCode}
                     onChange={(event) => setSellerCode(event.target.value)}
@@ -184,7 +186,7 @@ export function ActivationScreen() {
                 </button>
 
                 <p className="rounded-md bg-white/[0.045] px-5 py-4 text-center text-lg font-light text-white/45">
-                  Envie esses dados para o responsável pela sua liberação caso o aparelho ainda apareça como pendente.
+                  Após enviar, o aparelho ficará pendente no painel do vendedor/admin até ser liberado.
                 </p>
               </div>
             </div>
