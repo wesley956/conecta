@@ -52,15 +52,21 @@ export function ActivationScreen() {
       }
 
       const normalizedWhatsapp = customerWhatsapp.replace(/\D/g, '');
+      const normalizedSellerCode = sellerCode.trim().toLowerCase();
+
+      if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(normalizedSellerCode)) {
+        setError('Código público do vendedor inválido.');
+        return;
+      }
 
       setStoredValue(PROFILE_NAME_KEY, customerName.trim());
       setStoredValue(PROFILE_WPP_KEY, normalizedWhatsapp);
-      setStoredValue(SELLER_CODE_KEY, sellerCode.trim());
+      setStoredValue(SELLER_CODE_KEY, normalizedSellerCode);
 
       const activation = await activateDeviceWithPanel({
         customerName: customerName.trim(),
         customerWhatsapp: normalizedWhatsapp,
-        sellerCode: sellerCode.trim(),
+        sellerCode: normalizedSellerCode,
       });
 
       const activeDeviceCode = activation.deviceCode || deviceCode;

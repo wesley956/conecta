@@ -48,6 +48,16 @@ function textOrNull(value: unknown) {
   return text || null;
 }
 
+function normalizeSellerCode(value: unknown) {
+  const text = String(value ?? '').trim().toLowerCase();
+  return text || null;
+}
+
+function isValidSellerPublicCode(value: string | null) {
+  if (!value) return true;
+  return /^[a-z0-9][a-z0-9-]{2,63}$/.test(value);
+}
+
 async function readPayload(request: Request) {
   if (request.method === 'GET') {
     const url = new URL(request.url);
@@ -74,8 +84,8 @@ async function findSellerByCode(supabase: any, sellerCode: string | null) {
 
   const { data, error } = await supabase
     .from('panel_sellers')
-    .select('id, name, status, public_code, access_token')
-    .or(`public_code.eq.${sellerCode},access_token.eq.${sellerCode}`)
+    .select('id, name, status, public_code')
+    .eq('public_code', sellerCode)
     .maybeSingle();
 
   if (error) {
