@@ -402,14 +402,32 @@ export const useAppStore = create<AppStore>()(
       partialize: (state) => ({
         uiMode: state.uiMode,
         deviceCode: state.deviceCode,
-        deviceActivated: state.deviceActivated,
-        subscriptionActive: state.subscriptionActive,
-        expiresAt: state.expiresAt,
-        daysRemaining: state.daysRemaining,
+        // Não persistir deviceActivated/subscriptionActive/expiresAt/daysRemaining.
+        // O acesso deve ser validado pelo painel a cada inicialização.
         // Não persistir channels/movies/series/watchHistory aqui.
         // Listas M3U grandes estouram o limite do localStorage.
         playlists: state.playlists,
-        settings: state.settings,      }),
+        settings: state.settings,
+      }),
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<AppStore>;
+
+        const {
+          deviceActivated: _deviceActivated,
+          subscriptionActive: _subscriptionActive,
+          expiresAt: _expiresAt,
+          daysRemaining: _daysRemaining,
+          currentScreen: _currentScreen,
+          previousScreen: _previousScreen,
+          splashDone: _splashDone,
+          ...safePersisted
+        } = persisted;
+
+        return {
+          ...currentState,
+          ...safePersisted,
+        };
+      },
     }
   )
 );
