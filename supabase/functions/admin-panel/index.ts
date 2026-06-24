@@ -180,6 +180,25 @@ async function consumeSellerCredits(
   }
 
   const currentBalance = Number(seller.credit_balance || 0);
+
+  const duplicateSince = new Date(Date.now() - 15000).toISOString();
+  const { data: recentCharge, error: recentChargeError } = await supabase
+    .from('panel_credit_ledger')
+    .select('id, created_at')
+    .eq('seller_id', payload.sellerId)
+    .eq('reference_id', payload.deviceId)
+    .eq('type', payload.type)
+    .gte('created_at', duplicateSince)
+    .limit(1);
+
+  if (recentChargeError) {
+    throw new Error(`Falha ao verificar cobrança duplicada: ${recentChargeError.message}`);
+  }
+
+  if ((recentCharge ?? []).length > 0) {
+    throw new Error('Operação duplicada detectada. Aguarde alguns segundos antes de tentar novamente.');
+  }
+
   const balanceAfter = currentBalance - cost;
 
   if (balanceAfter < 0 && seller.can_go_negative !== true) {

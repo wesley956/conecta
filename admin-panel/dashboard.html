@@ -1370,6 +1370,7 @@ let devices = [];
 let sellers = [];
 let plans = [];
 let creditLedger = [];
+const deviceActionLocks = new Set();
 let auditLogs = [];
 
 const $ = id => document.getElementById(id);
@@ -1986,6 +1987,36 @@ async function deletePlaylist(id) {
   }
 }
 
+
+function setDeviceActionButtonsDisabled(id, disabled) {
+  document.querySelectorAll('button').forEach(button => {
+    const action = button.getAttribute('onclick') || '';
+    if (action.includes("'" + id + "'") || action.includes('"' + id + '"')) {
+      button.disabled = disabled;
+      button.classList.toggle('loading', disabled);
+    }
+  });
+}
+
+async function withDeviceActionLock(id, actionName, runner) {
+  const key = `${actionName}:${id}`;
+
+  if (deviceActionLocks.has(key)) {
+    show('Operação já em andamento. Aguarde finalizar.', true);
+    return;
+  }
+
+  deviceActionLocks.add(key);
+  setDeviceActionButtonsDisabled(id, true);
+
+  try {
+    return await runner();
+  } finally {
+    deviceActionLocks.delete(key);
+    setDeviceActionButtonsDisabled(id, false);
+  }
+}
+
 async function saveDevice(id) {
   try {
     const device = devices.find(d => d.id === id);
@@ -2010,18 +2041,20 @@ async function saveDevice(id) {
       return;
     }
 
-    await api('updateDevice', {
-      id,
-      customerId: $('dev-customer-' + id).value || null,
-      sellerId: nextSellerId,
-      planId: nextPlanId,
-      status: nextStatus,
-      playlistId: $('dev-playlist-' + id).value || null,
-      expiresAt: nextExpiresAt
-    });
+    await withDeviceActionLock(id, 'saveDevice', async () => {
+      await api('updateDevice', {
+        id,
+        customerId: $('dev-customer-' + id).value || null,
+        sellerId: nextSellerId,
+        planId: nextPlanId,
+        status: nextStatus,
+        playlistId: $('dev-playlist-' + id).value || null,
+        expiresAt: nextExpiresAt
+      });
 
-    await loadAll();
-    show('Aparelho salvo.');
+      await loadAll();
+      show('Aparelho salvo.');
+    });
   } catch (err) {
     show(err.message, true);
   }
@@ -2037,14 +2070,16 @@ async function renewDevice(id) {
       return;
     }
 
-    await api('updateDevice', {
-      id,
-      status: 'active',
-      expiresAt: thirtyDaysDate()
-    });
+    await withDeviceActionLock(id, 'renewDevice', async () => {
+      await api('updateDevice', {
+        id,
+        status: 'active',
+        expiresAt: thirtyDaysDate()
+      });
 
-    await loadAll();
-    show('Aparelho renovado por 30 dias.');
+      await loadAll();
+      show('Aparelho renovado por 30 dias.');
+    });
   } catch (err) {
     show(err.message, true);
   }
@@ -2069,18 +2104,20 @@ async function activatePending(id) {
       return;
     }
 
-    await api('updateDevice', {
-      id,
-      customerId: $('pend-customer-' + id).value || null,
-      sellerId,
-      planId,
-      playlistId: $('pend-playlist-' + id).value || null,
-      status: 'active',
-      expiresAt: $('pend-exp-' + id).value || thirtyDaysDate()
-    });
+    await withDeviceActionLock(id, 'activatePending', async () => {
+      await api('updateDevice', {
+        id,
+        customerId: $('pend-customer-' + id).value || null,
+        sellerId,
+        planId,
+        playlistId: $('pend-playlist-' + id).value || null,
+        status: 'active',
+        expiresAt: $('pend-exp-' + id).value || thirtyDaysDate()
+      });
 
-    await loadAll();
-    show('Aparelho liberado.');
+      await loadAll();
+      show('Aparelho liberado.');
+    });
   } catch (err) {
     show(err.message, true);
   }
