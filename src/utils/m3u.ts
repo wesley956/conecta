@@ -18,8 +18,21 @@ interface M3UEntry {
 }
 
 function readAttr(line: string, attr: string): string {
-  const match = line.match(new RegExp(`${attr}="([^"]*)"`, 'i'));
-  return match?.[1]?.trim() ?? '';
+  const escapedAttr = attr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`${escapedAttr}\\s*=\\s*"([^"]*)"`, 'i'),
+    new RegExp(`${escapedAttr}\\s*=\\s*'([^']*)'`, 'i'),
+    new RegExp(`${escapedAttr}\\s*=\\s*([^\\s,]+)`, 'i'),
+  ];
+
+  for (const pattern of patterns) {
+    const match = line.match(pattern);
+    const value = match?.[1]?.trim();
+
+    if (value) return value;
+  }
+
+  return '';
 }
 
 function readName(line: string): string {
@@ -31,6 +44,39 @@ function readName(line: string): string {
 
   const tvgName = readAttr(line, 'tvg-name');
   return tvgName || 'Sem nome';
+}
+
+function readExtInfDuration(line: string): number | null {
+  const match = line.match(/^#EXTINF:\s*(-?\d+(?:\.\d+)?)/i);
+  const value = Number(match?.[1]);
+
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function formatExtInfDuration(seconds: number | null): string {
+  if (!seconds) return '—';
+
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainingSeconds = total % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
+
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`
+    : `${pad(minutes)}:${pad(remainingSeconds)}`;
+}
+
+function findNextPlayableUrl(lines: string[], startIndex: number): { url: string; index: number } | null {
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const candidate = lines[index]?.trim() ?? '';
+
+    if (!candidate) continue;
+    if (candidate.startsWith('#EXTINF')) return null;
+    if (isPlayableUrl(candidate)) return { url: candidate, index };
+  }
+
+  return null;
 }
 
 function safeGroupName(group: string): string {
@@ -426,12 +472,16 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
 
     if (!line.startsWith('#EXTINF')) continue;
 
-    const url = lines[i + 1]?.trim() ?? '';
+    const playable = findNextPlayableUrl(lines, i);
 
-    if (!isPlayableUrl(url)) {
+    if (!playable) {
       skipped += 1;
       continue;
     }
+
+    const url = playable.url;
+    const duration = formatExtInfDuration(readExtInfDuration(line));
+    i = playable.index;
 
     const entry: M3UEntry = {
       name: readName(line),
@@ -466,7 +516,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
         id: `${playlistId}-mv-${movies.length + 1}`,
         name: cleanMovieName(entry.name),
         year: parseYear(entry.name),
-        duration: '—',
+        duration,
         synopsis: 'Filme importado da lista M3U autorizada.',
         cover: entry.logo,
         category: cleanMediaCategory(entry.groupTitle, 'movie'),
@@ -518,7 +568,7 @@ export function parseM3U(content: string, playlistId = 'local-m3u', sourceUrl = 
       name: entry.name,
       url: entry.url,
       playbackUrls,
-      duration: '—',
+      duration,
       progress: 0,
     });
   }
