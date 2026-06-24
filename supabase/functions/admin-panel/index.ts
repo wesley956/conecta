@@ -351,6 +351,7 @@ serve(async (req) => {
           creditBalance: seller.credit_balance,
           canGoNegative: seller.can_go_negative,
           accessToken: seller.access_token || null,
+          publicCode: seller.public_code || null,
           createdAt: seller.created_at,
           updatedAt: seller.updated_at,
         })),
