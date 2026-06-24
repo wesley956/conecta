@@ -1557,6 +1557,7 @@ function confirmCreditConsumption(deviceId, sellerId, planId, actionLabel) {
   const canNegative = seller.canGoNegative === true;
 
   const deviceCode = device?.deviceCode || deviceId;
+  const customerName = device?.customerName || device?.clientName || 'Sem cliente';
   const negativeText = after < 0
     ? (canNegative
       ? `\n\nAtenção: o saldo ficará negativo: ${after} crédito(s).`
@@ -1566,6 +1567,7 @@ function confirmCreditConsumption(deviceId, sellerId, planId, actionLabel) {
   return confirm(
     `${actionLabel}\n\n` +
     `Aparelho: ${deviceCode}\n` +
+    `Cliente: ${customerName}\n` +
     `Vendedor: ${seller.name}\n` +
     `Plano: ${plan.name}\n` +
     `Custo: ${cost} crédito(s)\n` +

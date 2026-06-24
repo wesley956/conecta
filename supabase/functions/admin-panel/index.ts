@@ -160,6 +160,7 @@ async function consumeSellerCredits(
     type: 'activation' | 'renewal';
     creditCost: number;
     planName?: string | null;
+    customerName?: string | null;
   },
 ) {
   const cost = Math.max(1, Math.floor(Number(payload.creditCost || 1)));
@@ -185,9 +186,13 @@ async function consumeSellerCredits(
     throw new Error(`Saldo insuficiente para ${seller.name}. Saldo atual: ${currentBalance}. Custo: ${cost}.`);
   }
 
+  const customerText = payload.customerName ? ` — cliente ${payload.customerName}` : '';
+  const planText = payload.planName ? ` — plano ${payload.planName}` : '';
+
   const description =
     `${payload.type === 'activation' ? 'Ativação' : 'Renovação'} do aparelho ${payload.deviceCode || payload.deviceId}` +
-    `${payload.planName ? ` — plano ${payload.planName}` : ''}`;
+    customerText +
+    planText;
 
   const { error: updateError } = await supabase
     .from('panel_sellers')
@@ -847,7 +852,18 @@ serve(async (req) => {
 
       const { data: currentDevice, error: currentError } = await supabase
         .from('panel_devices')
-        .select('id, device_code, status, seller_id, plan_id, subscription_expires_at')
+        .select(`
+          id,
+          device_code,
+          status,
+          seller_id,
+          plan_id,
+          subscription_expires_at,
+          customer:panel_customers (
+            id,
+            name
+          )
+        `)
         .eq('id', id)
         .single();
 
@@ -895,6 +911,7 @@ serve(async (req) => {
           type: isActivation ? 'activation' : 'renewal',
           creditCost: plan.creditCost,
           planName: plan.name,
+          customerName: currentDevice.customer?.name || null,
         });
       }
 
