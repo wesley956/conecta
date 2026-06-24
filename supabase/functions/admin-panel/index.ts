@@ -383,6 +383,7 @@ serve(async (req) => {
       const name = requiredText(body.name, 'Nome do vendedor');
       const whatsapp = normalizeWhatsapp(body.whatsapp);
       const email = textOrNull(body.email);
+      const accessToken = textOrNull(body.accessToken) || createSellerAccessToken();
       const initialCredits = intOrDefault(body.initialCredits, 0, 0);
 
       if (!whatsapp) {
@@ -398,7 +399,7 @@ serve(async (req) => {
           status: normalizeSellerStatus(body.status),
           credit_balance: initialCredits,
           can_go_negative: body.canGoNegative === true,
-          access_token: createSellerAccessToken(),
+          access_token: accessToken,
           updated_at: new Date().toISOString(),
         })
         .select('id')
@@ -442,6 +443,11 @@ serve(async (req) => {
         updates.whatsapp = whatsapp;
       }
       if ('email' in body) updates.email = textOrNull(body.email);
+      if ('accessToken' in body) {
+        const accessToken = textOrNull(body.accessToken);
+        if (!accessToken) return json({ error: 'Token do vendedor é obrigatório.' }, 400);
+        updates.access_token = accessToken;
+      }
       if ('status' in body) updates.status = normalizeSellerStatus(body.status);
       if ('canGoNegative' in body) updates.can_go_negative = body.canGoNegative === true;
 

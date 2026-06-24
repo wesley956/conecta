@@ -2766,9 +2766,15 @@ function renderSellerReports() {
           </div>
         </div>
 
+        <div style="margin:14px 0;">
+          <label for="seller-token-${esc(seller.id)}">Token do vendedor</label>
+          <input class="table-input" id="seller-token-${esc(seller.id)}" value="${esc(seller.accessToken || '')}" placeholder="Defina um token de acesso">
+        </div>
+
         <div class="actions">
           <button class="btn" onclick="openSellerDeviceFilter('${esc(seller.id)}')">Ver aparelhos</button>
-          <button class="btn" onclick="copyText('${esc(seller.accessToken || '')}')">Copiar token</button>
+          <button class="btn green" onclick="saveSellerToken('${esc(seller.id)}')">Salvar token</button>
+          <button class="btn" onclick="copyText($('seller-token-${esc(seller.id)}').value)">Copiar token</button>
           <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Portal vendedor</a>
           <button class="btn green" onclick="$('sellerCreditSeller').value='${esc(seller.id)}'; $('sellerCreditAmount').focus();">Adicionar créditos</button>
         </div>
@@ -2782,6 +2788,27 @@ function renderSellerReports() {
   }).join('');
 }
 
+
+
+async function saveSellerToken(id) {
+  try {
+    const accessToken = $('seller-token-' + id).value.trim();
+
+    if (!accessToken) {
+      throw new Error('Digite um token para o vendedor.');
+    }
+
+    await api('updateSeller', {
+      id,
+      accessToken
+    });
+
+    await loadAll();
+    show('Token do vendedor salvo.');
+  } catch (err) {
+    show(err.message, true);
+  }
+}
 
 async function createSeller() {
   try {
