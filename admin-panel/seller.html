@@ -8,14 +8,12 @@
     :root {
       --bg: #070b18;
       --panel: rgba(255,255,255,.06);
-      --panel2: rgba(255,255,255,.09);
       --text: #f8fafc;
       --muted: #94a3b8;
       --line: rgba(255,255,255,.12);
       --green: #4ade80;
       --red: #fb7185;
       --orange: #fb923c;
-      --blue: #60a5fa;
     }
 
     * { box-sizing: border-box; }
@@ -37,12 +35,12 @@
       padding: 28px 0;
     }
 
-    .hero {
+    .hero, .section-title {
       display: flex;
       justify-content: space-between;
-      gap: 18px;
+      gap: 14px;
       align-items: center;
-      margin-bottom: 22px;
+      margin-bottom: 18px;
     }
 
     .brand {
@@ -58,14 +56,11 @@
       display: grid;
       place-items: center;
       background: linear-gradient(135deg, #2563eb, #7c3aed);
-      box-shadow: 0 20px 70px rgba(37,99,235,.32);
       font-weight: 950;
     }
 
     h1, h2, h3, p { margin: 0; }
-
-    h1 { font-size: clamp(1.4rem, 3vw, 2.3rem); }
-
+    h1 { font-size: clamp(1.4rem, 3vw, 2.25rem); }
     .muted { color: var(--muted); }
 
     .card {
@@ -90,7 +85,7 @@
       margin-bottom: 8px;
     }
 
-    input {
+    input, select {
       width: 100%;
       border: 1px solid var(--line);
       background: rgba(0,0,0,.25);
@@ -122,7 +117,7 @@
       justify-content: center;
     }
 
-    button.primary, .btn.primary { background: linear-gradient(135deg, #2563eb, #7c3aed); }
+    button.primary { background: linear-gradient(135deg, #2563eb, #7c3aed); }
     button.red { background: rgba(251,113,133,.18); color: #fecdd3; }
 
     .grid {
@@ -151,6 +146,20 @@
     .positive { color: var(--green); }
     .negative { color: var(--red); }
     .warn { color: var(--orange); }
+
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 180px 210px auto;
+      gap: 10px;
+      align-items: end;
+      margin: 14px 0;
+    }
+
+    .result-count {
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-size: .9rem;
+    }
 
     .tablewrap {
       overflow: auto;
@@ -198,14 +207,6 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
-    .section-title {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 14px;
-    }
-
     .ledger {
       display: grid;
       gap: 10px;
@@ -220,42 +221,11 @@
 
     .hide { display: none !important; }
 
-    @media (max-width: 720px) {
+    @media (max-width: 820px) {
       .hero, .section-title { align-items: flex-start; flex-direction: column; }
+      .filters { grid-template-columns: 1fr; }
       .wrap { width: min(100% - 18px, 1180px); padding-top: 16px; }
     }
-  
-    .filters {
-      display: grid;
-      grid-template-columns: minmax(220px, 1fr) 180px 210px auto;
-      gap: 10px;
-      align-items: end;
-      margin-top: 14px;
-    }
-
-    select {
-      width: 100%;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.25);
-      color: var(--text);
-      padding: 13px 14px;
-      border-radius: 14px;
-      outline: none;
-      font: inherit;
-    }
-
-    .result-count {
-      color: var(--muted);
-      margin-top: 10px;
-      font-size: .9rem;
-    }
-
-    @media (max-width: 820px) {
-      .filters {
-        grid-template-columns: 1fr;
-      }
-    }
-
   </style>
 </head>
 <body>
@@ -340,7 +310,7 @@
 
         <div id="resultCount" class="result-count"></div>
 
-        <div class="tablewrap" style="margin-top:14px;">
+        <div class="tablewrap">
           <table>
             <thead>
               <tr>
@@ -370,7 +340,7 @@
   </main>
 
   <script>
-    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
+    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel'\;
     const TOKEN_KEY = 'roneca_seller_token';
     let currentPortalData = null;
 
@@ -394,7 +364,8 @@
     }
 
     function badge(status) {
-      return `<span class="badge ${esc(status)}">${esc(status || '—')}</span>`;
+      const safe = esc(status || '—');
+      return '<span class="badge ' + safe + '">' + safe + '</span>';
     }
 
     function number(value) {
@@ -418,6 +389,13 @@
       if (!digits) return '';
       const phone = digits.startsWith('55') ? digits : '55' + digits;
       return 'https://wa.me/' + phone;
+    }
+
+    function normalizeText(value) {
+      return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
     }
 
     async function fetchPortal(token) {
@@ -445,7 +423,7 @@
       try {
         const data = await fetchPortal(token);
         localStorage.setItem(TOKEN_KEY, token);
-        render(data);
+        renderPortal(data);
       } catch (err) {
         $('loginMsg').textContent = err.message || 'Token inválido.';
       }
@@ -461,21 +439,13 @@
 
       try {
         const data = await fetchPortal(token);
-        render(data);
+        renderPortal(data);
       } catch (err) {
         localStorage.removeItem(TOKEN_KEY);
         $('loginMsg').textContent = err.message || 'Faça login novamente.';
         $('loginView').classList.remove('hide');
         $('dashboardView').classList.add('hide');
       }
-    }
-
-
-    function normalizeText(value) {
-      return String(value || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
     }
 
     function filteredDevices() {
@@ -494,7 +464,6 @@
           normalizeText(device.planName).includes(term);
 
         const matchStatus = !status || device.status === status;
-
         const days = Number(device.daysLeft);
         let matchExpiry = true;
 
@@ -518,22 +487,66 @@
     function renderDevicesTable() {
       const devices = filteredDevices();
       const total = (currentPortalData?.devices || []).length;
+      $('resultCount').textContent = devices.length + ' de ' + total + ' aparelho(s) exibido(s).';
 
-      $('resultCount').textContent = `${devices.length} de ${total} aparelho(s) exibido(s).`;
+      $('devicesBody').innerHTML = devices.length
+        ? devices.map(device => {
+          const wa = whatsappUrl(device.customerWhatsapp);
+          const days = device.daysLeft;
+          const validity = days === null
+            ? '—'
+            : days < 0
+              ? '<span class="negative">' + Math.abs(days) + ' dia(s) vencido</span>'
+              : days <= 7
+                ? '<span class="warn">' + days + ' dia(s)</span>'
+                : days + ' dia(s)';
+
+          return ''
+            + '<tr>'
+            + '<td><span class="mono">' + esc(device.deviceCode) + '</span><br><span class="muted">' + esc(device.deviceUuid || '') + '</span></td>'
+            + '<td>' + esc(device.customerName || 'Sem cliente') + (wa ? '<br><a class="btn" href="' + esc(wa) + '" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>' : '') + '</td>'
+            + '<td>' + badge(device.status) + '</td>'
+            + '<td>' + esc(device.planName || 'Sem plano') + '<br><span class="muted">' + esc(device.planCreditCost ? String(device.planCreditCost) + ' crédito(s)' : '') + '</span></td>'
+            + '<td>' + fmtDate(device.expiresAt) + '<br>' + validity + '</td>'
+            + '<td>' + fmtDate(device.lastSeenAt) + '</td>'
+            + '</tr>';
+        }).join('')
+        : '<tr><td colspan="6" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
+    }
+
+    function renderPortal(data) {
+      currentPortalData = data;
+
+      const seller = data.seller || {};
+      const stats = data.stats || {};
+      const ledger = data.creditLedger || [];
+      const balance = Number(seller.creditBalance || 0);
+
+      $('sellerName').textContent = seller.name || 'Portal do Vendedor';
+      $('sellerSub').textContent = (seller.whatsapp || '') + (seller.email ? ' · ' + seller.email : '');
+
+      $('statsGrid').innerHTML = ''
+        + '<div class="metric"><small>Saldo atual</small><strong class="' + (balance < 0 ? 'negative' : 'positive') + '">' + number(balance) + '</strong></div>'
+        + '<div class="metric"><small>Aparelhos ativos</small><strong>' + number(stats.activeDevices) + '</strong></div>'
+        + '<div class="metric"><small>Vencendo 7 dias</small><strong class="warn">' + number(stats.expiringSoon) + '</strong></div>'
+        + '<div class="metric"><small>Vencidos</small><strong class="negative">' + number(stats.expiredDevices) + '</strong></div>'
+        + '<div class="metric"><small>Pendentes</small><strong>' + number(stats.pendingDevices) + '</strong></div>'
+        + '<div class="metric"><small>Bloqueados</small><strong>' + number(stats.blockedDevices) + '</strong></div>'
+        + '<div class="metric"><small>Créditos adicionados</small><strong class="positive">' + number(stats.creditsAdded) + '</strong></div>'
+        + '<div class="metric"><small>Créditos consumidos</small><strong class="negative">' + number(stats.creditsConsumed) + '</strong></div>';
 
       renderDevicesTable();
 
       $('ledgerList').innerHTML = ledger.length
         ? ledger.map(entry => {
           const amount = Number(entry.amount || 0);
-          return `
-            <div class="ledger-item">
-              <strong>${esc(ledgerTypeText(entry.type))}</strong>
-              <span class="${amount >= 0 ? 'positive' : 'negative'}" style="font-weight:900;">${amount > 0 ? '+' : ''}${number(amount)}</span>
-              <div class="muted">${esc(entry.description || 'Sem descrição')}</div>
-              <div class="muted">${fmtDate(entry.createdAt)} · saldo após: ${number(entry.balanceAfter)}</div>
-            </div>
-          `;
+          return ''
+            + '<div class="ledger-item">'
+            + '<strong>' + esc(ledgerTypeText(entry.type)) + '</strong> '
+            + '<span class="' + (amount >= 0 ? 'positive' : 'negative') + '" style="font-weight:900;">' + (amount > 0 ? '+' : '') + number(amount) + '</span>'
+            + '<div class="muted">' + esc(entry.description || 'Sem descrição') + '</div>'
+            + '<div class="muted">' + fmtDate(entry.createdAt) + ' · saldo após: ' + number(entry.balanceAfter) + '</div>'
+            + '</div>';
         }).join('')
         : '<div class="muted">Nenhuma movimentação ainda.</div>';
 
@@ -548,7 +561,7 @@
       $('dashboardView').classList.add('hide');
     }
 
-    $('sellerToken')?.addEventListener('keydown', (event) => {
+    $('sellerToken')?.addEventListener('keydown', event => {
       if (event.key === 'Enter') login();
     });
 
