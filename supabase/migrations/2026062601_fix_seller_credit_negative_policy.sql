@@ -29,6 +29,14 @@ end $$;
 alter table public.panel_sellers
   drop constraint if exists panel_sellers_credit_balance_policy;
 
+-- Preserva saldos negativos que já existem antes desta regra.
+-- Em vez de zerar saldo ou apagar histórico financeiro, marcamos esses vendedores
+-- como autorizados a operar negativados.
+update public.panel_sellers
+set can_go_negative = true
+where credit_balance < 0
+  and coalesce(can_go_negative, false) = false;
+
 alter table public.panel_sellers
   add constraint panel_sellers_credit_balance_policy
   check (
