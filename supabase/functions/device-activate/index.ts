@@ -185,7 +185,7 @@ serve(async request => {
   }
 
   const payload = await readPayload(request);
-  const deviceUuid = String(payload.deviceUuid ?? '').trim();
+  const deviceUuid = (textOrNull(payload.deviceUuid) ?? textOrNull(payload.device_uuid) ?? textOrNull(payload.deviceId) ?? textOrNull(payload.device_id) ?? '').slice(0, 128);
   const deviceType = String(payload.deviceType ?? payload.device_type ?? 'androidtv').trim().slice(0, 40) || 'androidtv';
   const appVersion = (textOrNull(payload.appVersion) ?? textOrNull(payload.app_version))?.slice(0, 40) ?? null;
   const customerName = (textOrNull(payload.customerName) ?? textOrNull(payload.customer_name))?.slice(0, 120) ?? null;
