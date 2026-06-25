@@ -186,11 +186,11 @@ serve(async request => {
 
   const payload = await readPayload(request);
   const deviceUuid = String(payload.deviceUuid ?? '').trim();
-  const deviceType = String(payload.deviceType ?? 'androidtv').trim().slice(0, 40) || 'androidtv';
-  const appVersion = textOrNull(payload.appVersion)?.slice(0, 40) ?? null;
-  const customerName = textOrNull(payload.customerName)?.slice(0, 120) ?? null;
-  const customerWhatsapp = normalizeWhatsapp(payload.customerWhatsapp).slice(0, 32) || null;
-  const sellerCode = normalizeSellerCode(payload.sellerCode);
+  const deviceType = String(payload.deviceType ?? payload.device_type ?? 'androidtv').trim().slice(0, 40) || 'androidtv';
+  const appVersion = (textOrNull(payload.appVersion) ?? textOrNull(payload.app_version))?.slice(0, 40) ?? null;
+  const customerName = (textOrNull(payload.customerName) ?? textOrNull(payload.customer_name))?.slice(0, 120) ?? null;
+  const customerWhatsapp = normalizeWhatsapp(payload.customerWhatsapp ?? payload.customer_whatsapp).slice(0, 32) || null;
+  const sellerCode = normalizeSellerCode(payload.sellerCode ?? payload.seller_code ?? payload.publicCode ?? payload.public_code);
   const lastIp = getClientIp(request);
   const rateLimitKey = `${lastIp || 'unknown'}:${sellerCode || 'sem-vendedor'}`;
 
