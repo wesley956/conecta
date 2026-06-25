@@ -290,7 +290,7 @@ export function ChannelsScreen() {
                   >
                     <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
                       {safeLogo ? (
-                        <img src={safeLogo} alt="" className="max-h-10 max-w-full object-contain" />
+                        <img decoding="async" loading="lazy" src={safeLogo} alt="" className="max-h-10 max-w-full object-contain" />
                       ) : (
                         'TV'
                       )}

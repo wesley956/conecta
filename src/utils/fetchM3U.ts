@@ -60,8 +60,15 @@ function parseXtreamSource(rawUrl: string): XtreamSourceInfo | null {
 function isXtreamGetUrl(rawUrl: string): boolean {
   try {
     const url = new URL(rawUrl.trim());
-    return url.pathname.toLowerCase().endsWith('/get.php') && Boolean(
-      url.searchParams.get('username') && url.searchParams.get('password')
+    const pathname = url.pathname.toLowerCase();
+    const isXtreamEndpoint =
+      pathname.endsWith('/get.php') ||
+      pathname.endsWith('/player_api.php');
+
+    return Boolean(
+      isXtreamEndpoint &&
+      url.searchParams.get('username') &&
+      url.searchParams.get('password')
     );
   } catch {
     return false;

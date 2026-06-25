@@ -34,10 +34,19 @@ const DEVICE_UUID_STORAGE_KEY = 'ronecaplaytv-device-uuid';
 const DEVICE_CODE_STORAGE_KEY = 'ronecaplaytv-device-code';
 
 export function isDevicePanelEnabled() {
-  const enabled = String(import.meta.env.VITE_ENABLE_DEVICE_PANEL ?? '').toLowerCase() === 'true';
+  const rawFlag = String(import.meta.env.VITE_ENABLE_DEVICE_PANEL ?? '').trim().toLowerCase();
+  const enabledByEnv = ['1', 'true', 'yes', 'on'].includes(rawFlag);
   const url = String(import.meta.env.VITE_DEVICE_CONFIG_URL ?? '').trim();
+  const hasValidUrl = /^https?:\/\//i.test(url);
 
-  return enabled && /^https?:\/\//i.test(url);
+  // Segurança:
+  // Em desenvolvimento, o modo demo continua possível.
+  // Em build de produção/APK, o app nunca deve abrir liberado por falta de variável de ambiente.
+  if (import.meta.env.PROD) {
+    return hasValidUrl;
+  }
+
+  return enabledByEnv && hasValidUrl;
 }
 
 export function getDevicePanelUrl() {

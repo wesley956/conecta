@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
@@ -8,8 +9,18 @@ function isHttpUrl(url: string) {
 }
 
 function isNativeRuntime() {
-  const capacitor = (window as any).Capacitor;
-  return Boolean(capacitor?.isNativePlatform?.());
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return Boolean(
+      typeof window !== 'undefined' &&
+      (
+        (window as any).Capacitor?.isNativePlatform?.() ||
+        (window as any).Capacitor?.getPlatform?.() === 'android' ||
+        (window as any).Capacitor?.getPlatform?.() === 'ios'
+      )
+    );
+  }
 }
 
 function toMediaProxyUrl(url: string) {

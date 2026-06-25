@@ -4,8 +4,30 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 20;
+const activationRateLimit = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(key: string) {
+  const now = Date.now();
+  const current = activationRateLimit.get(key);
+
+  if (!current || current.resetAt <= now) {
+    activationRateLimit.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  current.count += 1;
+
+  if (current.count > RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+
+  return true;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -54,24 +76,11 @@ function normalizeSellerCode(value: unknown) {
 }
 
 function isValidSellerPublicCode(value: string | null) {
-  if (!value) return true;
+  if (!value) return false;
   return /^[a-z0-9][a-z0-9-]{2,63}$/.test(value);
 }
 
 async function readPayload(request: Request) {
-  if (request.method === 'GET') {
-    const url = new URL(request.url);
-
-    return {
-      deviceUuid: url.searchParams.get('deviceUuid'),
-      deviceType: url.searchParams.get('deviceType'),
-      appVersion: url.searchParams.get('appVersion'),
-      customerName: url.searchParams.get('customerName'),
-      customerWhatsapp: url.searchParams.get('customerWhatsapp'),
-      sellerCode: url.searchParams.get('sellerCode'),
-    };
-  }
-
   try {
     return await request.json();
   } catch {
@@ -164,8 +173,8 @@ serve(async request => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  if (request.method !== 'GET' && request.method !== 'POST') {
-    return json({ active: false, message: 'Método não permitido.' }, 405);
+  if (request.method !== 'POST') {
+    return json({ active: false, message: 'Método não permitido. Use POST.' }, 405);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -177,12 +186,21 @@ serve(async request => {
 
   const payload = await readPayload(request);
   const deviceUuid = String(payload.deviceUuid ?? '').trim();
-  const deviceType = String(payload.deviceType ?? 'androidtv').trim() || 'androidtv';
-  const appVersion = textOrNull(payload.appVersion);
-  const customerName = textOrNull(payload.customerName);
-  const customerWhatsapp = normalizeWhatsapp(payload.customerWhatsapp) || null;
-  const sellerCode = textOrNull(payload.sellerCode);
+  const deviceType = String(payload.deviceType ?? 'androidtv').trim().slice(0, 40) || 'androidtv';
+  const appVersion = textOrNull(payload.appVersion)?.slice(0, 40) ?? null;
+  const customerName = textOrNull(payload.customerName)?.slice(0, 120) ?? null;
+  const customerWhatsapp = normalizeWhatsapp(payload.customerWhatsapp).slice(0, 32) || null;
+  const sellerCode = normalizeSellerCode(payload.sellerCode);
   const lastIp = getClientIp(request);
+  const rateLimitKey = `${lastIp || 'unknown'}:${sellerCode || 'sem-vendedor'}`;
+
+  if (!checkRateLimit(rateLimitKey)) {
+    return json({
+      active: false,
+      status: 'pending',
+      message: 'Muitas tentativas de ativação. Aguarde um minuto e tente novamente.',
+    }, 429);
+  }
 
   if (!deviceUuid) {
     return json({
@@ -200,6 +218,14 @@ serve(async request => {
           active: false,
           status: 'pending',
           message: 'Informe o código público do vendedor.',
+        }, 400);
+      }
+
+      if (!isValidSellerPublicCode(sellerCode)) {
+        return json({
+          active: false,
+          status: 'pending',
+          message: 'Código público do vendedor inválido.',
         }, 400);
       }
 

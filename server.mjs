@@ -1,5 +1,6 @@
 import http from 'node:http';
 import https from 'node:https';
+import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,9 +9,115 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
 const PORT = Number(process.env.PORT || 4173);
 const MAX_REDIRECTS = 6;
+const PROXY_RATE_LIMIT_WINDOW_MS = 60_000;
+const PROXY_RATE_LIMIT_MAX_REQUESTS = Number(process.env.PROXY_RATE_LIMIT_MAX_REQUESTS || 180);
+const proxyRateLimit = new Map();
+
+const PROXY_ALLOWED_HOSTS = String(process.env.PROXY_ALLOWED_HOSTS || '')
+  .split(',')
+  .map(item => item.trim().toLowerCase())
+  .filter(Boolean);
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(value || '');
+}
+
+function getRequestIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0]?.trim();
+
+  return (
+    forwarded ||
+    req.socket.remoteAddress ||
+    'unknown'
+  );
+}
+
+function checkProxyRateLimit(req) {
+  const now = Date.now();
+  const ip = getRequestIp(req);
+  const current = proxyRateLimit.get(ip);
+
+  if (!current || current.resetAt <= now) {
+    proxyRateLimit.set(ip, { count: 1, resetAt: now + PROXY_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  current.count += 1;
+
+  return current.count <= PROXY_RATE_LIMIT_MAX_REQUESTS;
+}
+
+function hostMatchesAllowedList(hostname) {
+  if (PROXY_ALLOWED_HOSTS.length === 0) return true;
+
+  const host = hostname.toLowerCase();
+
+  return PROXY_ALLOWED_HOSTS.some(allowed => {
+    if (allowed.startsWith('.')) return host.endsWith(allowed);
+    return host === allowed || host.endsWith(`.${allowed}`);
+  });
+}
+
+function isPrivateIPv4(ip) {
+  const parts = ip.split('.').map(part => Number(part));
+
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true;
+  }
+
+  const [a, b] = parts;
+
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isBlockedIPv6(ip) {
+  const normalized = ip.toLowerCase();
+
+  return (
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:')
+  );
+}
+
+function getProxyTargetBlockReason(targetUrl) {
+  const hostname = targetUrl.hostname.toLowerCase();
+
+  if (!hostMatchesAllowedList(hostname)) {
+    return 'Host não permitido pelo servidor.';
+  }
+
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal')
+  ) {
+    return 'Host local não permitido no proxy.';
+  }
+
+  const ipVersion = net.isIP(hostname);
+
+  if (ipVersion === 4 && isPrivateIPv4(hostname)) {
+    return 'IP privado/local não permitido no proxy.';
+  }
+
+  if (ipVersion === 6 && isBlockedIPv6(hostname)) {
+    return 'IPv6 privado/local não permitido no proxy.';
+  }
+
+  return null;
 }
 
 function send(res, status, body, headers = {}) {
@@ -34,6 +141,18 @@ function pipeProxy(target, req, res, redirectsLeft = MAX_REDIRECTS) {
     targetUrl = new URL(target);
   } catch {
     send(res, 400, 'URL inválida.');
+    return;
+  }
+
+  const blockReason = getProxyTargetBlockReason(targetUrl);
+
+  if (blockReason) {
+    send(res, 403, blockReason);
+    return;
+  }
+
+  if (!checkProxyRateLimit(req)) {
+    send(res, 429, 'Muitas requisições ao proxy. Tente novamente em instantes.');
     return;
   }
 

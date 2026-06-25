@@ -936,6 +936,9 @@ serve(async (req) => {
         timestampOrZero(nextExpiresAt) > timestampOrZero(previousExpiresAt);
 
       let creditConsumption = null;
+      let chargeType: 'activation' | 'renewal' | null = null;
+      let chargeCreditCost: number | null = null;
+      let chargePlanName: string | null = null;
 
       if (isActivation || isRenewal) {
         if (!nextSellerId) {
@@ -944,23 +947,24 @@ serve(async (req) => {
 
         const plan = await getActivePlanForCharge(supabase, nextPlanId);
 
-        creditConsumption = await consumeSellerCredits(supabase, {
-          sellerId: nextSellerId,
-          deviceId: id,
-          deviceCode: currentDevice.device_code,
-          type: isActivation ? 'activation' : 'renewal',
-          creditCost: plan.creditCost,
-          planName: plan.name,
-          customerName: currentDevice.customer?.name || null,
-        });
+        chargeType = isActivation ? 'activation' : 'renewal';
+        chargeCreditCost = plan.creditCost;
+        chargePlanName = plan.name;
       }
 
-      const { error } = await supabase
-        .from('panel_devices')
-        .update(updates)
-        .eq('id', id);
+      const { data: rpcResult, error } = await supabase.rpc('admin_update_device_with_credit', {
+        p_device_id: id,
+        p_updates: updates,
+        p_charge_type: chargeType,
+        p_credit_cost: chargeCreditCost,
+        p_plan_name: chargePlanName,
+        p_customer_name: currentDevice.customer?.name || null,
+        p_performed_by: 'admin',
+      });
 
       if (error) return json({ error: error.message }, 500);
+
+      creditConsumption = rpcResult?.creditConsumption ?? null;
 
       await writeAudit(supabase, {
         action: isActivation ? 'device.activated' : (isRenewal ? 'device.renewed' : 'device.updated'),

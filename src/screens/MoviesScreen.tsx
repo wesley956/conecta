@@ -199,7 +199,7 @@ export function MoviesScreen() {
                       <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={movie.isFavorite ? "currentColor" : "none"} />
                     </span>
                     {movie.cover ? (
-                      <img src={movie.cover} alt="" className="h-full w-full object-cover" />
+                      <img decoding="async" loading="lazy" src={movie.cover} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center bg-gradient-to-br from-white/[0.08] to-white/[0.015] text-6xl">
                         <MovieIcon aria-hidden="true" size={18} strokeWidth={2.4} />
@@ -241,7 +241,7 @@ export function MoviesScreen() {
               <div className="flex h-full min-h-0 flex-col md:flex-row">
                 <div className="relative h-52 shrink-0 bg-black/30 md:h-full md:w-[34%]">
                   {selectedMovie.cover ? (
-                    <img
+                    <img decoding="async"
                       src={selectedMovie.cover}
                       alt={selectedMovie.name}
                       className="h-full w-full object-cover"
