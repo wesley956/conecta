@@ -214,38 +214,90 @@ function DevicePanelSync() {
         const playlistName = String(config.playlistName || config.clientName || 'Lista do painel');
         const playlistUpdatedAt = String(config.playlistUpdatedAt || '');
         const panelMarkerKey = `ronecaplaytv-panel-sync-${activeDeviceCode}`;
+        const panelMarkerValue = playlistUpdatedAt || playlistUrl;
 
         const state = useAppStore.getState();
         const existingPlaylist = state.playlists.find(playlist => playlist.url === playlistUrl);
         const hasContentInMemory = state.channels.length > 0 || state.movies.length > 0 || state.series.length > 0;
         const lastPanelUpdate = localStorage.getItem(panelMarkerKey) || '';
 
-        const shouldSync =
-          !existingPlaylist ||
-          !hasContentInMemory ||
-          Boolean(playlistUpdatedAt && playlistUpdatedAt !== lastPanelUpdate);
+        const panelChanged = Boolean(playlistUpdatedAt && playlistUpdatedAt !== lastPanelUpdate);
+        const shouldSync = !existingPlaylist || !hasContentInMemory || panelChanged;
 
         if (!shouldSync) {
+          setActiveNotice(null);
           return;
         }
 
-        setActiveNotice('🔄 Carregando lista vinculada ao painel...');
+        const cachedSnapshot = await loadContentCache();
+
+        if (cancelled) return;
+
+        const cachedTotal =
+          (cachedSnapshot?.channels.length ?? 0) +
+          (cachedSnapshot?.movies.length ?? 0) +
+          (cachedSnapshot?.series.length ?? 0);
+
+        const cachedPlaylist = cachedSnapshot?.playlists.find(playlist => playlist.url === playlistUrl);
+        const canUseCache =
+          Boolean(cachedSnapshot && cachedPlaylist && cachedTotal > 0) &&
+          (!panelChanged || !playlistUpdatedAt);
+
+        if (canUseCache && cachedSnapshot) {
+          useAppStore.getState().hydrateContentCache({
+            channels: cachedSnapshot.channels,
+            movies: cachedSnapshot.movies,
+            series: cachedSnapshot.series,
+            playlists: cachedSnapshot.playlists,
+          });
+
+          localStorage.setItem(panelMarkerKey, panelMarkerValue);
+
+          setActiveNotice(
+            `⚡ Lista aberta do cache local: ${cachedSnapshot.channels.length} canal(is), ` +
+            `${cachedSnapshot.movies.length} filme(s) e ${cachedSnapshot.series.length} série(s).`
+          );
+
+          return;
+        }
+
+        setActiveNotice(
+          '🔄 Primeiro carregamento da lista do painel. A lista é grande e pode demorar alguns minutos, ' +
+          'mas depois ficará salva no aparelho para abrir rápido.'
+        );
 
         const content = await fetchM3UContent(playlistUrl);
 
         if (cancelled) return;
 
+        setActiveNotice('🔄 Lista baixada. Organizando canais, filmes e séries...');
+
         const freshState = useAppStore.getState();
         const currentPlaylist = freshState.playlists.find(playlist => playlist.url === playlistUrl);
 
-        if (currentPlaylist) {
-          freshState.replaceM3UPlaylist(currentPlaylist.id, playlistName, playlistUrl, content);
-        } else {
-          freshState.importM3UPlaylist(playlistName, playlistUrl, content);
-        }
+        const result = currentPlaylist
+          ? freshState.replaceM3UPlaylist(currentPlaylist.id, playlistName, playlistUrl, content)
+          : freshState.importM3UPlaylist(playlistName, playlistUrl, content);
 
-        localStorage.setItem(panelMarkerKey, playlistUpdatedAt || new Date().toISOString());
-        setActiveNotice('✅ Lista carregada automaticamente pelo painel.');
+        if (cancelled) return;
+
+        setActiveNotice('💾 Salvando lista no cache local para as próximas aberturas...');
+
+        const afterImport = useAppStore.getState();
+
+        await saveContentCache({
+          channels: afterImport.channels,
+          movies: afterImport.movies,
+          series: afterImport.series,
+          playlists: afterImport.playlists,
+        });
+
+        localStorage.setItem(panelMarkerKey, panelMarkerValue);
+
+        setActiveNotice(
+          `✅ Lista pronta e salva no aparelho: ${result.imported} item(ns). ` +
+          'Nas próximas vezes o app deve abrir muito mais rápido.'
+        );
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
