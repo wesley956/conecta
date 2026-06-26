@@ -78,6 +78,7 @@ export function PlayerScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const recoveryAttemptsRef = useRef(0);
 
   const content = currentMovie || currentChannel;
   const isLive = Boolean(currentChannel && !currentMovie);
@@ -119,7 +120,12 @@ export function PlayerScreen() {
 
   useEffect(() => {
     setPlaybackUrlIndex(0);
+    recoveryAttemptsRef.current = 0;
   }, [content?.id]);
+
+  useEffect(() => {
+    recoveryAttemptsRef.current = 0;
+  }, [streamUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -155,6 +161,12 @@ export function PlayerScreen() {
       clearRecoveryTimer();
 
       recoveryTimer = window.setTimeout(() => {
+        if (recoveryAttemptsRef.current >= 3) {
+          setError('A transmissão travou várias vezes. Tente trocar de canal ou tentar novamente.');
+          return;
+        }
+
+        recoveryAttemptsRef.current += 1;
         recoverPlayback();
       }, 8000);
     };
@@ -199,10 +211,10 @@ export function PlayerScreen() {
               {
                 enableWorker: true,
                 liveBufferLatencyChasing: true,
-                enableStashBuffer: true,
-                lazyLoad: false,
-                liveBufferLatencyMaxLatency: 10,
-                stashInitialSize: isLive ? 1024 * 1024 : 512 * 1024,
+                enableStashBuffer: !isLive,
+                lazyLoad: !isLive,
+                liveBufferLatencyMaxLatency: 5,
+                stashInitialSize: isLive ? 384 * 1024 : 512 * 1024,
               }
             );
 
@@ -283,10 +295,10 @@ export function PlayerScreen() {
           hls = new Hls({
             enableWorker: true,
             lowLatencyMode: false,
-            backBufferLength: isLive ? 30 : 60,
-            maxBufferLength: isLive ? 60 : 90,
-            maxMaxBufferLength: isLive ? 120 : 180,
-            maxBufferSize: 60 * 1000 * 1000,
+            backBufferLength: isLive ? 10 : 30,
+            maxBufferLength: isLive ? 20 : 45,
+            maxMaxBufferLength: isLive ? 40 : 90,
+            maxBufferSize: 30 * 1000 * 1000,
             maxBufferHole: 0.5,
             manifestLoadingMaxRetry: 4,
             manifestLoadingRetryDelay: 1000,
@@ -402,6 +414,28 @@ export function PlayerScreen() {
     const timer = window.setTimeout(() => setShowControls(false), 7000);
     return () => window.clearTimeout(timer);
   }, [showControls, showSettings, content?.id]);
+
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      if (document.hidden) {
+        try {
+          video.pause();
+        } catch {
+          // ignora falha ao pausar
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!content?.id) return;
