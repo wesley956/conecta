@@ -432,7 +432,7 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
     const upload = await supabase.storage
       .from(BUCKET)
       .upload(storagePath, snapshotText, {
-        contentType: 'application/json; charset=utf-8',
+        contentType: 'application/json',
         upsert: true,
         cacheControl: '3600',
       });
