@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
-import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { Home, Tv } from 'lucide-react';
 
 // ===== SETTINGS SCREEN =====
@@ -11,7 +11,6 @@ export function SettingsScreen() {
     updateSettings,
     setScreen,
     deviceCode,
-    setDeviceCode,
     setDeviceActivated,
     setSubscription,
     setActiveNotice,
@@ -46,11 +45,13 @@ export function SettingsScreen() {
         return;
       }
 
-      const activation = await activateDeviceWithPanel();
-      const activeDeviceCode = activation.deviceCode || deviceCode;
+      const activeDeviceCode = String(deviceCode || '').trim();
 
-      if (activation.deviceCode && activation.deviceCode !== deviceCode) {
-        setDeviceCode(activation.deviceCode);
+      if (!activeDeviceCode) {
+        setAccessStatus('Código não gerado');
+        setActiveNotice('Atenção: gere o código do aparelho na tela de ativação.');
+        setScreen('activation');
+        return;
       }
 
       const config = await fetchDevicePanelConfig(activeDeviceCode);
