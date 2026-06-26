@@ -7,6 +7,13 @@ export interface DevicePanelConfig {
   playlistUrl?: string | null;
   playlistType?: 'm3u' | 'xtream' | string;
   playlistUpdatedAt?: string | null;
+  cacheStatus?: 'missing' | 'building' | 'ready' | 'error' | string | null;
+  cacheVersion?: string | null;
+  cacheUpdatedAt?: string | null;
+  cacheItemCount?: number | null;
+  cacheSizeBytes?: number | null;
+  cacheError?: string | null;
+  cacheSnapshotUrl?: string | null;
   expiresAt?: string | null;
   message?: string | null;
 }

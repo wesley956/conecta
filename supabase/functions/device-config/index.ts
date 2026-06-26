@@ -104,7 +104,14 @@ serve(async request => {
         playlist_url,
         playlist_type,
         active,
-        playlist_updated_at
+        playlist_updated_at,
+        playlist_cache_status,
+        playlist_cache_path,
+        playlist_cache_version,
+        playlist_cache_updated_at,
+        playlist_cache_item_count,
+        playlist_cache_size_bytes,
+        playlist_cache_error
       )
     `)
     .eq('device_code', code)
@@ -167,6 +174,16 @@ serve(async request => {
     });
   }
 
+  let playlistCacheSnapshotUrl: string | null = null;
+
+  if (playlist.playlist_cache_status === 'ready' && playlist.playlist_cache_path) {
+    const { data: signedCache } = await supabase.storage
+      .from('playlist-cache')
+      .createSignedUrl(playlist.playlist_cache_path, 60 * 60);
+
+    playlistCacheSnapshotUrl = signedCache?.signedUrl ?? null;
+  }
+
   return json({
     active: true,
     status: 'active',
@@ -177,5 +194,12 @@ serve(async request => {
     playlistUrl: playlist.playlist_url,
     playlistType: playlist.playlist_type,
     playlistUpdatedAt: playlist.playlist_updated_at,
+    cacheStatus: playlist.playlist_cache_status,
+    cacheVersion: playlist.playlist_cache_version,
+    cacheUpdatedAt: playlist.playlist_cache_updated_at,
+    cacheItemCount: playlist.playlist_cache_item_count,
+    cacheSizeBytes: playlist.playlist_cache_size_bytes,
+    cacheError: playlist.playlist_cache_error,
+    cacheSnapshotUrl: playlistCacheSnapshotUrl,
   });
 });

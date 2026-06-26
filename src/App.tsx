@@ -4,6 +4,7 @@ import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
+import { fetchPanelPlaylistCache } from '@/utils/panelPlaylistCache';
 import { canLoadXtreamSeriesFromPlaylist, prewarmXtreamSeriesCatalog } from '@/utils/xtreamSeries';
 import type { AppState } from '@/types';
 
@@ -220,7 +221,7 @@ function DevicePanelSync() {
         const playlistName = String(config.playlistName || config.clientName || 'Lista do painel');
         const playlistUpdatedAt = String(config.playlistUpdatedAt || '');
         const panelMarkerKey = `ronecaplaytv-panel-sync-${activeDeviceCode}`;
-        const panelMarkerValue = playlistUpdatedAt || playlistUrl;
+        const panelMarkerValue = String(config.cacheVersion || playlistUpdatedAt || playlistUrl);
 
         const state = useAppStore.getState();
         const existingPlaylist = state.playlists.find(playlist => playlist.url === playlistUrl);
@@ -265,6 +266,46 @@ function DevicePanelSync() {
           );
 
           return;
+        }
+
+        if (config.cacheSnapshotUrl) {
+          setActiveNotice('⚡ Abrindo lista pronta do painel...');
+
+          try {
+            const panelCache = await fetchPanelPlaylistCache(config.cacheSnapshotUrl);
+
+            if (cancelled) return;
+
+            useAppStore.getState().hydrateContentCache({
+              channels: panelCache.channels,
+              movies: panelCache.movies,
+              series: panelCache.series,
+              playlists: panelCache.playlists ?? [],
+            });
+
+            const afterPanelCache = useAppStore.getState();
+
+            await saveContentCache({
+              channels: afterPanelCache.channels,
+              movies: afterPanelCache.movies,
+              series: afterPanelCache.series,
+              playlists: afterPanelCache.playlists,
+            });
+
+            localStorage.setItem(panelMarkerKey, panelMarkerValue);
+
+            setActiveNotice(
+              `✅ Lista pronta do painel: ${panelCache.channels.length} canal(is), ` +
+              `${panelCache.movies.length} filme(s) e ${panelCache.series.length} série(s).`
+            );
+
+            return;
+          } catch (cacheError) {
+            setActiveNotice(
+              `⚠️ Cache do painel indisponível. Usando lista normal. ` +
+              `${cacheError instanceof Error ? cacheError.message : ''}`
+            );
+          }
         }
 
         setActiveNotice(
