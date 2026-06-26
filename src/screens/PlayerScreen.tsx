@@ -211,66 +211,6 @@ export function PlayerScreen() {
       setError(message);
     };
 
-    const attachDirectNativePlayback = () => {
-      let playRequested = false;
-
-      const requestPlay = () => {
-        if (playRequested) return;
-
-        playRequested = true;
-
-        const playResult = video.play();
-
-        if (playResult?.catch) {
-          playResult.catch(() => {
-            playRequested = false;
-            setShowControls(true);
-          });
-        }
-      };
-
-      const markReady = () => {
-        setReady(true);
-        clearRecoveryTimer();
-        requestPlay();
-      };
-
-      const markError = () => {
-        tryNextPlaybackUrl('Não foi possível reproduzir esta fonte diretamente no aparelho.');
-      };
-
-      video.addEventListener('loadedmetadata', markReady);
-      video.addEventListener('canplay', markReady);
-      video.addEventListener('playing', markReady);
-      video.addEventListener('error', markError);
-
-      video.src = playbackUrl;
-      video.load();
-
-      const playTimer = window.setTimeout(requestPlay, 350);
-
-      return () => {
-        window.clearTimeout(playTimer);
-        clearRecoveryTimer();
-        video.removeEventListener('waiting', scheduleStallRecovery);
-        video.removeEventListener('stalled', scheduleStallRecovery);
-        video.removeEventListener('playing', clearRecoveryTimer);
-        video.removeEventListener('canplay', clearRecoveryTimer);
-        video.removeEventListener('loadedmetadata', markReady);
-        video.removeEventListener('canplay', markReady);
-        video.removeEventListener('playing', markReady);
-        video.removeEventListener('error', markError);
-        hls?.destroy();
-        tsPlayer?.destroy?.();
-        video.removeAttribute('src');
-        video.load();
-      };
-    };
-
-    if (isNativeRuntime()) {
-      return attachDirectNativePlayback();
-    }
-
       if (isMpegTs) {
         let cancelled = false;
         let markReady: (() => void) | null = null;
@@ -294,7 +234,7 @@ export function PlayerScreen() {
                 url: playbackUrl,
               },
               {
-                enableWorker: true,
+                enableWorker: !isNativeRuntime(),
                 liveBufferLatencyChasing: true,
                 enableStashBuffer: !isLive,
                 lazyLoad: !isLive,
@@ -378,7 +318,7 @@ export function PlayerScreen() {
           }
 
           hls = new Hls({
-            enableWorker: true,
+            enableWorker: !isNativeRuntime(),
             lowLatencyMode: false,
             backBufferLength: isLive ? 10 : 30,
             maxBufferLength: isLive ? 20 : 45,

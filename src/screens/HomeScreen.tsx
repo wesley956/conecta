@@ -6,9 +6,6 @@ import { Tv, Film, Library, Star } from 'lucide-react';
 export function HomeScreen() {
   const {
     setScreen,
-    channels,
-    movies,
-    series,
     deviceCode,
     daysRemaining,
   } = useAppStore();
@@ -21,11 +18,6 @@ export function HomeScreen() {
     }).format(new Date());
   }, []);
 
-  const quickStats = [
-    { label: 'Canais', value: channels.length },
-    { label: 'Filmes', value: movies.length },
-    { label: 'Séries', value: series.length },
-  ];
 
   const quickActions = [
     { icon: <Tv aria-hidden="true" size={30} strokeWidth={2.4} />, title: 'Assistir TV', subtitle: 'Abrir canais ao vivo', action: () => setScreen('channels') },
@@ -71,17 +63,7 @@ export function HomeScreen() {
           </section>
 
           <section>
-            <h2 className="roneca-section-title">Resumo</h2>
-            <div className="roneca-stats-grid">
-              {quickStats.map(stat => (
-                <div key={stat.label} className="roneca-stat-card">
-                  <p>{stat.label}</p>
-                  <strong>{stat.value}</strong>
-                </div>
-              ))}
-            </div>
-
-            <h2 className="roneca-section-title roneca-section-gap">Acesso rápido</h2>
+            <h2 className="roneca-section-title">Acesso rápido</h2>
             <div className="roneca-actions-grid">
               {quickActions.map(action => (
                 <button key={action.title} onClick={action.action} className="roneca-action-card">

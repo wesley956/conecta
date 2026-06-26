@@ -43,14 +43,14 @@ function readStorageCache<T>(key: string): T | null {
   try {
     if (typeof window === 'undefined') return null;
 
-    const raw = window.sessionStorage.getItem(key);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as { savedAt?: number; data?: T };
     const savedAt = Number(parsed.savedAt ?? 0);
 
     if (!savedAt || Date.now() - savedAt > SERIES_CACHE_TTL_MS) {
-      window.sessionStorage.removeItem(key);
+      window.localStorage.removeItem(key);
       return null;
     }
 
@@ -64,7 +64,7 @@ function writeStorageCache<T>(key: string, data: T) {
   try {
     if (typeof window === 'undefined') return;
 
-    window.sessionStorage.setItem(key, JSON.stringify({
+    window.localStorage.setItem(key, JSON.stringify({
       savedAt: Date.now(),
       data,
     }));
