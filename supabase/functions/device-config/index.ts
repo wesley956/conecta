@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 function json(body: unknown, status = 200) {
@@ -64,7 +64,7 @@ serve(async request => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  if (request.method !== 'GET') {
+  if (request.method !== 'GET' && request.method !== 'POST') {
     return json({ active: false, message: 'Método não permitido.' }, 405);
   }
 
@@ -76,8 +76,12 @@ serve(async request => {
   }
 
   const url = new URL(request.url);
-  const code = String(url.searchParams.get('code') ?? '').trim();
-  const deviceUuid = String(url.searchParams.get('deviceUuid') ?? '').trim();
+  const code = await resolveDeviceCode(request);
+  const deviceUuid =
+    textOrNull(url.searchParams.get('deviceUuid')) ||
+    textOrNull(url.searchParams.get('device_uuid')) ||
+    textOrNull(url.searchParams.get('deviceId')) ||
+    textOrNull(url.searchParams.get('device_id'));
 
   if (!code) {
     return json({ active: false, status: 'pending', message: 'Código do aparelho não informado.' }, 400);
