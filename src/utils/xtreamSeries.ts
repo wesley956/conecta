@@ -26,7 +26,27 @@ const REQUEST_HEADERS = {
 
 const seriesCatalogCache = new Map<string, Series[]>();
 const seriesEpisodesCache = new Map<string, Season[]>();
-const SERIES_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const SERIES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const SERIES_CATEGORY_TIMEOUT_MS = 7_000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: number | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => {
+          reject(new Error(`${label}: tempo limite atingido após ${Math.round(timeoutMs / 1000)}s.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+  }
+}
 
 function cacheHash(value: string) {
   let hash = 0;
@@ -351,9 +371,20 @@ export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Ser
     throw new Error('Lista Xtream inválida para carregar séries.');
   }
 
-  const [categories, seriesItems] = await Promise.all([
-    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries').catch(() => []),
-    fetchJson<XtreamSeriesCatalogItem[]>(buildXtreamApiUrl(source, 'get_series'), 'Catálogo de séries'),
+  const seriesItemsPromise = fetchJson<XtreamSeriesCatalogItem[]>(
+    buildXtreamApiUrl(source, 'get_series'),
+    'Catálogo de séries'
+  );
+
+  const categoriesPromise = withTimeout(
+    fetchJson<any[]>(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries'),
+    SERIES_CATEGORY_TIMEOUT_MS,
+    'Categorias de séries'
+  ).catch(() => []);
+
+  const [seriesItems, categories] = await Promise.all([
+    seriesItemsPromise,
+    categoriesPromise,
   ]);
 
   const categoryMap = buildCategoryMap(categories);
