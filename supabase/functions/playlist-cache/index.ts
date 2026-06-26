@@ -411,6 +411,29 @@ async function buildSnapshot(playlist: any) {
   };
 }
 
+
+async function uploadJsonCachePart(supabase: any, storagePath: string, payload: unknown) {
+  const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
+
+  const upload = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, text, {
+      contentType: 'application/json',
+      upsert: true,
+      cacheControl: '3600',
+    });
+
+  if (upload.error) {
+    throw new Error(upload.error.message);
+  }
+
+  return {
+    path: storagePath,
+    text,
+    sizeBytes: new TextEncoder().encode(text).byteLength,
+  };
+}
+
 async function refreshPlaylistCache(supabase: any, playlist: any) {
   const startedAt = Date.now();
 
@@ -427,28 +450,88 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
     const snapshotText = JSON.stringify(snapshot);
     const hash = await sha256Short(snapshotText);
     const version = `${snapshot.generatedAt}-${hash}`;
+
     const storagePath = `${playlist.id}/snapshot-${hash}.json`;
+    const manifestPath = `${playlist.id}/manifest-${hash}.json`;
+    const channelsPath = `${playlist.id}/channels-${hash}.json`;
+    const moviesPath = `${playlist.id}/movies-${hash}.json`;
+    const seriesPath = `${playlist.id}/series-${hash}.json`;
 
-    const upload = await supabase.storage
-      .from(BUCKET)
-      .upload(storagePath, snapshotText, {
-        contentType: 'application/json',
-        upsert: true,
-        cacheControl: '3600',
-      });
+    const manifest = {
+      schemaVersion: snapshot.schemaVersion,
+      generatedAt: snapshot.generatedAt,
+      playlistId: snapshot.playlistId,
+      playlistName: snapshot.playlistName,
+      playlistUrl: snapshot.playlistUrl,
+      version,
+      counts: {
+        channels: snapshot.channels.length,
+        movies: snapshot.movies.length,
+        series: snapshot.series.length,
+        total: snapshot.channels.length + snapshot.movies.length + snapshot.series.length,
+      },
+      files: {
+        snapshot: storagePath,
+        channels: channelsPath,
+        movies: moviesPath,
+        series: seriesPath,
+      },
+    };
 
-    if (upload.error) {
-      throw new Error(upload.error.message);
-    }
+    const channelsPayload = {
+      schemaVersion: snapshot.schemaVersion,
+      generatedAt: snapshot.generatedAt,
+      playlistId: snapshot.playlistId,
+      playlistName: snapshot.playlistName,
+      playlistUrl: snapshot.playlistUrl,
+      playlists: snapshot.playlists,
+      channels: snapshot.channels,
+    };
+
+    const moviesPayload = {
+      schemaVersion: snapshot.schemaVersion,
+      generatedAt: snapshot.generatedAt,
+      playlistId: snapshot.playlistId,
+      playlistName: snapshot.playlistName,
+      playlistUrl: snapshot.playlistUrl,
+      movies: snapshot.movies,
+    };
+
+    const seriesPayload = {
+      schemaVersion: snapshot.schemaVersion,
+      generatedAt: snapshot.generatedAt,
+      playlistId: snapshot.playlistId,
+      playlistName: snapshot.playlistName,
+      playlistUrl: snapshot.playlistUrl,
+      series: snapshot.series,
+    };
+
+    const [
+      snapshotUpload,
+      manifestUpload,
+      channelsUpload,
+      moviesUpload,
+      seriesUpload,
+    ] = await Promise.all([
+      uploadJsonCachePart(supabase, storagePath, snapshotText),
+      uploadJsonCachePart(supabase, manifestPath, manifest),
+      uploadJsonCachePart(supabase, channelsPath, channelsPayload),
+      uploadJsonCachePart(supabase, moviesPath, moviesPayload),
+      uploadJsonCachePart(supabase, seriesPath, seriesPayload),
+    ]);
 
     const itemCount = snapshot.channels.length + snapshot.movies.length + snapshot.series.length;
-    const sizeBytes = new TextEncoder().encode(snapshotText).byteLength;
+    const sizeBytes = snapshotUpload.sizeBytes;
 
     await supabase
       .from('panel_playlists')
       .update({
         playlist_cache_status: 'ready',
         playlist_cache_path: storagePath,
+        playlist_cache_manifest_path: manifestUpload.path,
+        playlist_cache_channels_path: channelsUpload.path,
+        playlist_cache_movies_path: moviesUpload.path,
+        playlist_cache_series_path: seriesUpload.path,
         playlist_cache_version: version,
         playlist_cache_updated_at: snapshot.generatedAt,
         playlist_cache_item_count: itemCount,
@@ -466,6 +549,13 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       movies: snapshot.movies.length,
       series: snapshot.series.length,
       sizeBytes,
+      parts: {
+        snapshotBytes: snapshotUpload.sizeBytes,
+        manifestBytes: manifestUpload.sizeBytes,
+        channelsBytes: channelsUpload.sizeBytes,
+        moviesBytes: moviesUpload.sizeBytes,
+        seriesBytes: seriesUpload.sizeBytes,
+      },
       elapsedMs: Date.now() - startedAt,
       version,
     };

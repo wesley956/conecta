@@ -4,7 +4,7 @@ import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
-import { fetchPanelPlaylistCache } from '@/utils/panelPlaylistCache';
+import { canUsePanelCacheParts, fetchPanelPlaylistCache, fetchPanelPlaylistCacheParts } from '@/utils/panelPlaylistCache';
 import { canLoadXtreamSeriesFromPlaylist, prewarmXtreamSeriesCatalog } from '@/utils/xtreamSeries';
 import type { AppState } from '@/types';
 
@@ -266,6 +266,85 @@ function DevicePanelSync() {
           );
 
           return;
+        }
+
+        if (canUsePanelCacheParts(config.cacheParts)) {
+          setActiveNotice('⚡ Abrindo canais do painel...');
+
+          try {
+            const panelCache = await fetchPanelPlaylistCacheParts(config.cacheParts!, {
+              onChannels: ({ channels, playlists }) => {
+                if (cancelled) return;
+
+                useAppStore.getState().hydrateContentCache({
+                  channels,
+                  movies: [],
+                  series: [],
+                  playlists,
+                });
+
+                setActiveNotice(`✅ Canais prontos: ${channels.length}. Carregando filmes...`);
+              },
+              onMovies: ({ movies }) => {
+                if (cancelled) return;
+
+                const currentState = useAppStore.getState();
+
+                useAppStore.getState().hydrateContentCache({
+                  channels: currentState.channels,
+                  movies,
+                  series: currentState.series,
+                  playlists: currentState.playlists,
+                });
+
+                setActiveNotice(`✅ Filmes prontos: ${movies.length}. Carregando séries...`);
+              },
+              onSeries: ({ series }) => {
+                if (cancelled) return;
+
+                const currentState = useAppStore.getState();
+
+                useAppStore.getState().hydrateContentCache({
+                  channels: currentState.channels,
+                  movies: currentState.movies,
+                  series,
+                  playlists: currentState.playlists,
+                });
+              },
+            });
+
+            if (cancelled) return;
+
+            useAppStore.getState().hydrateContentCache({
+              channels: panelCache.channels,
+              movies: panelCache.movies,
+              series: panelCache.series,
+              playlists: panelCache.playlists ?? [],
+            });
+
+            const afterPanelCache = useAppStore.getState();
+
+            await saveContentCache({
+              channels: afterPanelCache.channels,
+              movies: afterPanelCache.movies,
+              series: afterPanelCache.series,
+              playlists: afterPanelCache.playlists,
+            });
+
+            localStorage.setItem(panelMarkerKey, panelMarkerValue);
+
+            setActiveNotice(
+              `✅ Cache rápido do painel: ${panelCache.channels.length} canal(is), ` +
+              `${panelCache.movies.length} filme(s) e ${panelCache.series.length} série(s).`
+            );
+
+            return;
+          } catch (cachePartsError) {
+            setActiveNotice(
+              `⚠️ Cache em partes indisponível. Tentando snapshot completo. ` +
+              `${cachePartsError instanceof Error ? cachePartsError.message : ''}`
+            );
+          }
         }
 
         if (config.cacheSnapshotUrl) {

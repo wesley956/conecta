@@ -107,6 +107,10 @@ serve(async request => {
         playlist_updated_at,
         playlist_cache_status,
         playlist_cache_path,
+        playlist_cache_manifest_path,
+        playlist_cache_channels_path,
+        playlist_cache_movies_path,
+        playlist_cache_series_path,
         playlist_cache_version,
         playlist_cache_updated_at,
         playlist_cache_item_count,
@@ -174,14 +178,41 @@ serve(async request => {
     });
   }
 
+  async function signedCacheUrl(path: string | null | undefined) {
+    if (!path) return null;
+
+    const { data } = await supabase.storage
+      .from('playlist-cache')
+      .createSignedUrl(path, 60 * 60);
+
+    return data?.signedUrl ?? null;
+  }
+
   let playlistCacheSnapshotUrl: string | null = null;
+  let playlistCacheParts: Record<string, string | null> | null = null;
 
   if (playlist.playlist_cache_status === 'ready' && playlist.playlist_cache_path) {
-    const { data: signedCache } = await supabase.storage
-      .from('playlist-cache')
-      .createSignedUrl(playlist.playlist_cache_path, 60 * 60);
+    const [
+      snapshotUrl,
+      manifestUrl,
+      channelsUrl,
+      moviesUrl,
+      seriesUrl,
+    ] = await Promise.all([
+      signedCacheUrl(playlist.playlist_cache_path),
+      signedCacheUrl(playlist.playlist_cache_manifest_path),
+      signedCacheUrl(playlist.playlist_cache_channels_path),
+      signedCacheUrl(playlist.playlist_cache_movies_path),
+      signedCacheUrl(playlist.playlist_cache_series_path),
+    ]);
 
-    playlistCacheSnapshotUrl = signedCache?.signedUrl ?? null;
+    playlistCacheSnapshotUrl = snapshotUrl;
+    playlistCacheParts = {
+      manifestUrl,
+      channelsUrl,
+      moviesUrl,
+      seriesUrl,
+    };
   }
 
   return json({
@@ -201,5 +232,6 @@ serve(async request => {
     cacheSizeBytes: playlist.playlist_cache_size_bytes,
     cacheError: playlist.playlist_cache_error,
     cacheSnapshotUrl: playlistCacheSnapshotUrl,
+    cacheParts: playlistCacheParts,
   });
 });

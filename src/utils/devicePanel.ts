@@ -1,3 +1,10 @@
+export interface DevicePanelCacheParts {
+  manifestUrl?: string | null;
+  channelsUrl?: string | null;
+  moviesUrl?: string | null;
+  seriesUrl?: string | null;
+}
+
 export interface DevicePanelConfig {
   active: boolean;
   status?: 'pending' | 'active' | 'blocked' | 'expired' | 'inactive';
@@ -14,6 +21,7 @@ export interface DevicePanelConfig {
   cacheSizeBytes?: number | null;
   cacheError?: string | null;
   cacheSnapshotUrl?: string | null;
+  cacheParts?: DevicePanelCacheParts | null;
   expiresAt?: string | null;
   message?: string | null;
 }
