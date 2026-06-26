@@ -17,6 +17,48 @@ function json(body: unknown, status = 200) {
   });
 }
 
+
+
+async function readPayload(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
+}
+
+function textOrNull(value: unknown) {
+  const text = String(value ?? '').trim();
+  return text || null;
+}
+
+async function resolveDeviceCode(request: Request) {
+  const url = new URL(request.url);
+
+  const fromQuery =
+    textOrNull(url.searchParams.get('deviceCode')) ||
+    textOrNull(url.searchParams.get('device_code')) ||
+    textOrNull(url.searchParams.get('code')) ||
+    textOrNull(url.searchParams.get('deviceId')) ||
+    textOrNull(url.searchParams.get('device_id'));
+
+  if (fromQuery) return fromQuery;
+
+  if (request.method === 'POST') {
+    const payload = await readPayload(request);
+
+    return (
+      textOrNull(payload.deviceCode) ||
+      textOrNull(payload.device_code) ||
+      textOrNull(payload.code) ||
+      textOrNull(payload.deviceId) ||
+      textOrNull(payload.device_id)
+    );
+  }
+
+  return null;
+}
+
 serve(async request => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
