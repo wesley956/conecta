@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Portal do Vendedor - RonecaPlayTV</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #080b14;
+      color: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(34, 197, 94, 0.22), transparent 34rem),
+        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.18), transparent 32rem),
+        #080b14;
+    }
+
+    header {
+      padding: 28px 18px 16px;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 5vw, 44px);
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: #a5b4fc;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto 40px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.86);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+      border-radius: 22px;
+      padding: 18px;
+      backdrop-filter: blur(16px);
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+
+    @media (max-width: 860px) {
+      .span-8,
+      .span-6,
+      .span-4 {
+        grid-column: span 12;
+      }
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      color: #cbd5e1;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.7);
+      color: #fff;
+      padding: 13px 14px;
+      outline: none;
+      font-size: 15px;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 16px;
+      color: #052e16;
+      font-weight: 900;
+      background: linear-gradient(135deg, #86efac, #22c55e);
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    button.secondary {
+      color: #e0f2fe;
+      background: rgba(14, 165, 233, 0.18);
+      border: 1px solid rgba(125, 211, 252, 0.28);
+    }
+
+    button.danger {
+      color: #fee2e2;
+      background: rgba(239, 68, 68, 0.18);
+      border: 1px solid rgba(248, 113, 113, 0.28);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 720px) {
+      .stats {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .stat {
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid rgba(148, 163, 184, 0.13);
+      border-radius: 18px;
+      padding: 14px;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    .muted {
+      color: #94a3b8;
+      font-size: 13px;
+    }
+
+    .ok { color: #86efac; }
+    .warn { color: #fde68a; }
+    .bad { color: #fca5a5; }
+
+    .notice {
+      white-space: pre-wrap;
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      color: #dbeafe;
+      min-height: 48px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 16px;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 11px 10px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.13);
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      color: #bfdbfe;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(2, 6, 23, 0.38);
+    }
+
+    .pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(148, 163, 184, 0.16);
+      color: #e2e8f0;
+    }
+
+    .pill.active {
+      background: rgba(34, 197, 94, 0.16);
+      color: #86efac;
+    }
+
+    .pill.pending {
+      background: rgba(250, 204, 21, 0.14);
+      color: #fde68a;
+    }
+
+    .pill.blocked,
+    .pill.expired {
+      background: rgba(239, 68, 68, 0.16);
+      color: #fca5a5;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Portal do Vendedor</h1>
+    <p class="subtitle">
+      RonecaPlayTV — vincule e ative aparelhos pelo código gerado no APK.
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Acesso</h2>
+      <div class="grid">
+        <div class="span-8">
+          <label for="apiUrl">URL da função seller-panel</label>
+          <input id="apiUrl" placeholder="https://SEU-PROJETO.supabase.co/functions/v1/seller-panel" />
+        </div>
+        <div class="span-4">
+          <label for="sellerToken">Token privado do vendedor</label>
+          <input id="sellerToken" type="password" placeholder="Cole o access_token do vendedor" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="saveAccess">Entrar / Atualizar painel</button>
+        <button class="secondary" id="clearAccess">Limpar acesso salvo</button>
+      </div>
+    </section>
+
+    <section id="notice" class="notice">Preencha a URL da função e o token privado do vendedor.</section>
+
+    <section id="dashboard" class="hidden">
+      <div class="grid">
+        <div class="card span-12">
+          <h2 id="sellerTitle">Vendedor</h2>
+          <div class="stats">
+            <div class="stat">
+              <strong id="creditBalance">0</strong>
+              <span class="muted">créditos disponíveis</span>
+            </div>
+            <div class="stat">
+              <strong id="totalDevices">0</strong>
+              <span class="muted">aparelhos</span>
+            </div>
+            <div class="stat">
+              <strong id="activeDevices">0</strong>
+              <span class="muted">ativos</span>
+            </div>
+            <div class="stat">
+              <strong id="pendingDevices">0</strong>
+              <span class="muted">pendentes</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card span-6">
+          <h2>Puxar aparelho pendente</h2>
+          <p class="muted">
+            Use quando o cliente mandar apenas o código que apareceu no APK.
+          </p>
+
+          <label for="claimCode">Código do aparelho</label>
+          <input id="claimCode" class="mono" placeholder="RPTV-XXXXXX" />
+
+          <div class="actions">
+            <button id="claimDevice">Puxar aparelho</button>
+          </div>
+        </div>
+
+        <div class="card span-6">
+          <h2>Ativar aparelho</h2>
+
+          <label for="activateCode">Código do aparelho</label>
+          <input id="activateCode" class="mono" placeholder="RPTV-XXXXXX" />
+
+          <label for="customerName">Nome do cliente</label>
+          <input id="customerName" placeholder="Ex: Wesley" />
+
+          <label for="customerWhatsapp">WhatsApp do cliente</label>
+          <input id="customerWhatsapp" placeholder="Ex: 11999999999" />
+
+          <label for="planId">Plano</label>
+          <select id="planId"></select>
+
+          <label for="playlistId">Lista</label>
+          <select id="playlistId"></select>
+
+          <label for="expiresAt">Vencimento manual opcional</label>
+          <input id="expiresAt" type="datetime-local" />
+
+          <div class="actions">
+            <button id="activateDevice">Ativar e consumir crédito</button>
+          </div>
+        </div>
+
+        <div class="card span-12">
+          <h2>Aparelhos do vendedor</h2>
+          <div style="overflow:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Status</th>
+                  <th>Cliente</th>
+                  <th>Plano</th>
+                  <th>Lista</th>
+                  <th>Vence em</th>
+                  <th>Atualizado</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const els = {
+      apiUrl: document.getElementById('apiUrl'),
+      sellerToken: document.getElementById('sellerToken'),
+      saveAccess: document.getElementById('saveAccess'),
+      clearAccess: document.getElementById('clearAccess'),
+      notice: document.getElementById('notice'),
+      dashboard: document.getElementById('dashboard'),
+      sellerTitle: document.getElementById('sellerTitle'),
+      creditBalance: document.getElementById('creditBalance'),
+      totalDevices: document.getElementById('totalDevices'),
+      activeDevices: document.getElementById('activeDevices'),
+      pendingDevices: document.getElementById('pendingDevices'),
+      claimCode: document.getElementById('claimCode'),
+      activateCode: document.getElementById('activateCode'),
+      customerName: document.getElementById('customerName'),
+      customerWhatsapp: document.getElementById('customerWhatsapp'),
+      planId: document.getElementById('planId'),
+      playlistId: document.getElementById('playlistId'),
+      expiresAt: document.getElementById('expiresAt'),
+      claimDevice: document.getElementById('claimDevice'),
+      activateDevice: document.getElementById('activateDevice'),
+      devicesTable: document.getElementById('devicesTable'),
+    };
+
+    let dashboardData = null;
+
+    function setNotice(message, type) {
+      els.notice.textContent = message;
+      els.notice.className = 'notice ' + (type || '');
+    }
+
+    function normalizeCode(value) {
+      return String(value || '').trim().toUpperCase();
+    }
+
+    function getAccess() {
+      const apiUrl = String(els.apiUrl.value || '').trim();
+      const sellerToken = String(els.sellerToken.value || '').trim();
+
+      if (!apiUrl) throw new Error('Informe a URL da função seller-panel.');
+      if (!sellerToken) throw new Error('Informe o token privado do vendedor.');
+
+      return { apiUrl, sellerToken };
+    }
+
+    async function callSellerPanel(payload) {
+      const { apiUrl, sellerToken } = getAccess();
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'x-seller-token': sellerToken,
+        },
+        body: JSON.stringify(payload || { action: 'dashboard' }),
+      });
+
+      const text = await response.text();
+      let data;
+
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text || 'Resposta inválida do servidor.');
+      }
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Falha no portal do vendedor.');
+      }
+
+      return data;
+    }
+
+    function formatDate(value) {
+      if (!value) return '—';
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '—';
+
+      return date.toLocaleString('pt-BR');
+    }
+
+    function renderSelects(data) {
+      const plans = data.plans || [];
+      const playlists = data.playlists || [];
+
+      els.planId.innerHTML = plans.length
+        ? plans.map(plan => (
+            '<option value="' + plan.id + '">' +
+            plan.name + ' — ' + plan.durationDays + ' dia(s) — ' + plan.creditCost + ' crédito(s)' +
+            '</option>'
+          )).join('')
+        : '<option value="">Nenhum plano ativo encontrado</option>';
+
+      els.playlistId.innerHTML = playlists.length
+        ? playlists.map(playlist => (
+            '<option value="' + playlist.id + '">' +
+            playlist.name + ' — ' + playlist.playlistType +
+            '</option>'
+          )).join('')
+        : '<option value="">Nenhuma lista ativa encontrada</option>';
+    }
+
+    function renderDevices(data) {
+      const devices = data.devices || [];
+
+      els.devicesTable.innerHTML = devices.length
+        ? devices.map(device => (
+            '<tr>' +
+              '<td class="mono">' + (device.deviceCode || '—') + '</td>' +
+              '<td><span class="pill ' + (device.status || '') + '">' + (device.status || '—') + '</span></td>' +
+              '<td>' + (device.customerName || '—') + '<br><span class="muted">' + (device.customerWhatsapp || '') + '</span></td>' +
+              '<td>' + (device.planName || '—') + '</td>' +
+              '<td>' + (device.playlistName || '—') + '</td>' +
+              '<td>' + (device.daysLeft ?? '—') + ' dia(s)<br><span class="muted">' + formatDate(device.expiresAt) + '</span></td>' +
+              '<td>' + formatDate(device.updatedAt) + '</td>' +
+            '</tr>'
+          )).join('')
+        : '<tr><td colspan="7" class="muted">Nenhum aparelho vinculado ainda.</td></tr>';
+    }
+
+    function renderDashboard(data) {
+      dashboardData = data;
+
+      els.dashboard.classList.remove('hidden');
+      els.sellerTitle.textContent = 'Vendedor: ' + (data.seller?.name || '—');
+      els.creditBalance.textContent = data.seller?.creditBalance ?? 0;
+      els.totalDevices.textContent = data.stats?.totalDevices ?? 0;
+      els.activeDevices.textContent = data.stats?.activeDevices ?? 0;
+      els.pendingDevices.textContent = data.stats?.pendingDevices ?? 0;
+
+      renderSelects(data);
+      renderDevices(data);
+    }
+
+    async function loadDashboard() {
+      localStorage.setItem('ronecaSellerPanelUrl', els.apiUrl.value.trim());
+      localStorage.setItem('ronecaSellerToken', els.sellerToken.value.trim());
+
+      setNotice('Carregando painel do vendedor...', 'warn');
+
+      const data = await callSellerPanel({ action: 'dashboard' });
+
+      renderDashboard(data);
+      setNotice('Painel carregado com sucesso.', 'ok');
+    }
+
+    async function claimDevice() {
+      const deviceCode = normalizeCode(els.claimCode.value);
+
+      if (!deviceCode) {
+        throw new Error('Informe o código do aparelho.');
+      }
+
+      setNotice('Puxando aparelho pendente...', 'warn');
+
+      const result = await callSellerPanel({
+        action: 'claimPendingDevice',
+        deviceCode,
+      });
+
+      els.activateCode.value = result.deviceCode || deviceCode;
+
+      setNotice(result.message || 'Aparelho vinculado ao vendedor.', 'ok');
+      await loadDashboard();
+    }
+
+    function toIsoFromDatetimeLocal(value) {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return date.toISOString();
+    }
+
+    async function activateDevice() {
+      const deviceCode = normalizeCode(els.activateCode.value);
+      const customerName = String(els.customerName.value || '').trim();
+      const customerWhatsapp = String(els.customerWhatsapp.value || '').trim();
+      const planId = String(els.planId.value || '').trim();
+      const playlistId = String(els.playlistId.value || '').trim();
+      const expiresAt = toIsoFromDatetimeLocal(els.expiresAt.value);
+
+      if (!deviceCode) throw new Error('Informe o código do aparelho.');
+      if (!customerName) throw new Error('Informe o nome do cliente.');
+      if (!customerWhatsapp) throw new Error('Informe o WhatsApp do cliente.');
+      if (!planId) throw new Error('Escolha um plano.');
+      if (!playlistId) throw new Error('Escolha uma lista.');
+
+      setNotice('Ativando aparelho e consumindo crédito...', 'warn');
+
+      const result = await callSellerPanel({
+        action: 'activateDeviceByCode',
+        deviceCode,
+        customerName,
+        customerWhatsapp,
+        planId,
+        playlistId,
+        expiresAt,
+      });
+
+      setNotice(
+        (result.message || 'Aparelho ativado.') +
+        '\nVencimento: ' + formatDate(result.expiresAt) +
+        '\nCrédito consumido: ' + Math.abs(result.creditConsumption?.amount || 0),
+        'ok'
+      );
+
+      await loadDashboard();
+    }
+
+    function bindAsync(button, handler) {
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+
+        try {
+          await handler();
+        } catch (error) {
+          setNotice(error instanceof Error ? error.message : 'Falha inesperada.', 'bad');
+        } finally {
+          button.disabled = false;
+        }
+      });
+    }
+
+    els.apiUrl.value = localStorage.getItem('ronecaSellerPanelUrl') || '';
+    els.sellerToken.value = localStorage.getItem('ronecaSellerToken') || '';
+
+    bindAsync(els.saveAccess, loadDashboard);
+    bindAsync(els.claimDevice, claimDevice);
+    bindAsync(els.activateDevice, activateDevice);
+
+    els.clearAccess.addEventListener('click', () => {
+      localStorage.removeItem('ronecaSellerPanelUrl');
+      localStorage.removeItem('ronecaSellerToken');
+      els.apiUrl.value = '';
+      els.sellerToken.value = '';
+      els.dashboard.classList.add('hidden');
+      dashboardData = null;
+      setNotice('Acesso salvo removido deste navegador.', 'warn');
+    });
+
+    if (els.apiUrl.value && els.sellerToken.value) {
+      loadDashboard().catch(error => {
+        setNotice(error instanceof Error ? error.message : 'Falha ao carregar painel.', 'bad');
+      });
+    }
+  </script>
+</body>
+</html>
