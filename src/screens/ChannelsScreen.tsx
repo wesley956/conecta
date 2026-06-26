@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav } from '@/components/shared';
 import { channelCategories } from '@/data/mock';
-import { fetchM3UContent } from '@/utils/fetchM3U';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
 import type { Channel } from '@/types';
-import { CircleDot as PlaybackIcon, Home as HomeIcon, Loader2 as LoaderIcon, Tv as TvIcon, List as ListIcon, Star as StarIcon } from 'lucide-react';
+import { CircleDot as PlaybackIcon, Home as HomeIcon, Tv as TvIcon, List as ListIcon, Star as StarIcon } from 'lucide-react';
 
 const CHANNEL_RENDER_BATCH_SIZE = 180;
 
@@ -35,85 +34,14 @@ function getSafeImageUrl(url?: string) {
 export function ChannelsScreen() {
   const {
     channels,
-    playlists,
     setScreen,
     setCurrentChannel,
     toggleChannelFavorite,
-    replaceM3UPlaylist,
   } = useAppStore();
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(() => window.sessionStorage.getItem('roneca:channels:selectedCategoryId') ?? 'all');
-  const [autoLoading, setAutoLoading] = useState(false);
-  const [autoMessage, setAutoMessage] = useState<string | null>(null);
-  const [autoError, setAutoError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:channels:visibleCount')) || CHANNEL_RENDER_BATCH_SIZE);
-  const loadingRef = useRef(false);
-  const attemptedKeyRef = useRef('');
   const channelGridRef = useRef<HTMLDivElement | null>(null);
-
-  const pendingPlaylists = useMemo(() => {
-    return playlists.filter(playlist => {
-      if (playlist.status !== 'active') return false;
-      if (!playlist.url) return false;
-
-      const hasChannelsInMemory = channels.some(channel => channel.id.startsWith(`${playlist.id}-ch-`));
-      return !hasChannelsInMemory;
-    });
-  }, [channels, playlists]);
-
-  const pendingKey = pendingPlaylists
-    .map(playlist => `${playlist.id}:${playlist.url}`)
-    .join('|');
-
-  useEffect(() => {
-    if (!pendingKey) return;
-    if (loadingRef.current) return;
-    if (attemptedKeyRef.current === pendingKey) return;
-
-    attemptedKeyRef.current = pendingKey;
-    loadingRef.current = true;
-    setAutoLoading(true);
-    setAutoError(null);
-    setAutoMessage('Carregando lista para TV Ao Vivo...');
-
-    let cancelled = false;
-
-    async function loadPendingPlaylists() {
-      let totalImported = 0;
-
-      try {
-        for (const playlist of pendingPlaylists) {
-          const playlistUrl = playlist.url;
-
-          if (!playlistUrl) continue;
-
-          const content = await fetchM3UContent(playlistUrl);
-          const result = replaceM3UPlaylist(playlist.id, playlist.name, playlistUrl, content);
-          totalImported += result.imported;
-        }
-
-        if (!cancelled) {
-          setAutoMessage(totalImported > 0 ? `${totalImported} canal(is) carregado(s).` : null);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setAutoError(error instanceof Error ? error.message : 'Não foi possível carregar a lista.');
-        }
-      } finally {
-        if (!cancelled) {
-          setAutoLoading(false);
-        }
-
-        loadingRef.current = false;
-      }
-    }
-
-    void loadPendingPlaylists();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingKey, pendingPlaylists, replaceM3UPlaylist]);
 
   const categoryOptions = useMemo(() => {
     const fixed = [
@@ -248,22 +176,14 @@ export function ChannelsScreen() {
           <div className="mb-8 flex items-center justify-between gap-6">
             <div>
               <h1 className="clean-tv-title text-4xl">{selectedCategory?.name ?? 'TV Ao Vivo'}</h1>
-              {autoMessage && <p className="mt-2 text-base text-white/45">{autoMessage}</p>}
-              {autoError && <p className="mt-2 text-base text-red-200/80">{autoError}</p>}
             </div>
 
             <p className="text-xl font-light text-white/45">
-              {autoLoading ? 'Carregando...' : `${visibleChannels.length}/${filteredChannels.length} canal(is)`}
+              {`${visibleChannels.length}/${filteredChannels.length} canal(is)`}
             </p>
           </div>
 
-          {autoLoading && filteredChannels.length === 0 ? (
-            <div className="mt-24 text-center text-white/45">
-              <LoaderIcon aria-hidden="true" size={52} strokeWidth={2.2} className="mx-auto animate-spin" />
-              <p className="mt-5 text-3xl font-light">Carregando conteúdo da lista...</p>
-              <p className="mt-3 text-lg font-light">Isso pode levar alguns segundos em listas grandes.</p>
-            </div>
-          ) : filteredChannels.length === 0 ? (
+          {filteredChannels.length === 0 ? (
             <div className="mt-24 text-center text-white/45">
               <TvIcon aria-hidden="true" size={52} strokeWidth={2.2} className="mx-auto" />
               <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>

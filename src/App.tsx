@@ -136,7 +136,7 @@ function ContentCacheHydrator() {
 function DevicePanelSync() {
   const syncingRef = useRef(false);
   const deviceCode = useAppStore(state => state.deviceCode);
-  const setDeviceCode = useAppStore(state => state.setDeviceCode);
+  const currentScreen = useAppStore(state => state.currentScreen);
   const setScreen = useAppStore(state => state.setScreen);
   const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
   const setSubscription = useAppStore(state => state.setSubscription);
@@ -144,6 +144,7 @@ function DevicePanelSync() {
 
   useEffect(() => {
     if (!isDevicePanelEnabled()) return;
+    if (currentScreen === 'player') return;
     if (syncingRef.current) return;
 
     let cancelled = false;
@@ -305,9 +306,9 @@ function DevicePanelSync() {
     };
   }, [
     deviceCode,
+    currentScreen,
     setActiveNotice,
     setDeviceActivated,
-    setDeviceCode,
     setScreen,
     setSubscription,
   ]);
