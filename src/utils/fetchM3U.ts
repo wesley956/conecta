@@ -6,6 +6,9 @@ const REQUEST_HEADERS = {
   'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
 };
 
+const DOWNLOAD_TIMEOUT_MS = 55_000;
+const XTREAM_API_FALLBACK_TIMEOUT_MS = 45_000;
+
 interface XtreamSourceInfo {
   origin: string;
   username: string;
@@ -35,6 +38,25 @@ function previewText(content: string) {
   return content
     .replace(/\s+/g, ' ')
     .slice(0, 180);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: number | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = window.setTimeout(() => {
+          reject(new Error(`${label}: tempo limite atingido após ${Math.round(timeoutMs / 1000)}s.`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+  }
 }
 
 function parseXtreamSource(rawUrl: string): XtreamSourceInfo | null {
@@ -327,22 +349,24 @@ async function fetchViaDevProxy(url: string): Promise<string> {
 }
 
 export async function fetchM3UContent(url: string): Promise<string> {
-  const xtreamContent = await fetchXtreamAsM3U(url);
-
-  if (xtreamContent) {
-    return xtreamContent;
-  }
-
-  const nativeContent = await fetchM3UWithCapacitorHttp(url);
-
-  if (nativeContent) {
-    return nativeContent;
-  }
-
   const candidates = buildCandidateUrls(url);
   const errors: string[] = [];
 
+  // Caminho principal no APK: baixar a M3U real diretamente.
+  // Isso evita travar em player_api.php/get_vod_streams em listas grandes.
   for (const candidate of candidates) {
+    try {
+      const nativeContent = await withTimeout(
+        fetchM3UWithCapacitorHttp(candidate),
+        DOWNLOAD_TIMEOUT_MS,
+        'Download direto da lista no APK'
+      );
+
+      if (nativeContent) return nativeContent;
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : 'Falha no download nativo da lista.');
+    }
+
     const directContent = await fetchDirect(candidate);
     if (directContent) return directContent;
 
@@ -351,6 +375,20 @@ export async function fetchM3UContent(url: string): Promise<string> {
     } catch (error) {
       errors.push(error instanceof Error ? error.message : 'Falha desconhecida.');
     }
+  }
+
+  // Fallback: alguns painéis não entregam get.php como M3U.
+  // Só nesse caso montamos uma lista pela API Xtream.
+  try {
+    const xtreamContent = await withTimeout(
+      fetchXtreamAsM3U(url),
+      XTREAM_API_FALLBACK_TIMEOUT_MS,
+      'Fallback pela API Xtream'
+    );
+
+    if (xtreamContent) return xtreamContent;
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : 'Falha ao montar lista pela API Xtream.');
   }
 
   throw new Error(

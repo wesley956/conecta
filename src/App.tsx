@@ -212,8 +212,6 @@ function DevicePanelSync() {
 
         const playlistUrl = String(config.playlistUrl ?? '').trim();
 
-        prewarmXtreamSeriesCatalog(playlistUrl);
-
         if (!playlistUrl) {
           setActiveNotice('✅ Aparelho ativo, mas nenhuma lista foi vinculada no painel.');
           return;
@@ -270,7 +268,7 @@ function DevicePanelSync() {
         }
 
         setActiveNotice(
-          '🔄 Primeiro carregamento da lista do painel. A lista é grande e pode demorar alguns minutos, ' +
+          '🔄 Baixando lista M3U diretamente do painel. A primeira abertura pode demorar, ' +
           'mas depois ficará salva no aparelho para abrir rápido.'
         );
 
