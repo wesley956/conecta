@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { registerPlugin } from '@capacitor/core';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
 import { AlertTriangle, ArrowLeft, ChevronDown, Maximize, Play as PlayIcon, Pause as PauseIcon, RotateCcw, RotateCw, Tv as TvIcon, Volume2, VolumeX } from 'lucide-react';
+
+const NativeVideoPlayer = registerPlugin<{
+  play(options: { url: string; title?: string }): Promise<{ opened?: boolean }>;
+}>('NativeVideoPlayer');
 
 function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
@@ -116,6 +121,7 @@ export function PlayerScreen() {
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
   const [reloadNonce, setReloadNonce] = useState(0);
   const recoveryAttemptsRef = useRef(0);
+  const nativeLaunchKeyRef = useRef('');
 
   const content = currentMovie || currentChannel;
   const isLive = Boolean(currentChannel && !currentMovie);
@@ -168,6 +174,35 @@ export function PlayerScreen() {
   }, [streamUrl]);
 
   useEffect(() => {
+    if (!isNativeRuntime()) return;
+
+    if (!streamUrl) {
+      setError('Fonte não configurada.');
+      return;
+    }
+
+    const launchKey = `${content?.id ?? 'media'}::${streamUrl}::${reloadNonce}`;
+
+    if (nativeLaunchKeyRef.current === launchKey) return;
+
+    nativeLaunchKeyRef.current = launchKey;
+    setReady(true);
+    setError(null);
+    setShowControls(false);
+
+    NativeVideoPlayer.play({
+      url: streamUrl,
+      title: content?.name || 'RonecaPlayTV',
+    }).catch(error => {
+      const message = error instanceof Error ? error.message : String(error || '');
+      setShowControls(true);
+      setError(message || 'Não foi possível abrir o player interno do RonecaPlayTV.');
+    });
+  }, [content?.id, content?.name, streamUrl, reloadNonce]);
+
+  useEffect(() => {
+    if (isNativeRuntime()) return;
+
     const video = videoRef.current;
     if (!video) return;
 
@@ -674,6 +709,20 @@ export function PlayerScreen() {
           playsInline
           controls={false}
         />
+
+        {isNativeRuntime() && ready && !error && streamUrl && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black">
+            <button
+              onClick={() => {
+                nativeLaunchKeyRef.current = '';
+                setReloadNonce(value => value + 1);
+              }}
+              className="rounded-md bg-white/[0.06] px-8 py-4 text-[clamp(16px,2vw,22px)] font-light text-white/55"
+            >
+              Player interno do RonecaPlayTV
+            </button>
+          </div>
+        )}
 
         {!ready && !error && streamUrl && (
           <div className="absolute inset-0 flex items-center justify-center bg-black">
