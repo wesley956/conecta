@@ -45,6 +45,31 @@ function AppScreen({ screen }: { screen: AppState }) {
 
 
 
+
+function buildContentCacheSignature() {
+  const state = useAppStore.getState();
+
+  const playlistSignature = state.playlists
+    .map(playlist => [
+      playlist.id,
+      playlist.url || '',
+      playlist.status,
+      playlist.channelCount,
+      playlist.movieCount,
+      playlist.seriesCount,
+      playlist.lastSync || '',
+    ].join(':'))
+    .join('|');
+
+  return [
+    state.channels.length,
+    state.movies.length,
+    state.series.length,
+    state.playlists.length,
+    playlistSignature,
+  ].join('::');
+}
+
 // ===== CONTENT CACHE HYDRATOR =====
 function ContentCacheHydrator() {
   const hydratedRef = useRef(false);
@@ -81,28 +106,14 @@ function ContentCacheHydrator() {
 
   useEffect(() => {
     let saveTimer: number | undefined;
-    let previous = {
-      channels: useAppStore.getState().channels,
-      movies: useAppStore.getState().movies,
-      series: useAppStore.getState().series,
-      playlists: useAppStore.getState().playlists,
-    };
+    let previousSignature = buildContentCacheSignature();
 
-    const unsubscribe = useAppStore.subscribe((state) => {
-      const contentChanged =
-        previous.channels !== state.channels ||
-        previous.movies !== state.movies ||
-        previous.series !== state.series ||
-        previous.playlists !== state.playlists;
+    const unsubscribe = useAppStore.subscribe(() => {
+      const nextSignature = buildContentCacheSignature();
 
-      if (!contentChanged) return;
+      if (nextSignature === previousSignature) return;
 
-      previous = {
-        channels: state.channels,
-        movies: state.movies,
-        series: state.series,
-        playlists: state.playlists,
-      };
+      previousSignature = nextSignature;
 
       if (saveTimer) {
         window.clearTimeout(saveTimer);
@@ -117,7 +128,7 @@ function ContentCacheHydrator() {
           series: latest.series,
           playlists: latest.playlists,
         });
-      }, 900);
+      }, 2500);
     });
 
     return () => {
