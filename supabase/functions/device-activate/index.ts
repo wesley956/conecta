@@ -94,7 +94,7 @@ async function findSellerByCode(supabase: any, sellerCode: string | null) {
   const { data, error } = await supabase
     .from('panel_sellers')
     .select('id, name, status, public_code')
-    .eq('public_code', sellerCode)
+    .ilike('public_code', sellerCode)
     .maybeSingle();
 
   if (error) {
