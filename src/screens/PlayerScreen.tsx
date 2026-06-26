@@ -56,6 +56,21 @@ function buildPlaybackUrlVariants(rawUrl: string) {
   return [...new Set(variants)];
 }
 
+function getVideoErrorMessage(video: HTMLVideoElement, fallback: string) {
+  const error = video.error;
+
+  if (!error) return fallback;
+
+  const descriptions: Record<number, string> = {
+    1: 'carregamento cancelado',
+    2: 'falha de rede',
+    3: 'falha ao decodificar o vídeo',
+    4: 'formato não suportado pelo aparelho',
+  };
+
+  return `${fallback} Código ${error.code}: ${descriptions[error.code] || error.message || 'erro desconhecido'}.`;
+}
+
 function formatTime(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
     return '00:00';
@@ -173,12 +188,41 @@ export function PlayerScreen() {
     const isHls = isHlsUrl(streamUrl);
     const isMpegTs = isMpegTsUrl(streamUrl);
     let recoveryTimer: number | null = null;
+    let initialLoadTimer: number | null = null;
 
     const clearRecoveryTimer = () => {
       if (recoveryTimer !== null) {
         window.clearTimeout(recoveryTimer);
         recoveryTimer = null;
       }
+    };
+
+    const clearInitialLoadTimer = () => {
+      if (initialLoadTimer !== null) {
+        window.clearTimeout(initialLoadTimer);
+        initialLoadTimer = null;
+      }
+    };
+
+    const scheduleInitialLoadTimeout = () => {
+      clearInitialLoadTimer();
+
+      initialLoadTimer = window.setTimeout(() => {
+        if (video.readyState >= 2) return;
+
+        const message = getVideoErrorMessage(
+          video,
+          'A mídia demorou demais para iniciar. Pode ser bloqueio HTTP, fonte offline ou formato não suportado.'
+        );
+
+        if (playbackUrlIndex + 1 < playbackCandidates.length) {
+          setError(`${message} Tentando outra fonte (${playbackUrlIndex + 2}/${playbackCandidates.length})...`);
+          setPlaybackUrlIndex(index => index + 1);
+          return;
+        }
+
+        setError(message);
+      }, 18000);
     };
 
     const scheduleStallRecovery = () => {
@@ -200,6 +244,10 @@ export function PlayerScreen() {
     video.addEventListener('stalled', scheduleStallRecovery);
     video.addEventListener('playing', clearRecoveryTimer);
     video.addEventListener('canplay', clearRecoveryTimer);
+    video.addEventListener('loadedmetadata', clearInitialLoadTimer);
+    video.addEventListener('canplay', clearInitialLoadTimer);
+    video.addEventListener('playing', clearInitialLoadTimer);
+    scheduleInitialLoadTimeout();
 
     const tryNextPlaybackUrl = (message: string) => {
       if (playbackUrlIndex + 1 < playbackCandidates.length) {
@@ -275,10 +323,14 @@ export function PlayerScreen() {
         return () => {
           cancelled = true;
           clearRecoveryTimer();
+          clearInitialLoadTimer();
           video.removeEventListener('waiting', scheduleStallRecovery);
           video.removeEventListener('stalled', scheduleStallRecovery);
           video.removeEventListener('playing', clearRecoveryTimer);
           video.removeEventListener('canplay', clearRecoveryTimer);
+          video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
+          video.removeEventListener('canplay', clearInitialLoadTimer);
+          video.removeEventListener('playing', clearInitialLoadTimer);
 
           if (markReady) {
             video.removeEventListener('loadedmetadata', markReady);
@@ -303,7 +355,7 @@ export function PlayerScreen() {
           setReady(true);
           video.play().catch(() => setShowControls(true));
         };
-        video.onerror = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte.');
+        video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));
       };
 
       void import('hls.js')
@@ -367,10 +419,14 @@ export function PlayerScreen() {
       return () => {
         cancelled = true;
         clearRecoveryTimer();
+        clearInitialLoadTimer();
         video.removeEventListener('waiting', scheduleStallRecovery);
         video.removeEventListener('stalled', scheduleStallRecovery);
         video.removeEventListener('playing', clearRecoveryTimer);
         video.removeEventListener('canplay', clearRecoveryTimer);
+        video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
+        video.removeEventListener('canplay', clearInitialLoadTimer);
+        video.removeEventListener('playing', clearInitialLoadTimer);
         hls?.destroy();
         tsPlayer?.destroy?.();
         video.onloadedmetadata = null;
@@ -383,7 +439,7 @@ export function PlayerScreen() {
       setReady(true);
       video.play().catch(() => setShowControls(true));
     };
-    video.onerror = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte.');
+    video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));
     return () => {
       clearRecoveryTimer();
       video.removeEventListener('waiting', scheduleStallRecovery);
