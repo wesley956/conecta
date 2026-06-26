@@ -125,34 +125,69 @@ export async function activateDeviceWithPanel(profile: DeviceActivationProfile =
   return config;
 }
 
-export async function fetchDevicePanelConfig(deviceCode?: string): Promise<DevicePanelConfig> {
-  const baseUrl = getDevicePanelUrl();
+export async function fetchDevicePanelConfig(deviceCode: string, deviceUuid?: string): Promise<DevicePanelConfig> {
+  const configUrl = getDeviceConfigUrl();
+  const code = String(deviceCode ?? '').trim();
+  const uuid = String(deviceUuid ?? '').trim();
 
-  if (!baseUrl) {
-    throw new Error('Endpoint do painel não configurado.');
+  if (!configUrl) {
+    return {
+      active: false,
+      status: 'pending',
+      message: 'Endpoint do painel não configurado no APK.',
+    };
   }
-
-  const code = String(deviceCode || getStoredDeviceCode()).trim();
 
   if (!code) {
-    throw new Error('Código do aparelho não gerado.');
+    return {
+      active: false,
+      status: 'pending',
+      message: 'Código do aparelho vazio no APK. Feche e abra o app ou gere um novo código.',
+    };
   }
 
-  const url = new URL(baseUrl);
+  const url = new URL(configUrl);
   url.searchParams.set('code', code);
-  url.searchParams.set('deviceUuid', getOrCreateDeviceUuid());
+  url.searchParams.set('deviceCode', code);
+
+  if (uuid) {
+    url.searchParams.set('deviceUuid', uuid);
+    url.searchParams.set('device_uuid', uuid);
+  }
 
   const response = await fetch(url.toString(), {
-    method: 'GET',
+    method: 'POST',
     cache: 'no-store',
     headers: {
-      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
     },
+    body: JSON.stringify({
+      code,
+      deviceCode: code,
+      device_code: code,
+      deviceUuid: uuid || undefined,
+      device_uuid: uuid || undefined,
+    }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Painel respondeu HTTP ${response.status}.`);
+  let payload: DevicePanelConfig | null = null;
+
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
   }
 
-  return await response.json() as DevicePanelConfig;
+  if (!response.ok) {
+    const detail = payload?.message ? ` ${payload.message}` : '';
+    throw new Error(`Painel respondeu HTTP ${response.status}.${detail}`);
+  }
+
+  return payload ?? {
+    active: false,
+    status: 'pending',
+    message: 'Painel respondeu vazio.',
+  };
 }
+
