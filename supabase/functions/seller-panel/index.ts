@@ -458,6 +458,89 @@ serve(async (req) => {
       return json(await getDashboard(supabase, seller));
     }
 
+    if (action === 'lookupDeviceCode') {
+      const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
+
+      const { data: device, error: deviceError } = await supabase
+        .from('panel_devices')
+        .select(`
+          id,
+          device_code,
+          seller_id,
+          status,
+          subscription_expires_at,
+          last_seen_at,
+          created_at,
+          updated_at,
+          customer:panel_customers (
+            id,
+            name,
+            whatsapp
+          ),
+          plan:panel_plans (
+            id,
+            name,
+            duration_days,
+            credit_cost
+          ),
+          playlist:panel_playlists (
+            id,
+            name,
+            active
+          )
+        `)
+        .eq('device_code', deviceCode)
+        .maybeSingle();
+
+      if (deviceError) {
+        return json({ error: deviceError.message }, 500);
+      }
+
+      if (!device) {
+        return json({
+          ok: false,
+          found: false,
+          deviceCode,
+          message: 'Aparelho não encontrado. Confira o código enviado pelo cliente.',
+        }, 404);
+      }
+
+      const belongsToCurrentSeller = device.seller_id === seller.id;
+      const belongsToAnotherSeller = Boolean(device.seller_id && device.seller_id !== seller.id);
+      const canClaim = device.status === 'pending' && !belongsToAnotherSeller;
+      const canActivate = !belongsToAnotherSeller && device.status !== 'active';
+
+      return json({
+        ok: true,
+        found: true,
+        device: {
+          id: device.id,
+          deviceCode: device.device_code,
+          status: device.status,
+          belongsToCurrentSeller,
+          belongsToAnotherSeller,
+          canClaim,
+          canActivate,
+          customerName: device.customer?.name || null,
+          customerWhatsapp: device.customer?.whatsapp || null,
+          planName: device.plan?.name || null,
+          playlistName: device.playlist?.name || null,
+          expiresAt: device.subscription_expires_at,
+          daysLeft: daysLeft(device.subscription_expires_at),
+          lastSeenAt: device.last_seen_at,
+          createdAt: device.created_at,
+          updatedAt: device.updated_at,
+        },
+        message: canClaim
+          ? 'Código encontrado. Aparelho pendente e disponível para puxar.'
+          : belongsToCurrentSeller
+            ? 'Código encontrado. Este aparelho já está vinculado a este vendedor.'
+            : belongsToAnotherSeller
+              ? 'Código encontrado, mas já pertence a outro vendedor.'
+              : `Código encontrado. Status atual: ${device.status}.`,
+      });
+    }
+
     if (action === 'claimPendingDevice') {
       const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
 

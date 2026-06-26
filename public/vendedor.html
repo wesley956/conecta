@@ -305,8 +305,11 @@
           <input id="claimCode" class="mono" placeholder="RPTV-XXXXXX" />
 
           <div class="actions">
+            <button class="secondary" id="lookupDevice">Consultar código</button>
             <button id="claimDevice">Puxar aparelho</button>
           </div>
+
+          <div id="lookupResult" class="notice hidden" style="margin-top:14px"></div>
         </div>
 
         <div class="card span-6">
@@ -372,6 +375,8 @@
       activeDevices: document.getElementById('activeDevices'),
       pendingDevices: document.getElementById('pendingDevices'),
       claimCode: document.getElementById('claimCode'),
+      lookupDevice: document.getElementById('lookupDevice'),
+      lookupResult: document.getElementById('lookupResult'),
       activateCode: document.getElementById('activateCode'),
       customerName: document.getElementById('customerName'),
       customerWhatsapp: document.getElementById('customerWhatsapp'),
@@ -481,6 +486,22 @@
         : '<tr><td colspan="7" class="muted">Nenhum aparelho vinculado ainda.</td></tr>';
     }
 
+    function setLookupResult(message, type) {
+      els.lookupResult.textContent = message;
+      els.lookupResult.className = 'notice ' + (type || '');
+    }
+
+    function statusLabel(status) {
+      const labels = {
+        pending: 'pendente',
+        active: 'ativo',
+        blocked: 'bloqueado',
+        expired: 'vencido',
+      };
+
+      return labels[status] || status || '—';
+    }
+
     function renderDashboard(data) {
       dashboardData = data;
 
@@ -507,6 +528,57 @@
       setNotice('Painel carregado com sucesso.', 'ok');
     }
 
+    async function lookupDevice() {
+      const deviceCode = normalizeCode(els.claimCode.value);
+
+      if (!deviceCode) {
+        throw new Error('Informe o código do aparelho.');
+      }
+
+      setLookupResult('Consultando código...', 'warn');
+      setNotice('Consultando código do aparelho...', 'warn');
+
+      const result = await callSellerPanel({
+        action: 'lookupDeviceCode',
+        deviceCode,
+      });
+
+      const device = result.device || {};
+
+      const lines = [
+        result.message || 'Código consultado.',
+        '',
+        'Código: ' + (device.deviceCode || deviceCode),
+        'Status: ' + statusLabel(device.status),
+        'Pode puxar: ' + (device.canClaim ? 'sim' : 'não'),
+        'Pode ativar: ' + (device.canActivate ? 'sim' : 'não'),
+      ];
+
+      if (device.customerName) {
+        lines.push('Cliente: ' + device.customerName);
+      }
+
+      if (device.planName) {
+        lines.push('Plano: ' + device.planName);
+      }
+
+      if (device.playlistName) {
+        lines.push('Lista: ' + device.playlistName);
+      }
+
+      if (device.expiresAt) {
+        lines.push('Vencimento: ' + formatDate(device.expiresAt));
+      }
+
+      setLookupResult(lines.join('\n'), device.canClaim || device.canActivate ? 'ok' : 'warn');
+
+      if (device.canClaim || device.belongsToCurrentSeller) {
+        els.activateCode.value = device.deviceCode || deviceCode;
+      }
+
+      setNotice(result.message || 'Consulta concluída.', device.canClaim || device.canActivate ? 'ok' : 'warn');
+    }
+
     async function claimDevice() {
       const deviceCode = normalizeCode(els.claimCode.value);
 
@@ -522,6 +594,14 @@
       });
 
       els.activateCode.value = result.deviceCode || deviceCode;
+
+      setLookupResult(
+        (result.message || 'Aparelho vinculado ao vendedor.') +
+        '\n\nCódigo: ' + (result.deviceCode || deviceCode) +
+        '\nStatus: pendente vinculado ao vendedor' +
+        '\nPróximo passo: preencha os dados do cliente e clique em ativar.',
+        'ok'
+      );
 
       setNotice(result.message || 'Aparelho vinculado ao vendedor.', 'ok');
       await loadDashboard();
@@ -588,6 +668,7 @@
     els.sellerToken.value = localStorage.getItem('ronecaSellerToken') || '';
 
     bindAsync(els.saveAccess, loadDashboard);
+    bindAsync(els.lookupDevice, lookupDevice);
     bindAsync(els.claimDevice, claimDevice);
     bindAsync(els.activateDevice, activateDevice);
 
