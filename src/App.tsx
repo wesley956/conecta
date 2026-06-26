@@ -4,7 +4,6 @@ import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
-import { canLoadXtreamSeriesFromPlaylist, prewarmXtreamSeriesCatalog } from '@/utils/xtreamSeries';
 import type { AppState } from '@/types';
 
 // Screens
@@ -96,9 +95,6 @@ function ContentCacheHydrator() {
         series: snapshot.series,
         playlists: snapshot.playlists,
       });
-
-      const xtreamPlaylist = snapshot.playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
-      prewarmXtreamSeriesCatalog(xtreamPlaylist?.url);
     }
 
     void hydrate();
@@ -268,8 +264,7 @@ function DevicePanelSync() {
         }
 
         setActiveNotice(
-          '🔄 Baixando lista M3U diretamente do painel. A primeira abertura pode demorar, ' +
-          'mas depois ficará salva no aparelho para abrir rápido.'
+          '🔄 Carregando lista vinculada ao painel...'
         );
 
         const content = await fetchM3UContent(playlistUrl);
@@ -299,7 +294,6 @@ function DevicePanelSync() {
         });
 
         localStorage.setItem(panelMarkerKey, panelMarkerValue);
-        prewarmXtreamSeriesCatalog(playlistUrl);
 
         setActiveNotice(
           `✅ Lista pronta e salva no aparelho: ${result.imported} item(ns). ` +
