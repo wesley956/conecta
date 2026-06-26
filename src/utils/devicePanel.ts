@@ -125,15 +125,16 @@ export async function activateDeviceWithPanel(profile: DeviceActivationProfile =
   return config;
 }
 
-export async function fetchDevicePanelConfig(deviceCode: string, deviceUuid?: string): Promise<DevicePanelConfig> {
-  const configUrl = getDeviceConfigUrl();
-  const code = String(deviceCode ?? '').trim();
-  const uuid = String(deviceUuid ?? '').trim();
+export async function fetchDevicePanelConfig(deviceCode?: string, deviceUuid?: string): Promise<DevicePanelConfig> {
+  const configUrl = getDevicePanelUrl();
+  const code = String(deviceCode || getStoredDeviceCode()).trim();
+  const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
 
   if (!configUrl) {
     return {
       active: false,
       status: 'pending',
+      deviceCode: code,
       message: 'Endpoint do painel não configurado no APK.',
     };
   }
@@ -142,6 +143,7 @@ export async function fetchDevicePanelConfig(deviceCode: string, deviceUuid?: st
     return {
       active: false,
       status: 'pending',
+      deviceCode: '',
       message: 'Código do aparelho vazio no APK. Feche e abra o app ou gere um novo código.',
     };
   }
@@ -187,6 +189,7 @@ export async function fetchDevicePanelConfig(deviceCode: string, deviceUuid?: st
   return payload ?? {
     active: false,
     status: 'pending',
+    deviceCode: code,
     message: 'Painel respondeu vazio.',
   };
 }
