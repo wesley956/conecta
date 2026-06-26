@@ -267,8 +267,8 @@ function DevicePanelSync() {
         const currentPlaylist = freshState.playlists.find(playlist => playlist.url === playlistUrl);
 
         const result = currentPlaylist
-          ? freshState.replaceM3UPlaylist(currentPlaylist.id, playlistName, playlistUrl, content)
-          : freshState.importM3UPlaylist(playlistName, playlistUrl, content);
+          ? await freshState.replaceM3UPlaylist(currentPlaylist.id, playlistName, playlistUrl, content)
+          : await freshState.importM3UPlaylist(playlistName, playlistUrl, content);
 
         if (cancelled) return;
 

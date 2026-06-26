@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AppState, UIMode, AppSettings, WatchHistory, Channel, Movie, Series, Playlist } from '@/types';
 import { channels as mockChannels, movies as mockMovies, series as mockSeries, playlists as mockPlaylists, watchHistory as mockHistory, DEVICE_CODE, LEGAL_NOTICE } from '@/data/mock';
-import { parseM3U, isLikelyM3U } from '@/utils/m3u';
+import { isLikelyM3U, type ParsedM3UResult } from '@/utils/m3u';
+import { parseM3UOffMainThread } from '@/utils/parseM3UWorker';
 import { getStoredDeviceCode, setStoredDeviceCode, isDevicePanelEnabled } from '@/utils/devicePanel';
 
 if (typeof window !== 'undefined') {
@@ -15,11 +16,11 @@ if (typeof window !== 'undefined') {
   }
 }
 
-function getParsedImportCount(result: ReturnType<typeof parseM3U>) {
+function getParsedImportCount(result: ParsedM3UResult) {
   return result.channels.length + result.movies.length + result.series.length;
 }
 
-function getParsedSummary(result: ReturnType<typeof parseM3U>) {
+function getParsedSummary(result: ParsedM3UResult) {
   return `${result.channels.length} canal(is), ${result.movies.length} filme(s) e ${result.series.length} série(s)`;
 }
 
@@ -52,11 +53,11 @@ interface AppStore {
   playlists: Playlist[];
   watchHistory: WatchHistory[];
   hydrateContentCache: (snapshot: { channels: Channel[]; movies: Movie[]; series: Series[]; playlists?: Playlist[] }) => void;
-  importM3UPlaylist: (name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
+  importM3UPlaylist: (name: string, sourceUrl: string, content: string) => Promise<{ imported: number; skipped: number }>;
   addDirectStreamChannel: (name: string, sourceUrl: string) => { imported: number; skipped: number };
   removePlaylist: (playlistId: string) => void;
   updatePlaylist: (playlistId: string, partial: Partial<Pick<Playlist, 'name' | 'url' | 'status' | 'lastSync'>>) => void;
-  replaceM3UPlaylist: (playlistId: string, name: string, sourceUrl: string, content: string) => { imported: number; skipped: number };
+  replaceM3UPlaylist: (playlistId: string, name: string, sourceUrl: string, content: string) => Promise<{ imported: number; skipped: number }>;
   clearAllImportedContent: () => void;
   resetContentToMock: () => void;
   currentChannel: Channel | null;
@@ -189,13 +190,15 @@ export const useAppStore = create<AppStore>()(
     return { imported: 1, skipped: 0 };
   },
 
-  importM3UPlaylist: (name, sourceUrl, content) => {
+  importM3UPlaylist: async (name, sourceUrl, content) => {
     if (!isLikelyM3U(content)) {
       throw new Error('O conteúdo informado não parece ser uma lista M3U válida.');
     }
 
     const playlistId = `pl-${Date.now()}`;
-    const result = parseM3U(content, playlistId, sourceUrl);
+    set({ activeNotice: '🔄 Organizando lista em segundo plano para evitar travamentos...' });
+
+    const result = await parseM3UOffMainThread(content, playlistId, sourceUrl);
 
     if (getParsedImportCount(result) === 0) {
       throw new Error('Nenhum item com URL reproduzível foi encontrado na lista.');
@@ -267,12 +270,14 @@ export const useAppStore = create<AppStore>()(
     activeNotice: '✅ Lista atualizada.',
   })),
 
-  replaceM3UPlaylist: (playlistId, name, sourceUrl, content) => {
+  replaceM3UPlaylist: async (playlistId, name, sourceUrl, content) => {
     if (!isLikelyM3U(content)) {
       throw new Error('O conteúdo informado não parece ser uma lista M3U válida.');
     }
 
-    const result = parseM3U(content, playlistId, sourceUrl);
+    set({ activeNotice: '🔄 Organizando lista em segundo plano para evitar travamentos...' });
+
+    const result = await parseM3UOffMainThread(content, playlistId, sourceUrl);
 
     if (getParsedImportCount(result) === 0) {
       throw new Error('Nenhum item com URL reproduzível foi encontrado na lista.');
