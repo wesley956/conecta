@@ -416,3 +416,6 @@ enabled = true
 [functions.device-activate]
 verify_jwt = false
 
+[functions.admin-panel]
+verify_jwt = false
+
