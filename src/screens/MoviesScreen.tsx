@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/appStore';
 import { AppLayout, BottomNav, ProgressBar } from '@/components/shared';
 import type { Movie } from '@/types';
 import { Home as HomeIcon, Clapperboard as MovieIcon, Star as StarIcon, Play as PlayIcon, Search as SearchIcon, X as XIcon } from 'lucide-react';
+import { useLongPressFavorite } from '@/utils/useLongPressFavorite';
 
 const MOVIE_RENDER_BATCH_SIZE = 60;
 
@@ -22,6 +23,7 @@ export function MoviesScreen() {
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:movies:visibleCount')) || MOVIE_RENDER_BATCH_SIZE);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const movieGridRef = useRef<HTMLElement | null>(null);
+  const movieFavoriteHold = useLongPressFavorite();
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -170,31 +172,25 @@ export function MoviesScreen() {
               {visibleMovies.map(movie => (
                 <button
                   key={movie.id}
-                  onClick={() => setSelectedMovie(movie)}
+                  onPointerDown={() => movieFavoriteHold.start(() => toggleMovieFavorite(movie.id))}
+                  onPointerUp={() => movieFavoriteHold.cancel()}
+                  onPointerLeave={() => movieFavoriteHold.cancel()}
+                  onPointerCancel={() => movieFavoriteHold.cancel()}
+                  onClick={() => {
+                    if (movieFavoriteHold.consume()) return;
+                    setSelectedMovie(movie);
+                  }}
                   className="group text-left roneca-poster-card"
                 >
                   <div className="relative h-[230px] overflow-hidden rounded-2xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
                     <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={event => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        toggleMovieFavorite(movie.id);
-                      }}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          toggleMovieFavorite(movie.id);
-                        }
-                      }}
-                      className={`absolute right-3 top-3 z-20 rounded-full border px-3 py-1.5 text-2xl transition ${
+                      className={`pointer-events-none absolute right-3 top-3 z-20 rounded-full border px-3 py-1.5 text-2xl transition ${
                         movie.isFavorite
                           ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
-                          : 'border-white/10 bg-black/35 text-white/55 hover:text-white'
+                          : 'border-white/10 bg-black/28 text-white/45'
                       }`}
-                      aria-label={movie.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                      aria-label={movie.isFavorite ? 'Favorito' : 'Segure para favoritar'}
+                      title="Segure o card para favoritar"
                     >
                       <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={movie.isFavorite ? "currentColor" : "none"} />
                     </span>

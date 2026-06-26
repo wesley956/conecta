@@ -6,8 +6,10 @@ import {
   canLoadXtreamSeriesFromPlaylist,
   fetchXtreamSeriesCatalog,
   fetchXtreamSeriesEpisodes,
+  getCachedXtreamSeriesCatalog,
 } from '@/utils/xtreamSeries';
 import { Home as HomeIcon, Clapperboard as SeriesIcon, Star as StarIcon, Loader2 as LoaderIcon, Search as SearchIcon, X as XIcon } from 'lucide-react';
+import { useLongPressFavorite } from '@/utils/useLongPressFavorite';
 
 const SERIES_RENDER_BATCH_SIZE = 48;
 
@@ -66,13 +68,18 @@ export function SeriesScreen() {
   const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:series:selectedCategory') ?? 'all');
   const [searchTerm, setSearchTerm] = useState(() => window.sessionStorage.getItem('roneca:series:searchTerm') ?? '');
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:series:visibleCount')) || SERIES_RENDER_BATCH_SIZE);
-  const [remoteSeries, setRemoteSeries] = useState<XtreamSeries[]>([]);
+  const [remoteSeries, setRemoteSeries] = useState<XtreamSeries[]>(() => {
+    const playlist = playlists.find(item => canLoadXtreamSeriesFromPlaylist(item.url));
+    const cached = getCachedXtreamSeriesCatalog(playlist?.url) as XtreamSeries[] | null;
+    return cached ? cloneRemoteSeriesItems(cached) : [];
+  });
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [loadingSeriesId, setLoadingSeriesId] = useState<string | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
   const [seriesDetail, setSeriesDetail] = useState<{ item: XtreamSeries; seasons: Season[] } | null>(null);
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number | null>(null);
   const seriesGridRef = useRef<HTMLElement | null>(null);
+  const seriesFavoriteHold = useLongPressFavorite();
 
   const xtreamPlaylist = useMemo(() => {
     return playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
@@ -86,18 +93,14 @@ export function SeriesScreen() {
 
       if (!playlistUrl) return;
 
-      const cached = remoteSeriesScreenCache.get(playlistUrl);
+      const cached = remoteSeriesScreenCache.get(playlistUrl) || getCachedXtreamSeriesCatalog(playlistUrl) as XtreamSeries[] | null;
 
       if (cached && cached.length > 0) {
         if (!cancelled) {
           setRemoteSeries(cloneRemoteSeriesItems(cached));
+          setIsLoadingCatalog(false);
         }
 
-        return;
-      }
-
-      if (remoteSeries.length > 0) {
-        remoteSeriesScreenCache.set(playlistUrl, cloneRemoteSeriesItems(remoteSeries));
         return;
       }
 
@@ -128,7 +131,7 @@ export function SeriesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [xtreamPlaylist?.url, remoteSeries]);
+  }, [xtreamPlaylist?.url]);
 
   const allSeries = useMemo<XtreamSeries[]>(() => {
     const map = new Map<string, XtreamSeries>();
@@ -411,32 +414,26 @@ export function SeriesScreen() {
               {visibleSeries.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => void openSeriesDetail(item)}
+                  onPointerDown={() => seriesFavoriteHold.start(() => toggleSeriesFavorite(item.id))}
+                  onPointerUp={() => seriesFavoriteHold.cancel()}
+                  onPointerLeave={() => seriesFavoriteHold.cancel()}
+                  onPointerCancel={() => seriesFavoriteHold.cancel()}
+                  onClick={() => {
+                    if (seriesFavoriteHold.consume()) return;
+                    void openSeriesDetail(item);
+                  }}
                   disabled={loadingSeriesId === item.id}
                   className="group text-left roneca-poster-card disabled:opacity-55"
                 >
                   <div className="relative h-[230px] overflow-hidden rounded-2xl bg-white/[0.045] transition-transform duration-150 group-hover:scale-[1.035] group-focus:scale-[1.035]">
                     <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={event => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        toggleSeriesFavorite(item.id);
-                      }}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          toggleSeriesFavorite(item.id);
-                        }
-                      }}
-                      className={`absolute right-3 top-3 z-20 rounded-full border px-3 py-1.5 text-2xl transition ${
+                      className={`pointer-events-none absolute right-3 top-3 z-20 rounded-full border px-3 py-1.5 text-2xl transition ${
                         item.isFavorite
                           ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
-                          : 'border-white/10 bg-black/35 text-white/55 hover:text-white'
+                          : 'border-white/10 bg-black/28 text-white/45'
                       }`}
-                      aria-label={item.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                      aria-label={item.isFavorite ? 'Favorita' : 'Segure para favoritar'}
+                      title="Segure o card para favoritar"
                     >
                       <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={item.isFavorite ? "currentColor" : "none"} />
                     </span>

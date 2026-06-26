@@ -5,6 +5,7 @@ import { channelCategories } from '@/data/mock';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
 import type { Channel } from '@/types';
 import { CircleDot as PlaybackIcon, Home as HomeIcon, Tv as TvIcon, List as ListIcon, Star as StarIcon } from 'lucide-react';
+import { useLongPressFavorite } from '@/utils/useLongPressFavorite';
 
 const CHANNEL_RENDER_BATCH_SIZE = 180;
 
@@ -42,6 +43,7 @@ export function ChannelsScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState(() => window.sessionStorage.getItem('roneca:channels:selectedCategoryId') ?? 'all');
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:channels:visibleCount')) || CHANNEL_RENDER_BATCH_SIZE);
   const channelGridRef = useRef<HTMLDivElement | null>(null);
+  const channelFavoriteHold = useLongPressFavorite();
 
   const categoryOptions = useMemo(() => {
     const fixed = [
@@ -205,7 +207,14 @@ export function ChannelsScreen() {
                 return (
                   <button
                     key={channel.id}
-                    onClick={() => playChannel(channel)}
+                    onPointerDown={() => channelFavoriteHold.start(() => toggleChannelFavorite(channel.id))}
+                    onPointerUp={() => channelFavoriteHold.cancel()}
+                    onPointerLeave={() => channelFavoriteHold.cancel()}
+                    onPointerCancel={() => channelFavoriteHold.cancel()}
+                    onClick={() => {
+                      if (channelFavoriteHold.consume()) return;
+                      playChannel(channel);
+                    }}
                     className="group relative flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 pr-16 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
                   >
                     <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
@@ -222,26 +231,13 @@ export function ChannelsScreen() {
                     </span>
 
                     <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={event => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        toggleChannelFavorite(channel.id);
-                      }}
-                      onKeyDown={event => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          toggleChannelFavorite(channel.id);
-                        }
-                      }}
-                      className={`absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border px-3 py-1.5 text-2xl transition ${
+                      className={`pointer-events-none absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border px-3 py-1.5 text-2xl transition ${
                         channel.isFavorite
                           ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
-                          : 'border-white/10 bg-black/30 text-white/45 group-hover:text-white'
+                          : 'border-white/10 bg-black/28 text-white/45 group-hover:text-white'
                       }`}
-                      aria-label={channel.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                      aria-label={channel.isFavorite ? 'Favorito' : 'Segure para favoritar'}
+                      title="Segure o canal para favoritar"
                     >
                       <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={channel.isFavorite ? "currentColor" : "none"} />
                     </span>

@@ -230,14 +230,14 @@ export function PlayerScreen() {
       clearRecoveryTimer();
 
       recoveryTimer = window.setTimeout(() => {
-        if (recoveryAttemptsRef.current >= 3) {
+        if (recoveryAttemptsRef.current >= 6) {
           setError('A transmissão travou várias vezes. Tente trocar de canal ou tentar novamente.');
           return;
         }
 
         recoveryAttemptsRef.current += 1;
         recoverPlayback();
-      }, 8000);
+      }, 6000);
     };
 
     video.addEventListener('waiting', scheduleStallRecovery);
@@ -284,10 +284,13 @@ export function PlayerScreen() {
               {
                 enableWorker: !isNativeRuntime(),
                 liveBufferLatencyChasing: true,
-                enableStashBuffer: !isLive,
-                lazyLoad: !isLive,
-                liveBufferLatencyMaxLatency: 5,
-                stashInitialSize: isLive ? 384 * 1024 : 512 * 1024,
+                enableStashBuffer: true,
+                lazyLoad: false,
+                liveBufferLatencyMaxLatency: isLive ? 8 : 5,
+                stashInitialSize: isLive ? 1024 * 1024 : 512 * 1024,
+                autoCleanupSourceBuffer: true,
+                autoCleanupMaxBackwardDuration: 12,
+                autoCleanupMinBackwardDuration: 6,
               }
             );
 
@@ -372,10 +375,10 @@ export function PlayerScreen() {
           hls = new Hls({
             enableWorker: !isNativeRuntime(),
             lowLatencyMode: false,
-            backBufferLength: isLive ? 10 : 30,
-            maxBufferLength: isLive ? 20 : 45,
-            maxMaxBufferLength: isLive ? 40 : 90,
-            maxBufferSize: 30 * 1000 * 1000,
+            backBufferLength: isLive ? 15 : 30,
+            maxBufferLength: isLive ? 35 : 45,
+            maxMaxBufferLength: isLive ? 70 : 90,
+            maxBufferSize: 60 * 1000 * 1000,
             maxBufferHole: 0.5,
             manifestLoadingMaxRetry: 4,
             manifestLoadingRetryDelay: 1000,

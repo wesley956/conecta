@@ -304,11 +304,16 @@ function episodeDuration(raw: any) {
   );
 }
 
-export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Series[]> {
-  const cacheKey = playlistUrl.trim();
+export function getCachedXtreamSeriesCatalog(playlistUrl?: string | null): Series[] | null {
+  const cacheKey = String(playlistUrl || '').trim();
 
-  const cached = seriesCatalogCache.get(cacheKey);
-  if (cached) return cloneSeries(cached);
+  if (!cacheKey) return null;
+
+  const memory = seriesCatalogCache.get(cacheKey);
+
+  if (memory) {
+    return cloneSeries(memory);
+  }
 
   const storageKey = `roneca:xtream:series:catalog:${cacheHash(cacheKey)}`;
   const stored = readStorageCache<Series[]>(storageKey);
@@ -317,6 +322,27 @@ export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Ser
     const cloned = cloneSeries(stored);
     seriesCatalogCache.set(cacheKey, cloneSeries(cloned));
     return cloned;
+  }
+
+  return null;
+}
+
+export function prewarmXtreamSeriesCatalog(playlistUrl?: string | null) {
+  const url = String(playlistUrl || '').trim();
+
+  if (!canLoadXtreamSeriesFromPlaylist(url)) return;
+
+  void fetchXtreamSeriesCatalog(url).catch(() => undefined);
+}
+
+export async function fetchXtreamSeriesCatalog(playlistUrl: string): Promise<Series[]> {
+  const cacheKey = playlistUrl.trim();
+  const storageKey = `roneca:xtream:series:catalog:${cacheHash(cacheKey)}`;
+
+  const cached = getCachedXtreamSeriesCatalog(cacheKey);
+
+  if (cached) {
+    return cached;
   }
 
   const source = parseXtreamSource(playlistUrl);
