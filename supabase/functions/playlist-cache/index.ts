@@ -290,6 +290,135 @@ function itemName(line: string) {
   return comma >= 0 ? line.slice(comma + 1).trim() : 'Sem nome';
 }
 
+
+function normalizeSearchText(value: unknown) {
+  return text(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function isAdultTagged(value: unknown) {
+  const normalized = normalizeSearchText(value);
+
+  return (
+    normalized.includes('+18') ||
+    normalized.includes('18+') ||
+    /\b(adulto|adultos|adult|xxx|porn|porno|erotico|erotica|erotic)\b/i.test(normalized)
+  );
+}
+
+function isMovieLikeM3UEntry(url: string, name: string, group: string) {
+  const normalized = normalizeSearchText(`${url} ${name} ${group}`);
+
+  return (
+    normalized.includes('/movie/') ||
+    normalized.includes('filme') ||
+    normalized.includes('movie') ||
+    normalized.includes('vod') ||
+    normalized.includes('cinema') ||
+    /\.(mp4|mkv|avi|mov|m4v)(\?|#|$)/i.test(url)
+  );
+}
+
+function cacheItemKey(item: any, type: string) {
+  const rawUrl = text(item?.url || item?.playbackUrls?.[0]).toLowerCase();
+
+  if (rawUrl) return `url:${rawUrl}`;
+
+  return [
+    type,
+    normalizeSearchText(item?.name),
+    normalizeSearchText(item?.category || item?.groupTitle || item?.group),
+  ].join(':');
+}
+
+function mergeCacheItems(primary: any[], extras: any[], type: string) {
+  const seen = new Set(primary.map(item => cacheItemKey(item, type)));
+  const merged = [...primary];
+
+  for (const item of extras) {
+    const key = cacheItemKey(item, type);
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged;
+}
+
+async function buildAdultM3UOverlay(playlist: any) {
+  const raw = await fetchText(playlist.playlist_url, 'Lista M3U adulto');
+
+  if (!raw.includes('#EXTINF')) {
+    return { channels: [], movies: [] };
+  }
+
+  const channels: any[] = [];
+  const movies: any[] = [];
+  const lines = raw.split(/\r?\n/);
+  let pending: string | null = null;
+  let index = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith('#EXTINF')) {
+      pending = trimmed;
+      continue;
+    }
+
+    if (!pending || !/^https?:\/\//i.test(trimmed)) continue;
+
+    index += 1;
+
+    const name = itemName(pending);
+    const group = attr(pending, 'group-title') || 'Adulto';
+    const logo = attr(pending, 'tvg-logo') || undefined;
+    const fingerprint = `${name} ${group} ${trimmed}`;
+
+    if (!isAdultTagged(fingerprint)) {
+      pending = null;
+      continue;
+    }
+
+    if (isMovieLikeM3UEntry(trimmed, name, group)) {
+      movies.push({
+        id: `${playlist.id}-adult-mv-${index}`,
+        name,
+        year: yearFromName(name),
+        duration: '—',
+        synopsis: 'Conteúdo autorizado pela lista do painel.',
+        cover: logo,
+        category: group,
+        url: trimmed,
+        isFavorite: false,
+        progress: 0,
+        playbackUrls: [trimmed],
+      });
+    } else {
+      channels.push({
+        id: `${playlist.id}-adult-ch-${index}`,
+        name,
+        logo,
+        groupTitle: group,
+        group: cleanGroup(group, 'adulto'),
+        url: trimmed,
+        isFavorite: false,
+        playbackUrls: [trimmed],
+      });
+    }
+
+    pending = null;
+  }
+
+  return { channels, movies };
+}
+
 async function buildM3USnapshot(playlist: any) {
   const raw = await fetchText(playlist.playlist_url, 'Lista M3U');
 
@@ -383,7 +512,20 @@ async function buildM3USnapshot(playlist: any) {
 
 async function buildSnapshot(playlist: any) {
   const xtream = await buildXtreamSnapshot(playlist).catch(() => null);
-  const content = xtream ?? await buildM3USnapshot(playlist);
+  let content = xtream ?? await buildM3USnapshot(playlist);
+
+  if (xtream) {
+    const adultOverlay = await buildAdultM3UOverlay(playlist).catch(() => null);
+
+    if (adultOverlay) {
+      content = {
+        channels: mergeCacheItems(content.channels, adultOverlay.channels, 'channel'),
+        movies: mergeCacheItems(content.movies, adultOverlay.movies, 'movie'),
+        series: content.series,
+      };
+    }
+  }
+
   const generatedAt = new Date().toISOString();
 
   const playlistItem = {
