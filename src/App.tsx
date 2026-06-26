@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
-import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
 import type { AppState } from '@/types';
 
@@ -136,7 +136,6 @@ function ContentCacheHydrator() {
 function DevicePanelSync() {
   const syncingRef = useRef(false);
   const deviceCode = useAppStore(state => state.deviceCode);
-  const deviceActivated = useAppStore(state => state.deviceActivated);
   const setDeviceCode = useAppStore(state => state.setDeviceCode);
   const setScreen = useAppStore(state => state.setScreen);
   const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
@@ -153,16 +152,7 @@ function DevicePanelSync() {
       syncingRef.current = true;
 
       try {
-        const activation = await activateDeviceWithPanel();
-
-        if (cancelled) return;
-
-        let activeDeviceCode = activation.deviceCode || deviceCode;
-
-        if (activation.deviceCode && activation.deviceCode !== deviceCode) {
-          setDeviceCode(activation.deviceCode);
-          activeDeviceCode = activation.deviceCode;
-        }
+        const activeDeviceCode = String(deviceCode || '').trim();
 
         if (!activeDeviceCode) {
           setDeviceActivated(false);
@@ -315,7 +305,6 @@ function DevicePanelSync() {
     };
   }, [
     deviceCode,
-    deviceActivated,
     setActiveNotice,
     setDeviceActivated,
     setDeviceCode,

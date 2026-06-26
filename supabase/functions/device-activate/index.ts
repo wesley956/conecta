@@ -195,24 +195,17 @@ serve(async request => {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   try {
-      if (!sellerCode) {
-        return json({
-          active: false,
-          status: 'pending',
-          message: 'Informe o código público do vendedor.',
-        }, 400);
-      }
+    const seller = sellerCode ? await findSellerByCode(supabase, sellerCode) : null;
 
-    const seller = await findSellerByCode(supabase, sellerCode);
+    if (sellerCode && !seller) {
+      return json({
+        active: false,
+        status: 'pending',
+        message: 'Código público do vendedor não encontrado.',
+      }, 404);
+    }
 
-      if (!seller) {
-        return json({
-          active: false,
-          status: 'pending',
-          message: 'Código público do vendedor não encontrado.',
-        }, 404);
-      }
-    const sellerId = seller.id;
+    const sellerId = seller?.id ?? null;
     const customerId = await upsertBasicCustomer(supabase, customerName, customerWhatsapp, sellerId);
 
     const { data: existingDevice, error: existingError } = await supabase
@@ -290,7 +283,7 @@ serve(async request => {
           customerWhatsapp,
           sellerLinked: Boolean(sellerId),
           sellerName: seller?.name ?? null,
-          message: 'Aparelho criado e aguardando liberação no painel.',
+          message: 'Código criado. Envie este código ao vendedor/admin para liberar o acesso.',
         });
       }
 
