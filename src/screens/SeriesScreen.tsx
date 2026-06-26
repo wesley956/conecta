@@ -21,6 +21,18 @@ type XtreamSeries = Series & {
   xtreamSeriesId?: string | number;
 };
 
+const remoteSeriesScreenCache = new Map<string, XtreamSeries[]>();
+
+function cloneRemoteSeriesItems(items: XtreamSeries[]) {
+  return items.map(item => ({
+    ...item,
+    seasons: item.seasons.map(season => ({
+      ...season,
+      episodes: season.episodes.map(episode => ({ ...episode })),
+    })),
+  }));
+}
+
 function sortByName(a: CategoryOption, b: CategoryOption) {
   return a.name.localeCompare(b.name, 'pt-BR');
 }
@@ -70,14 +82,32 @@ export function SeriesScreen() {
     let cancelled = false;
 
     async function loadCatalog() {
-      if (!xtreamPlaylist?.url) return;
-      if (remoteSeries.length > 0) return;
+      const playlistUrl = xtreamPlaylist?.url?.trim();
+
+      if (!playlistUrl) return;
+
+      const cached = remoteSeriesScreenCache.get(playlistUrl);
+
+      if (cached && cached.length > 0) {
+        if (!cancelled) {
+          setRemoteSeries(cloneRemoteSeriesItems(cached));
+        }
+
+        return;
+      }
+
+      if (remoteSeries.length > 0) {
+        remoteSeriesScreenCache.set(playlistUrl, cloneRemoteSeriesItems(remoteSeries));
+        return;
+      }
 
       setIsLoadingCatalog(true);
       setSeriesError(null);
 
       try {
-        const loaded = await fetchXtreamSeriesCatalog(xtreamPlaylist.url);
+        const loaded = await fetchXtreamSeriesCatalog(playlistUrl) as XtreamSeries[];
+
+        remoteSeriesScreenCache.set(playlistUrl, cloneRemoteSeriesItems(loaded));
 
         if (!cancelled) {
           setRemoteSeries(loaded);
@@ -98,7 +128,7 @@ export function SeriesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [xtreamPlaylist?.url, remoteSeries.length]);
+  }, [xtreamPlaylist?.url, remoteSeries]);
 
   const allSeries = useMemo<XtreamSeries[]>(() => {
     const map = new Map<string, XtreamSeries>();
@@ -257,9 +287,17 @@ export function SeriesScreen() {
 
       const itemWithSeasons = { ...item, seasons };
 
-      setRemoteSeries(current => current.map(seriesItem =>
-        seriesItem.id === item.id ? itemWithSeasons : seriesItem
-      ));
+      setRemoteSeries(current => {
+        const next = current.map(seriesItem =>
+          seriesItem.id === item.id ? itemWithSeasons : seriesItem
+        );
+
+        if (xtreamPlaylist?.url) {
+          remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(next));
+        }
+
+        return next;
+      });
 
       setSeriesDetail({ item: itemWithSeasons, seasons });
       setSelectedSeasonNumber(seasons[0].number);

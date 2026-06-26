@@ -34,6 +34,28 @@ function isMpegTsUrl(url: string) {
   return /\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url);
 }
 
+function replaceKnownMediaExtension(url: string, extension: string) {
+  return url.replace(/\.(m3u8|ts|m2ts|mpegts)(\?|#|$)/i, `.${extension}$2`);
+}
+
+function buildPlaybackUrlVariants(rawUrl: string) {
+  const url = rawUrl.trim();
+
+  if (!url) return [];
+
+  const variants = [url];
+
+  if (/\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url)) {
+    variants.push(replaceKnownMediaExtension(url, 'm3u8'));
+  }
+
+  if (/\.m3u8(\?|#|$)/i.test(url)) {
+    variants.push(replaceKnownMediaExtension(url, 'ts'));
+  }
+
+  return [...new Set(variants)];
+}
+
 function formatTime(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
     return '00:00';
@@ -87,8 +109,11 @@ export function PlayerScreen() {
     if (!content) return [];
 
     const extraUrls = Array.isArray(content.playbackUrls) ? content.playbackUrls : [];
+    const rawUrls = [content.url, ...extraUrls]
+      .map(url => url?.trim())
+      .filter(Boolean) as string[];
 
-    return [...new Set([content.url, ...extraUrls].map(url => url?.trim()).filter(Boolean))];
+    return [...new Set(rawUrls.flatMap(buildPlaybackUrlVariants))];
   }, [content]);
 
   const streamUrl = playbackCandidates[playbackUrlIndex] || '';
@@ -185,6 +210,66 @@ export function PlayerScreen() {
 
       setError(message);
     };
+
+    const attachDirectNativePlayback = () => {
+      let playRequested = false;
+
+      const requestPlay = () => {
+        if (playRequested) return;
+
+        playRequested = true;
+
+        const playResult = video.play();
+
+        if (playResult?.catch) {
+          playResult.catch(() => {
+            playRequested = false;
+            setShowControls(true);
+          });
+        }
+      };
+
+      const markReady = () => {
+        setReady(true);
+        clearRecoveryTimer();
+        requestPlay();
+      };
+
+      const markError = () => {
+        tryNextPlaybackUrl('Não foi possível reproduzir esta fonte diretamente no aparelho.');
+      };
+
+      video.addEventListener('loadedmetadata', markReady);
+      video.addEventListener('canplay', markReady);
+      video.addEventListener('playing', markReady);
+      video.addEventListener('error', markError);
+
+      video.src = playbackUrl;
+      video.load();
+
+      const playTimer = window.setTimeout(requestPlay, 350);
+
+      return () => {
+        window.clearTimeout(playTimer);
+        clearRecoveryTimer();
+        video.removeEventListener('waiting', scheduleStallRecovery);
+        video.removeEventListener('stalled', scheduleStallRecovery);
+        video.removeEventListener('playing', clearRecoveryTimer);
+        video.removeEventListener('canplay', clearRecoveryTimer);
+        video.removeEventListener('loadedmetadata', markReady);
+        video.removeEventListener('canplay', markReady);
+        video.removeEventListener('playing', markReady);
+        video.removeEventListener('error', markError);
+        hls?.destroy();
+        tsPlayer?.destroy?.();
+        video.removeAttribute('src');
+        video.load();
+      };
+    };
+
+    if (isNativeRuntime()) {
+      return attachDirectNativePlayback();
+    }
 
       if (isMpegTs) {
         let cancelled = false;
