@@ -415,3 +415,6 @@ enabled = true
 
 [functions.playlist-cache]
 verify_jwt = false
+
+[functions.device-config]
+verify_jwt = false
