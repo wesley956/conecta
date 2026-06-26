@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/shared';
 import { AlertTriangle, ArrowLeft, ChevronDown, Maximize, Play as PlayIcon, Pause as PauseIcon, RotateCcw, RotateCw, Tv as TvIcon, Volume2, VolumeX } from 'lucide-react';
 
 const NativeVideoPlayer = registerPlugin<{
-  play(options: { url: string; title?: string }): Promise<{ opened?: boolean }>;
+  play(options: { url: string; urlsJson?: string; title?: string }): Promise<{ opened?: boolean }>;
 }>('NativeVideoPlayer');
 
 function isHttpUrl(url: string) {
@@ -192,6 +192,7 @@ export function PlayerScreen() {
 
     NativeVideoPlayer.play({
       url: streamUrl,
+      urlsJson: JSON.stringify(playbackCandidates),
       title: content?.name || 'RonecaPlayTV',
     }).catch(error => {
       const message = error instanceof Error ? error.message : String(error || '');
