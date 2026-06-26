@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { registerPlugin } from '@capacitor/core';
 import { useAppStore } from '@/stores/appStore';
 import { AppLayout } from '@/components/shared';
 import { AlertTriangle, ArrowLeft, ChevronDown, Maximize, Play as PlayIcon, Pause as PauseIcon, RotateCcw, RotateCw, Tv as TvIcon, Volume2, VolumeX } from 'lucide-react';
-
-const NativeVideoPlayer = registerPlugin<{
-  play(options: { url: string; urlsJson?: string; title?: string }): Promise<{ opened?: boolean }>;
-}>('NativeVideoPlayer');
 
 function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
@@ -121,7 +116,6 @@ export function PlayerScreen() {
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
   const [reloadNonce, setReloadNonce] = useState(0);
   const recoveryAttemptsRef = useRef(0);
-  const nativeLaunchKeyRef = useRef('');
 
   const content = currentMovie || currentChannel;
   const isLive = Boolean(currentChannel && !currentMovie);
@@ -174,36 +168,6 @@ export function PlayerScreen() {
   }, [streamUrl]);
 
   useEffect(() => {
-    if (!isNativeRuntime()) return;
-
-    if (!streamUrl) {
-      setError('Fonte não configurada.');
-      return;
-    }
-
-    const launchKey = `${content?.id ?? 'media'}::${streamUrl}::${reloadNonce}`;
-
-    if (nativeLaunchKeyRef.current === launchKey) return;
-
-    nativeLaunchKeyRef.current = launchKey;
-    setReady(true);
-    setError(null);
-    setShowControls(false);
-
-    NativeVideoPlayer.play({
-      url: streamUrl,
-      urlsJson: JSON.stringify(playbackCandidates),
-      title: content?.name || 'RonecaPlayTV',
-    }).catch(error => {
-      const message = error instanceof Error ? error.message : String(error || '');
-      setShowControls(true);
-      setError(message || 'Não foi possível abrir o player interno do RonecaPlayTV.');
-    });
-  }, [content?.id, content?.name, streamUrl, reloadNonce]);
-
-  useEffect(() => {
-    if (isNativeRuntime()) return;
-
     const video = videoRef.current;
     if (!video) return;
 
@@ -696,7 +660,7 @@ export function PlayerScreen() {
     <AppLayout>
       <div
         ref={playerShellRef}
-        className="relative h-full bg-black"
+        className="roneca-exoplayer-shell relative h-full bg-black"
         onMouseMove={revealControls}
         onPointerDown={revealControls}
         onTouchStart={revealControls}
@@ -705,25 +669,11 @@ export function PlayerScreen() {
       >
         <video
           ref={videoRef}
-          className="h-full w-full bg-black object-contain"
+          className="roneca-exoplayer-video h-full w-full bg-black object-contain"
           autoPlay
           playsInline
           controls={false}
         />
-
-        {isNativeRuntime() && ready && !error && streamUrl && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black">
-            <button
-              onClick={() => {
-                nativeLaunchKeyRef.current = '';
-                setReloadNonce(value => value + 1);
-              }}
-              className="rounded-md bg-white/[0.06] px-8 py-4 text-[clamp(16px,2vw,22px)] font-light text-white/55"
-            >
-              Player interno do RonecaPlayTV
-            </button>
-          </div>
-        )}
 
         {!ready && !error && streamUrl && (
           <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -768,7 +718,7 @@ export function PlayerScreen() {
 
         {!error && streamUrl && (
           <div
-            className={`pointer-events-none absolute inset-0 z-30 flex items-center justify-center transition-opacity ${
+            className={`roneca-exoplayer-center-controls pointer-events-none absolute inset-0 z-30 flex items-center justify-center transition-opacity ${
               showControls ? 'opacity-100' : 'opacity-0'
             }`}
           >
@@ -822,7 +772,7 @@ export function PlayerScreen() {
 
         {(streamUrl || ready || error) && (
           <div
-            className={`player-bottom-panel absolute inset-x-3 bottom-3 z-40 rounded-[28px] border border-white/10 bg-[#020817]/72 px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-5 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl transition-all duration-300 sm:inset-x-6 sm:bottom-6 sm:px-6 md:inset-x-10 md:px-8 ${
+            className={`roneca-exoplayer-bottom player-bottom-panel absolute inset-x-3 bottom-3 z-40 rounded-[18px] border border-white/8 bg-black/58 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-4 shadow-[0_22px_70px_rgba(0,0,0,0.72)] backdrop-blur-xl transition-all duration-300 sm:inset-x-6 sm:bottom-5 sm:px-6 md:inset-x-10 md:px-7 ${
               showControls || error ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
             }`}
             onClick={event => event.stopPropagation()}
@@ -987,7 +937,7 @@ export function PlayerScreen() {
         )}
 
         <div
-          className={`absolute inset-x-0 top-0 bg-gradient-to-b from-black/82 to-transparent px-12 py-8 transition-opacity ${
+          className={`roneca-exoplayer-top absolute inset-x-0 top-0 bg-gradient-to-b from-black/78 via-black/28 to-transparent px-10 py-7 transition-opacity ${
             showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
         >
@@ -995,7 +945,7 @@ export function PlayerScreen() {
             <div className="flex items-center gap-7">
               <button
                 onClick={goBack}
-                className="player-back-button text-7xl font-light leading-none text-white/76 hover:text-white"
+                className="roneca-exoplayer-back player-back-button rounded-full bg-black/22 p-3 text-7xl font-light leading-none text-white/76 backdrop-blur hover:bg-white/10 hover:text-white"
               >
                 <ArrowLeft aria-hidden="true" size={44} strokeWidth={2.2} />
               </button>
@@ -1013,7 +963,7 @@ export function PlayerScreen() {
             {isLive && (
               <button
                 onClick={() => setShowList(current => !current)}
-                className="rounded-md bg-white/[0.055] px-7 py-3 text-2xl font-light text-white/75 hover:bg-[#2396f2] hover:text-white"
+                className="rounded-full bg-black/28 px-6 py-2.5 text-xl font-light text-white/78 backdrop-blur hover:bg-white/12 hover:text-white"
               >
                 Lista
               </button>
