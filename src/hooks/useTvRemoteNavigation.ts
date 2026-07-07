@@ -141,6 +141,8 @@ export function useTvRemoteNavigation() {
 
       if (isTypingElement(active)) return;
 
+      if (currentScreen === 'player') return;
+
       const directions: Record<string, 'up' | 'down' | 'left' | 'right'> = {
         ArrowUp: 'up',
         ArrowDown: 'down',

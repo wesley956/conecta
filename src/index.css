@@ -2389,3 +2389,197 @@ textarea:focus-visible,
     height: clamp(68px, 10vw, 98px) !important;
   }
 }
+
+
+/* ===== Roneca TV UX fixes: menu recolhido, detalhe e player ===== */
+
+.roneca-side-menu {
+  width: 96px !important;
+  overflow: hidden !important;
+  transition: width 180ms ease, box-shadow 180ms ease;
+}
+
+.roneca-side-logo {
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.roneca-side-logo-text {
+  display: none !important;
+}
+
+.roneca-side-button {
+  justify-content: center !important;
+  gap: 0 !important;
+  padding: 0.75rem 0 !important;
+}
+
+.roneca-side-label {
+  display: none !important;
+}
+
+.roneca-side-icon {
+  height: 44px !important;
+  width: 44px !important;
+  flex-basis: 44px !important;
+  background: transparent !important;
+}
+
+.roneca-page,
+.clean-tv-page {
+  padding-left: 118px !important;
+}
+
+.clean-tv-categories {
+  max-width: 300px;
+}
+
+.tv-focusable:focus-visible {
+  outline: none !important;
+  border-color: rgba(255, 255, 255, 0.92) !important;
+  box-shadow:
+    0 0 0 3px rgba(56, 189, 248, 0.42),
+    0 0 34px rgba(56, 189, 248, 0.34) !important;
+  transform: scale(1.018);
+}
+
+.roneca-detail-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--roneca-detail-bg);
+  background-position: center;
+  background-size: cover;
+  opacity: 0.36;
+  filter: blur(2px) saturate(1.05);
+  transform: scale(1.03);
+}
+
+.roneca-detail-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(2, 6, 23, 0.98) 0%, rgba(2, 6, 23, 0.78) 44%, rgba(2, 6, 23, 0.42) 100%),
+    linear-gradient(0deg, rgba(2, 6, 23, 0.98) 0%, rgba(2, 6, 23, 0.42) 42%, rgba(2, 6, 23, 0.86) 100%);
+}
+
+.roneca-detail-panel {
+  z-index: 1;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.roneca-detail-panel > .flex {
+  height: 100%;
+  padding: clamp(1.4rem, 4vw, 4rem) clamp(1.2rem, 5vw, 5.2rem);
+  gap: clamp(1.5rem, 4vw, 4.5rem);
+  align-items: center;
+}
+
+.roneca-detail-poster {
+  width: min(31vw, 340px) !important;
+  height: min(78vh, 560px) !important;
+  border-radius: 1.35rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.56);
+}
+
+.roneca-detail-poster img {
+  object-fit: cover !important;
+}
+
+.roneca-detail-content {
+  max-width: min(58vw, 900px);
+  justify-content: center;
+}
+
+.roneca-detail-content h2 {
+  font-size: clamp(2.8rem, 5.8vw, 5.8rem) !important;
+  line-height: 0.95 !important;
+  font-weight: 300 !important;
+  letter-spacing: -0.045em;
+  text-shadow: 0 14px 60px rgba(0, 0, 0, 0.72);
+}
+
+.roneca-detail-content p {
+  text-shadow: 0 10px 42px rgba(0, 0, 0, 0.58);
+}
+
+.roneca-detail-content button {
+  min-height: 48px;
+}
+
+.roneca-detail-content .rounded-full.bg-sky-400,
+.roneca-detail-content button.bg-sky-400 {
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #111827 !important;
+}
+
+.roneca-detail-content .grid button,
+.roneca-detail-content button.rounded-xl {
+  border-radius: 0.42rem !important;
+}
+
+.roneca-exoplayer-shell {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+}
+
+.roneca-exoplayer-video {
+  background: #000 !important;
+}
+
+.roneca-exoplayer-top {
+  z-index: 60 !important;
+}
+
+.roneca-exoplayer-back {
+  min-width: 72px;
+  min-height: 72px;
+}
+
+.player-bottom-panel {
+  background: linear-gradient(180deg, rgba(6, 10, 18, 0.46), rgba(6, 10, 18, 0.82)) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.player-progress {
+  background:
+    linear-gradient(90deg, rgba(35,150,242,0.95), rgba(84,196,255,0.95)) 0 / var(--player-progress-value, var(--progress-fill, 50%)) 100% no-repeat,
+    rgba(255,255,255,0.18) !important;
+}
+
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .roneca-side-menu {
+    width: 82px !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 96px !important;
+  }
+
+  .roneca-detail-panel > .flex {
+    padding: 1rem 1.25rem;
+    gap: 1rem;
+  }
+
+  .roneca-detail-poster {
+    width: min(34vw, 250px) !important;
+    height: min(72vh, 420px) !important;
+  }
+
+  .roneca-detail-content {
+    max-width: none;
+  }
+
+  .roneca-detail-content h2 {
+    font-size: clamp(2.1rem, 6vw, 4.2rem) !important;
+  }
+}
+

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
@@ -148,9 +148,12 @@ function ContentCacheHydrator() {
   return null;
 }
 
+const RONECA_PANEL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+
 // ===== DEVICE PANEL AUTO SYNC =====
 function DevicePanelSync() {
   const syncingRef = useRef(false);
+  const lastPanelSyncAtRef = useRef(0);
   const deviceCode = useAppStore(state => state.deviceCode);
   const currentScreen = useAppStore(state => state.currentScreen);
   const setScreen = useAppStore(state => state.setScreen);
@@ -162,6 +165,16 @@ function DevicePanelSync() {
     if (!isDevicePanelEnabled()) return;
     if (currentScreen === 'player') return;
     if (syncingRef.current) return;
+
+    const gateScreens: AppState[] = ['splash', 'activation', 'blocked', 'expired', 'nointernet'];
+    const shouldBypassCooldown = gateScreens.includes(currentScreen);
+    const now = Date.now();
+
+    if (!shouldBypassCooldown && now - lastPanelSyncAtRef.current < RONECA_PANEL_SYNC_COOLDOWN_MS) {
+      return;
+    }
+
+    lastPanelSyncAtRef.current = now;
 
     let cancelled = false;
 
@@ -455,39 +468,6 @@ function DevicePanelSync() {
 export default function App() {
   useTvRemoteNavigation();
   const { currentScreen } = useAppStore();
-
-    // Keyboard navigation for TV remote control
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const { setScreen, currentScreen: screen } = useAppStore.getState();
-    
-    // Global back navigation
-    if (e.key === 'Escape' || (e.key === 'Backspace' && screen !== 'splash' && screen !== 'home')) {
-      if (screen === 'player') {
-        setScreen('home');
-      }
-    }
-
-    // Quick access keys
-    if (e.ctrlKey || e.metaKey) return;
-    
-    // Number keys for quick navigation on home
-    if (screen === 'home') {
-      switch (e.key) {
-        case '1': setScreen('channels'); break;
-        case '2': setScreen('movies'); break;
-        case '3': setScreen('series'); break;
-        case '4': setScreen('favorites'); break;
-        case '5': setScreen('settings'); break;
-        case '6': setScreen('settings'); break;
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
-
   // Detect UI mode changes based on window size
   useEffect(() => {
     const handleResize = () => {

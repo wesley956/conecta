@@ -229,13 +229,17 @@ export function MoviesScreen() {
         </main>
 
         {selectedMovie && (
-          <div className="fixed inset-0 z-[120] bg-black/72 backdrop-blur-md" onClick={() => setSelectedMovie(null)}>
+          <div
+            className="roneca-detail-backdrop fixed inset-0 z-[120] overflow-hidden bg-black"
+            style={{ '--roneca-detail-bg': selectedMovie.cover ? `url(${selectedMovie.cover})` : 'none' } as any}
+            onClick={() => setSelectedMovie(null)}
+          >
             <div
-              className="absolute inset-x-4 bottom-4 top-4 overflow-hidden rounded-3xl border border-white/10 bg-[#06111f]/95 shadow-2xl md:inset-x-10"
+              className="roneca-detail-panel absolute inset-0 overflow-hidden"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex h-full min-h-0 flex-col md:flex-row">
-                <div className="relative h-52 shrink-0 bg-black/30 md:h-full md:w-[34%]">
+                <div className="roneca-detail-poster relative h-52 shrink-0 bg-black/30 md:h-full md:w-[34%]">
                   {selectedMovie.cover ? (
                     <img
                       src={selectedMovie.cover}
@@ -251,7 +255,7 @@ export function MoviesScreen() {
                   <div className="absolute inset-0 bg-gradient-to-t from-[#06111f] via-transparent to-transparent md:bg-gradient-to-r" />
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col p-5 md:p-7">
+                <div className="roneca-detail-content flex min-h-0 flex-1 flex-col p-5 md:p-7">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-sm font-bold uppercase tracking-[0.24em] text-sky-300/80">Filme</p>

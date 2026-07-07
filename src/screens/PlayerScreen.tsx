@@ -43,14 +43,16 @@ function buildPlaybackUrlVariants(rawUrl: string) {
 
   if (!url) return [];
 
-  const variants = [url];
+  const variants: string[] = [];
 
+  // Em muitas listas Xtream, a mesma fonte existe em .ts e .m3u8.
+  // TV Box costuma travar menos em HLS, então tentamos .m3u8 primeiro.
   if (/\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url)) {
-    variants.push(replaceKnownMediaExtension(url, 'm3u8'));
-  }
-
-  if (/\.m3u8(\?|#|$)/i.test(url)) {
-    variants.push(replaceKnownMediaExtension(url, 'ts'));
+    variants.push(replaceKnownMediaExtension(url, 'm3u8'), url);
+  } else if (/\.m3u8(\?|#|$)/i.test(url)) {
+    variants.push(url, replaceKnownMediaExtension(url, 'ts'));
+  } else {
+    variants.push(url);
   }
 
   return [...new Set(variants)];
@@ -284,13 +286,13 @@ export function PlayerScreen() {
               {
                 enableWorker: !isNativeRuntime(),
                 liveBufferLatencyChasing: true,
-                enableStashBuffer: true,
+                enableStashBuffer: !isLive,
                 lazyLoad: false,
-                liveBufferLatencyMaxLatency: isLive ? 8 : 5,
-                stashInitialSize: isLive ? 1024 * 1024 : 512 * 1024,
+                liveBufferLatencyMaxLatency: isLive ? 5 : 5,
+                stashInitialSize: isLive ? 384 * 1024 : 512 * 1024,
                 autoCleanupSourceBuffer: true,
-                autoCleanupMaxBackwardDuration: 12,
-                autoCleanupMinBackwardDuration: 6,
+                autoCleanupMaxBackwardDuration: 8,
+                autoCleanupMinBackwardDuration: 4,
               }
             );
 
@@ -375,11 +377,11 @@ export function PlayerScreen() {
           hls = new Hls({
             enableWorker: !isNativeRuntime(),
             lowLatencyMode: false,
-            backBufferLength: isLive ? 15 : 30,
-            maxBufferLength: isLive ? 35 : 45,
-            maxMaxBufferLength: isLive ? 70 : 90,
-            maxBufferSize: 60 * 1000 * 1000,
-            maxBufferHole: 0.5,
+            backBufferLength: isLive ? 6 : 18,
+            maxBufferLength: isLive ? 14 : 28,
+            maxMaxBufferLength: isLive ? 28 : 56,
+            maxBufferSize: 30 * 1000 * 1000,
+            maxBufferHole: 0.4,
             manifestLoadingMaxRetry: 4,
             manifestLoadingRetryDelay: 1000,
             levelLoadingMaxRetry: 4,
@@ -521,21 +523,16 @@ export function PlayerScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!content?.id) return;
+  const goBack = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined);
+    }
 
-    const autoFullscreenTimer = window.setTimeout(() => {
-      const container = playerShellRef.current || videoRef.current?.parentElement;
-
-      if (!container || document.fullscreenElement) return;
-
-      container.requestFullscreen?.().catch(() => undefined);
-    }, 180);
-
-    return () => window.clearTimeout(autoFullscreenTimer);
-  }, [content?.id]);
-
-  const goBack = () => setScreen(isLive ? 'channels' : currentSeries ? 'series' : 'movies');
+    setShowControls(true);
+    setShowSettings(false);
+    setShowList(false);
+    setScreen(isLive ? 'channels' : currentSeries ? 'series' : 'movies');
+  }, [currentSeries, isLive, setScreen]);
 
   const seriesEpisodes = useMemo(() => {
     const seasons = (currentSeries as any)?.seasons;
@@ -659,6 +656,77 @@ export function PlayerScreen() {
     setShowControls(true);
   };
 
+  useEffect(() => {
+    const handlePlayerKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const stop = () => {
+        event.preventDefault();
+        event.stopPropagation();
+        (event as any).stopImmediatePropagation?.();
+      };
+
+      if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack') {
+        stop();
+        goBack();
+        return;
+      }
+
+      if (event.key === 'Enter' || event.key === 'NumpadEnter' || event.key === ' ') {
+        stop();
+
+        if (!showControls) {
+          setShowControls(true);
+          return;
+        }
+
+        togglePlayPause();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        stop();
+        setShowControls(true);
+
+        if (!isLive) {
+          seekBy(-10);
+        }
+
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        stop();
+        setShowControls(true);
+
+        if (!isLive) {
+          seekBy(10);
+        }
+
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        stop();
+        setShowControls(true);
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        stop();
+        setShowSettings(false);
+        setShowControls(current => !current);
+      }
+    };
+
+    // controle remoto exclusivo do player
+    window.addEventListener('keydown', handlePlayerKeyDown, true);
+
+    return () => {
+      window.removeEventListener('keydown', handlePlayerKeyDown, true);
+    };
+  }, [goBack, isLive, showControls, duration]);
+
   return (
     <AppLayout>
       <div
@@ -701,7 +769,7 @@ export function PlayerScreen() {
                       setPlaybackUrlIndex(index => index + 1);
                       setError(null);
                     } else {
-                      window.location.reload();
+                      recoverPlayback();
                     }
                   }}
                   className="flex-1 rounded-md bg-[#2396f2] px-8 py-4 text-[clamp(16px,2vw,22px)] font-light text-white"
