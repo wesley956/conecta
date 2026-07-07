@@ -1,6 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,21 +9,130 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, 'dist');
 const PORT = Number(process.env.PORT || 4173);
 const MAX_REDIRECTS = 6;
+const ALLOWED_PROXY_HOSTS = String(process.env.RONECA_PROXY_ALLOWED_HOSTS || '')
+  .split(',')
+  .map(value => value.trim().toLowerCase())
+  .filter(Boolean);
+const ALLOW_PRIVATE_PROXY = /^(1|true|yes|sim)$/i.test(String(process.env.RONECA_ALLOW_PRIVATE_PROXY || ''));
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(value || '');
 }
 
-function send(res, status, body, headers = {}) {
-  res.writeHead(status, {
+function setProxyHeaders(res, extraHeaders = {}) {
+  res.writeHead(extraHeaders.statusCode || res.statusCode || 200, {
     'cache-control': 'no-store',
     'access-control-allow-origin': '*',
-    ...headers,
+    'access-control-allow-methods': 'GET,HEAD,OPTIONS',
+    'access-control-allow-headers': 'range,content-type,accept,referer',
+    ...extraHeaders.headers,
   });
+}
+
+function send(res, status, body, headers = {}) {
+  res.statusCode = status;
+  setProxyHeaders(res, { statusCode: status, headers });
   res.end(body);
 }
 
-function pipeProxy(target, req, res, redirectsLeft = MAX_REDIRECTS) {
+function isPrivateIp(hostname) {
+  const ipType = net.isIP(hostname);
+
+  if (!ipType) return false;
+
+  if (ipType === 4) {
+    const parts = hostname.split('.').map(Number);
+    const [a, b] = parts;
+
+    return (
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a === 0
+    );
+  }
+
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:')
+  );
+}
+
+function isPrivateHostname(hostname) {
+  const normalized = hostname.toLowerCase();
+
+  return (
+    normalized === 'localhost' ||
+    normalized.endsWith('.localhost') ||
+    normalized.endsWith('.local') ||
+    isPrivateIp(normalized)
+  );
+}
+
+function assertProxyTargetAllowed(targetUrl) {
+  const hostname = targetUrl.hostname.toLowerCase();
+
+  if (ALLOWED_PROXY_HOSTS.length > 0 && !ALLOWED_PROXY_HOSTS.includes(hostname)) {
+    throw new Error(`Host não permitido no proxy: ${hostname}. Configure RONECA_PROXY_ALLOWED_HOSTS.`);
+  }
+
+  if (!ALLOW_PRIVATE_PROXY && isPrivateHostname(hostname)) {
+    throw new Error('URL privada/local bloqueada pelo proxy. Use RONECA_ALLOW_PRIVATE_PROXY=true apenas em ambiente controlado.');
+  }
+}
+
+function toAbsoluteMediaUrl(value, baseUrl) {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
+function rewriteHLSManifest(content, baseUrl) {
+  return content
+    .split(/\r?\n/)
+    .map(line => {
+      const trimmed = line.trim();
+
+      if (!trimmed || trimmed.startsWith('#')) {
+        if (trimmed.startsWith('#EXT-X-KEY') && trimmed.includes('URI="')) {
+          return line.replace(/URI="([^"]+)"/g, (_, uri) => {
+            const absolute = toAbsoluteMediaUrl(uri, baseUrl);
+            return `URI="/api/media-proxy?url=${encodeURIComponent(absolute)}"`;
+          });
+        }
+
+        return line;
+      }
+
+      const absolute = toAbsoluteMediaUrl(trimmed, baseUrl);
+      return `/api/media-proxy?url=${encodeURIComponent(absolute)}`;
+    })
+    .join('\n');
+}
+
+function shouldRewriteAsHLS(targetUrl, contentType) {
+  return (
+    /\.m3u8(\?|#|$)/i.test(targetUrl.pathname) ||
+    contentType.includes('mpegurl') ||
+    contentType.includes('application/vnd.apple')
+  );
+}
+
+function pipeProxy(target, req, res, options = {}, redirectsLeft = MAX_REDIRECTS) {
+  const { rewriteHls = true } = options;
+
+  if (req.method === 'OPTIONS') {
+    send(res, 204, '');
+    return;
+  }
+
   if (!isHttpUrl(target)) {
     send(res, 400, 'URL inválida.');
     return;
@@ -32,8 +142,9 @@ function pipeProxy(target, req, res, redirectsLeft = MAX_REDIRECTS) {
 
   try {
     targetUrl = new URL(target);
-  } catch {
-    send(res, 400, 'URL inválida.');
+    assertProxyTargetAllowed(targetUrl);
+  } catch (error) {
+    send(res, 403, error instanceof Error ? error.message : 'URL bloqueada.');
     return;
   }
 
@@ -58,21 +169,56 @@ function pipeProxy(target, req, res, redirectsLeft = MAX_REDIRECTS) {
       if ([301, 302, 303, 307, 308].includes(status) && location && redirectsLeft > 0) {
         upstream.resume();
         const nextUrl = new URL(location, targetUrl).toString();
-        pipeProxy(nextUrl, req, res, redirectsLeft - 1);
+        pipeProxy(nextUrl, req, res, options, redirectsLeft - 1);
         return;
       }
 
-      const contentType =
+      const contentType = String(
         upstream.headers['content-type'] ||
-        (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream');
+        (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream')
+      );
 
-      res.writeHead(status, {
-        'content-type': String(contentType),
-        'cache-control': 'no-store',
-        'access-control-allow-origin': '*',
-        ...(upstream.headers['content-length'] ? { 'content-length': String(upstream.headers['content-length']) } : {}),
-        ...(upstream.headers['accept-ranges'] ? { 'accept-ranges': String(upstream.headers['accept-ranges']) } : {}),
-        ...(upstream.headers['content-range'] ? { 'content-range': String(upstream.headers['content-range']) } : {}),
+      if (rewriteHls && shouldRewriteAsHLS(targetUrl, contentType)) {
+        const chunks = [];
+
+        upstream.on('data', chunk => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+
+        upstream.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf-8');
+          const rewritten = rewriteHLSManifest(raw, targetUrl);
+
+          res.statusCode = status;
+          setProxyHeaders(res, {
+            statusCode: status,
+            headers: {
+              'content-type': 'application/vnd.apple.mpegurl; charset=utf-8',
+            },
+          });
+          res.end(rewritten);
+        });
+
+        upstream.on('error', error => {
+          if (!res.headersSent) {
+            send(res, 502, error instanceof Error ? error.message : 'Falha ao ler HLS.');
+          } else {
+            res.destroy();
+          }
+        });
+
+        return;
+      }
+
+      res.statusCode = status;
+      setProxyHeaders(res, {
+        statusCode: status,
+        headers: {
+          'content-type': contentType,
+          ...(upstream.headers['content-length'] ? { 'content-length': String(upstream.headers['content-length']) } : {}),
+          ...(upstream.headers['accept-ranges'] ? { 'accept-ranges': String(upstream.headers['accept-ranges']) } : {}),
+          ...(upstream.headers['content-range'] ? { 'content-range': String(upstream.headers['content-range']) } : {}),
+        },
       });
 
       upstream.pipe(res);
@@ -123,12 +269,12 @@ const server = http.createServer((req, res) => {
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
   if (requestUrl.pathname === '/api/media-proxy' || requestUrl.pathname === '/api/dev-media-proxy') {
-    pipeProxy(requestUrl.searchParams.get('url') || '', req, res);
+    pipeProxy(requestUrl.searchParams.get('url') || '', req, res, { rewriteHls: true });
     return;
   }
 
   if (requestUrl.pathname === '/api/m3u-proxy' || requestUrl.pathname === '/api/dev-m3u-proxy') {
-    pipeProxy(requestUrl.searchParams.get('url') || '', req, res);
+    pipeProxy(requestUrl.searchParams.get('url') || '', req, res, { rewriteHls: false });
     return;
   }
 

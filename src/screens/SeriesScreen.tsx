@@ -25,6 +25,36 @@ type XtreamSeries = Series & {
 
 const remoteSeriesScreenCache = new Map<string, XtreamSeries[]>();
 
+const REMOTE_SERIES_FAVORITES_KEY = 'roneca:series:remoteFavorites';
+
+function readRemoteSeriesFavoriteIds() {
+  try {
+    const raw = window.localStorage.getItem(REMOTE_SERIES_FAVORITES_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRemoteSeriesFavoriteIds(ids: string[]) {
+  try {
+    window.localStorage.setItem(REMOTE_SERIES_FAVORITES_KEY, JSON.stringify([...new Set(ids)]));
+  } catch {
+    // favoritos remotos são melhoria de UX; se falhar, o app continua.
+  }
+}
+
+function withRemoteFavoriteState(items: XtreamSeries[], favoriteIds: string[]) {
+  const favoriteSet = new Set(favoriteIds);
+
+  return items.map(item => ({
+    ...item,
+    isFavorite: favoriteSet.has(item.id) || Boolean(item.isFavorite),
+  }));
+}
+
+
 function cloneRemoteSeriesItems(items: XtreamSeries[]) {
   return items.map(item => ({
     ...item,
@@ -71,8 +101,9 @@ export function SeriesScreen() {
   const [remoteSeries, setRemoteSeries] = useState<XtreamSeries[]>(() => {
     const playlist = playlists.find(item => canLoadXtreamSeriesFromPlaylist(item.url));
     const cached = getCachedXtreamSeriesCatalog(playlist?.url) as XtreamSeries[] | null;
-    return cached ? cloneRemoteSeriesItems(cached) : [];
+    return withRemoteFavoriteState(cached ? cloneRemoteSeriesItems(cached) : [], readRemoteSeriesFavoriteIds());
   });
+  const [remoteFavoriteIds, setRemoteFavoriteIds] = useState<string[]>(() => readRemoteSeriesFavoriteIds());
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
   const [loadingSeriesId, setLoadingSeriesId] = useState<string | null>(null);
   const [seriesError, setSeriesError] = useState<string | null>(null);
@@ -97,7 +128,7 @@ export function SeriesScreen() {
 
       if (cached && cached.length > 0) {
         if (!cancelled) {
-          setRemoteSeries(cloneRemoteSeriesItems(cached));
+          setRemoteSeries(withRemoteFavoriteState(cloneRemoteSeriesItems(cached), remoteFavoriteIds));
           setIsLoadingCatalog(false);
         }
 
@@ -113,7 +144,7 @@ export function SeriesScreen() {
         remoteSeriesScreenCache.set(playlistUrl, cloneRemoteSeriesItems(loaded));
 
         if (!cancelled) {
-          setRemoteSeries(loaded);
+          setRemoteSeries(withRemoteFavoriteState(loaded, remoteFavoriteIds));
         }
       } catch (error) {
         if (!cancelled) {
@@ -131,7 +162,7 @@ export function SeriesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [xtreamPlaylist?.url]);
+  }, [xtreamPlaylist?.url, remoteFavoriteIds]);
 
   const allSeries = useMemo<XtreamSeries[]>(() => {
     const map = new Map<string, XtreamSeries>();
@@ -236,6 +267,49 @@ export function SeriesScreen() {
 
   const canLoadMore = visibleSeries.length < filteredSeries.length;
   const selectedLabel = categoryOptions.find(category => category.id === selectedCategory)?.name ?? 'Séries';
+
+  const toggleFavoriteSeries = (item: XtreamSeries) => {
+    const existsInLocalStore = series.some(seriesItem => seriesItem.id === item.id);
+
+    if (existsInLocalStore) {
+      toggleSeriesFavorite(item.id);
+      return;
+    }
+
+    setRemoteFavoriteIds(current => {
+      const isFavorite = current.includes(item.id);
+      const next = isFavorite
+        ? current.filter(id => id !== item.id)
+        : [...current, item.id];
+
+      writeRemoteSeriesFavoriteIds(next);
+
+      setRemoteSeries(currentRemote => {
+        const updated = withRemoteFavoriteState(currentRemote, next);
+
+        if (xtreamPlaylist?.url) {
+          remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(updated));
+        }
+
+        return updated;
+      });
+
+      setSeriesDetail(currentDetail => {
+        if (!currentDetail || currentDetail.item.id !== item.id) return currentDetail;
+
+        return {
+          ...currentDetail,
+          item: {
+            ...currentDetail.item,
+            isFavorite: !isFavorite,
+          },
+        };
+      });
+
+      return next;
+    });
+  };
+
 
   // Toca um episódio específico (chamado a partir do seletor de
   // temporada/episódio, nunca mais "no escuro" direto do card da série).
@@ -414,7 +488,7 @@ export function SeriesScreen() {
               {visibleSeries.map(item => (
                 <button
                   key={item.id}
-                  onPointerDown={() => seriesFavoriteHold.start(() => toggleSeriesFavorite(item.id))}
+                  onPointerDown={() => seriesFavoriteHold.start(() => toggleFavoriteSeries(item))}
                   onPointerUp={() => seriesFavoriteHold.cancel()}
                   onPointerLeave={() => seriesFavoriteHold.cancel()}
                   onPointerCancel={() => seriesFavoriteHold.cancel()}

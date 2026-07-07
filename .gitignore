@@ -7,18 +7,18 @@ dist/
 *.log
 
 # Android/Capacitor
-android/
-
-# Arquivos temporários de fusão
-_imports/
-_backup_conecta_before_fusion/
-*.zip
-
-# Local Android/Codespaces
+# A pasta android/ pode ser versionada quando você quiser preservar ajustes nativos
+# como permissões, ícones, splash, assinatura e configurações Gradle.
 android/local.properties
 android/.gradle/
 android/build/
 android/app/build/
 *.apk
+*.aab
+
+# Arquivos temporários de fusão
+_imports/
+_backup_conecta_before_fusion/
+*.zip
 
 .admin-token-local.txt
