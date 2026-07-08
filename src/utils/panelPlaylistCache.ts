@@ -45,10 +45,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
-function asArray<T>(value: unknown): T[] {
-  return Array.isArray(value) ? value as T[] : [];
-}
-
 function pickArray<T>(payload: unknown, keys: string[]): T[] {
   if (Array.isArray(payload)) return payload as T[];
 
