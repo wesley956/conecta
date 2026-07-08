@@ -4,7 +4,6 @@ import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
-import { canUsePanelCacheParts, fetchPanelPlaylistCache, fetchPanelPlaylistCacheParts } from '@/utils/panelPlaylistCache';
 import { canLoadXtreamSeriesFromPlaylist, prewarmXtreamSeriesCatalog } from '@/utils/xtreamSeries';
 import type { AppState } from '@/types';
 
@@ -19,8 +18,6 @@ import { PlayerScreen } from '@/screens/PlayerScreen';
 import { FavoritesScreen, SearchScreen } from '@/screens/FavoritesSearchScreen';
 import { SettingsScreen } from '@/screens/PlaylistsSettingsScreen';
 import { ExpiredScreen, BlockedScreen, NoInternetScreen } from '@/screens/ErrorScreens';
-
-// Admin
 
 // ===== SCREEN ROUTER =====
 function AppScreen({ screen }: { screen: AppState }) {
@@ -41,12 +38,6 @@ function AppScreen({ screen }: { screen: AppState }) {
     default: return <HomeScreen />;
   }
 }
-
-// ===== ADMIN PANEL =====
-
-
-
-
 
 function buildContentCacheSignature() {
   const state = useAppStore.getState();
@@ -149,6 +140,24 @@ function ContentCacheHydrator() {
 }
 
 const RONECA_PANEL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const RONECA_PANEL_FORCE_SYNC_KEY = 'ronecaplaytv-force-panel-sync';
+const RONECA_DIRECT_SYNC_VERSION = 'direct-playlist-v2';
+
+function hasForcedPanelSync() {
+  try {
+    return Boolean(localStorage.getItem(RONECA_PANEL_FORCE_SYNC_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function clearForcedPanelSync() {
+  try {
+    localStorage.removeItem(RONECA_PANEL_FORCE_SYNC_KEY);
+  } catch {
+    // ignora falha de storage
+  }
+}
 
 // ===== DEVICE PANEL AUTO SYNC =====
 function DevicePanelSync() {
@@ -166,8 +175,9 @@ function DevicePanelSync() {
     if (currentScreen === 'player') return;
     if (syncingRef.current) return;
 
+    const forceSyncRequested = hasForcedPanelSync();
     const gateScreens: AppState[] = ['splash', 'activation', 'blocked', 'expired', 'nointernet'];
-    const shouldBypassCooldown = gateScreens.includes(currentScreen);
+    const shouldBypassCooldown = forceSyncRequested || gateScreens.includes(currentScreen);
     const now = Date.now();
 
     if (!shouldBypassCooldown && now - lastPanelSyncAtRef.current < RONECA_PANEL_SYNC_COOLDOWN_MS) {
@@ -218,9 +228,9 @@ function DevicePanelSync() {
           setSubscription(days > 0, config.expiresAt, days);
         }
 
-        const currentScreen = useAppStore.getState().currentScreen;
+        const activeScreen = useAppStore.getState().currentScreen;
 
-        if (['splash', 'activation', 'blocked', 'expired', 'nointernet'].includes(currentScreen)) {
+        if (['splash', 'activation', 'blocked', 'expired', 'nointernet'].includes(activeScreen)) {
           setScreen('home');
         }
 
@@ -234,15 +244,20 @@ function DevicePanelSync() {
         const playlistName = String(config.playlistName || config.clientName || 'Lista do painel');
         const playlistUpdatedAt = String(config.playlistUpdatedAt || '');
         const panelMarkerKey = `ronecaplaytv-panel-sync-${activeDeviceCode}`;
-        const panelMarkerValue = String(config.cacheVersion || playlistUpdatedAt || playlistUrl);
+        const panelMarkerValue = [
+          RONECA_DIRECT_SYNC_VERSION,
+          String(config.cacheVersion || ''),
+          playlistUpdatedAt,
+          playlistUrl,
+        ].join('|');
 
         const state = useAppStore.getState();
         const existingPlaylist = state.playlists.find(playlist => playlist.url === playlistUrl);
         const hasContentInMemory = state.channels.length > 0 || state.movies.length > 0 || state.series.length > 0;
         const lastPanelUpdate = localStorage.getItem(panelMarkerKey) || '';
 
-        const panelChanged = Boolean(playlistUpdatedAt && playlistUpdatedAt !== lastPanelUpdate);
-        const shouldSync = !existingPlaylist || !hasContentInMemory || panelChanged;
+        const panelChanged = Boolean(panelMarkerValue && panelMarkerValue !== lastPanelUpdate);
+        const shouldSync = forceSyncRequested || !existingPlaylist || !hasContentInMemory || panelChanged;
 
         if (!shouldSync) {
           setActiveNotice(null);
@@ -259,19 +274,18 @@ function DevicePanelSync() {
           (cachedSnapshot?.series.length ?? 0);
 
         const cachedPlaylist = cachedSnapshot?.playlists.find(playlist => playlist.url === playlistUrl);
-        const canUseCache =
+        const canUseLocalCache =
+          !forceSyncRequested &&
           Boolean(cachedSnapshot && cachedPlaylist && cachedTotal > 0) &&
-          (!panelChanged || !playlistUpdatedAt);
+          lastPanelUpdate === panelMarkerValue;
 
-        if (canUseCache && cachedSnapshot) {
+        if (canUseLocalCache && cachedSnapshot) {
           useAppStore.getState().hydrateContentCache({
             channels: cachedSnapshot.channels,
             movies: cachedSnapshot.movies,
             series: cachedSnapshot.series,
             playlists: cachedSnapshot.playlists,
           });
-
-          localStorage.setItem(panelMarkerKey, panelMarkerValue);
 
           setActiveNotice(
             `⚡ Lista aberta do cache local: ${cachedSnapshot.channels.length} canal(is), ` +
@@ -281,128 +295,15 @@ function DevicePanelSync() {
           return;
         }
 
-        if (canUsePanelCacheParts(config.cacheParts)) {
-          setActiveNotice('⚡ Abrindo canais do painel...');
+        const cacheStatus = String(config.cacheStatus || '').trim();
 
-          try {
-            const panelCache = await fetchPanelPlaylistCacheParts(config.cacheParts!, {
-              onChannels: ({ channels, playlists }) => {
-                if (cancelled) return;
-
-                useAppStore.getState().hydrateContentCache({
-                  channels,
-                  movies: [],
-                  series: [],
-                  playlists,
-                });
-
-                setActiveNotice(`✅ Canais prontos: ${channels.length}. Carregando filmes...`);
-              },
-              onMovies: ({ movies }) => {
-                if (cancelled) return;
-
-                const currentState = useAppStore.getState();
-
-                useAppStore.getState().hydrateContentCache({
-                  channels: currentState.channels,
-                  movies,
-                  series: currentState.series,
-                  playlists: currentState.playlists,
-                });
-
-                setActiveNotice(`✅ Filmes prontos: ${movies.length}. Carregando séries...`);
-              },
-              onSeries: ({ series }) => {
-                if (cancelled) return;
-
-                const currentState = useAppStore.getState();
-
-                useAppStore.getState().hydrateContentCache({
-                  channels: currentState.channels,
-                  movies: currentState.movies,
-                  series,
-                  playlists: currentState.playlists,
-                });
-              },
-            });
-
-            if (cancelled) return;
-
-            useAppStore.getState().hydrateContentCache({
-              channels: panelCache.channels,
-              movies: panelCache.movies,
-              series: panelCache.series,
-              playlists: panelCache.playlists ?? [],
-            });
-
-            const afterPanelCache = useAppStore.getState();
-
-            await saveContentCache({
-              channels: afterPanelCache.channels,
-              movies: afterPanelCache.movies,
-              series: afterPanelCache.series,
-              playlists: afterPanelCache.playlists,
-            });
-
-            localStorage.setItem(panelMarkerKey, panelMarkerValue);
-
-            setActiveNotice(
-              `✅ Cache rápido do painel: ${panelCache.channels.length} canal(is), ` +
-              `${panelCache.movies.length} filme(s) e ${panelCache.series.length} série(s).`
-            );
-
-            return;
-          } catch (cachePartsError) {
-            setActiveNotice(
-              `⚠️ Cache em partes indisponível. Tentando snapshot completo. ` +
-              `${cachePartsError instanceof Error ? cachePartsError.message : ''}`
-            );
-          }
+        if (cacheStatus) {
+          setActiveNotice(
+            `🔄 Cache do painel: ${cacheStatus}. Baixando lista real para evitar cache quebrado...`
+          );
+        } else {
+          setActiveNotice('🔄 Carregando lista vinculada ao painel...');
         }
-
-        if (config.cacheSnapshotUrl) {
-          setActiveNotice('⚡ Abrindo lista pronta do painel...');
-
-          try {
-            const panelCache = await fetchPanelPlaylistCache(config.cacheSnapshotUrl);
-
-            if (cancelled) return;
-
-            useAppStore.getState().hydrateContentCache({
-              channels: panelCache.channels,
-              movies: panelCache.movies,
-              series: panelCache.series,
-              playlists: panelCache.playlists ?? [],
-            });
-
-            const afterPanelCache = useAppStore.getState();
-
-            await saveContentCache({
-              channels: afterPanelCache.channels,
-              movies: afterPanelCache.movies,
-              series: afterPanelCache.series,
-              playlists: afterPanelCache.playlists,
-            });
-
-            localStorage.setItem(panelMarkerKey, panelMarkerValue);
-
-            setActiveNotice(
-              `✅ Lista pronta do painel: ${panelCache.channels.length} canal(is), ` +
-              `${panelCache.movies.length} filme(s) e ${panelCache.series.length} série(s).`
-            );
-
-            return;
-          } catch (cacheError) {
-            setActiveNotice(
-              `⚠️ Cache do painel indisponível. Usando lista normal. ` +
-              `${cacheError instanceof Error ? cacheError.message : ''}`
-            );
-          }
-        }
-
-        setActiveNotice(
-          '🔄 Carregando lista vinculada ao painel...'
-        );
 
         const content = await fetchM3UContent(playlistUrl);
 
@@ -431,6 +332,7 @@ function DevicePanelSync() {
         });
 
         localStorage.setItem(panelMarkerKey, panelMarkerValue);
+        clearForcedPanelSync();
         prewarmXtreamSeriesCatalog(playlistUrl);
 
         setActiveNotice(
@@ -468,6 +370,7 @@ function DevicePanelSync() {
 export default function App() {
   useTvRemoteNavigation();
   const { currentScreen } = useAppStore();
+
   // Detect UI mode changes based on window size
   useEffect(() => {
     const handleResize = () => {
@@ -475,10 +378,12 @@ export default function App() {
       const isTV = window.innerWidth > 1024 && window.matchMedia('(orientation: landscape)').matches;
       setUIMode(isTV ? 'tv' : 'mobile');
     };
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-return (
+
+  return (
     <div className="h-screen w-screen bg-bg-primary overflow-hidden">
       <ContentCacheHydrator />
       <DevicePanelSync />
