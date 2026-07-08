@@ -58,6 +58,12 @@ function normalizeDeviceStatus(value: unknown) {
   return 'pending';
 }
 
+function normalizePlaylistType(value: unknown) {
+  const type = String(value ?? 'm3u').trim().toLowerCase();
+  if (['m3u', 'xtream', 'stalker'].includes(type)) return type;
+  return 'm3u';
+}
+
 function daysLeft(value: unknown) {
   if (!value) return null;
   const date = new Date(String(value));
@@ -121,7 +127,19 @@ async function getSellerPlaylists(supabase: any, sellerId: string) {
 
   const { data: playlists, error } = await supabase
     .from('panel_playlists')
-    .select('id, name, playlist_type, active, playlist_updated_at, created_at')
+    .select(`
+      id,
+      name,
+      playlist_type,
+      active,
+      playlist_updated_at,
+      created_at,
+      playlist_cache_status,
+      playlist_cache_error,
+      playlist_cache_updated_at,
+      playlist_cache_item_count,
+      playlist_cache_size_bytes
+    `)
     .in('id', playlistIds)
     .eq('active', true)
     .order('created_at', { ascending: false });
@@ -136,6 +154,11 @@ async function getSellerPlaylists(supabase: any, sellerId: string) {
     playlistType: playlist.playlist_type,
     active: playlist.active,
     playlistUpdatedAt: playlist.playlist_updated_at,
+    cacheStatus: playlist.playlist_cache_status || 'pending',
+    cacheError: playlist.playlist_cache_error || null,
+    cacheUpdatedAt: playlist.playlist_cache_updated_at || null,
+    cacheItemCount: playlist.playlist_cache_item_count || 0,
+    cacheSizeBytes: playlist.playlist_cache_size_bytes || 0,
   }));
 }
 
@@ -162,7 +185,7 @@ async function getAllowedSellerPlaylist(supabase: any, sellerId: string, playlis
 
   const { data: playlist, error } = await supabase
     .from('panel_playlists')
-    .select('id, name, active')
+    .select('id, name, active, playlist_cache_status, playlist_cache_error')
     .eq('id', playlistId)
     .single();
 
@@ -174,7 +197,42 @@ async function getAllowedSellerPlaylist(supabase: any, sellerId: string, playlis
     throw new Error('Lista inativa. Escolha uma lista ativa.');
   }
 
+  if (playlist.playlist_cache_status !== 'ready') {
+    const suffix = playlist.playlist_cache_error ? ` Erro: ${playlist.playlist_cache_error}` : '';
+    throw new Error(`Esta lista ainda não está pronta para uso no aparelho. Aguarde o cache terminar.${suffix}`);
+  }
+
   return playlist;
+}
+
+async function triggerPlaylistCache(playlistId: string) {
+  const adminToken = Deno.env.get('ADMIN_PANEL_TOKEN') || '';
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+
+  if (!adminToken) {
+    return { ok: false, skipped: true, error: 'ADMIN_PANEL_TOKEN não configurado para gerar cache automaticamente.' };
+  }
+
+  if (!supabaseUrl) {
+    return { ok: false, skipped: true, error: 'SUPABASE_URL não configurado para gerar cache automaticamente.' };
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/playlist-cache`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken,
+    },
+    body: JSON.stringify({ action: 'refresh', playlistId }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    return { ok: false, error: data.error || data.message || `Falha HTTP ${response.status} ao gerar cache.` };
+  }
+
+  return data;
 }
 
 async function consumeSellerCredits(
@@ -397,9 +455,7 @@ async function getDashboard(supabase: any, seller: any) {
     .eq('seller_id', seller.id)
     .order('created_at', { ascending: false });
 
-  if (devicesError) {
-    throw new Error(devicesError.message);
-  }
+  if (devicesError) throw new Error(devicesError.message);
 
   const { data: ledger, error: ledgerError } = await supabase
     .from('panel_credit_ledger')
@@ -408,9 +464,7 @@ async function getDashboard(supabase: any, seller: any) {
     .order('created_at', { ascending: false })
     .limit(100);
 
-  if (ledgerError) {
-    throw new Error(ledgerError.message);
-  }
+  if (ledgerError) throw new Error(ledgerError.message);
 
   const { data: plans, error: plansError } = await supabase
     .from('panel_plans')
@@ -418,9 +472,7 @@ async function getDashboard(supabase: any, seller: any) {
     .eq('status', 'active')
     .order('duration_days', { ascending: true });
 
-  if (plansError) {
-    throw new Error(plansError.message);
-  }
+  if (plansError) throw new Error(plansError.message);
 
   const sellerPlaylists = await getSellerPlaylists(supabase, seller.id);
   const normalizedDevices = (devices ?? []).map(normalizeDevice);
@@ -513,7 +565,6 @@ async function getSellerDeviceByCode(supabase: any, seller: any, deviceCode: str
     .maybeSingle();
 
   if (deviceError) throw new Error(deviceError.message);
-
   return device;
 }
 
@@ -545,25 +596,17 @@ async function getOwnedDevice(supabase: any, seller: any, deviceId: string) {
     .single();
 
   if (error || !device) throw new Error(`Aparelho não encontrado: ${error?.message || 'não encontrado'}`);
-
-  if (device.seller_id !== seller.id) {
-    throw new Error('Este aparelho não pertence a este vendedor.');
-  }
+  if (device.seller_id !== seller.id) throw new Error('Este aparelho não pertence a este vendedor.');
 
   return device;
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     const sellerToken = String(req.headers.get('x-seller-token') || '').trim();
-
-    if (!sellerToken) {
-      return json({ error: 'Token do vendedor não informado.' }, 401);
-    }
+    if (!sellerToken) return json({ error: 'Token do vendedor não informado.' }, 401);
 
     const supabase = createClient(
       getEnv('SUPABASE_URL'),
@@ -577,13 +620,8 @@ serve(async (req) => {
       .eq('access_token', sellerToken)
       .single();
 
-    if (sellerError || !seller) {
-      return json({ error: 'Token do vendedor inválido.' }, 401);
-    }
-
-    if (seller.status !== 'active') {
-      return json({ error: 'Vendedor bloqueado ou inativo.' }, 403);
-    }
+    if (sellerError || !seller) return json({ error: 'Token do vendedor inválido.' }, 401);
+    if (seller.status !== 'active') return json({ error: 'Vendedor bloqueado ou inativo.' }, 403);
 
     const url = new URL(req.url);
     const body = await readBody(req);
@@ -593,17 +631,85 @@ serve(async (req) => {
       return json(await getDashboard(supabase, seller));
     }
 
+    if (action === 'createSellerPlaylist') {
+      const name = requiredText(body.name, 'Nome da lista');
+      const playlistUrl = requiredText(body.playlistUrl, 'URL da lista');
+      const playlistType = normalizePlaylistType(body.playlistType);
+      const now = new Date().toISOString();
+
+      const { data: playlist, error: playlistError } = await supabase
+        .from('panel_playlists')
+        .insert({
+          name,
+          playlist_url: playlistUrl,
+          playlist_type: playlistType,
+          active: true,
+          playlist_updated_at: now,
+          playlist_cache_status: 'processing',
+          playlist_cache_error: null,
+        })
+        .select('id, name')
+        .single();
+
+      if (playlistError || !playlist) {
+        return json({ error: playlistError?.message || 'Falha ao criar lista.' }, 500);
+      }
+
+      const { error: linkError } = await supabase
+        .from('panel_seller_playlists')
+        .insert({
+          seller_id: seller.id,
+          playlist_id: playlist.id,
+          active: true,
+          updated_at: now,
+        });
+
+      if (linkError) {
+        await supabase.from('panel_playlists').delete().eq('id', playlist.id);
+        return json({ error: `Falha ao vincular lista ao vendedor: ${linkError.message}` }, 500);
+      }
+
+      const cache = await triggerPlaylistCache(playlist.id);
+
+      return json({
+        ok: true,
+        playlistId: playlist.id,
+        playlistName: playlist.name,
+        cache,
+        message: cache?.ok
+          ? 'Lista cadastrada e cache gerado com sucesso.'
+          : 'Lista cadastrada. O cache ainda não ficou pronto; tente atualizar em alguns instantes.',
+      });
+    }
+
+    if (action === 'refreshSellerPlaylistCache') {
+      const playlistId = requiredText(body.playlistId, 'ID da lista');
+      const { data: permission, error: permissionError } = await supabase
+        .from('panel_seller_playlists')
+        .select('id')
+        .eq('seller_id', seller.id)
+        .eq('playlist_id', playlistId)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (permissionError) return json({ error: permissionError.message }, 500);
+      if (!permission) return json({ error: 'Esta lista não pertence a este vendedor.' }, 403);
+
+      await supabase
+        .from('panel_playlists')
+        .update({ playlist_cache_status: 'processing', playlist_cache_error: null })
+        .eq('id', playlistId);
+
+      const cache = await triggerPlaylistCache(playlistId);
+      return json({ ok: Boolean(cache?.ok), cache });
+    }
+
     if (action === 'lookupDeviceCode') {
       const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
       const device = await getSellerDeviceByCode(supabase, seller, deviceCode);
 
       if (!device) {
-        return json({
-          ok: false,
-          found: false,
-          deviceCode,
-          message: 'Aparelho não encontrado. Confira o código enviado pelo cliente.',
-        }, 404);
+        return json({ ok: false, found: false, deviceCode, message: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
       }
 
       const belongsToCurrentSeller = device.seller_id === seller.id;
@@ -614,13 +720,7 @@ serve(async (req) => {
       return json({
         ok: true,
         found: true,
-        device: {
-          ...normalizeDevice(device),
-          belongsToCurrentSeller,
-          belongsToAnotherSeller,
-          canClaim,
-          canActivate,
-        },
+        device: { ...normalizeDevice(device), belongsToCurrentSeller, belongsToAnotherSeller, canClaim, canActivate },
         message: canClaim
           ? 'Código encontrado. Aparelho pendente e disponível para ativação.'
           : belongsToCurrentSeller
@@ -635,17 +735,9 @@ serve(async (req) => {
       const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
       const device = await getSellerDeviceByCode(supabase, seller, deviceCode);
 
-      if (!device) {
-        return json({ error: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
-      }
-
-      if (device.seller_id && device.seller_id !== seller.id) {
-        return json({ error: 'Este aparelho já está vinculado a outro vendedor.' }, 409);
-      }
-
-      if (device.status !== 'pending' && device.seller_id !== seller.id) {
-        return json({ error: `Aparelho não está pendente. Status atual: ${device.status}.` }, 400);
-      }
+      if (!device) return json({ error: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
+      if (device.seller_id && device.seller_id !== seller.id) return json({ error: 'Este aparelho já está vinculado a outro vendedor.' }, 409);
+      if (device.status !== 'pending' && device.seller_id !== seller.id) return json({ error: `Aparelho não está pendente. Status atual: ${device.status}.` }, 400);
 
       const { error: updateError } = await supabase
         .from('panel_devices')
@@ -653,21 +745,13 @@ serve(async (req) => {
         .eq('id', device.id);
 
       if (updateError) return json({ error: updateError.message }, 500);
-
-      return json({
-        ok: true,
-        deviceId: device.id,
-        deviceCode: device.device_code,
-        status: device.status,
-        message: 'Aparelho vinculado ao vendedor. Agora ele pode ser ativado.',
-      });
+      return json({ ok: true, deviceId: device.id, deviceCode: device.device_code, status: device.status, message: 'Aparelho vinculado ao vendedor. Agora ele pode ser ativado.' });
     }
 
     if (action === 'activateDeviceByCode') {
       const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
       const customerName = requiredText(body.customerName, 'Nome do cliente');
       const customerWhatsapp = normalizeWhatsapp(body.customerWhatsapp);
-
       if (!customerWhatsapp) return json({ error: 'WhatsApp do cliente é obrigatório.' }, 400);
 
       const plan = await getActivePlanForCharge(supabase, textOrNull(body.planId));
@@ -706,19 +790,7 @@ serve(async (req) => {
 
       if (updateError) return json({ error: updateError.message }, 500);
 
-      return json({
-        ok: true,
-        deviceId: device.id,
-        deviceCode: device.device_code,
-        customerId,
-        planId: plan.id,
-        planName: plan.name,
-        playlistId: playlist.id,
-        playlistName: playlist.name,
-        expiresAt,
-        creditConsumption,
-        message: 'Aparelho ativado com sucesso.',
-      });
+      return json({ ok: true, deviceId: device.id, deviceCode: device.device_code, customerId, planId: plan.id, planName: plan.name, playlistId: playlist.id, playlistName: playlist.name, expiresAt, creditConsumption, message: 'Aparelho ativado com sucesso.' });
     }
 
     if (action === 'renewDevice') {
@@ -727,7 +799,6 @@ serve(async (req) => {
       const plan = await getActivePlanForCharge(supabase, textOrNull(body.planId) || device.plan_id || null);
       const playlistId = textOrNull(body.playlistId) || device.playlist_id || null;
       const playlist = await getAllowedSellerPlaylist(supabase, seller.id, playlistId);
-
       const customerName = device.customer?.name || null;
       const creditConsumption = await consumeSellerCredits(supabase, seller, {
         deviceId: device.id,
@@ -737,22 +808,14 @@ serve(async (req) => {
         planName: plan.name,
         customerName,
       });
-
       const expiresAt = textOrNull(body.expiresAt) || addDaysFromNow(plan.durationDays);
 
       const { error: updateError } = await supabase
         .from('panel_devices')
-        .update({
-          status: 'active',
-          plan_id: plan.id,
-          playlist_id: playlist.id,
-          subscription_expires_at: expiresAt,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ status: 'active', plan_id: plan.id, playlist_id: playlist.id, subscription_expires_at: expiresAt, updated_at: new Date().toISOString() })
         .eq('id', device.id);
 
       if (updateError) return json({ error: updateError.message }, 500);
-
       return json({ ok: true, deviceId, expiresAt, creditConsumption, message: 'Aparelho renovado com sucesso.' });
     }
 
@@ -761,9 +824,7 @@ serve(async (req) => {
       const device = await getOwnedDevice(supabase, seller, deviceId);
       const nextStatus = normalizeDeviceStatus(body.status || 'blocked');
 
-      if (!['blocked', 'inactive', 'expired', 'active'].includes(nextStatus)) {
-        return json({ error: 'Status não permitido para o vendedor.' }, 400);
-      }
+      if (!['blocked', 'inactive', 'expired', 'active'].includes(nextStatus)) return json({ error: 'Status não permitido para o vendedor.' }, 400);
 
       const { error: updateError } = await supabase
         .from('panel_devices')
@@ -771,14 +832,11 @@ serve(async (req) => {
         .eq('id', device.id);
 
       if (updateError) return json({ error: updateError.message }, 500);
-
       return json({ ok: true, deviceId, status: nextStatus, message: 'Status do aparelho atualizado.' });
     }
 
     return json({ error: 'Ação inválida.' }, 400);
   } catch (error) {
-    return json({
-      error: error instanceof Error ? error.message : 'Erro inesperado no portal do vendedor.',
-    }, 500);
+    return json({ error: error instanceof Error ? error.message : 'Erro inesperado no portal do vendedor.' }, 500);
   }
 });
