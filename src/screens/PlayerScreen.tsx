@@ -38,10 +38,47 @@ function replaceKnownMediaExtension(url: string, extension: string) {
   return url.replace(/\.(m3u8|ts|m2ts|mpegts)(\?|#|$)/i, `.${extension}$2`);
 }
 
+function buildXtreamLivePlaybackVariants(rawUrl: string) {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const parts = parsed.pathname.split('/').filter(Boolean).map(part => decodeURIComponent(part));
+    const offset = parts[0]?.toLowerCase() === 'live' ? 1 : 0;
+
+    if (parts.length - offset < 3) return [];
+
+    const username = parts[offset];
+    const password = parts[offset + 1];
+    const streamFile = parts[offset + 2];
+    const streamMatch = streamFile.match(/^([^/.]+)(?:\.[a-z0-9]+)?$/i);
+
+    if (!username || !password || !streamMatch?.[1]) return [];
+
+    const streamId = streamMatch[1];
+    const user = encodeURIComponent(username);
+    const pass = encodeURIComponent(password);
+    const suffix = `${parsed.search}${parsed.hash}`;
+
+    return [
+      `${parsed.origin}/live/${user}/${pass}/${streamId}.m3u8${suffix}`,
+      `${parsed.origin}/${user}/${pass}/${streamId}.m3u8${suffix}`,
+      `${parsed.origin}/live/${user}/${pass}/${streamId}.ts${suffix}`,
+      `${parsed.origin}/${user}/${pass}/${streamId}.ts${suffix}`,
+    ];
+  } catch {
+    return [];
+  }
+}
+
 function buildPlaybackUrlVariants(rawUrl: string) {
   const url = rawUrl.trim();
 
   if (!url) return [];
+
+  const xtreamLiveVariants = buildXtreamLivePlaybackVariants(url);
+
+  if (xtreamLiveVariants.length > 0) {
+    return [...new Set([...xtreamLiveVariants, url])];
+  }
 
   const variants: string[] = [];
 
@@ -260,6 +297,24 @@ export function PlayerScreen() {
 
       setError(message);
     };
+
+    if (isNativeRuntime() && isMpegTs) {
+      window.setTimeout(() => {
+        tryNextPlaybackUrl('Este aparelho não suporta MPEG-TS direto no WebView.');
+      }, 0);
+
+      return () => {
+        clearRecoveryTimer();
+        clearInitialLoadTimer();
+        video.removeEventListener('waiting', scheduleStallRecovery);
+        video.removeEventListener('stalled', scheduleStallRecovery);
+        video.removeEventListener('playing', clearRecoveryTimer);
+        video.removeEventListener('canplay', clearRecoveryTimer);
+        video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
+        video.removeEventListener('canplay', clearInitialLoadTimer);
+        video.removeEventListener('playing', clearInitialLoadTimer);
+      };
+    }
 
       if (isMpegTs) {
         let cancelled = false;
