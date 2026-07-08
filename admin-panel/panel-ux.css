@@ -13,6 +13,17 @@
   box-shadow: 0 18px 54px rgba(0,0,0,.24);
 }
 
+/* Segurança contra cache antigo: se algum JS legado injetar outro bloco, só o primeiro aparece. */
+.commercial-action-panel ~ .commercial-action-panel,
+#section-commercial .commercial-action-panel + .commercial-action-panel {
+  display: none !important;
+}
+
+/* Segurança contra botão de detalhes criado pela camada JS antiga. */
+.ux-seller-details {
+  display: none !important;
+}
+
 .commercial-action-panel h2 {
   margin: 0 0 4px;
   font-size: clamp(18px, 1.5vw, 24px);
