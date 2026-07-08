@@ -1,0 +1,350 @@
+/*
+  RonecaPlayTV — Pro Redesign Stage 2
+  Refinos específicos de experiência visual, foco TV, grids e responsividade.
+*/
+
+:root {
+  --rp-stage2-card-glow: 0 20px 80px rgba(0, 0, 0, .38), 0 0 0 1px rgba(56, 189, 248, .06) inset;
+}
+
+/* Evita estouro de largura em telas pequenas e TV boxes com WebView estranho */
+.clean-tv-page,
+.roneca-page,
+.clean-tv-page *,
+.roneca-page * {
+  min-width: 0;
+}
+
+.clean-tv-page {
+  gap: clamp(12px, 2vw, 28px) !important;
+}
+
+/* Topos das telas */
+.roneca-topbar,
+.clean-tv-page main > header,
+.clean-tv-page main > div:first-child {
+  border-radius: 24px;
+}
+
+.roneca-topbar-info span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border-color: rgba(148, 163, 184, .13) !important;
+  background: rgba(15, 23, 42, .54) !important;
+}
+
+/* Home */
+.roneca-home-grid {
+  min-height: 0;
+}
+
+.roneca-hero-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.roneca-hero-card::before {
+  content: "";
+  position: absolute;
+  right: -80px;
+  top: -80px;
+  width: 230px;
+  height: 230px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(56,189,248,.20), transparent 62%);
+  pointer-events: none;
+}
+
+.roneca-hero-card::after {
+  content: "";
+  position: absolute;
+  right: 28px;
+  bottom: 26px;
+  width: 74px;
+  height: 74px;
+  border-radius: 24px;
+  border: 1px solid rgba(56, 189, 248, .14);
+  transform: rotate(12deg);
+  opacity: .8;
+  pointer-events: none;
+}
+
+.roneca-hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.roneca-action-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease !important;
+}
+
+.roneca-action-card:hover,
+.roneca-action-card:focus-visible {
+  transform: translateY(-4px) scale(1.015);
+  border-color: rgba(56, 189, 248, .36) !important;
+  box-shadow: var(--rp-stage2-card-glow), 0 0 34px rgba(56,189,248,.13) !important;
+}
+
+.roneca-primary-action,
+.roneca-secondary-action,
+.roneca-load-more {
+  border: 1px solid rgba(255,255,255,.12) !important;
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease !important;
+}
+
+.roneca-primary-action:hover,
+.roneca-secondary-action:hover,
+.roneca-load-more:hover,
+.roneca-primary-action:focus-visible,
+.roneca-secondary-action:focus-visible,
+.roneca-load-more:focus-visible {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+/* Categorias laterais internas */
+.clean-tv-categories {
+  min-height: 0;
+}
+
+.clean-tv-categories > button:first-child {
+  display: grid !important;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 0 !important;
+}
+
+.clean-tv-categories > button:first-child:hover,
+.clean-tv-categories > button:first-child:focus-visible {
+  background: rgba(56,189,248,.10);
+  border-color: rgba(56,189,248,.25) !important;
+}
+
+.clean-tv-categories .clean-tv-row span:last-child,
+.clean-tv-category-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  padding-inline: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.075);
+}
+
+/* Canais */
+.roneca-channel-grid > button span:first-child {
+  border-radius: 14px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.065);
+}
+
+.roneca-channel-grid > button:hover span:first-child,
+.roneca-channel-grid > button:focus-visible span:first-child {
+  background: rgba(56, 189, 248, .10);
+  border-color: rgba(56, 189, 248, .20);
+}
+
+/* Posters */
+.roneca-media-grid {
+  align-items: start;
+}
+
+.roneca-poster-card {
+  outline-offset: 3px;
+}
+
+.roneca-poster-card > div:first-child {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(56,189,248,.11), transparent 46%),
+    rgba(255,255,255,.045) !important;
+}
+
+.roneca-poster-card p:nth-of-type(1) {
+  margin-top: .75rem !important;
+  color: rgba(248,250,252,.82) !important;
+  font-weight: 600 !important;
+  letter-spacing: -.02em;
+}
+
+.roneca-poster-card:hover p:nth-of-type(1),
+.roneca-poster-card:focus-visible p:nth-of-type(1) {
+  color: #fff !important;
+}
+
+/* Busca e inputs das telas de mídia */
+.clean-tv-page input {
+  min-height: 48px !important;
+}
+
+.clean-tv-page input::placeholder {
+  color: rgba(203, 213, 225, .38) !important;
+}
+
+/* Modal de série */
+.roneca-detail-backdrop {
+  isolation: isolate;
+}
+
+.roneca-detail-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(2,6,23,.98) 0%, rgba(2,6,23,.82) 45%, rgba(2,6,23,.96) 100%),
+    var(--roneca-detail-bg, none) center / cover no-repeat;
+  filter: saturate(1.1);
+}
+
+.roneca-detail-content button {
+  transition: transform .16s ease, background .16s ease, border-color .16s ease !important;
+}
+
+.roneca-detail-content button:hover,
+.roneca-detail-content button:focus-visible {
+  transform: translateY(-1px);
+}
+
+/* Player */
+.roneca-exoplayer-shell,
+.player-shell {
+  background: #000 !important;
+}
+
+.roneca-exoplayer-bottom button,
+.player-bottom-panel button,
+.roneca-exoplayer-center-controls button {
+  backdrop-filter: blur(12px);
+}
+
+.roneca-exoplayer-bottom button:hover,
+.player-bottom-panel button:hover,
+.roneca-exoplayer-center-controls button:hover,
+.roneca-exoplayer-bottom button:focus-visible,
+.player-bottom-panel button:focus-visible,
+.roneca-exoplayer-center-controls button:focus-visible {
+  transform: scale(1.04);
+}
+
+/* Melhor aproveitamento em telas muito largas */
+@media (min-width: 1680px) {
+  .roneca-page,
+  .clean-tv-page {
+    padding-right: clamp(36px, 3.2vw, 64px) !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)) !important;
+  }
+
+  .roneca-channel-grid {
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)) !important;
+  }
+}
+
+/* TV 720p / TV Box barato */
+@media (orientation: landscape) and (max-height: 760px) {
+  .roneca-side-logo {
+    min-height: 66px !important;
+  }
+
+  .roneca-side-button {
+    min-height: 50px !important;
+    padding-top: .5rem !important;
+    padding-bottom: .5rem !important;
+  }
+
+  .clean-tv-page header,
+  .roneca-topbar,
+  .clean-tv-page main > div:first-child {
+    margin-bottom: 10px !important;
+  }
+
+  .clean-tv-page aside.w-\[310px\] .clean-tv-row,
+  .clean-tv-row {
+    padding-top: .58rem !important;
+    padding-bottom: .58rem !important;
+  }
+
+  .roneca-channel-grid > button {
+    min-height: 62px !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(132px, 25vh, 190px) !important;
+  }
+}
+
+/* Celular em pé: layout ainda utilizável, com menu compacto */
+@media (orientation: portrait) and (max-width: 620px) {
+  .roneca-notice {
+    left: 8px;
+    right: 8px;
+  }
+
+  .roneca-notice-inner {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .clean-tv-page {
+    gap: 8px !important;
+  }
+
+  .clean-tv-page aside.w-\[310px\] {
+    width: 122px !important;
+  }
+
+  .clean-tv-row {
+    gap: 6px !important;
+    padding-inline: 8px !important;
+  }
+
+  .clean-tv-row span:first-child {
+    display: none !important;
+  }
+
+  .clean-tv-row span:nth-child(2) {
+    font-size: 12px !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)) !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(126px, 36vw, 170px) !important;
+  }
+
+  .roneca-channel-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Celular horizontal pequeno */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 480px) {
+  .clean-tv-page aside.w-\[310px\] {
+    width: 154px !important;
+  }
+
+  .clean-tv-page aside.w-\[310px\] .clean-tv-row span {
+    font-size: 11px !important;
+  }
+
+  .roneca-channel-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)) !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)) !important;
+  }
+}
