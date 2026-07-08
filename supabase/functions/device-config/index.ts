@@ -17,8 +17,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-
-
 async function readPayload(request: Request) {
   try {
     return await request.json();
@@ -30,6 +28,11 @@ async function readPayload(request: Request) {
 function textOrNull(value: unknown) {
   const text = String(value ?? '').trim();
   return text || null;
+}
+
+function allowDeviceUuidRebind() {
+  const value = String(Deno.env.get('ALLOW_DEVICE_UUID_REBIND') ?? 'true').trim().toLowerCase();
+  return !['0', 'false', 'no', 'não', 'nao'].includes(value);
 }
 
 async function resolveDeviceCode(request: Request) {
@@ -134,16 +137,9 @@ serve(async request => {
     });
   }
 
-  await supabase
-    .from('panel_devices')
-    .update({
-      device_uuid: device.device_uuid || deviceUuid || null,
-      last_seen_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', device.id);
+  const uuidMismatch = Boolean(device.device_uuid && deviceUuid && device.device_uuid !== deviceUuid);
 
-  if (device.device_uuid && deviceUuid && device.device_uuid !== deviceUuid) {
+  if (uuidMismatch && !allowDeviceUuidRebind()) {
     return json({
       active: false,
       status: 'blocked',
@@ -151,6 +147,19 @@ serve(async request => {
       message: 'Código pertence a outro aparelho. Solicite um novo código no app.',
     }, 403);
   }
+
+  const nextDeviceUuid = uuidMismatch
+    ? deviceUuid
+    : (device.device_uuid || deviceUuid || null);
+
+  await supabase
+    .from('panel_devices')
+    .update({
+      device_uuid: nextDeviceUuid,
+      last_seen_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', device.id);
 
   const expiresAt = device.subscription_expires_at;
   const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
@@ -163,6 +172,7 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
+      deviceUuidRebound: uuidMismatch,
       message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.',
     });
   }
@@ -174,6 +184,7 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
+      deviceUuidRebound: uuidMismatch,
       message: 'Aparelho ativo, mas sem lista ativa vinculada.',
     });
   }
@@ -221,6 +232,7 @@ serve(async request => {
     deviceCode: device.device_code,
     clientName: device.client_name,
     expiresAt,
+    deviceUuidRebound: uuidMismatch,
     playlistName: playlist.name,
     playlistUrl: playlist.playlist_url,
     playlistType: playlist.playlist_type,
