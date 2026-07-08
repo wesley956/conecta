@@ -1,0 +1,225 @@
+(() => {
+  const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
+  const TOKEN_KEY = 'roneca_seller_token';
+  let listsData = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
+  function token() {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  async function api(action, payload = {}) {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-seller-token': token(),
+      },
+      body: JSON.stringify({ action, ...payload }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || data.message || 'Erro no portal do vendedor.');
+    return data;
+  }
+
+  function formatDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
+  }
+
+  function cacheText(status) {
+    const value = String(status || 'pending');
+    if (value === 'ready') return 'Cache pronto';
+    if (value === 'processing') return 'Processando cache';
+    if (value === 'error') return 'Erro no cache';
+    return 'Aguardando cache';
+  }
+
+  function cachePill(playlist) {
+    const status = String(playlist.cacheStatus || 'pending');
+    return `<span class="cache-pill ${esc(status)}">${esc(cacheText(status))}</span>`;
+  }
+
+  function showListMsg(text, type = '') {
+    const msg = $('sellerListsMsg');
+    if (!msg) return;
+    msg.className = `seller-msg ${type}`;
+    msg.textContent = text || '';
+  }
+
+  function ensureListsCard() {
+    if ($('sellerListsCard')) return;
+
+    const dashboard = $('dashboardView');
+    if (!dashboard) return;
+
+    const activation = $('sellerActivationCard');
+    const statsCard = dashboard.querySelector('.card');
+    const anchor = activation || statsCard;
+    if (!anchor) return;
+
+    const card = document.createElement('div');
+    card.id = 'sellerListsCard';
+    card.className = 'card seller-playlists-card';
+    card.innerHTML = `
+      <div class="seller-playlist-head">
+        <div>
+          <h2>Minhas listas</h2>
+          <p class="muted">Cadastre sua própria lista. O sistema gera cache para carregar rápido no aparelho.</p>
+        </div>
+        <div class="actions" style="margin-top:0;">
+          <button class="primary" type="button" onclick="sellerListsToggleForm()">Adicionar lista</button>
+          <button type="button" onclick="sellerListsUxRender()">Atualizar</button>
+        </div>
+      </div>
+
+      <div id="sellerPlaylistForm" class="seller-playlist-form">
+        <div class="seller-form-grid">
+          <div>
+            <label for="sellerPlaylistName">Nome da lista</label>
+            <input id="sellerPlaylistName" placeholder="Ex: Minha lista premium" />
+          </div>
+          <div>
+            <label for="sellerPlaylistType">Tipo</label>
+            <select id="sellerPlaylistType">
+              <option value="m3u">M3U</option>
+              <option value="xtream">Xtream</option>
+              <option value="stalker">Stalker</option>
+            </select>
+          </div>
+          <div class="wide">
+            <label for="sellerPlaylistUrl">URL da lista</label>
+            <input id="sellerPlaylistUrl" placeholder="https://..." />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" type="button" onclick="sellerListsCreate()">Salvar e gerar cache</button>
+          <button type="button" onclick="sellerListsToggleForm(false)">Cancelar</button>
+        </div>
+      </div>
+
+      <div id="sellerListsMsg" class="seller-msg"></div>
+      <div id="sellerPlaylistsList" class="seller-playlist-list"></div>
+    `;
+
+    anchor.insertAdjacentElement('afterend', card);
+  }
+
+  function renderPlaylists() {
+    ensureListsCard();
+    const host = $('sellerPlaylistsList');
+    if (!host) return;
+
+    const playlists = listsData?.playlists || [];
+    host.innerHTML = playlists.length
+      ? playlists.map(playlist => `
+        <div class="seller-playlist-item">
+          <div>
+            <strong>${esc(playlist.name)}</strong>
+            <div class="muted">Tipo: ${esc(playlist.playlistType || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
+            <div class="muted">Atualizado: ${formatDate(playlist.cacheUpdatedAt || playlist.playlistUpdatedAt)}</div>
+            ${cachePill(playlist)}
+            ${playlist.cacheError ? `<div class="seller-msg err">${esc(playlist.cacheError)}</div>` : ''}
+          </div>
+          <div class="actions" style="margin-top:0;">
+            <button type="button" onclick="sellerListsRefreshCache('${esc(playlist.id)}')">Gerar cache</button>
+          </div>
+        </div>
+      `).join('')
+      : '<div class="muted">Nenhuma lista cadastrada ou liberada ainda.</div>';
+  }
+
+  async function loadLists() {
+    if (!token()) return;
+    listsData = await api('dashboard');
+    renderPlaylists();
+  }
+
+  window.sellerListsToggleForm = function sellerListsToggleForm(force) {
+    ensureListsCard();
+    const form = $('sellerPlaylistForm');
+    if (!form) return;
+    const shouldOpen = typeof force === 'boolean' ? force : !form.classList.contains('open');
+    form.classList.toggle('open', shouldOpen);
+    if (shouldOpen) setTimeout(() => $('sellerPlaylistName')?.focus(), 0);
+  };
+
+  window.sellerListsCreate = async function sellerListsCreate() {
+    try {
+      const name = $('sellerPlaylistName')?.value.trim() || '';
+      const playlistUrl = $('sellerPlaylistUrl')?.value.trim() || '';
+      const playlistType = $('sellerPlaylistType')?.value || 'm3u';
+
+      if (!name) throw new Error('Digite o nome da lista.');
+      if (!playlistUrl) throw new Error('Digite a URL da lista.');
+
+      showListMsg('Salvando lista e gerando cache. Pode levar alguns segundos...');
+
+      const result = await api('createSellerPlaylist', { name, playlistUrl, playlistType });
+      const cacheOk = Boolean(result.cache?.ok);
+      showListMsg(result.message || (cacheOk ? 'Lista salva e cache pronto.' : 'Lista salva. Cache ainda em processamento.'), cacheOk ? 'ok' : '');
+
+      $('sellerPlaylistName').value = '';
+      $('sellerPlaylistUrl').value = '';
+      sellerListsToggleForm(false);
+
+      await loadLists();
+      if (typeof window.loadPortal === 'function') await window.loadPortal();
+    } catch (err) {
+      showListMsg(err.message || 'Erro ao cadastrar lista.', 'err');
+    }
+  };
+
+  window.sellerListsRefreshCache = async function sellerListsRefreshCache(playlistId) {
+    try {
+      showListMsg('Gerando cache da lista...');
+      const result = await api('refreshSellerPlaylistCache', { playlistId });
+      showListMsg(result.ok ? 'Cache atualizado com sucesso.' : 'Cache solicitado, mas ainda não ficou pronto.', result.ok ? 'ok' : '');
+      await loadLists();
+      if (typeof window.loadPortal === 'function') await window.loadPortal();
+    } catch (err) {
+      showListMsg(err.message || 'Erro ao gerar cache.', 'err');
+    }
+  };
+
+  window.sellerListsUxRender = async function sellerListsUxRender() {
+    try {
+      showListMsg('Atualizando listas...');
+      await loadLists();
+      showListMsg('');
+    } catch (err) {
+      showListMsg(err.message || 'Erro ao atualizar listas.', 'err');
+    }
+  };
+
+  function boot() {
+    ensureListsCard();
+
+    const originalRenderPortal = window.renderPortal;
+    if (typeof originalRenderPortal === 'function' && !window.__sellerListsUxPatched) {
+      window.__sellerListsUxPatched = true;
+      window.renderPortal = function patchedSellerListsRenderPortal(data) {
+        originalRenderPortal(data);
+        listsData = data;
+        ensureListsCard();
+        renderPlaylists();
+      };
+    }
+
+    if (token()) {
+      loadLists().catch(() => {});
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', boot);
+  setTimeout(boot, 350);
+})();
