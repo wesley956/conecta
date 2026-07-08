@@ -37,35 +37,44 @@
 }
 
 .icon-actions {
-  display: flex !important;
-  flex-wrap: wrap !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, 30px) !important;
+  justify-content: start !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
+  width: max-content !important;
+  max-width: 66px !important;
 }
 
 .icon-btn {
-  width: 34px !important;
-  min-width: 34px !important;
-  height: 34px !important;
-  min-height: 34px !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 30px !important;
+  min-height: 30px !important;
   padding: 0 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border-radius: 11px !important;
-  font-size: 15px !important;
+  border-radius: 9px !important;
+  font-size: 13px !important;
   line-height: 1 !important;
 }
 
 .icon-btn.icon-wide {
-  width: auto !important;
-  min-width: 44px !important;
-  padding-inline: 10px !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  padding-inline: 0 !important;
+  font-size: 0 !important;
+}
+
+.icon-btn.icon-wide::before {
+  content: "🔄";
+  font-size: 13px;
 }
 
 .icon-btn.danger-zone {
-  margin-left: 8px !important;
-  box-shadow: -8px 0 0 -7px rgba(229,57,53,.32) !important;
+  margin-left: 0 !important;
+  box-shadow: none !important;
 }
 
 .icon-btn[title]:hover::after {
@@ -84,21 +93,84 @@
   box-shadow: 0 14px 38px rgba(0,0,0,.36);
 }
 
+/* Aba Aparelhos: reduz de verdade a largura reservada para a coluna Ações. */
+#section-devices thead tr,
+#section-devices tbody tr {
+  grid-template-columns:
+    minmax(94px, .72fr)
+    minmax(145px, 1.12fr)
+    minmax(145px, 1.02fr)
+    minmax(128px, .88fr)
+    minmax(106px, .68fr)
+    minmax(145px, 1.05fr)
+    minmax(120px, .78fr)
+    minmax(112px, .72fr)
+    minmax(74px, 74px) !important;
+}
+
+#section-devices th:nth-child(9),
+#section-devices td:nth-child(9) {
+  width: 74px !important;
+  max-width: 74px !important;
+  min-width: 0 !important;
+  padding-inline: 6px !important;
+}
+
 #section-devices td:nth-child(9) .icon-actions {
-  max-width: 150px;
+  max-width: 66px !important;
 }
 
 #section-devices td:nth-child(9) .icon-btn:first-child {
-  width: 100% !important;
+  width: 30px !important;
+}
+
+#section-devices td:nth-child(9) .btn,
+#section-devices td:nth-child(9) button {
+  flex: none !important;
+}
+
+#section-devices td:nth-child(9) .icon-btn[title="Detalhes"] {
+  grid-column: span 2;
+  width: 65px !important;
+  max-width: 65px !important;
+}
+
+#section-devices td:nth-child(9) .icon-btn[title="Detalhes"]::after {
+  transform: translateY(-38px);
+}
+
+/* Pendentes: libera continua legível, mas sem estourar a célula. */
+#section-pending .icon-btn.icon-wide {
+  width: auto !important;
+  min-width: 86px !important;
+  padding-inline: 10px !important;
+  font-size: 12px !important;
+}
+
+#section-pending .icon-btn.icon-wide::before {
+  content: none;
 }
 
 @media (max-width: 1280px) {
-  #section-devices td:nth-child(9) .icon-actions {
-    max-width: none;
+  #section-devices tbody tr {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 
-  #section-devices td:nth-child(9) .icon-btn:first-child {
-    width: 34px !important;
+  #section-devices th:nth-child(9),
+  #section-devices td:nth-child(9) {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  #section-devices td:nth-child(9) .icon-actions {
+    grid-template-columns: repeat(5, 30px) !important;
+    width: max-content !important;
+    max-width: none !important;
+  }
+
+  #section-devices td:nth-child(9) .icon-btn[title="Detalhes"] {
+    grid-column: auto;
+    width: 30px !important;
   }
 }
 
