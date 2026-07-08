@@ -1,0 +1,591 @@
+/*
+  RonecaPlayTV — Professional Responsive Redesign Layer
+  ------------------------------------------------------
+  Camada visual segura: não altera lógica, cache, Supabase, player ou rotas.
+  Ela entra depois do CSS legado para padronizar aparência, foco, espaçamento e responsividade.
+*/
+
+:root {
+  --rp-bg-0: #030712;
+  --rp-bg-1: #07111f;
+  --rp-bg-2: #0b1424;
+  --rp-surface-0: rgba(15, 23, 42, 0.64);
+  --rp-surface-1: rgba(15, 23, 42, 0.82);
+  --rp-surface-2: rgba(30, 41, 59, 0.78);
+  --rp-border: rgba(148, 163, 184, 0.16);
+  --rp-border-strong: rgba(56, 189, 248, 0.42);
+  --rp-text: #f8fafc;
+  --rp-text-soft: #cbd5e1;
+  --rp-text-muted: #94a3b8;
+  --rp-blue: #38bdf8;
+  --rp-cyan: #22d3ee;
+  --rp-orange: #fb923c;
+  --rp-green: #22c55e;
+  --rp-red: #ef4444;
+  --rp-radius-sm: 12px;
+  --rp-radius-md: 18px;
+  --rp-radius-lg: 26px;
+  --rp-radius-xl: 34px;
+  --rp-shadow-soft: 0 20px 70px rgba(0, 0, 0, 0.32);
+  --rp-shadow-focus: 0 0 0 2px rgba(56, 189, 248, 0.42), 0 0 34px rgba(56, 189, 248, 0.22), 0 22px 70px rgba(0,0,0,.42);
+  --rp-sidebar-width: clamp(160px, 13vw, 196px);
+  --rp-sidebar-compact: 86px;
+  --rp-page-x: clamp(16px, 2.2vw, 34px);
+  --rp-page-y: clamp(14px, 2vh, 30px);
+}
+
+html,
+body,
+#root {
+  background: var(--rp-bg-0) !important;
+  color: var(--rp-text) !important;
+  font-feature-settings: "cv02", "cv03", "cv04", "kern";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(34, 211, 238, 0.13), transparent 32rem),
+    radial-gradient(circle at 94% 10%, rgba(251, 146, 60, 0.11), transparent 28rem),
+    radial-gradient(circle at 80% 92%, rgba(99, 102, 241, 0.11), transparent 32rem),
+    linear-gradient(135deg, #020617 0%, #07111f 46%, #030712 100%) !important;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed !important;
+  opacity: .58;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.roneca-poster-card:focus-visible,
+.roneca-channel-grid > button:focus-visible,
+.clean-tv-row:focus-visible,
+.roneca-side-button:focus-visible {
+  outline: none !important;
+  border-color: var(--rp-border-strong) !important;
+  box-shadow: var(--rp-shadow-focus) !important;
+}
+
+.premium-bg,
+.clean-tv-bg {
+  background:
+    radial-gradient(circle at 9% 7%, rgba(34, 211, 238, 0.13), transparent 28rem),
+    radial-gradient(circle at 92% 8%, rgba(251, 146, 60, 0.10), transparent 26rem),
+    radial-gradient(circle at 70% 100%, rgba(59, 130, 246, 0.10), transparent 34rem),
+    linear-gradient(135deg, #020617 0%, #07111f 48%, #030712 100%) !important;
+}
+
+/* Layout base */
+.tv-safe,
+.mobile-safe {
+  padding: 0 !important;
+}
+
+.roneca-app-shell {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.roneca-app-content {
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.roneca-notice {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  top: max(12px, env(safe-area-inset-top));
+  z-index: 80;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.86));
+  color: var(--rp-text-soft);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.38), 0 0 28px rgba(56, 189, 248, 0.10);
+  backdrop-filter: blur(18px);
+}
+
+.roneca-notice-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  font-size: clamp(13px, 1.15vw, 16px);
+  line-height: 1.35;
+}
+
+.roneca-notice-close {
+  display: grid;
+  height: 34px;
+  width: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* Sidebar / navegação */
+.roneca-side-menu {
+  width: var(--rp-sidebar-width) !important;
+  background:
+    linear-gradient(180deg, rgba(6, 18, 34, 0.96), rgba(2, 8, 23, 0.96)) !important;
+  border-right: 1px solid rgba(148, 163, 184, 0.14) !important;
+  box-shadow: 18px 0 70px rgba(0, 0, 0, 0.28) !important;
+  backdrop-filter: blur(18px);
+}
+
+.roneca-side-logo {
+  min-height: clamp(72px, 10vh, 96px) !important;
+  padding-inline: 14px !important;
+}
+
+.roneca-side-logo-mark {
+  height: clamp(38px, 4.8vw, 48px) !important;
+  width: clamp(38px, 4.8vw, 48px) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, var(--rp-cyan), var(--rp-blue) 52%, var(--rp-orange)) !important;
+  color: #020617 !important;
+  box-shadow: 0 14px 36px rgba(34, 211, 238, 0.20);
+}
+
+.roneca-side-logo-text {
+  font-size: clamp(.9rem, 1.3vw, 1.05rem) !important;
+  letter-spacing: .01em;
+}
+
+.roneca-side-button {
+  min-height: clamp(54px, 8vh, 70px) !important;
+  border: 1px solid transparent !important;
+  border-radius: 18px !important;
+  background: transparent !important;
+  color: rgba(226, 232, 240, .68) !important;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease !important;
+}
+
+.roneca-side-button:hover,
+.roneca-side-button:focus-visible {
+  transform: translateX(2px);
+  background: rgba(56, 189, 248, 0.08) !important;
+  color: white !important;
+}
+
+.roneca-side-button.active {
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(34, 211, 238, 0.07)) !important;
+  border-color: rgba(56, 189, 248, 0.22) !important;
+  color: white !important;
+  box-shadow: inset 3px 0 0 var(--rp-blue), 0 18px 42px rgba(56, 189, 248, 0.10) !important;
+}
+
+.roneca-side-icon {
+  background: rgba(255, 255, 255, 0.055) !important;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.roneca-side-button.active .roneca-side-icon {
+  background: rgba(56, 189, 248, 0.16) !important;
+  border-color: rgba(56, 189, 248, 0.20);
+}
+
+/* Páginas do app */
+.roneca-page,
+.clean-tv-page {
+  padding-left: calc(var(--rp-sidebar-width) + var(--rp-page-x)) !important;
+  padding-right: var(--rp-page-x) !important;
+  padding-top: var(--rp-page-y) !important;
+  padding-bottom: var(--rp-page-y) !important;
+  height: 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.roneca-topbar {
+  align-items: center !important;
+  margin-bottom: clamp(14px, 2vh, 26px) !important;
+}
+
+.roneca-eyebrow {
+  color: rgba(148, 163, 184, .82) !important;
+  font-size: clamp(.72rem, .82vw, .88rem) !important;
+}
+
+.roneca-page-title,
+.clean-tv-title {
+  letter-spacing: -0.055em !important;
+  font-size: clamp(2rem, 4.4vw, 4.8rem) !important;
+  line-height: .92 !important;
+}
+
+.clean-tv-page main,
+.roneca-page main {
+  min-width: 0;
+}
+
+.clean-tv-page header,
+.roneca-topbar {
+  min-width: 0;
+}
+
+.clean-tv-page aside.w-\[310px\] {
+  width: clamp(220px, 22vw, 310px) !important;
+  padding-right: clamp(14px, 2vw, 30px) !important;
+}
+
+.clean-tv-row {
+  border: 1px solid transparent;
+  border-radius: 16px !important;
+  transition: background 150ms ease, transform 150ms ease, border-color 150ms ease !important;
+}
+
+.clean-tv-row:hover,
+.clean-tv-row:focus-visible {
+  transform: translateX(2px);
+  background: rgba(56, 189, 248, 0.08) !important;
+  border-color: rgba(56, 189, 248, 0.14) !important;
+}
+
+.clean-tv-row.active,
+.clean-tv-row[aria-current="true"] {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(34, 211, 238, 0.07)) !important;
+  color: white !important;
+  border-color: rgba(56, 189, 248, 0.20) !important;
+}
+
+/* Cards e grids */
+.roneca-hero-card,
+.roneca-stat-card,
+.roneca-action-card,
+.clean-tv-card,
+.clean-tv-panel,
+.glass-panel,
+.premium-card {
+  border-color: var(--rp-border) !important;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.84), rgba(2, 6, 23, 0.68)) !important;
+  box-shadow: var(--rp-shadow-soft), inset 0 1px 0 rgba(255,255,255,.045) !important;
+  backdrop-filter: blur(18px);
+}
+
+.roneca-hero-card,
+.roneca-stat-card,
+.roneca-action-card {
+  border-radius: var(--rp-radius-lg) !important;
+}
+
+.roneca-actions-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+}
+
+.roneca-stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)) !important;
+}
+
+.roneca-media-grid {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(118px, 12vw, 178px), 1fr)) !important;
+  gap: clamp(12px, 1.7vw, 24px) !important;
+  padding-bottom: 16px;
+}
+
+.roneca-poster-card {
+  border-radius: 20px;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.roneca-poster-card > div:first-child {
+  height: clamp(174px, 23vw, 294px) !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 18px 54px rgba(0,0,0,.24);
+}
+
+.roneca-poster-card:hover,
+.roneca-poster-card:focus-visible {
+  transform: translateY(-4px) scale(1.025);
+}
+
+.roneca-poster-card:hover > div:first-child,
+.roneca-poster-card:focus-visible > div:first-child {
+  border-color: rgba(56, 189, 248, 0.42) !important;
+  box-shadow: var(--rp-shadow-focus) !important;
+}
+
+.roneca-poster-card p {
+  line-height: 1.1 !important;
+}
+
+.roneca-channel-grid {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(210px, 26vw, 350px), 1fr)) !important;
+  gap: clamp(10px, 1.25vw, 18px) !important;
+  padding-bottom: 16px;
+}
+
+.roneca-channel-grid > button {
+  min-height: clamp(68px, 8.2vh, 92px) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(135deg, rgba(15, 23, 42, .64), rgba(2, 6, 23, .40)) !important;
+  border: 1px solid rgba(148, 163, 184, 0.12) !important;
+  border-left: 4px solid rgba(56, 189, 248, 0.42) !important;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease !important;
+}
+
+.roneca-channel-grid > button:hover,
+.roneca-channel-grid > button:focus-visible {
+  transform: translateY(-2px) scale(1.01);
+  border-color: rgba(56, 189, 248, 0.34) !important;
+  border-left-color: var(--rp-cyan) !important;
+  background: linear-gradient(135deg, rgba(56, 189, 248, .13), rgba(15, 23, 42, .66)) !important;
+}
+
+/* Player */
+.roneca-exoplayer-shell {
+  overflow: hidden;
+}
+
+.roneca-exoplayer-video {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.roneca-exoplayer-bottom,
+.player-bottom-panel {
+  border-radius: clamp(18px, 2vw, 30px) !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.70), rgba(2, 6, 23, 0.80)) !important;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.52) !important;
+}
+
+.roneca-exoplayer-center-controls button {
+  border-color: rgba(255,255,255,.18) !important;
+}
+
+.player-progress {
+  height: clamp(7px, 1vh, 10px) !important;
+}
+
+/* Painel de detalhes de séries */
+.roneca-detail-backdrop {
+  background:
+    radial-gradient(circle at 70% 20%, rgba(56, 189, 248, 0.13), transparent 36rem),
+    linear-gradient(135deg, #020617 0%, #07111f 46%, #020617 100%) !important;
+}
+
+.roneca-detail-panel {
+  backdrop-filter: blur(10px);
+}
+
+.roneca-detail-content {
+  padding: clamp(18px, 3vw, 42px) !important;
+}
+
+/* Responsividade real */
+@media (min-width: 1500px) {
+  :root {
+    --rp-sidebar-width: 214px;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  :root {
+    --rp-sidebar-width: 150px;
+  }
+
+  .roneca-side-label,
+  .roneca-side-logo-text {
+    font-size: .9rem !important;
+  }
+
+  .clean-tv-page aside.w-\[310px\] {
+    width: 210px !important;
+  }
+}
+
+@media (max-width: 900px), (orientation: portrait) {
+  :root {
+    --rp-sidebar-width: var(--rp-sidebar-compact);
+    --rp-page-x: 12px;
+    --rp-page-y: 12px;
+  }
+
+  .roneca-side-menu {
+    width: var(--rp-sidebar-compact) !important;
+  }
+
+  .roneca-side-logo {
+    justify-content: center !important;
+    padding-inline: 8px !important;
+  }
+
+  .roneca-side-logo-text,
+  .roneca-side-label {
+    display: none !important;
+  }
+
+  .roneca-side-button {
+    justify-content: center !important;
+    padding-inline: 8px !important;
+    min-height: 54px !important;
+  }
+
+  .roneca-side-icon {
+    margin: 0 !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: calc(var(--rp-sidebar-compact) + 12px) !important;
+  }
+
+  .roneca-home-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .clean-tv-page aside.w-\[310px\] {
+    width: 176px !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .roneca-side-button,
+  .clean-tv-row,
+  .roneca-channel-grid > button,
+  .roneca-poster-card,
+  button {
+    min-height: 46px;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(clamp(96px, 24vw, 150px), 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(138px, 36vw, 230px) !important;
+  }
+
+  .roneca-channel-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)) !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
+  :root {
+    --rp-sidebar-compact: 72px;
+    --rp-page-y: 8px;
+  }
+
+  .roneca-side-menu {
+    width: 72px !important;
+  }
+
+  .roneca-side-logo {
+    min-height: 56px !important;
+  }
+
+  .roneca-side-logo-mark {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 12px !important;
+    font-size: .72rem !important;
+  }
+
+  .roneca-side-button {
+    min-height: 44px !important;
+    border-radius: 14px !important;
+  }
+
+  .roneca-side-icon {
+    width: 28px !important;
+    height: 28px !important;
+    flex-basis: 28px !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 82px !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .roneca-topbar,
+  .clean-tv-page header {
+    margin-bottom: 8px !important;
+  }
+
+  .roneca-page-title,
+  .clean-tv-title {
+    font-size: clamp(1.7rem, 4vw, 3rem) !important;
+  }
+
+  .roneca-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)) !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    height: clamp(118px, 28vw, 170px) !important;
+  }
+}
+
+@media (max-width: 540px) {
+  :root {
+    --rp-sidebar-compact: 68px;
+  }
+
+  .roneca-side-menu {
+    width: 68px !important;
+  }
+
+  .roneca-page,
+  .clean-tv-page {
+    padding-left: 78px !important;
+    padding-right: 10px !important;
+  }
+
+  .clean-tv-page aside.w-\[310px\] {
+    width: 138px !important;
+    padding-right: 8px !important;
+  }
+
+  .clean-tv-row span {
+    font-size: .78rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .001ms !important;
+  }
+}
