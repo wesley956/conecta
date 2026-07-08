@@ -21,7 +21,6 @@ function uxStylesheetFor(file) {
 }
 
 function uxScriptFor(file) {
-  if (file === 'admin-panel/dashboard.html') return './panel-ux.js';
   return null;
 }
 
