@@ -52,6 +52,12 @@ function normalizeWhatsapp(value: unknown) {
     .trim();
 }
 
+function normalizeDeviceStatus(value: unknown) {
+  const status = String(value ?? '').trim();
+  if (['pending', 'active', 'blocked', 'expired', 'inactive'].includes(status)) return status;
+  return 'pending';
+}
+
 function daysLeft(value: unknown) {
   if (!value) return null;
   const date = new Date(String(value));
@@ -67,7 +73,7 @@ function addDaysFromNow(days: number) {
 
 async function getActivePlanForCharge(supabase: any, planId: string | null) {
   if (!planId) {
-    throw new Error('Escolha um plano para ativar o aparelho.');
+    throw new Error('Escolha um plano para ativar ou renovar o aparelho.');
   }
 
   const { data: plan, error } = await supabase
@@ -92,9 +98,66 @@ async function getActivePlanForCharge(supabase: any, planId: string | null) {
   };
 }
 
-async function getActivePlaylist(supabase: any, playlistId: string | null) {
+async function getSellerPlaylistIds(supabase: any, sellerId: string) {
+  const { data, error } = await supabase
+    .from('panel_seller_playlists')
+    .select('playlist_id')
+    .eq('seller_id', sellerId)
+    .eq('active', true);
+
+  if (error) {
+    throw new Error(`Falha ao carregar listas do vendedor: ${error.message}`);
+  }
+
+  return (data ?? [])
+    .map((row: any) => row.playlist_id)
+    .filter(Boolean);
+}
+
+async function getSellerPlaylists(supabase: any, sellerId: string) {
+  const playlistIds = await getSellerPlaylistIds(supabase, sellerId);
+
+  if (!playlistIds.length) return [];
+
+  const { data: playlists, error } = await supabase
+    .from('panel_playlists')
+    .select('id, name, playlist_type, active, playlist_updated_at, created_at')
+    .in('id', playlistIds)
+    .eq('active', true)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Falha ao carregar listas permitidas: ${error.message}`);
+  }
+
+  return (playlists ?? []).map((playlist: any) => ({
+    id: playlist.id,
+    name: playlist.name,
+    playlistType: playlist.playlist_type,
+    active: playlist.active,
+    playlistUpdatedAt: playlist.playlist_updated_at,
+  }));
+}
+
+async function getAllowedSellerPlaylist(supabase: any, sellerId: string, playlistId: string | null) {
   if (!playlistId) {
     throw new Error('Escolha uma lista para ativar o aparelho.');
+  }
+
+  const { data: permission, error: permissionError } = await supabase
+    .from('panel_seller_playlists')
+    .select('id, active')
+    .eq('seller_id', sellerId)
+    .eq('playlist_id', playlistId)
+    .eq('active', true)
+    .maybeSingle();
+
+  if (permissionError) {
+    throw new Error(`Falha ao validar lista do vendedor: ${permissionError.message}`);
+  }
+
+  if (!permission) {
+    throw new Error('Esta lista não está liberada para este vendedor.');
   }
 
   const { data: playlist, error } = await supabase
@@ -269,6 +332,31 @@ async function upsertSellerCustomer(
   return data.id;
 }
 
+function normalizeDevice(device: any) {
+  return {
+    id: device.id,
+    deviceCode: device.device_code,
+    deviceUuid: device.device_uuid,
+    status: device.status,
+    expiresAt: device.subscription_expires_at,
+    daysLeft: daysLeft(device.subscription_expires_at),
+    lastSeenAt: device.last_seen_at,
+    createdAt: device.created_at,
+    updatedAt: device.updated_at,
+    deviceType: device.device_type || 'androidtv',
+    appVersion: device.app_version || '',
+    customerId: device.customer_id,
+    customerName: device.customer?.name || device.client_name || null,
+    customerWhatsapp: device.customer?.whatsapp || null,
+    planId: device.plan?.id || device.plan_id || null,
+    planName: device.plan?.name || null,
+    planDurationDays: device.plan?.duration_days ?? null,
+    planCreditCost: device.plan?.credit_cost ?? null,
+    playlistId: device.playlist?.id || device.playlist_id || null,
+    playlistName: device.playlist?.name || null,
+  };
+}
+
 async function getDashboard(supabase: any, seller: any) {
   const { data: devices, error: devicesError } = await supabase
     .from('panel_devices')
@@ -276,6 +364,7 @@ async function getDashboard(supabase: any, seller: any) {
       id,
       device_code,
       device_uuid,
+      client_name,
       customer_id,
       status,
       subscription_expires_at,
@@ -284,6 +373,8 @@ async function getDashboard(supabase: any, seller: any) {
       updated_at,
       device_type,
       app_version,
+      plan_id,
+      playlist_id,
       customer:panel_customers (
         id,
         name,
@@ -331,38 +422,8 @@ async function getDashboard(supabase: any, seller: any) {
     throw new Error(plansError.message);
   }
 
-  const { data: playlists, error: playlistsError } = await supabase
-    .from('panel_playlists')
-    .select('id, name, playlist_type, active, playlist_updated_at')
-    .eq('active', true)
-    .order('created_at', { ascending: false });
-
-  if (playlistsError) {
-    throw new Error(playlistsError.message);
-  }
-
-  const normalizedDevices = (devices ?? []).map((device: any) => ({
-    id: device.id,
-    deviceCode: device.device_code,
-    deviceUuid: device.device_uuid,
-    status: device.status,
-    expiresAt: device.subscription_expires_at,
-    daysLeft: daysLeft(device.subscription_expires_at),
-    lastSeenAt: device.last_seen_at,
-    createdAt: device.created_at,
-    updatedAt: device.updated_at,
-    deviceType: device.device_type || 'androidtv',
-    appVersion: device.app_version || '',
-    customerId: device.customer_id,
-    customerName: device.customer?.name || null,
-    customerWhatsapp: device.customer?.whatsapp || null,
-    planId: device.plan?.id || null,
-    planName: device.plan?.name || null,
-    planDurationDays: device.plan?.duration_days ?? null,
-    planCreditCost: device.plan?.credit_cost ?? null,
-    playlistId: device.playlist?.id || null,
-    playlistName: device.playlist?.name || null,
-  }));
+  const sellerPlaylists = await getSellerPlaylists(supabase, seller.id);
+  const normalizedDevices = (devices ?? []).map(normalizeDevice);
 
   return {
     seller: {
@@ -399,13 +460,7 @@ async function getDashboard(supabase: any, seller: any) {
       maxDevices: plan.max_devices,
       status: plan.status,
     })),
-    playlists: (playlists ?? []).map((playlist: any) => ({
-      id: playlist.id,
-      name: playlist.name,
-      playlistType: playlist.playlist_type,
-      active: playlist.active,
-      playlistUpdatedAt: playlist.playlist_updated_at,
-    })),
+    playlists: sellerPlaylists,
     creditLedger: (ledger ?? []).map((entry: any) => ({
       id: entry.id,
       amount: entry.amount,
@@ -416,6 +471,86 @@ async function getDashboard(supabase: any, seller: any) {
       createdAt: entry.created_at,
     })),
   };
+}
+
+async function getSellerDeviceByCode(supabase: any, seller: any, deviceCode: string) {
+  const { data: device, error: deviceError } = await supabase
+    .from('panel_devices')
+    .select(`
+      id,
+      device_code,
+      device_uuid,
+      client_name,
+      seller_id,
+      customer_id,
+      plan_id,
+      playlist_id,
+      status,
+      subscription_expires_at,
+      last_seen_at,
+      created_at,
+      updated_at,
+      device_type,
+      app_version,
+      customer:panel_customers (
+        id,
+        name,
+        whatsapp
+      ),
+      plan:panel_plans (
+        id,
+        name,
+        duration_days,
+        credit_cost
+      ),
+      playlist:panel_playlists (
+        id,
+        name,
+        active
+      )
+    `)
+    .eq('device_code', deviceCode)
+    .maybeSingle();
+
+  if (deviceError) throw new Error(deviceError.message);
+
+  return device;
+}
+
+async function getOwnedDevice(supabase: any, seller: any, deviceId: string) {
+  const { data: device, error } = await supabase
+    .from('panel_devices')
+    .select(`
+      id,
+      device_code,
+      seller_id,
+      customer_id,
+      plan_id,
+      playlist_id,
+      status,
+      subscription_expires_at,
+      customer:panel_customers (
+        id,
+        name,
+        whatsapp
+      ),
+      plan:panel_plans (
+        id,
+        name,
+        duration_days,
+        credit_cost
+      )
+    `)
+    .eq('id', deviceId)
+    .single();
+
+  if (error || !device) throw new Error(`Aparelho não encontrado: ${error?.message || 'não encontrado'}`);
+
+  if (device.seller_id !== seller.id) {
+    throw new Error('Este aparelho não pertence a este vendedor.');
+  }
+
+  return device;
 }
 
 serve(async (req) => {
@@ -460,41 +595,7 @@ serve(async (req) => {
 
     if (action === 'lookupDeviceCode') {
       const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
-
-      const { data: device, error: deviceError } = await supabase
-        .from('panel_devices')
-        .select(`
-          id,
-          device_code,
-          seller_id,
-          status,
-          subscription_expires_at,
-          last_seen_at,
-          created_at,
-          updated_at,
-          customer:panel_customers (
-            id,
-            name,
-            whatsapp
-          ),
-          plan:panel_plans (
-            id,
-            name,
-            duration_days,
-            credit_cost
-          ),
-          playlist:panel_playlists (
-            id,
-            name,
-            active
-          )
-        `)
-        .eq('device_code', deviceCode)
-        .maybeSingle();
-
-      if (deviceError) {
-        return json({ error: deviceError.message }, 500);
-      }
+      const device = await getSellerDeviceByCode(supabase, seller, deviceCode);
 
       if (!device) {
         return json({
@@ -514,25 +615,14 @@ serve(async (req) => {
         ok: true,
         found: true,
         device: {
-          id: device.id,
-          deviceCode: device.device_code,
-          status: device.status,
+          ...normalizeDevice(device),
           belongsToCurrentSeller,
           belongsToAnotherSeller,
           canClaim,
           canActivate,
-          customerName: device.customer?.name || null,
-          customerWhatsapp: device.customer?.whatsapp || null,
-          planName: device.plan?.name || null,
-          playlistName: device.playlist?.name || null,
-          expiresAt: device.subscription_expires_at,
-          daysLeft: daysLeft(device.subscription_expires_at),
-          lastSeenAt: device.last_seen_at,
-          createdAt: device.created_at,
-          updatedAt: device.updated_at,
         },
         message: canClaim
-          ? 'Código encontrado. Aparelho pendente e disponível para puxar.'
+          ? 'Código encontrado. Aparelho pendente e disponível para ativação.'
           : belongsToCurrentSeller
             ? 'Código encontrado. Este aparelho já está vinculado a este vendedor.'
             : belongsToAnotherSeller
@@ -543,16 +633,7 @@ serve(async (req) => {
 
     if (action === 'claimPendingDevice') {
       const deviceCode = requiredText(body.deviceCode, 'Código do aparelho').toUpperCase();
-
-      const { data: device, error: deviceError } = await supabase
-        .from('panel_devices')
-        .select('id, device_code, seller_id, status')
-        .eq('device_code', deviceCode)
-        .maybeSingle();
-
-      if (deviceError) {
-        return json({ error: deviceError.message }, 500);
-      }
+      const device = await getSellerDeviceByCode(supabase, seller, deviceCode);
 
       if (!device) {
         return json({ error: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
@@ -568,15 +649,10 @@ serve(async (req) => {
 
       const { error: updateError } = await supabase
         .from('panel_devices')
-        .update({
-          seller_id: seller.id,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ seller_id: seller.id, updated_at: new Date().toISOString() })
         .eq('id', device.id);
 
-      if (updateError) {
-        return json({ error: updateError.message }, 500);
-      }
+      if (updateError) return json({ error: updateError.message }, 500);
 
       return json({
         ok: true,
@@ -592,37 +668,17 @@ serve(async (req) => {
       const customerName = requiredText(body.customerName, 'Nome do cliente');
       const customerWhatsapp = normalizeWhatsapp(body.customerWhatsapp);
 
-      if (!customerWhatsapp) {
-        return json({ error: 'WhatsApp do cliente é obrigatório.' }, 400);
-      }
+      if (!customerWhatsapp) return json({ error: 'WhatsApp do cliente é obrigatório.' }, 400);
 
       const plan = await getActivePlanForCharge(supabase, textOrNull(body.planId));
-      const playlist = await getActivePlaylist(supabase, textOrNull(body.playlistId));
+      const playlist = await getAllowedSellerPlaylist(supabase, seller.id, textOrNull(body.playlistId));
+      const device = await getSellerDeviceByCode(supabase, seller, deviceCode);
 
-      const { data: device, error: deviceError } = await supabase
-        .from('panel_devices')
-        .select('id, device_code, seller_id, status')
-        .eq('device_code', deviceCode)
-        .maybeSingle();
-
-      if (deviceError) {
-        return json({ error: deviceError.message }, 500);
-      }
-
-      if (!device) {
-        return json({ error: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
-      }
-
-      if (device.seller_id && device.seller_id !== seller.id) {
-        return json({ error: 'Este aparelho já está vinculado a outro vendedor.' }, 409);
-      }
-
-      if (device.status === 'active') {
-        return json({ error: 'Este aparelho já está ativo. Use renovação em vez de ativação.' }, 400);
-      }
+      if (!device) return json({ error: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
+      if (device.seller_id && device.seller_id !== seller.id) return json({ error: 'Este aparelho já está vinculado a outro vendedor.' }, 409);
+      if (device.status === 'active') return json({ error: 'Este aparelho já está ativo. Use renovação em vez de ativação.' }, 400);
 
       const customerId = await upsertSellerCustomer(supabase, seller.id, customerName, customerWhatsapp);
-
       const creditConsumption = await consumeSellerCredits(supabase, seller, {
         deviceId: device.id,
         deviceCode: device.device_code,
@@ -648,9 +704,7 @@ serve(async (req) => {
         })
         .eq('id', device.id);
 
-      if (updateError) {
-        return json({ error: updateError.message }, 500);
-      }
+      if (updateError) return json({ error: updateError.message }, 500);
 
       return json({
         ok: true,
@@ -665,6 +719,60 @@ serve(async (req) => {
         creditConsumption,
         message: 'Aparelho ativado com sucesso.',
       });
+    }
+
+    if (action === 'renewDevice') {
+      const deviceId = requiredText(body.deviceId, 'ID do aparelho');
+      const device = await getOwnedDevice(supabase, seller, deviceId);
+      const plan = await getActivePlanForCharge(supabase, textOrNull(body.planId) || device.plan_id || null);
+      const playlistId = textOrNull(body.playlistId) || device.playlist_id || null;
+      const playlist = await getAllowedSellerPlaylist(supabase, seller.id, playlistId);
+
+      const customerName = device.customer?.name || null;
+      const creditConsumption = await consumeSellerCredits(supabase, seller, {
+        deviceId: device.id,
+        deviceCode: device.device_code,
+        type: 'renewal',
+        creditCost: plan.creditCost,
+        planName: plan.name,
+        customerName,
+      });
+
+      const expiresAt = textOrNull(body.expiresAt) || addDaysFromNow(plan.durationDays);
+
+      const { error: updateError } = await supabase
+        .from('panel_devices')
+        .update({
+          status: 'active',
+          plan_id: plan.id,
+          playlist_id: playlist.id,
+          subscription_expires_at: expiresAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', device.id);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      return json({ ok: true, deviceId, expiresAt, creditConsumption, message: 'Aparelho renovado com sucesso.' });
+    }
+
+    if (action === 'blockDevice') {
+      const deviceId = requiredText(body.deviceId, 'ID do aparelho');
+      const device = await getOwnedDevice(supabase, seller, deviceId);
+      const nextStatus = normalizeDeviceStatus(body.status || 'blocked');
+
+      if (!['blocked', 'inactive', 'expired', 'active'].includes(nextStatus)) {
+        return json({ error: 'Status não permitido para o vendedor.' }, 400);
+      }
+
+      const { error: updateError } = await supabase
+        .from('panel_devices')
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq('id', device.id);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      return json({ ok: true, deviceId, status: nextStatus, message: 'Status do aparelho atualizado.' });
     }
 
     return json({ error: 'Ação inválida.' }, 400);
