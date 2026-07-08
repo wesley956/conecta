@@ -650,7 +650,7 @@ async function uploadJsonCachePart(supabase: any, storagePath: string, payload: 
   const upload = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, body, {
-      contentType: 'application/json; charset=utf-8',
+      contentType: 'application/json',
       upsert: true,
       cacheControl: '3600',
     });
