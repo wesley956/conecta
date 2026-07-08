@@ -247,7 +247,6 @@ async function fetchXtreamAsM3U(rawUrl: string): Promise<string | null> {
     output.push(m3uEntry(item.name, group, item.stream_icon, url));
   }
 
-
   if (output.length <= 1) {
     throw new Error('A API Xtream respondeu, mas não retornou canais ou filmes.');
   }
@@ -351,20 +350,23 @@ async function fetchViaDevProxy(url: string): Promise<string> {
 export async function fetchM3UContent(url: string): Promise<string> {
   const candidates = buildCandidateUrls(url);
   const errors: string[] = [];
+  const nativeRuntime = isNativeRuntime();
 
-  // Caminho principal no APK: baixar a M3U real diretamente.
-  // Isso evita travar em player_api.php/get_vod_streams em listas grandes.
   for (const candidate of candidates) {
-    try {
-      const nativeContent = await withTimeout(
-        fetchM3UWithCapacitorHttp(candidate),
-        DOWNLOAD_TIMEOUT_MS,
-        'Download direto da lista no APK'
-      );
+    if (nativeRuntime) {
+      try {
+        const nativeContent = await withTimeout(
+          fetchM3UWithCapacitorHttp(candidate),
+          DOWNLOAD_TIMEOUT_MS,
+          'Download direto da lista no APK'
+        );
 
-      if (nativeContent) return nativeContent;
-    } catch (error) {
-      errors.push(error instanceof Error ? error.message : 'Falha no download nativo da lista.');
+        if (nativeContent) return nativeContent;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : 'Falha no download nativo da lista.');
+      }
+
+      continue;
     }
 
     const directContent = await fetchDirect(candidate);
