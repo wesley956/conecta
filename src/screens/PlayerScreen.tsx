@@ -363,6 +363,24 @@ export function PlayerScreen() {
         video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));
       };
 
+      if (isNativeRuntime()) {
+        attachNativePlayback();
+        return () => {
+          cancelled = true;
+          clearRecoveryTimer();
+          clearInitialLoadTimer();
+          video.removeEventListener('waiting', scheduleStallRecovery);
+          video.removeEventListener('stalled', scheduleStallRecovery);
+          video.removeEventListener('playing', clearRecoveryTimer);
+          video.removeEventListener('canplay', clearRecoveryTimer);
+          video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
+          video.removeEventListener('canplay', clearInitialLoadTimer);
+          video.removeEventListener('playing', clearInitialLoadTimer);
+          video.onloadedmetadata = null;
+          video.onerror = null;
+        };
+      }
+
       void import('hls.js')
         .then((module) => {
           if (cancelled) return;
