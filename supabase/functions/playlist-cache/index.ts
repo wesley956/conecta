@@ -277,13 +277,16 @@ async function buildXtreamSnapshot(playlist: any) {
     throw new Error('A conta Xtream não autorizou o acesso.');
   }
 
-  const [liveCategories, vodCategories, seriesCategories, liveStreams, vodStreams, seriesItems] = await Promise.all([
+  const [liveCategories, vodCategories, seriesCategories] = await Promise.all([
     fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais').catch(() => []),
     fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes').catch(() => []),
     fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries').catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais').catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes').catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries').catch(() => []),
+  ]);
+
+  const [liveStreams, vodStreams, seriesItems] = await Promise.all([
+    fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais'),
+    fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes'),
+    fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries'),
   ]);
 
   const liveCategoryMap = buildCategoryMap(liveCategories);
@@ -349,6 +352,10 @@ async function buildXtreamSnapshot(playlist: any) {
         xtreamSeriesId: seriesId,
       };
     });
+
+  if (movies.length === 0) {
+    throw new Error('API Xtream retornou 0 filmes; usando lista M3U completa como fallback.');
+  }
 
   return { channels, movies, series };
 }

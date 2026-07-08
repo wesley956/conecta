@@ -298,24 +298,6 @@ export function PlayerScreen() {
       setError(message);
     };
 
-    if (isNativeRuntime() && isMpegTs) {
-      window.setTimeout(() => {
-        tryNextPlaybackUrl('Este aparelho não suporta MPEG-TS direto no WebView.');
-      }, 0);
-
-      return () => {
-        clearRecoveryTimer();
-        clearInitialLoadTimer();
-        video.removeEventListener('waiting', scheduleStallRecovery);
-        video.removeEventListener('stalled', scheduleStallRecovery);
-        video.removeEventListener('playing', clearRecoveryTimer);
-        video.removeEventListener('canplay', clearRecoveryTimer);
-        video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
-        video.removeEventListener('canplay', clearInitialLoadTimer);
-        video.removeEventListener('playing', clearInitialLoadTimer);
-      };
-    }
-
       if (isMpegTs) {
         let cancelled = false;
         let markReady: (() => void) | null = null;
