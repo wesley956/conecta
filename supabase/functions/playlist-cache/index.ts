@@ -659,7 +659,6 @@ async function uploadJsonCachePart(supabase: any, storagePath: string, payload: 
 
   return {
     path: storagePath,
-    text: body,
     sizeBytes: new TextEncoder().encode(body).byteLength,
   };
 }
@@ -677,11 +676,18 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
 
   try {
     const snapshot = await buildSnapshot(playlist);
-    const snapshotText = JSON.stringify(snapshot);
-    const hash = await sha256Short(snapshotText);
+    const itemCount = snapshot.channels.length + snapshot.movies.length + snapshot.series.length;
+    const hashSeed = JSON.stringify({
+      playlistId: snapshot.playlistId,
+      generatedAt: snapshot.generatedAt,
+      channels: snapshot.channels.length,
+      movies: snapshot.movies.length,
+      series: snapshot.series.length,
+      updatedAt: playlist.playlist_updated_at ?? null,
+    });
+    const hash = await sha256Short(hashSeed);
     const version = `${snapshot.generatedAt}-${hash}`;
 
-    const storagePath = `${playlist.id}/snapshot-${hash}.json`;
     const manifestPath = `${playlist.id}/manifest-${hash}.json`;
     const channelsPath = `${playlist.id}/channels-${hash}.json`;
     const moviesPath = `${playlist.id}/movies-${hash}.json`;
@@ -698,10 +704,10 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
         channels: snapshot.channels.length,
         movies: snapshot.movies.length,
         series: snapshot.series.length,
-        total: snapshot.channels.length + snapshot.movies.length + snapshot.series.length,
+        total: itemCount,
       },
       files: {
-        snapshot: storagePath,
+        manifest: manifestPath,
         channels: channelsPath,
         movies: moviesPath,
         series: seriesPath,
@@ -736,22 +742,20 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       series: snapshot.series,
     };
 
-    const [snapshotUpload, manifestUpload, channelsUpload, moviesUpload, seriesUpload] = await Promise.all([
-      uploadJsonCachePart(supabase, storagePath, snapshotText),
+    const [manifestUpload, channelsUpload, moviesUpload, seriesUpload] = await Promise.all([
       uploadJsonCachePart(supabase, manifestPath, manifest),
       uploadJsonCachePart(supabase, channelsPath, channelsPayload),
       uploadJsonCachePart(supabase, moviesPath, moviesPayload),
       uploadJsonCachePart(supabase, seriesPath, seriesPayload),
     ]);
 
-    const itemCount = snapshot.channels.length + snapshot.movies.length + snapshot.series.length;
-    const sizeBytes = snapshotUpload.sizeBytes;
+    const sizeBytes = manifestUpload.sizeBytes + channelsUpload.sizeBytes + moviesUpload.sizeBytes + seriesUpload.sizeBytes;
 
     await supabase
       .from('panel_playlists')
       .update({
         playlist_cache_status: 'ready',
-        playlist_cache_path: storagePath,
+        playlist_cache_path: manifestUpload.path,
         playlist_cache_manifest_path: manifestUpload.path,
         playlist_cache_channels_path: channelsUpload.path,
         playlist_cache_movies_path: moviesUpload.path,
@@ -774,7 +778,6 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       series: snapshot.series.length,
       sizeBytes,
       parts: {
-        snapshotBytes: snapshotUpload.sizeBytes,
         manifestBytes: manifestUpload.sizeBytes,
         channelsBytes: channelsUpload.sizeBytes,
         moviesBytes: moviesUpload.sizeBytes,
@@ -833,12 +836,13 @@ serve(async req => {
     }
 
     if (action === 'refreshAll') {
-      const limit = Math.max(1, Math.min(20, Number(body.limit || 20)));
+      const limit = 1;
 
       const { data: playlists, error } = await supabase
         .from('panel_playlists')
-        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at')
+        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_updated_at')
         .eq('active', true)
+        .order('playlist_cache_updated_at', { ascending: true, nullsFirst: true })
         .limit(limit);
 
       if (error) return json({ error: error.message }, 500);
@@ -848,7 +852,7 @@ serve(async req => {
         results.push(await refreshPlaylistCache(supabase, playlist));
       }
 
-      return json({ ok: results.every(result => result.ok), results });
+      return json({ ok: results.every(result => result.ok), processedLimit: limit, results });
     }
 
     return json({ error: 'Ação inválida.' }, 400);
