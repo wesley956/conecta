@@ -30,12 +30,22 @@ function sellerPortalStylesheetFor(file) {
   return null;
 }
 
+function sellerListsStylesheetFor(file) {
+  if (file === 'admin-panel/seller.html') return './seller-lists-ux.css';
+  return null;
+}
+
 function uxScriptFor(file) {
   return null;
 }
 
 function sellerPortalScriptFor(file) {
   if (file === 'admin-panel/seller.html') return './seller-portal-ux.js';
+  return null;
+}
+
+function sellerListsScriptFor(file) {
+  if (file === 'admin-panel/seller.html') return './seller-lists-ux.js';
   return null;
 }
 
@@ -116,6 +126,14 @@ function apply(file) {
     console.log(sellerUx.message);
   }
 
+  const sellerListsHref = sellerListsStylesheetFor(file);
+  if (sellerListsHref) {
+    const sellerLists = ensureHeadLink(html, sellerListsHref, `${file} seller-lists-ux.css`);
+    html = sellerLists.html;
+    changed = changed || sellerLists.changed;
+    console.log(sellerLists.message);
+  }
+
   const uxScript = uxScriptFor(file);
   if (uxScript) {
     const uxJs = ensureBodyScript(html, uxScript, `${file} panel-ux.js`);
@@ -130,6 +148,14 @@ function apply(file) {
     html = sellerJs.html;
     changed = changed || sellerJs.changed;
     console.log(sellerJs.message);
+  }
+
+  const sellerListsScript = sellerListsScriptFor(file);
+  if (sellerListsScript) {
+    const sellerListsJs = ensureBodyScript(html, sellerListsScript, `${file} seller-lists-ux.js`);
+    html = sellerListsJs.html;
+    changed = changed || sellerListsJs.changed;
+    console.log(sellerListsJs.message);
   }
 
   if (changed) {
