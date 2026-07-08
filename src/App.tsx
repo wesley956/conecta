@@ -161,10 +161,6 @@ function clearForcedPanelSync() {
   }
 }
 
-function totalPanelCacheItems(snapshot: PanelPlaylistCacheSnapshot) {
-  return snapshot.channels.length + snapshot.movies.length + snapshot.series.length;
-}
-
 function buildPanelPlaylistFallback(
   playlistName: string,
   playlistUrl: string,
