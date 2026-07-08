@@ -8,24 +8,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { uiMode, activeNotice } = useAppStore();
 
   return (
-    <div className={`roneca-app-shell h-full w-full premium-bg overflow-hidden flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
+    <div className={`h-full w-full premium-bg overflow-hidden flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
       {activeNotice && (
-        <div className="roneca-notice animate-fade-in">
-          <div className="roneca-notice-inner">
+        <div className="absolute left-[4.5vw] right-[4.5vw] top-4 z-50 rounded-2xl border border-neon-orange/30 bg-bg-dark/88 px-4 py-3 text-neon-orange shadow-[0_0_26px_rgba(255,122,26,.18)] backdrop-blur-xl animate-fade-in">
+          <div className="flex items-center justify-between gap-4 text-sm">
             <span>{activeNotice}</span>
-            <button
-              type="button"
-              onClick={() => useAppStore.getState().setActiveNotice(null)}
-              className="roneca-notice-close"
-              aria-label="Fechar aviso"
-            >
+            <button onClick={() => useAppStore.getState().setActiveNotice(null)} className="text-white/60 hover:text-white">
               ✕
             </button>
           </div>
         </div>
       )}
 
-      <div className="roneca-app-content flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden">
         {children}
       </div>
     </div>
@@ -52,42 +47,32 @@ export function Header({ title, showBack, onBack, showSearch, showUser }: {
   const formatTime = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <header className={`roneca-header mb-6 flex items-center justify-between gap-4 ${uiMode === 'tv' ? 'mb-8' : 'mb-4'}`}>
-      <div className="flex min-w-0 items-center gap-4">
+    <header className={`mb-6 flex items-center justify-between ${uiMode === 'tv' ? 'mb-8' : 'mb-4'}`}>
+      <div className="flex items-center gap-4">
         {showBack && (
-          <button
-            type="button"
-            onClick={onBack || (() => setScreen('home'))}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-orange hover:text-neon-orange"
-            aria-label="Voltar"
-          >
+          <button onClick={onBack || (() => setScreen('home'))} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-orange hover:text-neon-orange">
             <ArrowLeft aria-hidden="true" size={22} strokeWidth={2.4} />
           </button>
         )}
 
         {title ? (
-          <div className="min-w-0">
-            <h1 className={`${uiMode === 'tv' ? 'text-3xl' : 'text-xl'} truncate font-black text-text-white`}>{title}</h1>
-            <p className="truncate text-xs uppercase tracking-[0.28em] text-text-gray/70">RonecaPlayTV</p>
+          <div>
+            <h1 className={`${uiMode === 'tv' ? 'text-3xl' : 'text-xl'} font-black text-text-white`}>{title}</h1>
+            <p className="text-xs uppercase tracking-[0.28em] text-text-gray/70">RonecaPlayTV</p>
           </div>
         ) : (
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-orange to-neon-cyan text-2xl font-black text-bg-primary">R</div>
-            <div className="truncate text-2xl font-black">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-neon-orange to-neon-cyan text-2xl font-black text-bg-primary">R</div>
+            <div className="text-2xl font-black">
               <span className="text-text-white">Roneca</span><span className="font-medium text-text-white/90">PlayTV</span>
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex items-center gap-3">
         {showSearch && (
-          <button
-            type="button"
-            onClick={() => setScreen('search')}
-            className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-cyan hover:text-neon-cyan"
-            aria-label="Buscar"
-          >
+          <button onClick={() => setScreen('search')} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-text-gray transition-all hover:border-neon-cyan hover:text-neon-cyan">
             🔍
           </button>
         )}
@@ -131,7 +116,6 @@ export function NeonCard({ children, selected, onClick, className, glowColor = '
         ${className || ''}
       `}
       tabIndex={0}
-      role={onClick ? 'button' : undefined}
     >
       {children}
     </div>
@@ -181,10 +165,10 @@ export function ProgressBar({ progress, className }: { progress: number; classNa
 export function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
   const { uiMode } = useAppStore();
   return (
-    <div className="mb-3 flex items-center justify-between gap-4">
-      <h2 className={`${uiMode === 'tv' ? 'text-xl' : 'text-base'} min-w-0 truncate font-bold text-text-white`}>{title}</h2>
+    <div className="flex items-center justify-between mb-3">
+      <h2 className={`${uiMode === 'tv' ? 'text-xl' : 'text-base'} font-bold text-text-white`}>{title}</h2>
       {action && (
-        <button type="button" onClick={onAction} className="shrink-0 text-neon-orange text-sm hover:text-neon-cyan transition-colors">
+        <button onClick={onAction} className="text-neon-orange text-sm hover:text-neon-cyan transition-colors">
           {action} →
         </button>
       )}
@@ -204,7 +188,7 @@ export function EmptyState({ icon, title, description }: { icon: string; title: 
   );
 }
 
-// ===== BOTTOM NAV / SIDE NAV =====
+// ===== BOTTOM NAV (Mobile) =====
 
 export function BottomNav() {
   const store = useAppStore() as any;
@@ -220,7 +204,7 @@ export function BottomNav() {
   ];
 
   return (
-    <aside className="clean-tv-sidebar roneca-side-menu fixed bottom-0 left-0 top-0 z-50 flex flex-col" aria-label="Navegação principal">
+    <aside className="clean-tv-sidebar roneca-side-menu fixed bottom-0 left-0 top-0 z-50 flex flex-col">
       <div className="roneca-side-logo">
         <span className="roneca-side-logo-mark">RP</span>
         <span className="roneca-side-logo-text">Roneca</span>
@@ -230,10 +214,8 @@ export function BottomNav() {
         {items.map(item => (
           <button
             key={item.id}
-            type="button"
             onClick={item.action}
             title={item.label}
-            aria-current={item.active ? 'page' : undefined}
             className={`clean-tv-sidebar-button roneca-side-button ${item.active ? 'active' : ''}`}
           >
             <span className="roneca-side-icon">{item.icon}</span>
