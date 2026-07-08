@@ -239,9 +239,25 @@ function liveExtension(source: ReturnType<typeof parseXtreamSource>) {
   return source?.output?.toLowerCase() === 'm3u8' ? 'm3u8' : 'ts';
 }
 
-function liveUrl(source: ReturnType<typeof parseXtreamSource>, streamId: string | number) {
+function liveUrl(source: ReturnType<typeof parseXtreamSource>, streamId: string | number, extension = liveExtension(source)) {
   if (!source) throw new Error('Fonte Xtream inválida.');
-  return `${source.origin}/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${liveExtension(source)}`;
+  return `${source.origin}/live/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${extension}`;
+}
+
+function alternateLiveUrls(source: ReturnType<typeof parseXtreamSource>, streamId: string | number) {
+  if (!source) throw new Error('Fonte Xtream inválida.');
+
+  const primaryExt = liveExtension(source);
+  const fallbackExt = primaryExt === 'm3u8' ? 'ts' : 'm3u8';
+  const username = encodeURIComponent(source.username);
+  const password = encodeURIComponent(source.password);
+
+  return [
+    `${source.origin}/live/${username}/${password}/${streamId}.${primaryExt}`,
+    `${source.origin}/live/${username}/${password}/${streamId}.${fallbackExt}`,
+    `${source.origin}/${username}/${password}/${streamId}.${primaryExt}`,
+    `${source.origin}/${username}/${password}/${streamId}.${fallbackExt}`,
+  ];
 }
 
 function movieUrl(source: ReturnType<typeof parseXtreamSource>, streamId: string | number, extension?: string) {
@@ -278,7 +294,8 @@ async function buildXtreamSnapshot(playlist: any) {
     .filter(item => item.stream_id)
     .map(item => {
       const groupName = liveCategoryMap.get(String(item.category_id ?? '')) || 'Canais';
-      const url = liveUrl(source, item.stream_id);
+      const playbackUrls = alternateLiveUrls(source, item.stream_id);
+      const url = playbackUrls[0];
 
       return {
         id: `${playlist.id}-ch-${item.stream_id}`,
@@ -288,7 +305,7 @@ async function buildXtreamSnapshot(playlist: any) {
         group: slug(groupName, 'canais'),
         url,
         isFavorite: false,
-        playbackUrls: [url],
+        playbackUrls,
       };
     });
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
@@ -140,7 +140,7 @@ function ContentCacheHydrator() {
   return null;
 }
 
-const RONECA_PANEL_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const RONECA_PANEL_SYNC_COOLDOWN_MS = 60 * 1000;
 const RONECA_PANEL_FORCE_SYNC_KEY = 'ronecaplaytv-force-panel-sync';
 const RONECA_CACHE_SYNC_VERSION = 'panel-cache-v3';
 const RONECA_DIRECT_SYNC_VERSION = 'direct-playlist-v3';
@@ -225,6 +225,27 @@ function DevicePanelSync() {
   const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
   const setSubscription = useAppStore(state => state.setSubscription);
   const setActiveNotice = useAppStore(state => state.setActiveNotice);
+  const [syncPulse, setSyncPulse] = useState(0);
+
+  useEffect(() => {
+    if (!isDevicePanelEnabled()) return;
+
+    const requestSync = () => setSyncPulse(value => value + 1);
+    const intervalId = window.setInterval(requestSync, 60 * 1000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) requestSync();
+    };
+
+    window.addEventListener('focus', requestSync);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', requestSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isDevicePanelEnabled()) return;
@@ -509,6 +530,7 @@ function DevicePanelSync() {
   }, [
     deviceCode,
     currentScreen,
+    syncPulse,
     setActiveNotice,
     setDeviceActivated,
     setScreen,
