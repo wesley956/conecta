@@ -1,7 +1,7 @@
 /*
   Cruz Stars / Roneca — Painéis Web
-  Tema inspirado no visual do projeto cruz.tar: preto limpo, cards flat, vermelho como marca,
-  tabelas densas e navegação profissional. Não afeta o APK/app React.
+  Tema inspirado no projeto cruz.tar: preto limpo, cards flat, vermelho como marca,
+  tabelas legíveis e navegação profissional. Não afeta o APK/app React.
 */
 :root {
   --panel-bg: #090909;
@@ -49,7 +49,7 @@ body::before {
 .wrap { isolation: isolate; }
 
 .app {
-  max-width: 1480px !important;
+  max-width: 1520px !important;
 }
 
 /* Superfícies */
@@ -85,6 +85,10 @@ body::before {
   border-radius: var(--panel-radius-lg) !important;
 }
 
+.card {
+  padding: clamp(16px, 1.6vw, 22px) !important;
+}
+
 .card:hover,
 .quick-item:hover,
 .seller-report-card:hover,
@@ -115,6 +119,11 @@ h3 {
   font-weight: 700 !important;
 }
 
+.card h2 {
+  font-size: clamp(18px, 1.6vw, 24px) !important;
+  line-height: 1.12 !important;
+}
+
 .brand p,
 .sub,
 .muted,
@@ -124,6 +133,11 @@ h3 {
 .result-count,
 label {
   color: var(--panel-muted) !important;
+}
+
+.sub {
+  line-height: 1.45 !important;
+  max-width: 72ch;
 }
 
 .topbar {
@@ -253,6 +267,9 @@ select,
 textarea,
 .table-input,
 .table-select {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   min-height: 39px;
   border-radius: 11px !important;
   border-color: var(--panel-line) !important;
@@ -321,7 +338,7 @@ label {
   color: #fff !important;
 }
 
-/* Stats */
+/* Stats e blocos */
 .stats,
 .grid {
   gap: 14px !important;
@@ -358,17 +375,32 @@ label {
   line-height: 1;
 }
 
-/* Tabelas */
+.quick-list,
+.seller-report-grid,
+.ledger {
+  gap: 12px !important;
+}
+
+.quick-item,
+.seller-report-card,
+.ledger-item {
+  align-items: flex-start !important;
+  line-height: 1.42;
+}
+
+/* Tabelas base */
 .tablewrap {
   border-radius: 14px !important;
   border: 1px solid var(--panel-line) !important;
   background: #0d0d0d !important;
   overflow: auto !important;
+  max-width: 100% !important;
 }
 
 table {
   margin-top: 0 !important;
   background: transparent !important;
+  width: 100% !important;
 }
 
 th,
@@ -390,6 +422,20 @@ th {
 td {
   color: rgba(255,255,255,.86) !important;
   font-size: 13px !important;
+  line-height: 1.4 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+
+td .small,
+td .muted,
+.quick-item .small,
+.detail-box strong,
+.seller-ledger-item,
+.ledger-item {
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
 }
 
 tbody tr:hover td {
@@ -398,16 +444,46 @@ tbody tr:hover td {
 
 .table-input,
 .table-select {
-  min-width: 132px !important;
   padding: 8px 9px !important;
+  font-size: 12px !important;
+}
+
+.actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 7px !important;
+}
+
+.actions .btn,
+.actions button,
+td .btn,
+td button {
+  min-height: 34px !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
 }
 
 /* Separa visualmente ações perigosas quando houver botões vermelhos em linha */
 td .red,
 td button.red,
 td .btn.red {
-  margin-left: 10px !important;
-  box-shadow: -10px 0 0 -9px rgba(229,57,53,.32) !important;
+  margin-left: 8px !important;
+  box-shadow: -8px 0 0 -7px rgba(229,57,53,.32) !important;
+}
+
+/* Aparência de link útil */
+.whats-link {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 28px;
+  margin-top: 7px !important;
+  padding: 5px 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(67, 160, 71, .26) !important;
+  background: rgba(67, 160, 71, .10) !important;
+  color: #bff3c2 !important;
 }
 
 /* Badges */
@@ -429,6 +505,7 @@ td .btn.red {
 .mono {
   color: #ffffff !important;
   font-weight: 700 !important;
+  overflow-wrap: anywhere !important;
 }
 
 .msg,
@@ -458,6 +535,13 @@ td .btn.red {
   gap: 10px !important;
   background: #111111 !important;
   border-color: var(--panel-line) !important;
+}
+
+.filterbar input,
+.filterbar select,
+.filters input,
+.filters select {
+  min-height: 40px !important;
 }
 
 /* Modal */
@@ -499,7 +583,7 @@ td .btn.red {
   display: block;
 }
 
-/* Hierarquia do seller: primeiro card de métrica ganha destaque */
+/* Hierarquia do seller */
 .grid .metric:first-child {
   border-color: rgba(229,57,53,.32) !important;
   background: linear-gradient(180deg, rgba(229,57,53,.13), #141414) !important;
@@ -511,30 +595,225 @@ td .btn.red {
   padding-right: 4px;
 }
 
-/* Responsivo */
-@media (max-width: 980px) {
-  .app {
-    display: block !important;
-    padding: 14px !important;
+/* ===== Melhorias de leitura das tabelas grandes ===== */
+#section-devices .tablewrap,
+#section-pending .tablewrap {
+  border: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+#section-devices table,
+#section-pending table {
+  min-width: 0 !important;
+  border-collapse: separate !important;
+  border-spacing: 0 10px !important;
+}
+
+#section-devices thead tr,
+#section-devices tbody tr,
+#section-pending thead tr,
+#section-pending tbody tr {
+  display: grid !important;
+  align-items: stretch;
+  gap: 0;
+}
+
+#section-devices thead tr,
+#section-devices tbody tr {
+  grid-template-columns:
+    minmax(100px, .85fr)
+    minmax(150px, 1.15fr)
+    minmax(150px, 1.05fr)
+    minmax(135px, .95fr)
+    minmax(115px, .8fr)
+    minmax(150px, 1.1fr)
+    minmax(130px, .9fr)
+    minmax(120px, .85fr)
+    minmax(210px, 1.45fr);
+}
+
+#section-pending thead tr,
+#section-pending tbody tr {
+  grid-template-columns:
+    minmax(110px, .9fr)
+    minmax(170px, 1.2fr)
+    minmax(170px, 1.2fr)
+    minmax(150px, 1fr)
+    minmax(170px, 1.2fr)
+    minmax(125px, .85fr)
+    minmax(150px, 1fr);
+}
+
+#section-devices th,
+#section-devices td,
+#section-pending th,
+#section-pending td {
+  display: block !important;
+  min-width: 0 !important;
+  padding: 12px 10px !important;
+  border-bottom: 0 !important;
+}
+
+#section-devices thead tr,
+#section-pending thead tr {
+  margin-bottom: 0;
+}
+
+#section-devices thead th,
+#section-pending thead th {
+  position: relative !important;
+  top: auto !important;
+  background: #101010 !important;
+  border-bottom: 1px solid rgba(255,255,255,.08) !important;
+}
+
+#section-devices tbody tr,
+#section-pending tbody tr {
+  border: 1px solid var(--panel-line) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(180deg, #151515, #111111) !important;
+  box-shadow: 0 12px 34px rgba(0,0,0,.18) !important;
+  overflow: hidden;
+}
+
+#section-devices tbody tr:hover,
+#section-pending tbody tr:hover {
+  border-color: rgba(255,255,255,.15) !important;
+}
+
+#section-devices tbody td,
+#section-pending tbody td {
+  background: transparent !important;
+  border-right: 1px solid rgba(255,255,255,.055) !important;
+}
+
+#section-devices tbody td:last-child,
+#section-pending tbody td:last-child {
+  border-right: 0 !important;
+}
+
+#section-devices .table-select,
+#section-devices .table-input,
+#section-pending .table-select,
+#section-pending .table-input {
+  min-height: 36px !important;
+}
+
+#section-devices td:nth-child(9) .actions {
+  align-content: flex-start !important;
+}
+
+#section-devices td:nth-child(9) .btn {
+  flex: 1 1 calc(50% - 5px);
+}
+
+#section-devices td:nth-child(9) .btn:first-child {
+  flex-basis: 100%;
+}
+
+#section-devices td:nth-child(9) .btn.red:last-child {
+  flex-basis: 100%;
+}
+
+/* Tabelas médias: menos corte, mais quebra natural */
+#section-customers table,
+#section-playlists table,
+#section-audit table,
+#section-commercial table,
+#dashboardView table {
+  table-layout: auto !important;
+  min-width: 760px !important;
+}
+
+#section-customers td,
+#section-playlists td,
+#section-audit td,
+#section-commercial td,
+#dashboardView td {
+  vertical-align: top !important;
+}
+
+#section-playlists td:nth-child(2) input,
+#section-audit td:nth-child(4),
+#section-audit td:nth-child(5) {
+  overflow-wrap: anywhere !important;
+}
+
+/* Transforma tabelas muito largas em cards quando o espaço aperta */
+@media (max-width: 1280px) {
+  #section-devices thead,
+  #section-pending thead {
+    display: none !important;
   }
 
-  .topbar,
-  .card,
-  .tabs,
-  .modal-card {
-    border-radius: 14px !important;
-  }
-
-  .tabs {
+  #section-devices tbody,
+  #section-pending tbody {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    margin-bottom: 14px !important;
+    gap: 12px !important;
   }
 
-  .tabs::before { grid-column: 1 / -1; }
-  .filterbar,
-  .filters { grid-template-columns: 1fr !important; }
-  .filterbar .wide { grid-column: span 1 !important; }
+  #section-devices tbody tr,
+  #section-pending tbody tr {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    padding: 10px !important;
+  }
+
+  #section-devices tbody td,
+  #section-pending tbody td {
+    min-height: 74px;
+    padding: 10px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,.06) !important;
+  }
+
+  #section-devices tbody td::before,
+  #section-pending tbody td::before {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--panel-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+
+  #section-devices tbody td:nth-child(1)::before { content: "Código"; }
+  #section-devices tbody td:nth-child(2)::before { content: "Cliente"; }
+  #section-devices tbody td:nth-child(3)::before { content: "Vendedor"; }
+  #section-devices tbody td:nth-child(4)::before { content: "Plano"; }
+  #section-devices tbody td:nth-child(5)::before { content: "Status"; }
+  #section-devices tbody td:nth-child(6)::before { content: "Lista"; }
+  #section-devices tbody td:nth-child(7)::before { content: "Validade"; }
+  #section-devices tbody td:nth-child(8)::before { content: "Último acesso"; }
+  #section-devices tbody td:nth-child(9)::before { content: "Ações"; }
+
+  #section-pending tbody td:nth-child(1)::before { content: "Código"; }
+  #section-pending tbody td:nth-child(2)::before { content: "Cliente"; }
+  #section-pending tbody td:nth-child(3)::before { content: "Vendedor"; }
+  #section-pending tbody td:nth-child(4)::before { content: "Plano"; }
+  #section-pending tbody td:nth-child(5)::before { content: "Lista"; }
+  #section-pending tbody td:nth-child(6)::before { content: "Validade"; }
+  #section-pending tbody td:nth-child(7)::before { content: "Ações"; }
+
+  #section-devices tbody td:nth-child(9),
+  #section-pending tbody td:nth-child(7) {
+    grid-column: 1 / -1;
+    min-height: 0;
+    border-bottom: 0 !important;
+  }
+
+  #section-devices tbody td:nth-child(9) .actions .btn {
+    flex: 0 1 auto;
+  }
+}
+
+@media (max-width: 900px) {
+  #section-devices tbody tr,
+  #section-pending tbody tr {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
 @media (max-width: 640px) {
@@ -546,6 +825,16 @@ td .btn.red {
   .actions { width: 100%; }
   .actions .btn,
   .actions button { flex: 1 1 auto; }
-  table { min-width: 880px; }
+  table { min-width: 760px; }
   .brand-logo { width: 46px !important; height: 46px !important; }
+
+  #section-devices tbody tr,
+  #section-pending tbody tr {
+    grid-template-columns: 1fr !important;
+  }
+
+  #section-devices tbody td,
+  #section-pending tbody td {
+    min-height: auto;
+  }
 }
