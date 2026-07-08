@@ -4,6 +4,8 @@ import { AppLayout, BottomNav } from '@/components/shared';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { Home, Tv } from 'lucide-react';
 
+const RONECA_PANEL_FORCE_SYNC_KEY = 'ronecaplaytv-force-panel-sync';
+
 // ===== SETTINGS SCREEN =====
 export function SettingsScreen() {
   const {
@@ -14,6 +16,7 @@ export function SettingsScreen() {
     setDeviceActivated,
     setSubscription,
     setActiveNotice,
+    clearAllImportedContent,
     expiresAt,
     daysRemaining,
     uiMode,
@@ -87,6 +90,18 @@ export function SettingsScreen() {
     }
   };
 
+  const resyncPlaylist = () => {
+    try {
+      window.localStorage.setItem(RONECA_PANEL_FORCE_SYNC_KEY, String(Date.now()));
+    } catch {
+      // ignora falha de storage
+    }
+
+    clearAllImportedContent();
+    setActiveNotice('🔄 Ressincronização solicitada. O app vai baixar a lista real do painel novamente.');
+    setScreen('activation');
+  };
+
   return (
     <AppLayout>
       <div className="clean-tv-page flex h-full px-14 py-8">
@@ -134,6 +149,14 @@ export function SettingsScreen() {
                   className="rounded-md bg-[#2396f2] px-7 py-3 text-xl font-light text-white disabled:opacity-45"
                 >
                   {refreshingAccess ? 'Verificando...' : 'Atualizar acesso'}
+                </button>
+              </SettingRow>
+              <SettingRow label="Ressincronizar lista" value="Baixar novamente">
+                <button
+                  onClick={resyncPlaylist}
+                  className="rounded-md bg-[#28d850] px-7 py-3 text-xl font-light text-black"
+                >
+                  Ressincronizar agora
                 </button>
               </SettingRow>
             </div>
@@ -264,7 +287,6 @@ export function SettingsScreen() {
     </AppLayout>
   );
 }
-
 
 function SettingRow({
   label,
