@@ -13,10 +13,6 @@ jobs:
     name: Build and publish Android APK
     runs-on: ubuntu-latest
 
-    env:
-      VITE_ENABLE_DEVICE_PANEL: ${{ vars.VITE_ENABLE_DEVICE_PANEL || 'false' }}
-      VITE_DEVICE_CONFIG_URL: ${{ vars.VITE_DEVICE_CONFIG_URL || '' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -51,6 +47,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify production env was loaded
+        run: |
+          test -f .env.production
+          grep -q "VITE_ENABLE_DEVICE_PANEL=true" .env.production
+          grep -q "VITE_DEVICE_CONFIG_URL=https://" .env.production
 
       - name: Verify web build
         run: npm run verify
