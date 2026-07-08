@@ -20,7 +20,22 @@ function uxStylesheetFor(file) {
   return null;
 }
 
+function nextUxStylesheetFor(file) {
+  if (file === 'admin-panel/dashboard.html') return './panel-next-ux.css';
+  return null;
+}
+
+function sellerPortalStylesheetFor(file) {
+  if (file === 'admin-panel/seller.html') return './seller-portal-ux.css';
+  return null;
+}
+
 function uxScriptFor(file) {
+  return null;
+}
+
+function sellerPortalScriptFor(file) {
+  if (file === 'admin-panel/seller.html') return './seller-portal-ux.js';
   return null;
 }
 
@@ -85,12 +100,36 @@ function apply(file) {
     console.log(ux.message);
   }
 
+  const nextUxHref = nextUxStylesheetFor(file);
+  if (nextUxHref) {
+    const nextUx = ensureHeadLink(html, nextUxHref, `${file} panel-next-ux.css`);
+    html = nextUx.html;
+    changed = changed || nextUx.changed;
+    console.log(nextUx.message);
+  }
+
+  const sellerUxHref = sellerPortalStylesheetFor(file);
+  if (sellerUxHref) {
+    const sellerUx = ensureHeadLink(html, sellerUxHref, `${file} seller-portal-ux.css`);
+    html = sellerUx.html;
+    changed = changed || sellerUx.changed;
+    console.log(sellerUx.message);
+  }
+
   const uxScript = uxScriptFor(file);
   if (uxScript) {
     const uxJs = ensureBodyScript(html, uxScript, `${file} panel-ux.js`);
     html = uxJs.html;
     changed = changed || uxJs.changed;
     console.log(uxJs.message);
+  }
+
+  const sellerUxScript = sellerPortalScriptFor(file);
+  if (sellerUxScript) {
+    const sellerJs = ensureBodyScript(html, sellerUxScript, `${file} seller-portal-ux.js`);
+    html = sellerJs.html;
+    changed = changed || sellerJs.changed;
+    console.log(sellerJs.message);
   }
 
   if (changed) {
