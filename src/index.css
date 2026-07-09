@@ -3187,3 +3187,109 @@ textarea:focus-visible,
     padding: 0.34rem 0.52rem !important;
   }
 }
+
+
+/* RonecaPlayTV — Filmes/Séries ajuste fino 2 */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  /* Mais espaço para os nomes das categorias em Filmes/Séries */
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories,
+  .clean-tv-page:has(.roneca-media-grid) > aside.clean-tv-categories {
+    width: clamp(230px, 25vw, 290px) !important;
+    padding-right: 0.9rem !important;
+  }
+
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories .clean-tv-row {
+    min-height: 46px !important;
+    padding: 0.5rem 0.72rem !important;
+    gap: 0.55rem !important;
+    border-radius: 0.78rem !important;
+  }
+
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories .clean-tv-row span:first-child {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    display: block !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    font-size: 0.92rem !important;
+    line-height: 1.1 !important;
+    font-weight: 760 !important;
+  }
+
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories .clean-tv-row .clean-tv-category-count,
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories .clean-tv-row span:last-child {
+    font-size: 0.72rem !important;
+    opacity: 0.75 !important;
+  }
+
+  /* Remove qualquer camada/efeito embaçado dos pôsteres */
+  .roneca-poster-card > div:first-child::before,
+  .roneca-poster-card > div:first-child::after {
+    display: none !important;
+    content: none !important;
+    opacity: 0 !important;
+    background: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .roneca-poster-card,
+  .roneca-poster-card > div:first-child,
+  .roneca-poster-card img {
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .roneca-poster-card img {
+    opacity: 1 !important;
+    transform: none !important;
+    object-fit: cover !important;
+  }
+
+  .roneca-poster-card:hover img,
+  .roneca-poster-card:focus img,
+  .roneca-poster-card:focus-visible img {
+    transform: none !important;
+    filter: none !important;
+  }
+
+  .roneca-poster-card > div:first-child {
+    background: rgba(15, 23, 42, 0.35) !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+    border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  }
+
+  .roneca-poster-card:hover > div:first-child,
+  .roneca-poster-card:focus > div:first-child,
+  .roneca-poster-card:focus-visible > div:first-child {
+    border-color: rgba(34, 211, 238, 0.65) !important;
+    box-shadow:
+      0 0 0 2px rgba(34, 211, 238, 0.24),
+      0 16px 34px rgba(0, 0, 0, 0.34) !important;
+  }
+
+  /* Busca da aba séries menor */
+  .clean-tv-page main header:has(input) > div:last-child {
+    min-width: min(250px, 28vw) !important;
+    max-width: 300px !important;
+    padding: 0.38rem 0.58rem !important;
+  }
+
+  .clean-tv-page main header input {
+    font-size: 0.92rem !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 430px) {
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories,
+  .clean-tv-page:has(.roneca-media-grid) > aside.clean-tv-categories {
+    width: 200px !important;
+  }
+
+  .clean-tv-page:has(.roneca-media-grid) .clean-tv-categories .clean-tv-row span:first-child {
+    font-size: 0.8rem !important;
+  }
+}
