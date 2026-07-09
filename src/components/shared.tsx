@@ -5,7 +5,9 @@ import { ArrowLeft, Home, Tv, Film, Library, Settings } from 'lucide-react';
 // ===== LAYOUT COMPONENTS =====
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const { uiMode, activeNotice } = useAppStore();
+  const uiMode = useAppStore(state => state.uiMode);
+  const activeNotice = useAppStore(state => state.activeNotice);
+  const setActiveNotice = useAppStore(state => state.setActiveNotice);
 
   return (
     <div className={`h-full w-full premium-bg overflow-hidden flex flex-col ${uiMode === 'tv' ? 'tv-safe' : 'mobile-safe'}`}>
@@ -13,7 +15,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="absolute left-[4.5vw] right-[4.5vw] top-4 z-50 rounded-2xl border border-neon-orange/30 bg-bg-dark/88 px-4 py-3 text-neon-orange shadow-[0_0_26px_rgba(255,122,26,.18)] backdrop-blur-xl animate-fade-in">
           <div className="flex items-center justify-between gap-4 text-sm">
             <span>{activeNotice}</span>
-            <button onClick={() => useAppStore.getState().setActiveNotice(null)} className="text-white/60 hover:text-white">
+            <button onClick={() => setActiveNotice(null)} className="text-white/60 hover:text-white">
               ✕
             </button>
           </div>
@@ -29,6 +31,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
 // ===== HEADER =====
 
+function LiveClock({ className }: { className: string }) {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <span className={className}>
+      {time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+    </span>
+  );
+}
+
 export function Header({ title, showBack, onBack, showSearch, showUser }: {
   title?: string;
   showBack?: boolean;
@@ -36,15 +53,8 @@ export function Header({ title, showBack, onBack, showSearch, showUser }: {
   showSearch?: boolean;
   showUser?: boolean;
 }) {
-  const { setScreen, uiMode } = useAppStore();
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTime = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const setScreen = useAppStore(state => state.setScreen);
+  const uiMode = useAppStore(state => state.uiMode);
 
   return (
     <header className={`mb-6 flex items-center justify-between ${uiMode === 'tv' ? 'mb-8' : 'mb-4'}`}>
@@ -78,7 +88,7 @@ export function Header({ title, showBack, onBack, showSearch, showUser }: {
         )}
 
         <span className="hidden text-active-green md:inline">●</span>
-        <span className={`${uiMode === 'tv' ? 'text-2xl' : 'text-base'} font-light text-text-white`}>{formatTime(time)}</span>
+        <LiveClock className={`${uiMode === 'tv' ? 'text-2xl' : 'text-base'} font-light text-text-white`} />
 
         {showUser && (
           <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.08] text-lg">
@@ -163,7 +173,7 @@ export function ProgressBar({ progress, className }: { progress: number; classNa
 // ===== SECTION TITLE =====
 
 export function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
-  const { uiMode } = useAppStore();
+  const uiMode = useAppStore(state => state.uiMode);
   return (
     <div className="flex items-center justify-between mb-3">
       <h2 className={`${uiMode === 'tv' ? 'text-xl' : 'text-base'} font-bold text-text-white`}>{title}</h2>
@@ -191,9 +201,8 @@ export function EmptyState({ icon, title, description }: { icon: string; title: 
 // ===== BOTTOM NAV (Mobile) =====
 
 export function BottomNav() {
-  const store = useAppStore() as any;
-  const activeScreen = store.screen ?? store.currentScreen ?? store.activeScreen ?? 'home';
-  const setScreen = store.setScreen as (screen: string) => void;
+  const activeScreen = useAppStore(state => state.currentScreen);
+  const setScreen = useAppStore(state => state.setScreen);
 
   const items = [
     { id: 'home', icon: <Home aria-hidden="true" size={22} strokeWidth={2.4} />, label: 'Início', action: () => setScreen('home'), active: ['home'].includes(activeScreen) },
