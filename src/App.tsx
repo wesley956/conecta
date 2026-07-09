@@ -221,10 +221,6 @@ function DevicePanelSync() {
   const lastPanelSyncAtRef = useRef(0);
   const deviceCode = useAppStore(state => state.deviceCode);
   const currentScreen = useAppStore(state => state.currentScreen);
-  const setScreen = useAppStore(state => state.setScreen);
-  const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
-  const setSubscription = useAppStore(state => state.setSubscription);
-  const setActiveNotice = useAppStore(state => state.setActiveNotice);
   const [syncPulse, setSyncPulse] = useState(0);
 
   useEffect(() => {
@@ -267,6 +263,7 @@ function DevicePanelSync() {
 
     async function syncFromPanel() {
       syncingRef.current = true;
+      const { setScreen, setDeviceActivated, setSubscription, setActiveNotice } = useAppStore.getState();
 
       try {
         const activeDeviceCode = String(deviceCode || '').trim();
@@ -531,10 +528,6 @@ function DevicePanelSync() {
     deviceCode,
     currentScreen,
     syncPulse,
-    setActiveNotice,
-    setDeviceActivated,
-    setScreen,
-    setSubscription,
   ]);
 
   return null;
@@ -543,9 +536,9 @@ function DevicePanelSync() {
 // ===== MAIN APP =====
 export default function App() {
   useTvRemoteNavigation();
-  const { currentScreen } = useAppStore();
+  const currentScreen = useAppStore(state => state.currentScreen);
 
-  // Detect UI mode changes based on window size
+  // Detect UI mode changes based on window size and orientation.
   useEffect(() => {
     const handleResize = () => {
       const { setUIMode } = useAppStore.getState();
@@ -554,7 +547,13 @@ export default function App() {
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    handleResize();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   return (
