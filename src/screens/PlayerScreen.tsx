@@ -502,10 +502,14 @@ export function PlayerScreen() {
     video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));
     return () => {
       clearRecoveryTimer();
+      clearInitialLoadTimer();
       video.removeEventListener('waiting', scheduleStallRecovery);
       video.removeEventListener('stalled', scheduleStallRecovery);
       video.removeEventListener('playing', clearRecoveryTimer);
       video.removeEventListener('canplay', clearRecoveryTimer);
+      video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
+      video.removeEventListener('canplay', clearInitialLoadTimer);
+      video.removeEventListener('playing', clearInitialLoadTimer);
       hls?.destroy();
       tsPlayer?.destroy?.();
       video.onloadedmetadata = null;
