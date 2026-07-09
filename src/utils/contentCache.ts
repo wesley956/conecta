@@ -5,6 +5,8 @@ const DB_VERSION = 1;
 const STORE_NAME = 'snapshots';
 const SNAPSHOT_KEY = 'latest';
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 export interface ContentCacheSnapshot {
   version: number;
   savedAt: string;
@@ -19,12 +21,13 @@ function canUseIndexedDB() {
 }
 
 function openCacheDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (!canUseIndexedDB()) {
-      reject(new Error('IndexedDB não disponível.'));
-      return;
-    }
+  if (!canUseIndexedDB()) {
+    return Promise.reject(new Error('IndexedDB não disponível.'));
+  }
 
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
@@ -35,9 +38,28 @@ function openCacheDb(): Promise<IDBDatabase> {
       }
     };
 
-    request.onerror = () => reject(request.error ?? new Error('Falha ao abrir cache.'));
-    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error ?? new Error('Falha ao abrir cache.'));
+    };
+
+    request.onsuccess = () => {
+      const db = request.result;
+
+      db.onclose = () => {
+        dbPromise = null;
+      };
+
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+
+      resolve(db);
+    };
   });
+
+  return dbPromise;
 }
 
 function normalizeSnapshot(snapshot: Partial<ContentCacheSnapshot>): ContentCacheSnapshot {
@@ -69,8 +91,6 @@ export async function saveContentCache(snapshot: Omit<ContentCacheSnapshot, 'ver
       tx.onerror = () => reject(tx.error ?? new Error('Falha ao salvar cache.'));
       tx.onabort = () => reject(tx.error ?? new Error('Cache abortado.'));
     });
-
-    db.close();
   } catch {
     // Cache é melhoria de performance. Se falhar, o app continua funcionando.
   }
@@ -80,7 +100,7 @@ export async function loadContentCache(): Promise<ContentCacheSnapshot | null> {
   try {
     const db = await openCacheDb();
 
-    const data = await new Promise<ContentCacheSnapshot | null>((resolve, reject) => {
+    return await new Promise<ContentCacheSnapshot | null>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const request = store.get(SNAPSHOT_KEY);
@@ -96,10 +116,6 @@ export async function loadContentCache(): Promise<ContentCacheSnapshot | null> {
 
       request.onerror = () => reject(request.error ?? new Error('Falha ao ler cache.'));
     });
-
-    db.close();
-
-    return data;
   } catch {
     return null;
   }
@@ -119,8 +135,6 @@ export async function clearContentCache() {
       tx.onerror = () => reject(tx.error ?? new Error('Falha ao limpar cache.'));
       tx.onabort = () => reject(tx.error ?? new Error('Cache abortado.'));
     });
-
-    db.close();
   } catch {
     // ignora
   }
