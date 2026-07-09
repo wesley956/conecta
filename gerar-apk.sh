@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -e
+
+echo "==> Instalando dependências..."
+npm install
+
+echo "==> Gerando build web..."
+npm run build
+
+echo "==> Sincronizando Capacitor Android..."
+npx cap sync android
+
+echo "==> Gerando APK debug instalável..."
+cd android
+chmod +x ./gradlew
+./gradlew assembleDebug
+
+echo ""
+echo "APK pronto:"
+echo "android/app/build/outputs/apk/debug/app-debug.apk"
