@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
 
 const FOCUSABLE_SELECTOR = [
@@ -10,6 +10,14 @@ const FOCUSABLE_SELECTOR = [
   '[role="button"]',
   '[data-tv-focusable="true"]',
 ].join(',');
+
+type Direction = 'up' | 'down' | 'left' | 'right';
+
+interface FocusCache {
+  elements: HTMLElement[];
+  valid: boolean;
+  rafId: number | null;
+}
 
 function isVisible(el: HTMLElement) {
   const rect = el.getBoundingClientRect();
@@ -24,14 +32,12 @@ function isVisible(el: HTMLElement) {
   );
 }
 
-function getFocusableElements() {
+function collectFocusableElements() {
   return Array.from(document.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
     .filter(isVisible);
 }
 
-function prepareFocusableElements() {
-  const elements = getFocusableElements();
-
+function prepareElements(elements: HTMLElement[]) {
   for (const el of elements) {
     if (!el.hasAttribute('tabindex')) {
       el.tabIndex = 0;
@@ -41,6 +47,40 @@ function prepareFocusableElements() {
   }
 
   return elements;
+}
+
+function refreshFocusableCache(cache: FocusCache) {
+  cache.elements = prepareElements(collectFocusableElements());
+  cache.valid = true;
+  cache.rafId = null;
+
+  return cache.elements;
+}
+
+function getFocusableElements(cache: FocusCache) {
+  if (!cache.valid) {
+    return refreshFocusableCache(cache);
+  }
+
+  // Em listas longas, evita varrer o DOM a cada seta. Só revalida o array
+  // cacheado contra elementos removidos/invisíveis, que é bem mais barato.
+  const elements = cache.elements.filter(el => el.isConnected && isVisible(el));
+
+  if (elements.length !== cache.elements.length) {
+    cache.elements = elements;
+  }
+
+  return cache.elements;
+}
+
+function invalidateFocusableCache(cache: FocusCache) {
+  cache.valid = false;
+
+  if (cache.rafId !== null) return;
+
+  cache.rafId = window.requestAnimationFrame(() => {
+    refreshFocusableCache(cache);
+  });
 }
 
 function centerOf(el: HTMLElement) {
@@ -61,8 +101,7 @@ function focusElement(el: HTMLElement) {
   });
 }
 
-function findNextElement(current: HTMLElement, direction: 'up' | 'down' | 'left' | 'right') {
-  const elements = getFocusableElements();
+function findNextElement(elements: HTMLElement[], current: HTMLElement, direction: Direction) {
   const currentCenter = centerOf(current);
 
   let best: HTMLElement | null = null;
@@ -104,46 +143,65 @@ function isTypingElement(el: Element | null) {
 export function useTvRemoteNavigation() {
   const currentScreen = useAppStore((state) => state.currentScreen);
   const setScreen = useAppStore((state) => state.setScreen);
+  const focusCacheRef = useRef<FocusCache>({ elements: [], valid: false, rafId: null });
 
   useEffect(() => {
+    const cache = focusCacheRef.current;
+
     const prepare = () => {
-      const elements = prepareFocusableElements();
+      const elements = refreshFocusableCache(cache);
       const active = document.activeElement as HTMLElement | null;
 
       if (!active || active === document.body || !isVisible(active)) {
         const first = elements[0];
 
         if (first) {
-          setTimeout(() => focusElement(first), 120);
+          window.setTimeout(() => focusElement(first), 120);
         }
       }
     };
 
+    cache.valid = false;
     prepare();
 
     const observer = new MutationObserver(() => {
-      window.requestAnimationFrame(prepare);
+      invalidateFocusableCache(cache);
     });
 
     observer.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'disabled', 'aria-hidden'],
+      attributeFilter: ['class', 'disabled', 'aria-hidden', 'style'],
     });
 
-    return () => observer.disconnect();
+    window.addEventListener('resize', prepare);
+    window.addEventListener('orientationchange', prepare);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', prepare);
+      window.removeEventListener('orientationchange', prepare);
+
+      if (cache.rafId !== null) {
+        window.cancelAnimationFrame(cache.rafId);
+        cache.rafId = null;
+      }
+    };
   }, [currentScreen]);
 
   useEffect(() => {
+    const cache = focusCacheRef.current;
+
     const onKeyDown = (event: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
 
       if (isTypingElement(active)) return;
 
+      // O player tem atalhos e controles próprios. Não interferir nele.
       if (currentScreen === 'player') return;
 
-      const directions: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+      const directions: Record<string, Direction> = {
         ArrowUp: 'up',
         ArrowDown: 'down',
         ArrowLeft: 'left',
@@ -155,12 +213,12 @@ export function useTvRemoteNavigation() {
       if (direction) {
         event.preventDefault();
 
-        const elements = prepareFocusableElements();
+        const elements = getFocusableElements(cache);
         const current = active && elements.includes(active) ? active : elements[0];
 
         if (!current) return;
 
-        const next = findNextElement(current, direction);
+        const next = findNextElement(elements, current, direction);
         focusElement(next ?? current);
         return;
       }
