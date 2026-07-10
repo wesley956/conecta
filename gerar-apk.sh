@@ -4,11 +4,14 @@ set -e
 echo "==> Instalando dependências..."
 npm install
 
-echo "==> Gerando build web..."
-npm run build
+echo "==> Validando parser, TypeScript e build web..."
+npm run verify
 
 echo "==> Sincronizando Capacitor Android..."
 npx cap sync android
+
+echo "==> Aplicando configuração Android adaptativa..."
+node scripts/configure-android-adaptive.cjs
 
 echo "==> Gerando APK debug instalável..."
 cd android

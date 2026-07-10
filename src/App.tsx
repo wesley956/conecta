@@ -16,8 +16,9 @@ import { ChannelsScreen } from '@/screens/ChannelsScreen';
 import { MoviesScreen } from '@/screens/MoviesScreen';
 import { SeriesScreen } from '@/screens/SeriesScreen';
 import { PlayerScreen } from '@/screens/PlayerScreen';
-import { FavoritesScreen, SearchScreen } from '@/screens/FavoritesSearchScreen';
-import { SettingsScreen } from '@/screens/PlaylistsSettingsScreen';
+import { MyListScreen } from '@/screens/MyListScreen';
+import { SearchScreen } from '@/screens/SearchScreen';
+import { SettingsScreen } from '@/screens/SettingsScreen';
 import { ExpiredScreen, BlockedScreen, NoInternetScreen } from '@/screens/ErrorScreens';
 
 // ===== SCREEN ROUTER =====
@@ -33,7 +34,7 @@ function AppScreen({ screen }: { screen: AppState }) {
     case 'movies': return <MoviesScreen />;
     case 'series': return <SeriesScreen />;
     case 'player': return <PlayerScreen />;
-    case 'favorites': return <FavoritesScreen />;
+    case 'favorites': return <MyListScreen />;
     case 'search': return <SearchScreen />;
     case 'settings': return <SettingsScreen />;
     default: return <HomeScreen />;
@@ -557,7 +558,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="h-screen w-screen bg-bg-primary overflow-hidden">
+    <div className="h-screen w-screen overflow-hidden bg-black">
       <ContentCacheHydrator />
       <DevicePanelSync />
       <AppScreen screen={currentScreen} />

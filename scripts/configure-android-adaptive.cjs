@@ -9,10 +9,7 @@ function setAndroidAttr(attrs, name, value) {
   const pattern = new RegExp(`android:${name}="[^"]*"`, 'g');
   const replacement = `android:${name}="${value}"`;
 
-  if (pattern.test(attrs)) {
-    return attrs.replace(pattern, replacement);
-  }
-
+  if (pattern.test(attrs)) return attrs.replace(pattern, replacement);
   return `${attrs}\n        ${replacement}`;
 }
 
@@ -40,13 +37,11 @@ manifest = manifest.replace(
   /<application([\s\S]*?)>/,
   (match, attrs) => {
     let next = attrs;
-
     next = setAndroidAttr(next, 'usesCleartextTraffic', 'true');
     next = setAndroidAttr(next, 'networkSecurityConfig', '@xml/network_security_config');
     next = setAndroidAttr(next, 'hardwareAccelerated', 'true');
-
     return `<application${next}>`;
-  }
+  },
 );
 
 manifest = manifest.replace(
@@ -54,20 +49,29 @@ manifest = manifest.replace(
   (match, attrs) => {
     let next = attrs;
 
-    if (/android:screenOrientation=/.test(next)) {
-      next = next.replace(/android:screenOrientation="[^"]*"/, 'android:screenOrientation="landscape"');
-    } else {
-      next += '\n            android:screenOrientation="landscape"';
-    }
+    // Sobrescreve qualquer configuração landscape deixada por builds antigos.
+    next = setAndroidAttr(next, 'screenOrientation', 'unspecified');
 
-    if (!/android:configChanges=/.test(next)) {
-      next += '\n            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"';
-    }
+    const requiredChanges = [
+      'orientation',
+      'keyboardHidden',
+      'keyboard',
+      'screenSize',
+      'locale',
+      'smallestScreenSize',
+      'screenLayout',
+      'uiMode',
+    ];
+
+    const currentMatch = next.match(/android:configChanges="([^"]*)"/);
+    const currentChanges = currentMatch?.[1]?.split('|').filter(Boolean) ?? [];
+    const mergedChanges = [...new Set([...currentChanges, ...requiredChanges])].join('|');
+    next = setAndroidAttr(next, 'configChanges', mergedChanges);
 
     return `<activity${next}>`;
-  }
+  },
 );
 
 fs.writeFileSync(manifestPath, manifest);
 
-console.log('Android configurado: landscape + cleartext HTTP + network security config.');
+console.log('Android configurado: orientação adaptativa + aceleração de hardware + listas HTTP permitidas.');

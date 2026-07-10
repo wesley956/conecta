@@ -1,0 +1,64 @@
+.stream-shell[data-animations="off"] :where(
+  button,
+  a,
+  input,
+  select,
+  .catalog-poster-frame,
+  .stream-poster-frame,
+  .live-channel-card,
+  .stream-channel-card,
+  .stream-nav-item
+) {
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+.stream-shell[data-card-size="small"] .movies-grid,
+.stream-shell[data-card-size="small"] .series-grid,
+.stream-shell[data-card-size="small"] .library-poster-grid {
+  grid-template-columns: repeat(auto-fill, minmax(106px, 1fr)) !important;
+}
+
+.stream-shell[data-card-size="small"] .stream-rail,
+.stream-shell[data-card-size="small"] .movie-recommendations-rail,
+.stream-shell[data-card-size="small"] .series-recommendations-rail {
+  grid-auto-columns: minmax(104px, 12vw) !important;
+}
+
+.stream-shell[data-card-size="large"] .movies-grid,
+.stream-shell[data-card-size="large"] .series-grid,
+.stream-shell[data-card-size="large"] .library-poster-grid {
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)) !important;
+}
+
+.stream-shell[data-card-size="large"] .stream-rail,
+.stream-shell[data-card-size="large"] .movie-recommendations-rail,
+.stream-shell[data-card-size="large"] .series-recommendations-rail {
+  grid-auto-columns: minmax(156px, 18vw) !important;
+}
+
+@media (max-height: 450px) and (orientation: landscape) {
+  .stream-shell[data-card-size="small"] .movies-grid,
+  .stream-shell[data-card-size="small"] .series-grid,
+  .stream-shell[data-card-size="small"] .library-poster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)) !important;
+  }
+
+  .stream-shell[data-card-size="large"] .movies-grid,
+  .stream-shell[data-card-size="large"] .series-grid,
+  .stream-shell[data-card-size="large"] .library-poster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)) !important;
+  }
+
+  .stream-shell[data-card-size="small"] .stream-rail,
+  .stream-shell[data-card-size="small"] .movie-recommendations-rail,
+  .stream-shell[data-card-size="small"] .series-recommendations-rail {
+    grid-auto-columns: minmax(80px, 11.5vw) !important;
+  }
+
+  .stream-shell[data-card-size="large"] .stream-rail,
+  .stream-shell[data-card-size="large"] .movie-recommendations-rail,
+  .stream-shell[data-card-size="large"] .series-recommendations-rail {
+    grid-auto-columns: minmax(122px, 17vw) !important;
+  }
+}

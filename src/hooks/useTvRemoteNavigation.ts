@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import type { AppState } from '@/types';
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -10,6 +11,24 @@ const FOCUSABLE_SELECTOR = [
   '[role="button"]',
   '[data-tv-focusable="true"]',
 ].join(',');
+
+const ROOT_SCREENS = new Set<AppState>([
+  'home',
+  'splash',
+  'activation',
+  'expired',
+  'blocked',
+  'nointernet',
+]);
+
+const INVALID_BACK_DESTINATIONS = new Set<AppState>([
+  'player',
+  'splash',
+  'activation',
+  'expired',
+  'blocked',
+  'nointernet',
+]);
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -39,10 +58,7 @@ function collectFocusableElements() {
 
 function prepareElements(elements: HTMLElement[]) {
   for (const el of elements) {
-    if (!el.hasAttribute('tabindex')) {
-      el.tabIndex = 0;
-    }
-
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
     el.classList.add('tv-focusable');
   }
 
@@ -53,29 +69,19 @@ function refreshFocusableCache(cache: FocusCache) {
   cache.elements = prepareElements(collectFocusableElements());
   cache.valid = true;
   cache.rafId = null;
-
   return cache.elements;
 }
 
 function getFocusableElements(cache: FocusCache) {
-  if (!cache.valid) {
-    return refreshFocusableCache(cache);
-  }
+  if (!cache.valid) return refreshFocusableCache(cache);
 
-  // Em listas longas, evita varrer o DOM a cada seta. Só revalida o array
-  // cacheado contra elementos removidos/invisíveis, que é bem mais barato.
-  const elements = cache.elements.filter(el => el.isConnected && isVisible(el));
-
-  if (elements.length !== cache.elements.length) {
-    cache.elements = elements;
-  }
-
+  const connected = cache.elements.filter(el => el.isConnected);
+  if (connected.length !== cache.elements.length) cache.elements = connected;
   return cache.elements;
 }
 
 function invalidateFocusableCache(cache: FocusCache) {
   cache.valid = false;
-
   if (cache.rafId !== null) return;
 
   cache.rafId = window.requestAnimationFrame(() => {
@@ -85,7 +91,6 @@ function invalidateFocusableCache(cache: FocusCache) {
 
 function centerOf(el: HTMLElement) {
   const rect = el.getBoundingClientRect();
-
   return {
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2,
@@ -97,13 +102,12 @@ function focusElement(el: HTMLElement) {
   el.scrollIntoView({
     block: 'nearest',
     inline: 'nearest',
-    behavior: 'smooth',
+    behavior: 'auto',
   });
 }
 
 function findNextElement(elements: HTMLElement[], current: HTMLElement, direction: Direction) {
   const currentCenter = centerOf(current);
-
   let best: HTMLElement | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
 
@@ -134,45 +138,70 @@ function findNextElement(elements: HTMLElement[], current: HTMLElement, directio
 
 function isTypingElement(el: Element | null) {
   if (!el) return false;
-
   const tag = el.tagName.toLowerCase();
-
   return tag === 'input' || tag === 'textarea' || (el as HTMLElement).isContentEditable;
 }
 
+function shouldAutoFocusForRemote() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const looksLikeTv = /android tv|google tv|smarttv|smart-tv|aft|bravia|netcast|web0s|tizen/.test(userAgent);
+  const roomyLandscape = window.innerWidth >= 720 && window.innerWidth > window.innerHeight;
+  return looksLikeTv || roomyLandscape;
+}
+
+function getSafeBackDestination(currentScreen: AppState, previousScreen: AppState | null) {
+  if (
+    previousScreen &&
+    previousScreen !== currentScreen &&
+    !INVALID_BACK_DESTINATIONS.has(previousScreen)
+  ) {
+    return previousScreen;
+  }
+
+  return 'home' as const;
+}
+
 export function useTvRemoteNavigation() {
-  const currentScreen = useAppStore((state) => state.currentScreen);
-  const setScreen = useAppStore((state) => state.setScreen);
+  const currentScreen = useAppStore(state => state.currentScreen);
+  const previousScreen = useAppStore(state => state.previousScreen);
+  const setScreen = useAppStore(state => state.setScreen);
   const focusCacheRef = useRef<FocusCache>({ elements: [], valid: false, rafId: null });
 
   useEffect(() => {
     const cache = focusCacheRef.current;
 
+    if (currentScreen === 'player') {
+      cache.elements = [];
+      cache.valid = false;
+      if (cache.rafId !== null) {
+        window.cancelAnimationFrame(cache.rafId);
+        cache.rafId = null;
+      }
+      return;
+    }
+
     const prepare = () => {
       const elements = refreshFocusableCache(cache);
       const active = document.activeElement as HTMLElement | null;
 
-      if (!active || active === document.body || !isVisible(active)) {
+      if (
+        shouldAutoFocusForRemote() &&
+        (!active || active === document.body || !active.isConnected || !isVisible(active))
+      ) {
         const first = elements[0];
-
-        if (first) {
-          window.setTimeout(() => focusElement(first), 120);
-        }
+        if (first) window.setTimeout(() => focusElement(first), 90);
       }
     };
 
     cache.valid = false;
     prepare();
 
-    const observer = new MutationObserver(() => {
-      invalidateFocusableCache(cache);
-    });
-
+    const observer = new MutationObserver(() => invalidateFocusableCache(cache));
     observer.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'disabled', 'aria-hidden', 'style'],
+      attributeFilter: ['disabled', 'aria-hidden', 'hidden', 'tabindex'],
     });
 
     window.addEventListener('resize', prepare);
@@ -191,15 +220,15 @@ export function useTvRemoteNavigation() {
   }, [currentScreen]);
 
   useEffect(() => {
+    if (currentScreen === 'player') return;
+
     const cache = focusCacheRef.current;
 
     const onKeyDown = (event: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
+      const isBackKey = event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack';
 
-      if (isTypingElement(active)) return;
-
-      // O player tem atalhos e controles próprios. Não interferir nele.
-      if (currentScreen === 'player') return;
+      if (isTypingElement(active) && !isBackKey) return;
 
       const directions: Record<string, Direction> = {
         ArrowUp: 'up',
@@ -212,10 +241,8 @@ export function useTvRemoteNavigation() {
 
       if (direction) {
         event.preventDefault();
-
         const elements = getFocusableElements(cache);
         const current = active && elements.includes(active) ? active : elements[0];
-
         if (!current) return;
 
         const next = findNextElement(elements, current, direction);
@@ -231,16 +258,27 @@ export function useTvRemoteNavigation() {
         return;
       }
 
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack') {
-        if (currentScreen !== 'home' && currentScreen !== 'activation') {
+      if (isBackKey) {
+        const localBackTarget = document.querySelector<HTMLElement>('[data-tv-back-target="true"]');
+
+        if (localBackTarget && isVisible(localBackTarget)) {
           event.preventDefault();
-          setScreen('home');
+          event.stopPropagation();
+          (event as KeyboardEvent & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+          localBackTarget.click();
+          return;
+        }
+
+        if (!ROOT_SCREENS.has(currentScreen)) {
+          event.preventDefault();
+          event.stopPropagation();
+          (event as KeyboardEvent & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+          setScreen(getSafeBackDestination(currentScreen, previousScreen));
         }
       }
     };
 
     window.addEventListener('keydown', onKeyDown, true);
-
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [currentScreen, setScreen]);
+  }, [currentScreen, previousScreen, setScreen]);
 }

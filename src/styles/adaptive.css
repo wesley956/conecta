@@ -1,0 +1,253 @@
+html,
+body,
+#root,
+#root > div {
+  height: 100%;
+  height: 100dvh;
+}
+
+html[data-performance="low"] .stream-shell::before,
+html[data-performance="low"] .system-frame::before {
+  display: none;
+}
+
+html[data-performance="low"] .stream-notice,
+html[data-performance="low"] .stream-secondary-button,
+html[data-performance="low"] .player-bottom-panel,
+html[data-performance="low"] .player-advanced-trigger,
+html[data-performance="low"] .player-advanced-overlay,
+html[data-performance="low"] .player-next-episode-card,
+html[data-performance="low"] .player-stability-status {
+  backdrop-filter: none !important;
+}
+
+html[data-performance="low"] .live-feature::before,
+html[data-performance="low"] .movie-detail-backdrop,
+html[data-performance="low"] .series-detail-backdrop {
+  filter: none !important;
+  opacity: 0.12 !important;
+}
+
+html[data-performance="low"] .stream-poster-frame,
+html[data-performance="low"] .catalog-poster-frame,
+html[data-performance="low"] .live-channel-card,
+html[data-performance="low"] .stream-channel-card {
+  box-shadow: none !important;
+}
+
+html[data-performance="low"] .stream-poster-card:hover .stream-poster-frame,
+html[data-performance="low"] .stream-poster-card:focus-visible .stream-poster-frame,
+html[data-performance="low"] .catalog-poster-card:hover .catalog-poster-frame,
+html[data-performance="low"] .catalog-poster-card:focus-visible .catalog-poster-frame {
+  transform: translateY(-1px) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  [role="button"],
+  input,
+  select {
+    min-height: 44px;
+  }
+}
+
+/* Celulares e tablets em retrato usam navegação inferior, liberando largura. */
+@media (max-width: 900px) and (orientation: portrait) {
+  :root {
+    --stream-sidebar-width: 0px;
+    --stream-mobile-nav-height: calc(70px + env(safe-area-inset-bottom));
+  }
+
+  .stream-shell {
+    display: block;
+  }
+
+  .stream-sidebar {
+    position: absolute;
+    z-index: 120;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--stream-mobile-nav-height);
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--stream-border);
+    border-right: 0;
+    background: rgba(8, 8, 9, 0.97);
+    box-shadow: 0 -16px 42px rgba(0, 0, 0, 0.32);
+  }
+
+  .stream-brand {
+    display: none;
+  }
+
+  .stream-sidebar-nav {
+    display: flex;
+    width: 100%;
+    height: 70px;
+    min-height: 70px;
+    flex-direction: row;
+    gap: 4px;
+    padding: 7px 8px;
+  }
+
+  .stream-sidebar-primary {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .stream-sidebar-footer {
+    display: block;
+    width: 58px;
+    flex: 0 0 58px;
+    margin: 0;
+    padding: 0 0 0 4px;
+    border-top: 0;
+    border-left: 1px solid var(--stream-border);
+  }
+
+  .stream-nav-item {
+    min-height: 54px;
+    justify-content: center;
+    gap: 0;
+    padding: 7px;
+    border-radius: 12px;
+  }
+
+  .stream-nav-item::before {
+    top: auto;
+    right: 15px;
+    bottom: -7px;
+    left: 15px;
+    width: auto;
+    height: 3px;
+  }
+
+  .stream-nav-item svg {
+    width: 23px;
+    height: 23px;
+    flex-basis: 23px;
+  }
+
+  .stream-brand-copy,
+  .stream-nav-label {
+    display: none;
+  }
+
+  .stream-main {
+    width: 100%;
+    height: 100%;
+    padding-bottom: var(--stream-mobile-nav-height);
+  }
+
+  .stream-notice {
+    right: 12px;
+    left: 12px;
+  }
+
+  .stream-page-inner,
+  .live-page,
+  .movies-page,
+  .series-page,
+  .library-page,
+  .global-search-page,
+  .settings-page {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .stream-home-header,
+  .live-header,
+  .movies-header,
+  .series-header,
+  .library-header,
+  .global-search-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stream-status-chip,
+  .live-header-actions,
+  .movies-header-actions,
+  .series-header-actions {
+    width: 100%;
+  }
+
+  .live-search-field,
+  .movies-search-field,
+  .series-search-field {
+    width: 100%;
+  }
+
+  .stream-hero,
+  .live-feature {
+    border-radius: 20px;
+  }
+
+  .stream-hero-content {
+    width: 100%;
+  }
+}
+
+/* Em celulares deitados a barra lateral vira uma coluna compacta de ícones. */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 540px) {
+  :root {
+    --stream-sidebar-width: 66px;
+  }
+
+  .stream-brand {
+    min-height: 54px;
+    justify-content: center;
+    padding: 8px 6px;
+  }
+
+  .stream-brand-mark {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .stream-brand-copy,
+  .stream-nav-label {
+    display: none;
+  }
+
+  .stream-sidebar-nav {
+    padding: 6px;
+  }
+
+  .stream-nav-item {
+    min-height: 42px;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  .stream-nav-item::before {
+    left: -6px;
+  }
+
+  .stream-page-inner,
+  .live-page,
+  .movies-page,
+  .series-page,
+  .library-page,
+  .global-search-page,
+  .settings-page {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+}

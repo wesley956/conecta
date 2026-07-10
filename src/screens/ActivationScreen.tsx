@@ -1,26 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
+import { Check, Copy, KeyRound, LoaderCircle, RefreshCw, ShieldCheck, Smartphone } from 'lucide-react';
+import { SystemFrame } from '@/components/system/SystemFrame';
 import { useAppStore } from '@/stores/appStore';
-import { AppLayout } from '@/components/shared';
 import { activateDeviceWithPanel, fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import '@/styles/system.css';
 
 export function ActivationScreen() {
-  const {
-    deviceCode,
-    setScreen,
-    setDeviceActivated,
-    setDeviceCode,
-    setSubscription,
-    setActiveNotice,
-  } = useAppStore();
+  const deviceCode = useAppStore(state => state.deviceCode);
+  const setScreen = useAppStore(state => state.setScreen);
+  const setDeviceActivated = useAppStore(state => state.setDeviceActivated);
+  const setDeviceCode = useAppStore(state => state.setDeviceCode);
+  const setSubscription = useAppStore(state => state.setSubscription);
+  const setActiveNotice = useAppStore(state => state.setActiveNotice);
 
   const startedRef = useRef(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(() => isDevicePanelEnabled());
-  const [statusText, setStatusText] = useState(() =>
+  const [statusText, setStatusText] = useState(() => (
     isDevicePanelEnabled()
       ? 'Gerando código do aparelho...'
       : 'Painel de ativação não configurado neste build.'
-  );
+  ));
 
   const normalizedDeviceCode = String(deviceCode || '').trim();
   const displayCode = loading ? 'GERANDO...' : normalizedDeviceCode || 'AGUARDANDO';
@@ -31,7 +31,7 @@ export function ActivationScreen() {
     try {
       await navigator.clipboard.writeText(normalizedDeviceCode);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      window.setTimeout(() => setCopied(false), 1600);
     } catch {
       setCopied(false);
     }
@@ -40,7 +40,7 @@ export function ActivationScreen() {
   const applyPanelConfig = (config: Awaited<ReturnType<typeof fetchDevicePanelConfig>>) => {
     if (!config.active) {
       setDeviceActivated(false);
-      setActiveNotice(config.message || 'Envie este código ao vendedor/admin para liberar o acesso.');
+      setActiveNotice(config.message || 'Envie este código ao vendedor ou administrador para liberar o acesso.');
 
       if (config.status === 'blocked') {
         setScreen('blocked');
@@ -69,6 +69,7 @@ export function ActivationScreen() {
 
   const generateOrCheckCode = async () => {
     setLoading(true);
+    setCopied(false);
 
     try {
       if (!isDevicePanelEnabled()) {
@@ -79,7 +80,7 @@ export function ActivationScreen() {
         return;
       }
 
-      setStatusText('Gerando/consultando código do aparelho...');
+      setStatusText('Gerando ou consultando o código do aparelho...');
 
       const activation = await activateDeviceWithPanel();
       const activeDeviceCode = String(activation.deviceCode || normalizedDeviceCode || '').trim();
@@ -94,8 +95,7 @@ export function ActivationScreen() {
         return;
       }
 
-      setStatusText('Verificando liberação no painel...');
-
+      setStatusText('Verificando a liberação no painel...');
       const config = await fetchDevicePanelConfig(activeDeviceCode);
       applyPanelConfig(config);
     } catch (error) {
@@ -110,77 +110,105 @@ export function ActivationScreen() {
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-
     void generateOrCheckCode();
+    // A consulta inicial deve ocorrer somente uma vez durante esta montagem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <AppLayout>
-      <div className="flex min-h-full items-center px-4 py-6 sm:px-8 lg:px-20 lg:py-12">
-        <main className="grid w-full grid-cols-1 gap-8 lg:grid-cols-[1fr_560px] lg:gap-16">
-          <section className="flex flex-col justify-center">
-            <div className="mb-12 flex items-center gap-5">
-              <div className="flex h-16 w-16 items-center justify-center rounded-md bg-[#2396f2] text-4xl font-light text-white">
-                R
-              </div>
-              <div>
-                <h1 className="text-4xl font-light text-white/82">RonecaPlayTV</h1>
-                <p className="text-lg font-light text-white/38">Ativação do aparelho</p>
-              </div>
+    <SystemFrame>
+      <div className="system-activation-layout">
+        <section className="system-activation-copy">
+          <span className="system-status-pill">Ativação segura</span>
+          <h1>Libere este aparelho com um código único.</h1>
+          <p>
+            O responsável pelo acesso utiliza o código exibido ao lado para vincular este dispositivo no painel.
+            Nenhum cadastro manual de nome, telefone ou senha é necessário dentro do aplicativo.
+          </p>
+
+          <div className="system-activation-steps" aria-label="Etapas da ativação">
+            <article className="system-activation-step">
+              <span>1</span>
+              <strong>Copie o código</strong>
+              <p>Pressione o código para copiá-lo com segurança.</p>
+            </article>
+            <article className="system-activation-step">
+              <span>2</span>
+              <strong>Envie ao responsável</strong>
+              <p>O aparelho será localizado e liberado pelo painel.</p>
+            </article>
+            <article className="system-activation-step">
+              <span>3</span>
+              <strong>Atualize a liberação</strong>
+              <p>Após a confirmação, o catálogo será carregado automaticamente.</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="system-activation-card">
+          <div className="system-card-heading">
+            <div>
+              <p className="system-kicker">Seu dispositivo</p>
+              <h2>Código de ativação</h2>
+              <p>Identificador exclusivo deste aparelho.</p>
             </div>
-
-            <h2 className="max-w-3xl text-4xl font-light leading-tight text-white/82 sm:text-5xl lg:text-6xl">
-              Envie este código para liberar seu acesso.
-            </h2>
-
-            <p className="mt-6 max-w-3xl text-xl font-light leading-relaxed text-white/42 lg:mt-8 lg:text-2xl">
-              O vendedor ou administrador libera este aparelho pelo painel. Você não precisa preencher nome,
-              WhatsApp ou código de vendedor no aplicativo.
-            </p>
-          </section>
-
-          <section className="self-center">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-6">
-              <p className="mb-4 text-2xl font-light text-white/55">Código do aparelho</p>
-
-              <button
-                onClick={copyCode}
-                disabled={loading || !normalizedDeviceCode}
-                className="w-full rounded-md bg-white/[0.055] px-4 py-6 text-center font-mono text-3xl font-light tracking-[0.12em] text-white transition-colors hover:bg-[#2396f2] disabled:opacity-50 sm:text-4xl lg:px-8 lg:py-7 lg:text-5xl"
-              >
-                {displayCode}
-              </button>
-
-              <p className="mt-4 text-center text-lg font-light text-white/38">
-                {copied ? 'Código copiado' : loading ? 'Aguarde...' : 'Clique no código para copiar'}
-              </p>
-
-              <div className="mt-7 rounded-md bg-white/[0.045] px-5 py-4 text-center text-lg font-light text-white/50">
-                {statusText}
-              </div>
-
-              <div className="mt-8 space-y-4">
-                <button
-                  onClick={generateOrCheckCode}
-                  disabled={loading}
-                  className="w-full rounded-md bg-[#2396f2] px-8 py-5 text-3xl font-light text-white disabled:opacity-45"
-                >
-                  {loading ? 'Verificando...' : 'Atualizar liberação'}
-                </button>
-
-                <p className="rounded-md bg-white/[0.045] px-5 py-4 text-center text-lg font-light text-white/45">
-                  Após o vendedor/admin liberar este código no painel, toque em “Atualizar liberação”.
-                </p>
-              </div>
+            <div className="system-card-icon" aria-hidden="true">
+              <Smartphone size={21} strokeWidth={1.8} />
             </div>
+          </div>
 
-            <p className="mt-8 text-center text-base font-light leading-relaxed text-white/28">
-              O RonecaPlayTV não fornece conteúdo. O acesso depende da liberação do aparelho no painel.
-            </p>
-          </section>
-        </main>
+          <button
+            type="button"
+            className="system-code-button"
+            onClick={copyCode}
+            disabled={loading || !normalizedDeviceCode}
+            aria-label="Copiar código do aparelho"
+          >
+            {displayCode}
+          </button>
+
+          <div className={`system-code-help ${copied ? 'is-success' : ''}`}>
+            {copied ? (
+              <>
+                <Check aria-hidden="true" size={13} /> Código copiado
+              </>
+            ) : loading ? (
+              <>
+                <LoaderCircle aria-hidden="true" size={13} className="animate-spin" /> Aguarde a geração
+              </>
+            ) : (
+              <>
+                <Copy aria-hidden="true" size={13} /> Pressione para copiar
+              </>
+            )}
+          </div>
+
+          <div className="system-activation-status" role="status" aria-live="polite">
+            {loading ? (
+              <LoaderCircle aria-hidden="true" className="animate-spin" />
+            ) : normalizedDeviceCode ? (
+              <ShieldCheck aria-hidden="true" />
+            ) : (
+              <KeyRound aria-hidden="true" />
+            )}
+            <span>{statusText}</span>
+          </div>
+
+          <button
+            type="button"
+            className="system-primary-action"
+            onClick={generateOrCheckCode}
+            disabled={loading}
+          >
+            {loading ? (
+              <LoaderCircle aria-hidden="true" size={15} className="animate-spin" />
+            ) : (
+              <RefreshCw aria-hidden="true" size={15} />
+            )}
+            {loading ? 'Verificando liberação...' : 'Atualizar liberação'}
+          </button>
+        </section>
       </div>
-    </AppLayout>
+    </SystemFrame>
   );
 }

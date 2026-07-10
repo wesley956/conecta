@@ -1,13 +1,22 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Play, Radio, Search, Star, Tv, X } from 'lucide-react';
+import { StreamingShell } from '@/components/layout/StreamingShell';
+import { LiveChannelCard } from '@/components/live/LiveChannelCard';
 import { useAppStore } from '@/stores/appStore';
-import { AppLayout, BottomNav } from '@/components/shared';
 import { channelCategories } from '@/data/mock';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
-import type { Channel } from '@/types';
-import { CircleDot as PlaybackIcon, Home as HomeIcon, Tv as TvIcon, List as ListIcon, Star as StarIcon } from 'lucide-react';
 import { useLongPressFavorite } from '@/utils/useLongPressFavorite';
+import type { Channel } from '@/types';
+import '@/styles/live.css';
 
-const CHANNEL_RENDER_BATCH_SIZE = 180;
+const CHANNEL_RENDER_BATCH_SIZE = 96;
+
+interface CategoryOption {
+  id: string;
+  name: string;
+  count: number;
+  groupId?: string;
+}
 
 function humanizeGroupName(group: string) {
   return group
@@ -19,7 +28,7 @@ function humanizeGroupName(group: string) {
 
 function getGroupName(channel: Channel) {
   if (channel.groupTitle) return cleanLiveGroupTitle(channel.groupTitle);
-  return channelCategories.find(c => c.id === channel.group)?.name || humanizeGroupName(channel.group);
+  return channelCategories.find(category => category.id === channel.group)?.name || humanizeGroupName(channel.group);
 }
 
 function getSafeImageUrl(url?: string) {
@@ -32,68 +41,133 @@ function getSafeImageUrl(url?: string) {
   return url;
 }
 
-export function ChannelsScreen() {
-  const {
-    channels,
-    setScreen,
-    setCurrentChannel,
-    toggleChannelFavorite,
-  } = useAppStore();
+function normalizeSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState(() => window.sessionStorage.getItem('roneca:channels:selectedCategoryId') ?? 'all');
+function readStoredCategory() {
+  const stored = window.sessionStorage.getItem('roneca:channels:selectedCategoryId') || 'all';
+
+  if (stored === 'playback') return 'all';
+  if (stored === 'all' || stored === 'favorites' || stored === 'az' || stored.startsWith('group:')) return stored;
+
+  return `group:${stored}`;
+}
+
+export function ChannelsScreen() {
+  const channels = useAppStore(state => state.channels);
+  const playlists = useAppStore(state => state.playlists);
+  const setScreen = useAppStore(state => state.setScreen);
+  const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
+  const toggleChannelFavorite = useAppStore(state => state.toggleChannelFavorite);
+
+  const [selectedCategoryId, setSelectedCategoryId] = useState(readStoredCategory);
+  const [searchTerm, setSearchTerm] = useState(() => window.sessionStorage.getItem('roneca:channels:searchTerm') ?? '');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:channels:visibleCount')) || CHANNEL_RENDER_BATCH_SIZE);
-  const channelGridRef = useRef<HTMLDivElement | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState(() => window.sessionStorage.getItem('roneca:channels:selectedChannelId') ?? '');
+  const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const channelFavoriteHold = useLongPressFavorite();
 
-  const categoryOptions = useMemo(() => {
-    const fixed = [
-      { id: 'all', name: 'Todos', icon: <ListIcon aria-hidden="true" size={20} strokeWidth={2.4} />, count: channels.length },
-      { id: 'favorites', name: 'Favoritos', icon: <StarIcon aria-hidden="true" size={20} strokeWidth={2.4} fill="currentColor" />, count: channels.filter(channel => channel.isFavorite).length },
-      { id: 'playback', name: 'Playback', icon: <PlaybackIcon aria-hidden="true" size={20} strokeWidth={2.4} />, count: channels.length },
-      { id: 'az', name: 'Tudo: A-Z', icon: 'A-Z', count: channels.length },
-    ];
+  const activePlaylist = useMemo(() => {
+    return playlists.find(playlist => playlist.status === 'active') ?? playlists[0] ?? null;
+  }, [playlists]);
 
-    const byId = new Map<string, { id: string; name: string; icon: ReactNode; count: number }>();
-
-    for (const category of fixed) {
-      byId.set(category.id, category);
-    }
+  const categoryOptions = useMemo<CategoryOption[]>(() => {
+    const groups = new Map<string, CategoryOption>();
+    let favoriteCount = 0;
 
     for (const channel of channels) {
-      const id = channel.group || 'outros';
-      const current = byId.get(id);
+      if (channel.isFavorite) favoriteCount += 1;
 
-      if (current) {
-        byId.set(id, { ...current, count: current.count + 1 });
-        continue;
-      }
+      const groupId = channel.group || 'outros';
+      const id = `group:${groupId}`;
+      const current = groups.get(id);
 
-      byId.set(id, {
+      groups.set(id, {
         id,
-        name: getGroupName(channel),
-        icon: <ListIcon aria-hidden="true" size={20} strokeWidth={2.4} />,
-        count: 1,
+        groupId,
+        name: current?.name || getGroupName(channel),
+        count: (current?.count ?? 0) + 1,
       });
     }
 
-    return [...byId.values()];
+    return [
+      { id: 'all', name: 'Todos', count: channels.length },
+      { id: 'favorites', name: 'Favoritos', count: favoriteCount },
+      { id: 'az', name: 'A–Z', count: channels.length },
+      ...[...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+    ];
   }, [channels]);
 
   const selectedCategory = categoryOptions.find(category => category.id === selectedCategoryId) ?? categoryOptions[0];
 
   const filteredChannels = useMemo(() => {
-    if (selectedCategoryId === 'favorites') return channels.filter(channel => channel.isFavorite);
+    let result: Channel[];
 
-    if (selectedCategoryId === 'all' || selectedCategoryId === 'playback') {
-      return channels;
+    if (selectedCategoryId === 'favorites') {
+      result = channels.filter(channel => channel.isFavorite);
+    } else if (selectedCategoryId.startsWith('group:')) {
+      const groupId = selectedCategoryId.slice('group:'.length);
+      result = channels.filter(channel => (channel.group || 'outros') === groupId);
+    } else {
+      result = channels;
+    }
+
+    const query = normalizeSearch(deferredSearchTerm);
+
+    if (query) {
+      result = result.filter(channel => {
+        const searchable = normalizeSearch(`${channel.name} ${getGroupName(channel)}`);
+        return searchable.includes(query);
+      });
     }
 
     if (selectedCategoryId === 'az') {
-      return [...channels].sort((a, b) => a.name.localeCompare(b.name));
+      result = [...result].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     }
 
-    return channels.filter(channel => channel.group === selectedCategoryId);
-  }, [channels, selectedCategoryId]);
+    return result;
+  }, [channels, deferredSearchTerm, selectedCategoryId]);
+
+  const selectedChannel = useMemo(() => {
+    return filteredChannels.find(channel => channel.id === selectedChannelId) ?? filteredChannels[0] ?? null;
+  }, [filteredChannels, selectedChannelId]);
+
+  const visibleChannels = useMemo(() => {
+    return filteredChannels.slice(0, visibleCount);
+  }, [filteredChannels, visibleCount]);
+
+  const visibleChannelEntries = useMemo(() => {
+    return visibleChannels.map(channel => ({
+      channel,
+      groupName: getGroupName(channel),
+      logo: getSafeImageUrl(channel.logo),
+    }));
+  }, [visibleChannels]);
+
+  const canLoadMore = visibleChannels.length < filteredChannels.length;
+  const selectedChannelLogo = getSafeImageUrl(selectedChannel?.logo);
+  const selectedChannelGroup = selectedChannel ? getGroupName(selectedChannel) : '';
+
+  const featureStyle = {
+    '--live-feature-image': selectedChannelLogo
+      ? `url("${selectedChannelLogo.replace(/"/g, '%22')}")`
+      : 'none',
+  } as CSSProperties;
+
+  useEffect(() => {
+    if (channels.length === 0) return;
+
+    if (!categoryOptions.some(category => category.id === selectedCategoryId)) {
+      setSelectedCategoryId('all');
+    }
+  }, [categoryOptions, channels.length, selectedCategoryId]);
 
   useEffect(() => {
     const saved = Number(window.sessionStorage.getItem('roneca:channels:visibleCount'));
@@ -105,14 +179,32 @@ export function ChannelsScreen() {
   }, [selectedCategoryId]);
 
   useEffect(() => {
+    window.sessionStorage.setItem('roneca:channels:searchTerm', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
     window.sessionStorage.setItem('roneca:channels:visibleCount', String(visibleCount));
   }, [visibleCount]);
 
   useEffect(() => {
-    const node = channelGridRef.current;
+    if (!selectedChannel) return;
+
+    if (selectedChannel.id !== selectedChannelId) {
+      setSelectedChannelId(selectedChannel.id);
+    }
+  }, [selectedChannel, selectedChannelId]);
+
+  useEffect(() => {
+    if (!selectedChannelId) return;
+    window.sessionStorage.setItem('roneca:channels:selectedChannelId', selectedChannelId);
+  }, [selectedChannelId]);
+
+  useEffect(() => {
+    const node = pageScrollRef.current;
     if (!node) return;
 
-    const key = `roneca:channels:scroll:${selectedCategoryId}`;
+    const queryKey = normalizeSearch(deferredSearchTerm) || 'sem-busca';
+    const key = `roneca:channels:scroll:${selectedCategoryId}:${queryKey}`;
     const savedScroll = Number(window.sessionStorage.getItem(key));
 
     if (Number.isFinite(savedScroll) && savedScroll > 0) {
@@ -131,13 +223,7 @@ export function ChannelsScreen() {
       saveScroll();
       node.removeEventListener('scroll', saveScroll);
     };
-  }, [selectedCategoryId, visibleCount]);
-
-  const visibleChannels = useMemo(() => {
-    return filteredChannels.slice(0, visibleCount);
-  }, [filteredChannels, visibleCount]);
-
-  const canLoadMore = visibleChannels.length < filteredChannels.length;
+  }, [deferredSearchTerm, selectedCategoryId, visibleCount]);
 
   const playChannel = (channel: Channel) => {
     setCurrentChannel(channel);
@@ -145,118 +231,177 @@ export function ChannelsScreen() {
   };
 
   return (
-    <AppLayout>
-      <div className="clean-tv-page flex h-full px-14 py-8">
-        <BottomNav />
-
-        <aside className="clean-tv-categories w-[310px] shrink-0 pr-8">
-          <button
-            onClick={() => setScreen('home')}
-            className="mb-7 text-5xl text-white/45 transition-colors hover:text-white"
-          >
-            <HomeIcon aria-hidden="true" size={22} strokeWidth={2.4} />
-          </button>
-
-          <div className="max-h-[calc(100vh-112px)] space-y-1 overflow-y-auto pr-2">
-            {categoryOptions.map(category => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategoryId(category.id)}
-                className={`clean-tv-row flex w-full items-center gap-4 px-5 py-4 text-left ${
-                  selectedCategoryId === category.id ? 'active' : ''
-                }`}
-              >
-                <span className="w-8 text-2xl">{category.icon}</span>
-                <span className="min-w-0 flex-1 truncate text-2xl font-light">{category.name}</span>
-                <span className="shrink-0 text-base text-white/35">{category.count}</span>
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1">
-          <div className="mb-8 flex items-center justify-between gap-6">
-            <div>
-              <h1 className="clean-tv-title text-4xl">{selectedCategory?.name ?? 'TV Ao Vivo'}</h1>
-            </div>
-
-            <p className="text-xl font-light text-white/45">
-              {`${visibleChannels.length}/${filteredChannels.length} canal(is)`}
+    <StreamingShell>
+      <div ref={pageScrollRef} className="live-page">
+        <header className="live-header">
+          <div className="live-header-copy">
+            <p className="stream-kicker">Lista conectada</p>
+            <h1 className="live-header-title">TV ao vivo</h1>
+            <p className="live-header-subtitle">
+              {activePlaylist?.name || 'Sua lista de canais'}
             </p>
           </div>
 
-          {filteredChannels.length === 0 ? (
-            <div className="mt-24 text-center text-white/45">
-              <TvIcon aria-hidden="true" size={52} strokeWidth={2.2} className="mx-auto" />
-              <p className="mt-5 text-3xl font-light">Nenhum canal encontrado</p>
-              <p className="mx-auto mt-3 max-w-2xl text-lg font-light">
-                Aguarde a liberação do aparelho e a lista vinculada pelo painel. Se já foi liberado, atualize o acesso nas configurações.
-              </p>
-              <button
-                onClick={() => setScreen('settings')}
-                className="mt-8 rounded-md bg-[#2396f2] px-8 py-3 text-xl font-light text-white"
-              >
-                Atualizar acesso
-              </button>
-            </div>
-          ) : (
-            <div ref={channelGridRef} className="roneca-channel-grid max-h-[calc(100vh-135px)] overflow-y-auto pr-3">
-              {visibleChannels.map(channel => {
-                const safeLogo = getSafeImageUrl(channel.logo);
-
-                return (
-                  <button
-                    key={channel.id}
-                    onPointerDown={() => channelFavoriteHold.start(() => toggleChannelFavorite(channel.id))}
-                    onPointerUp={() => channelFavoriteHold.cancel()}
-                    onPointerLeave={() => channelFavoriteHold.cancel()}
-                    onPointerCancel={() => channelFavoriteHold.cancel()}
-                    onClick={() => {
-                      if (channelFavoriteHold.consume()) return;
-                      playChannel(channel);
-                    }}
-                    className="group relative flex h-[86px] items-center gap-5 border-l-2 border-white/20 px-4 pr-16 text-left text-white/70 transition-all hover:border-[#28d850] hover:text-white focus:border-[#28d850] focus:text-white focus:outline-none"
-                  >
-                    <span className="flex h-12 w-20 shrink-0 items-center justify-center text-sm text-white/45">
-                      {safeLogo ? (
-                        <img src={safeLogo} alt="" className="max-h-10 max-w-full object-contain" />
-                      ) : (
-                        'TV'
-                      )}
-                    </span>
-
-                    <span className="min-w-0">
-                      <span className="block truncate text-2xl font-light">{channel.name}</span>
-                      <span className="block truncate text-sm text-white/35">{getGroupName(channel)}</span>
-                    </span>
-
-                    <span
-                      className={`pointer-events-none absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full border px-3 py-1.5 text-2xl transition ${
-                        channel.isFavorite
-                          ? 'border-yellow-300/60 bg-yellow-300/20 text-yellow-200'
-                          : 'border-white/10 bg-black/28 text-white/45 group-hover:text-white'
-                      }`}
-                      aria-label={channel.isFavorite ? 'Favorito' : 'Segure para favoritar'}
-                      title="Segure o canal para favoritar"
-                    >
-                      <StarIcon aria-hidden="true" size={22} strokeWidth={2.4} fill={channel.isFavorite ? "currentColor" : "none"} />
-                    </span>
-                  </button>
-                );
-              })}
-
-              {canLoadMore && (
+          <div className="live-header-actions">
+            <label className="live-search-field">
+              <Search aria-hidden="true" size={17} strokeWidth={2.2} />
+              <input
+                value={searchTerm}
+                onChange={event => setSearchTerm(event.target.value)}
+                placeholder="Buscar canal"
+                aria-label="Buscar canal"
+              />
+              {searchTerm ? (
                 <button
-                  onClick={() => setVisibleCount(count => count + CHANNEL_RENDER_BATCH_SIZE)}
-                  className="roneca-load-more"
+                  type="button"
+                  className="live-search-clear"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Limpar busca"
                 >
-                  Carregar mais {Math.min(CHANNEL_RENDER_BATCH_SIZE, filteredChannels.length - visibleChannels.length)} canal(is)
+                  <X aria-hidden="true" size={14} strokeWidth={2.4} />
                 </button>
-              )}
+              ) : null}
+            </label>
+
+            <div className="live-count-chip">
+              <Radio aria-hidden="true" size={15} strokeWidth={2.2} />
+              <span>{filteredChannels.length} canais</span>
             </div>
-          )}
-        </main>
+          </div>
+        </header>
+
+        <nav className="live-category-strip" aria-label="Categorias de canais">
+          {categoryOptions.map(category => (
+            <button
+              key={category.id}
+              type="button"
+              className={`live-category-chip ${selectedCategoryId === category.id ? 'is-active' : ''}`}
+              onClick={() => setSelectedCategoryId(category.id)}
+              title={category.name}
+            >
+              <span>{category.name}</span>
+              <span>{category.count}</span>
+            </button>
+          ))}
+        </nav>
+
+        {selectedChannel ? (
+          <section className="live-feature" style={featureStyle}>
+            <div className="live-feature-content">
+              <p className="live-feature-kicker">Transmissão ao vivo</p>
+              <h2 className="live-feature-title">{selectedChannel.name}</h2>
+
+              <div className="live-feature-meta">
+                <span>{selectedChannelGroup}</span>
+                <span>{selectedCategory?.name || 'TV ao vivo'}</span>
+                {selectedChannel.isFavorite ? <span>Favorito</span> : null}
+              </div>
+
+              <p className="live-feature-description">
+                Canal disponível na sua lista vinculada. Use o botão abaixo para iniciar a reprodução no player do aplicativo.
+              </p>
+
+              <div className="live-feature-actions">
+                <button
+                  type="button"
+                  className="stream-primary-button"
+                  onClick={() => playChannel(selectedChannel)}
+                >
+                  <Play aria-hidden="true" size={17} fill="currentColor" />
+                  Assistir agora
+                </button>
+
+                <button
+                  type="button"
+                  className={`stream-secondary-button live-favorite-button ${selectedChannel.isFavorite ? 'is-favorite' : ''}`}
+                  onClick={() => toggleChannelFavorite(selectedChannel.id)}
+                >
+                  <Star
+                    aria-hidden="true"
+                    size={17}
+                    fill={selectedChannel.isFavorite ? 'currentColor' : 'none'}
+                  />
+                  {selectedChannel.isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+                </button>
+              </div>
+            </div>
+
+            <div className="live-feature-art" aria-hidden="true">
+              <div className="live-feature-logo-panel">
+                {selectedChannelLogo ? (
+                  <img src={selectedChannelLogo} alt="" decoding="async" />
+                ) : (
+                  <Tv size={62} strokeWidth={1.5} />
+                )}
+                <span className="live-feature-live-badge">AO VIVO</span>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="live-empty-state">
+            <div>
+              <Tv aria-hidden="true" size={46} strokeWidth={1.8} />
+              <h2>Nenhum canal encontrado</h2>
+              <p>
+                {channels.length === 0
+                  ? 'Aguarde o carregamento da lista vinculada ou verifique o acesso nas configurações.'
+                  : 'Tente outra categoria ou limpe o campo de busca.'}
+              </p>
+              {channels.length === 0 ? (
+                <button type="button" className="stream-secondary-button" onClick={() => setScreen('settings')}>
+                  Abrir configurações
+                </button>
+              ) : null}
+            </div>
+          </section>
+        )}
+
+        {filteredChannels.length > 0 ? (
+          <section className="live-library">
+            <div className="live-library-heading">
+              <div>
+                <h2 className="live-library-title">Canais</h2>
+                <p className="live-library-subtitle">Navegue com o controle e pressione para assistir. Segure para favoritar.</p>
+              </div>
+              <p className="live-library-count">
+                Exibindo {visibleChannels.length} de {filteredChannels.length}
+              </p>
+            </div>
+
+            <div className="live-channel-grid">
+              {visibleChannelEntries.map(({ channel, groupName, logo }) => (
+                <LiveChannelCard
+                  key={channel.id}
+                  logo={logo}
+                  name={channel.name}
+                  group={groupName}
+                  favorite={channel.isFavorite}
+                  selected={selectedChannel?.id === channel.id}
+                  onFocus={() => setSelectedChannelId(channel.id)}
+                  onPointerDown={() => channelFavoriteHold.start(() => toggleChannelFavorite(channel.id))}
+                  onPointerUp={() => channelFavoriteHold.cancel()}
+                  onPointerLeave={() => channelFavoriteHold.cancel()}
+                  onPointerCancel={() => channelFavoriteHold.cancel()}
+                  onPlay={() => {
+                    if (channelFavoriteHold.consume()) return;
+                    playChannel(channel);
+                  }}
+                />
+              ))}
+            </div>
+
+            {canLoadMore ? (
+              <button
+                type="button"
+                className="live-load-more"
+                onClick={() => setVisibleCount(count => count + CHANNEL_RENDER_BATCH_SIZE)}
+              >
+                Carregar mais {Math.min(CHANNEL_RENDER_BATCH_SIZE, filteredChannels.length - visibleChannels.length)} canais
+              </button>
+            ) : null}
+          </section>
+        ) : null}
       </div>
-    </AppLayout>
+    </StreamingShell>
   );
 }
