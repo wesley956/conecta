@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PlayerAdvancedControls } from '@/components/player/PlayerAdvancedControls';
+import { PlayerNextEpisodeRemoteBridge } from '@/components/player/PlayerNextEpisodeRemoteBridge';
 import { useAppStore } from '@/stores/appStore';
 import { installHlsObserver } from '@/utils/hlsObserver';
 import { PlayerV2Screen } from './PlayerV2Screen';
@@ -57,6 +58,7 @@ export function PlayerScreen() {
 
   return (
     <>
+      <PlayerNextEpisodeRemoteBridge />
       <PlayerAdvancedControls />
       <PlayerV2Screen />
     </>
