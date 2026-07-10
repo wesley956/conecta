@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import type { AppState } from '@/types';
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -10,6 +11,24 @@ const FOCUSABLE_SELECTOR = [
   '[role="button"]',
   '[data-tv-focusable="true"]',
 ].join(',');
+
+const ROOT_SCREENS = new Set<AppState>([
+  'home',
+  'splash',
+  'activation',
+  'expired',
+  'blocked',
+  'nointernet',
+]);
+
+const INVALID_BACK_DESTINATIONS = new Set<AppState>([
+  'player',
+  'splash',
+  'activation',
+  'expired',
+  'blocked',
+  'nointernet',
+]);
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -39,10 +58,7 @@ function collectFocusableElements() {
 
 function prepareElements(elements: HTMLElement[]) {
   for (const el of elements) {
-    if (!el.hasAttribute('tabindex')) {
-      el.tabIndex = 0;
-    }
-
+    if (!el.hasAttribute('tabindex')) el.tabIndex = 0;
     el.classList.add('tv-focusable');
   }
 
@@ -59,8 +75,6 @@ function refreshFocusableCache(cache: FocusCache) {
 function getFocusableElements(cache: FocusCache) {
   if (!cache.valid) return refreshFocusableCache(cache);
 
-  // Não consulta layout/computedStyle de todos os cards a cada seta. A cache é
-  // invalidada quando a estrutura ou os atributos de acessibilidade mudam.
   const connected = cache.elements.filter(el => el.isConnected);
   if (connected.length !== cache.elements.length) cache.elements = connected;
   return cache.elements;
@@ -135,16 +149,27 @@ function shouldAutoFocusForRemote() {
   return looksLikeTv || roomyLandscape;
 }
 
+function getSafeBackDestination(currentScreen: AppState, previousScreen: AppState | null) {
+  if (
+    previousScreen &&
+    previousScreen !== currentScreen &&
+    !INVALID_BACK_DESTINATIONS.has(previousScreen)
+  ) {
+    return previousScreen;
+  }
+
+  return 'home' as const;
+}
+
 export function useTvRemoteNavigation() {
   const currentScreen = useAppStore(state => state.currentScreen);
+  const previousScreen = useAppStore(state => state.previousScreen);
   const setScreen = useAppStore(state => state.setScreen);
   const focusCacheRef = useRef<FocusCache>({ elements: [], valid: false, rafId: null });
 
   useEffect(() => {
     const cache = focusCacheRef.current;
 
-    // O player possui listeners próprios. Antes, o observador global continuava
-    // reagindo à atualização da barra de progresso e varria o DOM durante o vídeo.
     if (currentScreen === 'player') {
       cache.elements = [];
       cache.valid = false;
@@ -176,8 +201,6 @@ export function useTvRemoteNavigation() {
       childList: true,
       subtree: true,
       attributes: true,
-      // Alterações de style acontecem constantemente em barras de progresso.
-      // A estrutura e estes atributos bastam para manter a navegação correta.
       attributeFilter: ['disabled', 'aria-hidden', 'hidden', 'tabindex'],
     });
 
@@ -203,7 +226,9 @@ export function useTvRemoteNavigation() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
-      if (isTypingElement(active)) return;
+      const isBackKey = event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack';
+
+      if (isTypingElement(active) && !isBackKey) return;
 
       const directions: Record<string, Direction> = {
         ArrowUp: 'up',
@@ -233,7 +258,7 @@ export function useTvRemoteNavigation() {
         return;
       }
 
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack') {
+      if (isBackKey) {
         const localBackTarget = document.querySelector<HTMLElement>('[data-tv-back-target="true"]');
 
         if (localBackTarget && isVisible(localBackTarget)) {
@@ -244,14 +269,16 @@ export function useTvRemoteNavigation() {
           return;
         }
 
-        if (currentScreen !== 'home' && currentScreen !== 'activation') {
+        if (!ROOT_SCREENS.has(currentScreen)) {
           event.preventDefault();
-          setScreen('home');
+          event.stopPropagation();
+          (event as KeyboardEvent & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+          setScreen(getSafeBackDestination(currentScreen, previousScreen));
         }
       }
     };
 
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [currentScreen, setScreen]);
+  }, [currentScreen, previousScreen, setScreen]);
 }
