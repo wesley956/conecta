@@ -53,8 +53,8 @@ function SidebarItem({ item }: { item: NavItem }) {
 export function StreamingShell({ children }: { children: ReactNode }) {
   const activeNotice = useAppStore(state => state.activeNotice);
   const setActiveNotice = useAppStore(state => state.setActiveNotice);
-  const cardSize = useAppStore(state => state.settings.cardSize);
-  const animationsEnabled = useAppStore(state => state.settings.animationsEnabled);
+  const cardSize = useAppStore(state => state.settings.cardSize ?? 'medium');
+  const animationsEnabled = useAppStore(state => state.settings.animationsEnabled ?? true);
 
   return (
     <div
