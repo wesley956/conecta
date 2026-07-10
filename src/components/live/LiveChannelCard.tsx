@@ -15,7 +15,7 @@ interface LiveChannelCardProps {
   onPointerCancel: () => void;
 }
 
-export const LiveChannelCard = memo(function LiveChannelCard({
+function LiveChannelCardComponent({
   logo,
   name,
   group,
@@ -45,7 +45,7 @@ export const LiveChannelCard = memo(function LiveChannelCard({
     >
       <span className="live-channel-card-logo">
         {logo ? (
-          <img src={logo} alt="" loading="lazy" />
+          <img src={logo} alt="" loading="lazy" decoding="async" />
         ) : (
           <Tv aria-hidden="true" size={24} strokeWidth={2.1} />
         )}
@@ -67,4 +67,15 @@ export const LiveChannelCard = memo(function LiveChannelCard({
       </span>
     </button>
   );
-});
+}
+
+export const LiveChannelCard = memo(
+  LiveChannelCardComponent,
+  (previous, next) => (
+    previous.logo === next.logo &&
+    previous.name === next.name &&
+    previous.group === next.group &&
+    previous.favorite === next.favorite &&
+    previous.selected === next.selected
+  ),
+);
