@@ -1,9 +1,10 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { Film, Search, Tv, X } from 'lucide-react';
 import { StreamingShell } from '@/components/layout/StreamingShell';
-import { LiveChannelCard } from '@/components/live/LiveChannelCard';
+import { ChannelCard } from '@/components/live/ChannelCard';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
 import { useAppStore } from '@/stores/appStore';
+import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
 import type { Channel, Movie, Series } from '@/types';
 import '@/styles/library.css';
 
@@ -32,6 +33,7 @@ export function SearchScreen() {
   const channels = useAppStore(state => state.channels);
   const movies = useAppStore(state => state.movies);
   const series = useAppStore(state => state.series);
+  const playlists = useAppStore(state => state.playlists);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
@@ -40,8 +42,8 @@ export function SearchScreen() {
   const [query, setQuery] = useState(() => window.sessionStorage.getItem('roneca:search:query') ?? '');
   const [filter, setFilter] = useState<SearchFilter>('all');
   const deferredQuery = useDeferredValue(query);
-
   const normalizedQuery = normalizeSearch(deferredQuery);
+  const allSeries = useMemo(() => getMergedSeriesCatalog(series, playlists), [playlists, series]);
 
   const results = useMemo(() => {
     if (!normalizedQuery) {
@@ -55,11 +57,11 @@ export function SearchScreen() {
       movies: movies.filter(item => (
         normalizeSearch(`${item.name} ${item.category || ''} ${item.year || ''} ${item.synopsis || ''}`).includes(normalizedQuery)
       )).slice(0, 30),
-      series: series.filter(item => (
+      series: allSeries.filter(item => (
         normalizeSearch(`${item.name} ${item.category || ''} ${item.synopsis || ''}`).includes(normalizedQuery)
       )).slice(0, 30),
     };
-  }, [channels, movies, normalizedQuery, series]);
+  }, [allSeries, channels, movies, normalizedQuery]);
 
   const visibleChannels = filter === 'all' || filter === 'channels';
   const visibleMovies = filter === 'all' || filter === 'movies';
@@ -165,19 +167,13 @@ export function SearchScreen() {
 
                   <div className="library-channel-grid">
                     {results.channels.map(channel => (
-                      <LiveChannelCard
+                      <ChannelCard
                         key={channel.id}
                         logo={getSafeImageUrl(channel.logo)}
                         name={channel.name}
                         group={channel.groupTitle || channel.group || 'TV ao vivo'}
                         favorite={channel.isFavorite}
-                        selected={false}
-                        onFocus={() => undefined}
-                        onPointerDown={() => undefined}
-                        onPointerUp={() => undefined}
-                        onPointerLeave={() => undefined}
-                        onPointerCancel={() => undefined}
-                        onPlay={() => playChannel(channel)}
+                        onClick={() => playChannel(channel)}
                       />
                     ))}
                   </div>
