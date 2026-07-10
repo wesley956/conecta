@@ -232,6 +232,16 @@ export function useTvRemoteNavigation() {
       }
 
       if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'GoBack') {
+        const localBackTarget = document.querySelector<HTMLElement>('[data-tv-back-target="true"]');
+
+        if (localBackTarget && isVisible(localBackTarget)) {
+          event.preventDefault();
+          event.stopPropagation();
+          (event as KeyboardEvent & { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+          localBackTarget.click();
+          return;
+        }
+
         if (currentScreen !== 'home' && currentScreen !== 'activation') {
           event.preventDefault();
           setScreen('home');
