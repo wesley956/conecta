@@ -3,262 +3,31 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cruz Stars — Acesso Único</title>
-  <style>
-    :root {
-      --bg: #030816;
-      --card: rgba(5, 14, 38, .74);
-      --line: rgba(110, 231, 255, .34);
-      --text: #eef7ff;
-      --muted: #a9bbdd;
-      --cyan: #6ee7ff;
-      --violet: #7b5cff;
-      --red: #ff6575;
-      --green: #28e39a;
-    }
-
-    * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, Segoe UI, Arial, sans-serif;
-    }
-
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-      pointer-events: none;
-      background:
-        linear-gradient(180deg, rgba(1, 6, 20, .08), rgba(1, 6, 20, .70)),
-        radial-gradient(circle at 50% 18%, rgba(78, 160, 255, .16), transparent 30%),
-        radial-gradient(circle at 50% 82%, rgba(123, 92, 255, .14), transparent 34%),
-        url("./assets/universe-bg.png") center center / cover no-repeat;
-    }
-
-    .screen {
-      position: relative;
-      z-index: 1;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-
-    .card {
-      width: min(590px, 100%);
-      border-radius: 28px;
-      border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(8,22,55,.72), rgba(3,9,28,.88));
-      box-shadow:
-        0 0 0 1px rgba(112, 210, 255, .08) inset,
-        0 0 44px rgba(47, 164, 255, .22),
-        0 30px 90px rgba(0, 0, 0, .46);
-      backdrop-filter: blur(18px);
-      padding: 34px;
-      text-align: center;
-    }
-
-    .logo {
-      width: 92px;
-      height: 92px;
-      margin: 0 auto 18px;
-      border-radius: 26px;
-      display: grid;
-      place-items: center;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(110,231,255,.28);
-      box-shadow: 0 0 32px rgba(110,231,255,.28);
-      overflow: hidden;
-    }
-
-    .logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      padding: 10px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(32px, 8vw, 58px);
-      line-height: .95;
-      background: linear-gradient(90deg, #f4f8ff, #7b86ff, #72ecff);
-      color: transparent;
-      -webkit-background-clip: text;
-      background-clip: text;
-    }
-
-    p {
-      color: var(--muted);
-      margin: 12px 0 0;
-      line-height: 1.55;
-    }
-
-    label {
-      display: block;
-      text-align: left;
-      margin: 26px 0 8px;
-      color: #dbeaff;
-      font-weight: 800;
-    }
-
-    input {
-      width: 100%;
-      border: 1px solid rgba(110,231,255,.32);
-      background: rgba(0,0,0,.25);
-      color: var(--text);
-      padding: 16px 15px;
-      border-radius: 16px;
-      outline: none;
-      font: inherit;
-      text-align: center;
-      letter-spacing: .04em;
-    }
-
-    .actions {
-      display: grid;
-      gap: 10px;
-      margin-top: 18px;
-    }
-
-    button {
-      border: 0;
-      color: white;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
-      padding: 14px;
-      border-radius: 16px;
-      cursor: pointer;
-      font-weight: 900;
-      font-size: 16px;
-    }
-
-    .ghost {
-      background: rgba(255,255,255,.09);
-    }
-
-    .msg {
-      min-height: 24px;
-      margin-top: 14px;
-      color: var(--muted);
-    }
-
-    .err { color: #fecdd3; }
-    .ok { color: #bbf7d0; }
-  </style>
+  <meta name="color-scheme" content="dark" />
+  <title>RonecaPlayTV · Acesso aos painéis</title>
   <link rel="stylesheet" href="./pro-panel.css" />
+  <link rel="stylesheet" href="./access.css" />
+  <script src="./access.js" defer></script>
 </head>
 <body>
-  <main class="screen">
-    <section class="card">
-      <div class="logo"><img src="./assets/cruz-stars-logo.png" alt="RonecaPlayTV"></div>
-      <h1>Cruz Stars</h1>
-      <p>Entrada única para administrador e vendedores.</p>
+  <main class="access-screen">
+    <section class="access-card" aria-labelledby="accessTitle">
+      <img class="access-logo" src="./assets/cruz-stars-logo.png" alt="RonecaPlayTV" />
+      <p class="access-kicker">RonecaPlayTV</p>
+      <h1 id="accessTitle">Acesso aos painéis</h1>
+      <p class="access-description">Entrada única para administrador e vendedores autorizados.</p>
 
-      <label for="accessToken">Token de acesso</label>
-      <input id="accessToken" type="password" autocomplete="off" placeholder="Digite seu token" />
+      <form id="accessForm" novalidate>
+        <label for="accessToken">Token de acesso</label>
+        <input id="accessToken" type="password" autocomplete="current-password" placeholder="Digite seu token" />
+        <div class="access-actions">
+          <button id="loginButton" class="access-button is-primary" type="submit">Entrar</button>
+          <button id="clearLoginButton" class="access-button" type="button">Limpar acesso salvo</button>
+        </div>
+      </form>
 
-      <div class="actions">
-        <button onclick="login()">Entrar</button>
-        <button class="ghost" onclick="clearLogin()">Limpar acesso salvo</button>
-      </div>
-
-      <div id="msg" class="msg">Digite seu token para continuar.</div>
+      <p id="accessMsg" class="access-message" role="status" aria-live="polite">Digite seu token para continuar.</p>
     </section>
   </main>
-
-  <script>
-    var ADMIN_API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
-    var SELLER_API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
-    var ADMIN_KEY = 'cruz-stars-admin-token';
-    var SELLER_KEY = 'roneca_seller_token';
-
-    function el(id) {
-      return document.getElementById(id);
-    }
-
-    function setMsg(text, cls) {
-      el('msg').textContent = text;
-      el('msg').className = 'msg ' + (cls || '');
-    }
-
-    async function tryAdmin(token) {
-      var res = await fetch(ADMIN_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token
-        },
-        body: JSON.stringify({ action: 'listCommercialData' })
-      });
-
-      if (!res.ok) return false;
-      await res.json().catch(function () { return {}; });
-      return true;
-    }
-
-    async function trySeller(token) {
-      var res = await fetch(SELLER_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-seller-token': token
-        },
-        body: JSON.stringify({ action: 'dashboard' })
-      });
-
-      if (!res.ok) return false;
-      await res.json().catch(function () { return {}; });
-      return true;
-    }
-
-    async function login() {
-      var token = String(el('accessToken').value || '').trim();
-
-      if (!token) {
-        setMsg('Digite o token de acesso.', 'err');
-        return;
-      }
-
-      setMsg('Verificando acesso...', '');
-
-      try {
-        if (await tryAdmin(token)) {
-          localStorage.setItem(ADMIN_KEY, token);
-          localStorage.removeItem(SELLER_KEY);
-          setMsg('Acesso de administrador confirmado.', 'ok');
-          window.location.href = './dashboard.html';
-          return;
-        }
-
-        if (await trySeller(token)) {
-          localStorage.setItem(SELLER_KEY, token);
-          localStorage.removeItem(ADMIN_KEY);
-          setMsg('Acesso de vendedor confirmado.', 'ok');
-          window.location.href = './seller.html';
-          return;
-        }
-
-        setMsg('Token inválido para admin e vendedor.', 'err');
-      } catch (err) {
-        setMsg(err && err.message ? err.message : 'Falha ao verificar token.', 'err');
-      }
-    }
-
-    function clearLogin() {
-      localStorage.removeItem(ADMIN_KEY);
-      localStorage.removeItem(SELLER_KEY);
-      el('accessToken').value = '';
-      setMsg('Acesso salvo removido deste navegador.', 'ok');
-    }
-
-    el('accessToken').addEventListener('keydown', function (event) {
-      if (event.key === 'Enter') login();
-    });
-  </script>
 </body>
 </html>
