@@ -20,6 +20,9 @@ export interface ObservedHlsInstance {
   audioTrack: number;
   subtitleTracks: HlsTrackDescriptor[];
   subtitleTrack: number;
+  startLoad?: (startPosition?: number) => void;
+  stopLoad?: () => void;
+  recoverMediaError?: () => void;
   on: (event: string, handler: (event: string, data: unknown) => void) => void;
   off: (event: string, handler: (event: string, data: unknown) => void) => void;
   destroy: () => void;
