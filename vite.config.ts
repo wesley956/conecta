@@ -83,7 +83,7 @@ async function fetchM3UWithCurl(url: string) {
     ],
     {
       maxBuffer: 80 * 1024 * 1024,
-    }
+    },
   );
 
   if (!looksLikeM3U(stdout)) {
@@ -107,7 +107,6 @@ function devM3UProxy(): Plugin {
         }
 
         const target = getTargetFromRequest(req);
-
         if (!isHttpUrl(target)) {
           res.statusCode = 400;
           res.end('URL de lista inválida.');
@@ -120,7 +119,6 @@ function devM3UProxy(): Plugin {
         for (const candidate of candidates) {
           try {
             const content = await fetchM3UWithNativeFetch(candidate);
-
             res.statusCode = 200;
             res.setHeader('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
             res.end(content);
@@ -131,7 +129,6 @@ function devM3UProxy(): Plugin {
 
           try {
             const content = await fetchM3UWithCurl(candidate);
-
             res.statusCode = 200;
             res.setHeader('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
             res.end(content);
@@ -194,7 +191,7 @@ function pipeDevMediaProxy(
   target: string,
   req: IncomingMessage,
   res: ServerResponse,
-  redirectsLeft = MAX_MEDIA_REDIRECTS
+  redirectsLeft = MAX_MEDIA_REDIRECTS,
 ) {
   setNoStoreCors(res);
 
@@ -245,7 +242,7 @@ function pipeDevMediaProxy(
 
       const contentType = String(
         upstream.headers['content-type'] ||
-        (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream')
+        (targetUrl.pathname.endsWith('.ts') ? 'video/mp2t' : 'application/octet-stream'),
       );
 
       if (shouldRewriteAsHLS(targetUrl, contentType)) {
@@ -258,7 +255,6 @@ function pipeDevMediaProxy(
         upstream.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf-8');
           const rewritten = rewriteHLSManifest(raw, targetUrl);
-
           res.statusCode = status;
           res.setHeader('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
           res.end(rewritten);
@@ -288,7 +284,7 @@ function pipeDevMediaProxy(
       if (contentRange) res.setHeader('content-range', String(contentRange));
 
       upstream.pipe(res);
-    }
+    },
   );
 
   upstreamReq.on('error', error => {
@@ -340,7 +336,7 @@ export default defineConfig({
           if (id.includes('mpegts.js')) return 'mpegts';
           if (id.includes('lucide-react')) return 'icons';
           if (id.includes('zustand')) return 'zustand';
-          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) return 'vendor';
+          if (id.includes('react') || id.includes('react-dom')) return 'vendor';
           return 'vendor-misc';
         },
       },
