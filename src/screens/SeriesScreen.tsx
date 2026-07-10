@@ -4,6 +4,11 @@ import { StreamingShell } from '@/components/layout/StreamingShell';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
 import { SeriesDetailsView } from '@/components/media/SeriesDetailsView';
 import { useAppStore } from '@/stores/appStore';
+import {
+  isContinuableProgress,
+  usePlaybackStore,
+  withSeriesPlaybackProgress,
+} from '@/stores/playbackStore';
 import type { Episode, Movie, Season, Series } from '@/types';
 import {
   canLoadXtreamSeriesFromPlaylist,
@@ -106,6 +111,7 @@ export function SeriesScreen() {
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
   const setCurrentSeries = useAppStore(state => state.setCurrentSeries);
   const toggleSeriesFavorite = useAppStore(state => state.toggleSeriesFavorite);
+  const playbackEntries = usePlaybackStore(state => state.entries);
 
   const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:series:selectedCategory') ?? 'all');
   const [searchTerm, setSearchTerm] = useState(() => window.sessionStorage.getItem('roneca:series:searchTerm') ?? '');
@@ -185,8 +191,10 @@ export function SeriesScreen() {
       map.set(item.id, item);
     }
 
-    return [...map.values()].sort(sortSeriesForDisplay);
-  }, [remoteSeries, series]);
+    return [...map.values()]
+      .map(item => withSeriesPlaybackProgress(item, playbackEntries) as XtreamSeries)
+      .sort(sortSeriesForDisplay);
+  }, [playbackEntries, remoteSeries, series]);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -205,7 +213,7 @@ export function SeriesScreen() {
     return [
       { id: 'all', name: 'Todas', count: allSeries.length },
       { id: 'favorites', name: 'Minha Lista', count: allSeries.filter(item => item.isFavorite).length },
-      { id: 'continue', name: 'Continuar', count: allSeries.filter(item => (item.progress ?? 0) > 0).length },
+      { id: 'continue', name: 'Continuar', count: allSeries.filter(item => isContinuableProgress(item.progress)).length },
       ...[...map.values()].sort(sortByName),
     ];
   }, [allSeries]);
@@ -214,7 +222,7 @@ export function SeriesScreen() {
     const byCategory = (() => {
       if (selectedCategory === 'all') return allSeries;
       if (selectedCategory === 'favorites') return allSeries.filter(item => item.isFavorite);
-      if (selectedCategory === 'continue') return allSeries.filter(item => (item.progress ?? 0) > 0);
+      if (selectedCategory === 'continue') return allSeries.filter(item => isContinuableProgress(item.progress));
       return allSeries.filter(item => item.category === selectedCategory);
     })();
 
@@ -339,7 +347,10 @@ export function SeriesScreen() {
   };
 
   const playEpisode = (item: Series, season: Season, episode: Episode) => {
-    const itemWithSeasons: Series = { ...item, seasons: detailSeasons.length > 0 ? detailSeasons : item.seasons };
+    const itemWithSeasons = withSeriesPlaybackProgress(
+      { ...item, seasons: detailSeasons.length > 0 ? detailSeasons : item.seasons },
+      playbackEntries,
+    );
     setCurrentSeries(itemWithSeasons);
 
     const episodeAsMovie: Movie = {
@@ -365,8 +376,9 @@ export function SeriesScreen() {
     setSeriesError(null);
 
     if (item.seasons.length > 0) {
-      setDetailSeasons(item.seasons);
-      setSelectedSeasonNumber(item.seasons[0].number);
+      const itemWithProgress = withSeriesPlaybackProgress(item, playbackEntries);
+      setDetailSeasons(itemWithProgress.seasons);
+      setSelectedSeasonNumber(itemWithProgress.seasons[0].number);
       setSelectedSeriesId(item.id);
       return;
     }
@@ -386,13 +398,12 @@ export function SeriesScreen() {
         return;
       }
 
-      const itemWithSeasons = { ...item, seasons };
+      const itemWithSeasons = withSeriesPlaybackProgress({ ...item, seasons }, playbackEntries) as XtreamSeries;
 
       setRemoteSeries(current => {
         const next = current.map(seriesItem => (
           seriesItem.id === item.id ? itemWithSeasons : seriesItem
         ));
-
         if (xtreamPlaylist?.url) {
           remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(next));
         }
@@ -400,8 +411,8 @@ export function SeriesScreen() {
         return next;
       });
 
-      setDetailSeasons(seasons);
-      setSelectedSeasonNumber(seasons[0].number);
+      setDetailSeasons(itemWithSeasons.seasons);
+      setSelectedSeasonNumber(itemWithSeasons.seasons[0].number);
       setSelectedSeriesId(item.id);
     } catch (error) {
       setSeriesError(error instanceof Error ? error.message : 'Não foi possível carregar episódios.');
