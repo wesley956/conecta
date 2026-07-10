@@ -109,6 +109,10 @@ export function PlayerStabilityController() {
   useEffect(() => {
     if (!video) return;
 
+    // A referência local imutável mantém o estreitamento de tipo dentro dos
+    // callbacks assíncronos e garante que todos removam eventos do mesmo vídeo.
+    const activeVideo = video;
+
     const clearTimer = (ref: { current: number | null }) => {
       if (ref.current !== null) {
         window.clearTimeout(ref.current);
@@ -145,21 +149,21 @@ export function PlayerStabilityController() {
       if (isLive || savedPositionRef.current <= 0) return;
 
       const restore = () => {
-        if (!Number.isFinite(video.duration) || video.duration <= 0) return;
-        video.currentTime = Math.min(savedPositionRef.current, Math.max(0, video.duration - 3));
-        video.play().catch(() => undefined);
+        if (!Number.isFinite(activeVideo.duration) || activeVideo.duration <= 0) return;
+        activeVideo.currentTime = Math.min(savedPositionRef.current, Math.max(0, activeVideo.duration - 3));
+        activeVideo.play().catch(() => undefined);
       };
 
-      video.addEventListener('loadedmetadata', restore, { once: true });
+      activeVideo.addEventListener('loadedmetadata', restore, { once: true });
       restoreTimerRef.current = window.setTimeout(() => {
-        video.removeEventListener('loadedmetadata', restore);
+        activeVideo.removeEventListener('loadedmetadata', restore);
         restoreTimerRef.current = null;
       }, 12_000);
     };
 
     function scheduleRecovery() {
       if (!autoReconnect || recoveryTimerRef.current !== null || !navigator.onLine) return;
-      if (!waitingRef.current || !isVideoStillWaiting(video)) return;
+      if (!waitingRef.current || !isVideoStillWaiting(activeVideo)) return;
 
       const multiplier = getMobileDataMultiplier();
       const baseDelay = isLive ? BASE_DELAYS[bufferSize].liveRecovery : BASE_DELAYS[bufferSize].vodRecovery;
@@ -179,7 +183,7 @@ export function PlayerStabilityController() {
         recoveryUnlockTimerRef.current = null;
         recoveryInFlightRef.current = false;
 
-        if (waitingRef.current && isVideoStillWaiting(video)) {
+        if (waitingRef.current && isVideoStillWaiting(activeVideo)) {
           setStatus('buffering');
           scheduleRecovery();
         }
@@ -189,7 +193,7 @@ export function PlayerStabilityController() {
     function performRecovery() {
       recoveryTimerRef.current = null;
 
-      if (!waitingRef.current || !isVideoStillWaiting(video) || !autoReconnect || !navigator.onLine) {
+      if (!waitingRef.current || !isVideoStillWaiting(activeVideo) || !autoReconnect || !navigator.onLine) {
         recoveryInFlightRef.current = false;
         return;
       }
@@ -206,33 +210,33 @@ export function PlayerStabilityController() {
       try {
         if (hls?.startLoad) {
           hls.startLoad(-1);
-          video.play().catch(() => undefined);
+          activeVideo.play().catch(() => undefined);
           armNextRecoveryAttempt();
           return;
         }
 
         if (isLive) {
-          const movedToEdge = seekToLiveEdge(video);
+          const movedToEdge = seekToLiveEdge(activeVideo);
 
           if (!movedToEdge && recoveryAttemptsRef.current >= 2) {
-            video.load();
+            activeVideo.load();
           }
 
-          video.play().catch(() => undefined);
+          activeVideo.play().catch(() => undefined);
           armNextRecoveryAttempt();
           return;
         }
 
-        savedPositionRef.current = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+        savedPositionRef.current = Number.isFinite(activeVideo.currentTime) ? activeVideo.currentTime : 0;
 
         if (recoveryAttemptsRef.current === 1) {
-          video.play().catch(() => undefined);
+          activeVideo.play().catch(() => undefined);
           armNextRecoveryAttempt();
           return;
         }
 
         restoreVodAfterReload();
-        video.load();
+        activeVideo.load();
         armNextRecoveryAttempt();
       } catch {
         recoveryInFlightRef.current = false;
@@ -248,7 +252,7 @@ export function PlayerStabilityController() {
       messageTimerRef.current = window.setTimeout(() => {
         messageTimerRef.current = null;
 
-        if (!waitingRef.current || !isVideoStillWaiting(video)) {
+        if (!waitingRef.current || !isVideoStillWaiting(activeVideo)) {
           waitingRef.current = false;
           return;
         }
@@ -262,7 +266,7 @@ export function PlayerStabilityController() {
       // assume o evento e só mostra/recupera quando a interrupção é sustentada.
       event.stopImmediatePropagation();
 
-      if (video.paused && !video.seeking) {
+      if (activeVideo.paused && !activeVideo.seeking) {
         waitingRef.current = false;
         clearWaitingTimers();
         setStatus(null);
@@ -284,7 +288,7 @@ export function PlayerStabilityController() {
 
     const handlePlaying = () => markStablePlayback();
     const handleCanPlay = () => {
-      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) markStablePlayback();
+      if (activeVideo.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) markStablePlayback();
     };
 
     const handleOffline = () => {
@@ -295,7 +299,7 @@ export function PlayerStabilityController() {
     };
 
     const handleOnline = () => {
-      if (!waitingRef.current && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      if (!waitingRef.current && activeVideo.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
         setStatus(null);
         return;
       }
@@ -305,19 +309,19 @@ export function PlayerStabilityController() {
       recoveryTimerRef.current = window.setTimeout(performRecovery, 650);
     };
 
-    video.addEventListener('waiting', handleWaiting, true);
-    video.addEventListener('stalled', handleWaiting, true);
-    video.addEventListener('playing', handlePlaying, true);
-    video.addEventListener('canplay', handleCanPlay, true);
+    activeVideo.addEventListener('waiting', handleWaiting, true);
+    activeVideo.addEventListener('stalled', handleWaiting, true);
+    activeVideo.addEventListener('playing', handlePlaying, true);
+    activeVideo.addEventListener('canplay', handleCanPlay, true);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
 
     return () => {
       clearAllTimers();
-      video.removeEventListener('waiting', handleWaiting, true);
-      video.removeEventListener('stalled', handleWaiting, true);
-      video.removeEventListener('playing', handlePlaying, true);
-      video.removeEventListener('canplay', handleCanPlay, true);
+      activeVideo.removeEventListener('waiting', handleWaiting, true);
+      activeVideo.removeEventListener('stalled', handleWaiting, true);
+      activeVideo.removeEventListener('playing', handlePlaying, true);
+      activeVideo.removeEventListener('canplay', handleCanPlay, true);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
