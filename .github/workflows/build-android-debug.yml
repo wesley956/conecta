@@ -5,9 +5,9 @@ on:
   push:
     branches:
       - main
-      - fix/player-stability-audit-1
-      - fix/tv-remote-navigation
-      - feature/working-apk-roneca-logo
+      - redesign-streaming-v2
+      - player-v2
+      - stability-performance-audit
 
 jobs:
   build-android:
@@ -55,8 +55,8 @@ jobs:
           grep -q "VITE_ENABLE_DEVICE_PANEL=true" .env.production
           grep -q "VITE_DEVICE_CONFIG_URL=https://" .env.production
 
-      - name: Build web app
-        run: npm run build
+      - name: Verify web app
+        run: npm run verify
 
       - name: Add Android platform if missing
         run: |
@@ -73,8 +73,8 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Force Android landscape
-        run: node scripts/force-android-landscape.cjs
+      - name: Configure adaptive Android runtime
+        run: node scripts/configure-android-adaptive.cjs
 
       - name: Configure Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
