@@ -11,6 +11,7 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import type { AppState } from '@/types';
 import '@/styles/streaming.css';
+import '@/styles/preferences.css';
 
 type NavItem = {
   id: AppState;
@@ -52,9 +53,15 @@ function SidebarItem({ item }: { item: NavItem }) {
 export function StreamingShell({ children }: { children: ReactNode }) {
   const activeNotice = useAppStore(state => state.activeNotice);
   const setActiveNotice = useAppStore(state => state.setActiveNotice);
+  const cardSize = useAppStore(state => state.settings.cardSize);
+  const animationsEnabled = useAppStore(state => state.settings.animationsEnabled);
 
   return (
-    <div className="stream-shell">
+    <div
+      className="stream-shell"
+      data-card-size={cardSize}
+      data-animations={animationsEnabled ? 'on' : 'off'}
+    >
       <aside className="stream-sidebar" aria-label="Navegação principal">
         <div className="stream-brand">
           <span className="stream-brand-mark">RP</span>
