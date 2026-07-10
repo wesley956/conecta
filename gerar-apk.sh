@@ -10,6 +10,9 @@ npm run build
 echo "==> Sincronizando Capacitor Android..."
 npx cap sync android
 
+echo "==> Aplicando configuração Android adaptativa..."
+node scripts/configure-android-adaptive.cjs
+
 echo "==> Gerando APK debug instalável..."
 cd android
 chmod +x ./gradlew
