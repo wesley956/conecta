@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { ArrowLeft, Clapperboard, Clock3, Layers3, Play, Star } from 'lucide-react';
+import { isContinuableProgress } from '@/stores/playbackStore';
 import type { Episode, Season, Series } from '@/types';
 import { CatalogPosterCard } from './CatalogPosterCard';
 
@@ -43,9 +44,14 @@ export function SeriesDetailsView({
   const image = getSafeImageUrl(series.cover);
   const selectedSeason = seasons.find(season => season.number === selectedSeasonNumber) ?? seasons[0] ?? null;
   const allEpisodes = seasons.flatMap(season => season.episodes.map(episode => ({ season, episode })));
-  const continueEntry = allEpisodes.find(({ episode }) => getEpisodeProgress(episode) > 0);
-  const primaryEntry = continueEntry ?? (selectedSeason?.episodes[0] ? { season: selectedSeason, episode: selectedSeason.episodes[0] } : allEpisodes[0]);
+  const continueEntry = allEpisodes.find(({ episode }) => isContinuableProgress(getEpisodeProgress(episode)));
+  const firstUnfinishedEntry = allEpisodes.find(({ episode }) => getEpisodeProgress(episode) < 95);
+  const primaryEntry = continueEntry
+    ?? firstUnfinishedEntry
+    ?? (selectedSeason?.episodes[0] ? { season: selectedSeason, episode: selectedSeason.episodes[0] } : allEpisodes[0]);
   const episodeCount = allEpisodes.length;
+  const seriesProgress = Math.min(100, Math.max(0, series.progress ?? 0));
+  const seriesCompleted = episodeCount > 0 && allEpisodes.every(({ episode }) => getEpisodeProgress(episode) >= 95);
 
   const detailStyle = {
     '--series-detail-image': image ? `url("${image.replace(/"/g, '%22')}")` : 'none',
@@ -84,9 +90,9 @@ export function SeriesDetailsView({
                 </div>
               )}
 
-              {(series.progress ?? 0) > 0 ? (
+              {seriesProgress > 0 ? (
                 <div className="series-detail-progress">
-                  <span style={{ width: `${Math.min(100, Math.max(0, series.progress ?? 0))}%` }} />
+                  <span style={{ width: `${seriesProgress}%` }} />
                 </div>
               ) : null}
             </div>
@@ -100,6 +106,7 @@ export function SeriesDetailsView({
                 <span>{episodeCount} episódio(s)</span>
                 {series.category ? <span>{series.category}</span> : null}
                 {series.isFavorite ? <span className="is-gold">Na Minha Lista</span> : null}
+                {seriesCompleted ? <span className="is-gold">Concluída</span> : null}
               </div>
 
               <p className="series-detail-synopsis">
@@ -114,7 +121,13 @@ export function SeriesDetailsView({
                   onClick={() => primaryEntry && onPlayEpisode(primaryEntry.season, primaryEntry.episode)}
                 >
                   <Play aria-hidden="true" size={17} fill="currentColor" />
-                  {continueEntry ? 'Continuar assistindo' : primaryEntry ? 'Assistir primeiro episódio' : 'Sem episódios'}
+                  {continueEntry
+                    ? 'Continuar assistindo'
+                    : seriesCompleted
+                      ? 'Assistir novamente'
+                      : primaryEntry
+                        ? 'Assistir próximo episódio'
+                        : 'Sem episódios'}
                 </button>
 
                 <button
@@ -158,6 +171,8 @@ export function SeriesDetailsView({
             <div className="series-episode-list">
               {selectedSeason?.episodes.map(episode => {
                 const progress = getEpisodeProgress(episode);
+                const completed = progress >= 95;
+                const canContinue = isContinuableProgress(progress);
 
                 return (
                   <button
@@ -173,7 +188,7 @@ export function SeriesDetailsView({
                       <span className="series-episode-meta">
                         <Clock3 aria-hidden="true" size={11} />
                         {episode.duration && episode.duration !== '—' ? episode.duration : 'Assistir episódio'}
-                        {progress > 0 ? <strong>Continuar</strong> : null}
+                        {canContinue ? <strong>Continuar</strong> : completed ? <strong>Concluído</strong> : null}
                       </span>
 
                       {progress > 0 ? (
