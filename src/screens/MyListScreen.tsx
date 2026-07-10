@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Bookmark, Film, Play, Star, Tv } from 'lucide-react';
 import { StreamingShell } from '@/components/layout/StreamingShell';
-import { LiveChannelCard } from '@/components/live/LiveChannelCard';
+import { ChannelCard } from '@/components/live/ChannelCard';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
 import { useAppStore } from '@/stores/appStore';
+import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
 import type { Channel, Movie, Series } from '@/types';
 import '@/styles/library.css';
 
@@ -21,16 +22,18 @@ export function MyListScreen() {
   const channels = useAppStore(state => state.channels);
   const movies = useAppStore(state => state.movies);
   const series = useAppStore(state => state.series);
+  const playlists = useAppStore(state => state.playlists);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
   const setCurrentSeries = useAppStore(state => state.setCurrentSeries);
 
+  const allSeries = useMemo(() => getMergedSeriesCatalog(series, playlists), [playlists, series]);
   const favoriteChannels = useMemo(() => channels.filter(item => item.isFavorite), [channels]);
   const favoriteMovies = useMemo(() => movies.filter(item => item.isFavorite), [movies]);
-  const favoriteSeries = useMemo(() => series.filter(item => item.isFavorite), [series]);
+  const favoriteSeries = useMemo(() => allSeries.filter(item => item.isFavorite), [allSeries]);
   const continueMovies = useMemo(() => movies.filter(item => (item.progress ?? 0) > 0), [movies]);
-  const continueSeries = useMemo(() => series.filter(item => (item.progress ?? 0) > 0), [series]);
+  const continueSeries = useMemo(() => allSeries.filter(item => (item.progress ?? 0) > 0), [allSeries]);
 
   const savedCount = favoriteChannels.length + favoriteMovies.length + favoriteSeries.length;
   const continueCount = continueMovies.length + continueSeries.length;
@@ -122,19 +125,13 @@ export function MyListScreen() {
             {favoriteChannels.length > 0 ? (
               <div className="library-channel-grid">
                 {favoriteChannels.map(channel => (
-                  <LiveChannelCard
+                  <ChannelCard
                     key={channel.id}
                     logo={getSafeImageUrl(channel.logo)}
                     name={channel.name}
                     group={channel.groupTitle || channel.group || 'TV ao vivo'}
                     favorite
-                    selected={false}
-                    onFocus={() => undefined}
-                    onPointerDown={() => undefined}
-                    onPointerUp={() => undefined}
-                    onPointerLeave={() => undefined}
-                    onPointerCancel={() => undefined}
-                    onPlay={() => playChannel(channel)}
+                    onClick={() => playChannel(channel)}
                   />
                 ))}
               </div>
