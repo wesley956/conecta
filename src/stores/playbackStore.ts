@@ -84,7 +84,7 @@ export const usePlaybackStore = create<PlaybackStore>()(
 
         if (!contentId || durationSeconds <= 0) return state;
 
-        const completed = input.completed ?? shouldMarkCompleted(positionSeconds, durationSeconds);
+        const completed = input.completed === true || shouldMarkCompleted(positionSeconds, durationSeconds);
         const rawProgress = clampNumber((positionSeconds / durationSeconds) * 100, 0, 100);
         const progress = completed ? 100 : rawProgress;
         const key = getPlaybackProgressKey(input.contentType, contentId);
