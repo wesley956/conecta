@@ -1,0 +1,46 @@
+.player-channel-drawer {
+  color: #f7f2e8;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 177, 91, 0.08), transparent 34%),
+    rgba(5, 5, 6, 0.96);
+}
+
+.player-channel-row {
+  min-height: 54px;
+  border: 1px solid transparent;
+  color: rgba(247, 242, 232, 0.66);
+  background: rgba(255, 255, 255, 0.025);
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.player-channel-row:hover,
+.player-channel-row:focus-visible {
+  outline: none;
+  color: #f7f2e8;
+  border-color: rgba(216, 177, 91, 0.46);
+  background: rgba(216, 177, 91, 0.08);
+  transform: translateX(-2px);
+}
+
+.player-channel-row.is-active {
+  color: #f0ca72;
+  border-color: rgba(216, 177, 91, 0.4);
+  background: linear-gradient(90deg, rgba(216, 177, 91, 0.15), rgba(216, 177, 91, 0.035));
+  box-shadow: inset 3px 0 0 #d8b15b;
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+  .player-channel-drawer {
+    width: min(72vw, 390px) !important;
+    padding: 1rem !important;
+  }
+
+  .player-channel-row {
+    min-height: 46px;
+    padding: 0.55rem 0.75rem !important;
+  }
+}
