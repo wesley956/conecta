@@ -10,13 +10,14 @@ Painéis estáticos separados do APK para administrar clientes, vendedores, list
 
 ## Organização
 
+- `access.css` e `access.js`: aparência e autenticação da entrada única.
 - `pro-panel.css`: identidade visual compartilhada.
 - `panel-ux.css` e `panel-next-ux.css`: estilos específicos do dashboard administrativo.
 - `seller.css`: estilos exclusivos do portal do vendedor.
 - `seller.js`: autenticação, consulta, ativação, renovação, bloqueio, filtros, listas e extrato do vendedor.
 - `assets/`: imagens utilizadas pelos painéis.
 
-O portal do vendedor não usa mais scripts que alteram a página depois do carregamento. Toda a marcação está em `seller.html` e toda a lógica está em `seller.js`.
+A entrada e o portal do vendedor não usam CSS, JavaScript ou eventos inline. Cada página tem marcação, aparência e comportamento separados. Scripts antigos que alteravam o DOM depois do carregamento foram removidos.
 
 ## Fluxo principal
 
@@ -45,7 +46,9 @@ Execute:
 npm run check:panels
 ```
 
-A verificação procura referências quebradas, IDs duplicados, JavaScript inválido, CSS desbalanceado e o retorno acidental de arquivos legados.
+A verificação procura referências quebradas, IDs duplicados, JavaScript inválido, CSS desbalanceado, ações sem implementação, referências a elementos inexistentes e o retorno acidental de arquivos legados. Possíveis funções sem uso no dashboard são exibidas para revisão humana.
+
+O workflow `.github/workflows/validate-panels.yml` executa a auditoria e o build completo em pull requests relacionados aos painéis.
 
 ## Publicação
 
