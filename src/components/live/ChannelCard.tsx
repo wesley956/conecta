@@ -13,7 +13,7 @@ export function ChannelCard({ logo, name, group, favorite, onClick }: ChannelCar
     <button type="button" className="stream-channel-card" onClick={onClick}>
       <span className="stream-channel-logo">
         {logo ? (
-          <img src={logo} alt="" loading="lazy" />
+          <img src={logo} alt="" loading="lazy" decoding="async" />
         ) : (
           <Tv aria-hidden="true" size={24} strokeWidth={2.1} />
         )}
