@@ -4,6 +4,11 @@ import { StreamingShell } from '@/components/layout/StreamingShell';
 import { ChannelCard } from '@/components/live/ChannelCard';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
 import { useAppStore } from '@/stores/appStore';
+import {
+  isContinuableProgress,
+  usePlaybackStore,
+  withMoviePlaybackProgress,
+} from '@/stores/playbackStore';
 import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
 import type { Channel, Movie, Series } from '@/types';
 import '@/styles/library.css';
@@ -20,20 +25,28 @@ function getSafeImageUrl(url?: string) {
 
 export function MyListScreen() {
   const channels = useAppStore(state => state.channels);
-  const movies = useAppStore(state => state.movies);
+  const rawMovies = useAppStore(state => state.movies);
   const series = useAppStore(state => state.series);
   const playlists = useAppStore(state => state.playlists);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
   const setCurrentSeries = useAppStore(state => state.setCurrentSeries);
+  const playbackEntries = usePlaybackStore(state => state.entries);
 
-  const allSeries = useMemo(() => getMergedSeriesCatalog(series, playlists), [playlists, series]);
+  const movies = useMemo(
+    () => rawMovies.map(movie => withMoviePlaybackProgress(movie, playbackEntries)),
+    [playbackEntries, rawMovies],
+  );
+  const allSeries = useMemo(
+    () => getMergedSeriesCatalog(series, playlists, playbackEntries),
+    [playbackEntries, playlists, series],
+  );
   const favoriteChannels = useMemo(() => channels.filter(item => item.isFavorite), [channels]);
   const favoriteMovies = useMemo(() => movies.filter(item => item.isFavorite), [movies]);
   const favoriteSeries = useMemo(() => allSeries.filter(item => item.isFavorite), [allSeries]);
-  const continueMovies = useMemo(() => movies.filter(item => (item.progress ?? 0) > 0), [movies]);
-  const continueSeries = useMemo(() => allSeries.filter(item => (item.progress ?? 0) > 0), [allSeries]);
+  const continueMovies = useMemo(() => movies.filter(item => isContinuableProgress(item.progress)), [movies]);
+  const continueSeries = useMemo(() => allSeries.filter(item => isContinuableProgress(item.progress)), [allSeries]);
 
   const savedCount = favoriteChannels.length + favoriteMovies.length + favoriteSeries.length;
   const continueCount = continueMovies.length + continueSeries.length;
