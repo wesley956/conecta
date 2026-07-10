@@ -35,7 +35,11 @@ function getMobileDataMultiplier() {
 }
 
 function isVideoStillWaiting(video: HTMLVideoElement) {
-  return video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA && !video.ended;
+  return (
+    video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA &&
+    !video.ended &&
+    (!video.paused || video.seeking)
+  );
 }
 
 function seekToLiveEdge(video: HTMLVideoElement) {
@@ -66,6 +70,7 @@ export function PlayerStabilityController() {
 
   const messageTimerRef = useRef<number | null>(null);
   const recoveryTimerRef = useRef<number | null>(null);
+  const recoveryUnlockTimerRef = useRef<number | null>(null);
   const stableTimerRef = useRef<number | null>(null);
   const restoreTimerRef = useRef<number | null>(null);
   const recoveryAttemptsRef = useRef(0);
@@ -114,6 +119,7 @@ export function PlayerStabilityController() {
     const clearWaitingTimers = () => {
       clearTimer(messageTimerRef);
       clearTimer(recoveryTimerRef);
+      clearTimer(recoveryUnlockTimerRef);
     };
 
     const clearAllTimers = () => {
@@ -151,10 +157,40 @@ export function PlayerStabilityController() {
       }, 12_000);
     };
 
-    const performRecovery = () => {
+    function scheduleRecovery() {
+      if (!autoReconnect || recoveryTimerRef.current !== null || !navigator.onLine) return;
+      if (!waitingRef.current || !isVideoStillWaiting(video)) return;
+
+      const multiplier = getMobileDataMultiplier();
+      const baseDelay = isLive ? BASE_DELAYS[bufferSize].liveRecovery : BASE_DELAYS[bufferSize].vodRecovery;
+      const backoff = 1 + recoveryAttemptsRef.current * 0.45;
+
+      recoveryTimerRef.current = window.setTimeout(
+        performRecovery,
+        Math.round(baseDelay * multiplier * backoff),
+      );
+    }
+
+    function armNextRecoveryAttempt() {
+      clearTimer(recoveryUnlockTimerRef);
+
+      const wait = Math.max(3_500, Math.round(BASE_DELAYS[bufferSize].message * 2.5));
+      recoveryUnlockTimerRef.current = window.setTimeout(() => {
+        recoveryUnlockTimerRef.current = null;
+        recoveryInFlightRef.current = false;
+
+        if (waitingRef.current && isVideoStillWaiting(video)) {
+          setStatus('buffering');
+          scheduleRecovery();
+        }
+      }, wait);
+    }
+
+    function performRecovery() {
       recoveryTimerRef.current = null;
 
       if (!waitingRef.current || !isVideoStillWaiting(video) || !autoReconnect || !navigator.onLine) {
+        recoveryInFlightRef.current = false;
         return;
       }
 
@@ -171,18 +207,19 @@ export function PlayerStabilityController() {
         if (hls?.startLoad) {
           hls.startLoad(-1);
           video.play().catch(() => undefined);
+          armNextRecoveryAttempt();
           return;
         }
 
         if (isLive) {
           const movedToEdge = seekToLiveEdge(video);
-          const playResult = video.play();
 
           if (!movedToEdge && recoveryAttemptsRef.current >= 2) {
             video.load();
           }
 
-          playResult.catch(() => undefined);
+          video.play().catch(() => undefined);
+          armNextRecoveryAttempt();
           return;
         }
 
@@ -190,29 +227,19 @@ export function PlayerStabilityController() {
 
         if (recoveryAttemptsRef.current === 1) {
           video.play().catch(() => undefined);
+          armNextRecoveryAttempt();
           return;
         }
 
         restoreVodAfterReload();
         video.load();
+        armNextRecoveryAttempt();
       } catch {
         recoveryInFlightRef.current = false;
         setStatus('buffering');
+        scheduleRecovery();
       }
-    };
-
-    const scheduleRecovery = () => {
-      if (!autoReconnect || recoveryTimerRef.current !== null || !navigator.onLine) return;
-
-      const multiplier = getMobileDataMultiplier();
-      const baseDelay = isLive ? BASE_DELAYS[bufferSize].liveRecovery : BASE_DELAYS[bufferSize].vodRecovery;
-      const backoff = 1 + recoveryAttemptsRef.current * 0.45;
-
-      recoveryTimerRef.current = window.setTimeout(
-        performRecovery,
-        Math.round(baseDelay * multiplier * backoff),
-      );
-    };
+    }
 
     const scheduleMessage = () => {
       if (messageTimerRef.current !== null) return;
@@ -220,7 +247,12 @@ export function PlayerStabilityController() {
       const delay = Math.round(BASE_DELAYS[bufferSize].message * getMobileDataMultiplier());
       messageTimerRef.current = window.setTimeout(() => {
         messageTimerRef.current = null;
-        if (!waitingRef.current || !isVideoStillWaiting(video)) return;
+
+        if (!waitingRef.current || !isVideoStillWaiting(video)) {
+          waitingRef.current = false;
+          return;
+        }
+
         setStatus(navigator.onLine ? 'buffering' : 'offline');
       }, delay);
     };
@@ -229,6 +261,14 @@ export function PlayerStabilityController() {
       // O núcleo antigo reagia imediatamente a qualquer microbuffer. Esta camada
       // assume o evento e só mostra/recupera quando a interrupção é sustentada.
       event.stopImmediatePropagation();
+
+      if (video.paused && !video.seeking) {
+        waitingRef.current = false;
+        clearWaitingTimers();
+        setStatus(null);
+        return;
+      }
+
       waitingRef.current = true;
       recoveryInFlightRef.current = false;
       clearTimer(stableTimerRef);
@@ -244,9 +284,7 @@ export function PlayerStabilityController() {
 
     const handlePlaying = () => markStablePlayback();
     const handleCanPlay = () => {
-      if (!video.paused && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-        markStablePlayback();
-      }
+      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) markStablePlayback();
     };
 
     const handleOffline = () => {
