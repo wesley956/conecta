@@ -48,7 +48,7 @@ export function CatalogPosterCard({
     >
       <span className="catalog-poster-frame">
         {image ? (
-          <img src={image} alt="" loading="lazy" />
+          <img src={image} alt="" loading="lazy" decoding="async" />
         ) : (
           <span className="catalog-poster-placeholder" aria-hidden="true">
             <Film size={34} strokeWidth={1.6} />
