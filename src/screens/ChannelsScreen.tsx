@@ -9,7 +9,7 @@ import { useLongPressFavorite } from '@/utils/useLongPressFavorite';
 import type { Channel } from '@/types';
 import '@/styles/live.css';
 
-const CHANNEL_RENDER_BATCH_SIZE = 180;
+const CHANNEL_RENDER_BATCH_SIZE = 96;
 
 interface CategoryOption {
   id: string;
@@ -71,7 +71,7 @@ export function ChannelsScreen() {
   const deferredSearchTerm = useDeferredValue(searchTerm);
   const [visibleCount, setVisibleCount] = useState(() => Number(window.sessionStorage.getItem('roneca:channels:visibleCount')) || CHANNEL_RENDER_BATCH_SIZE);
   const [selectedChannelId, setSelectedChannelId] = useState(() => window.sessionStorage.getItem('roneca:channels:selectedChannelId') ?? '');
-  const channelGridRef = useRef<HTMLDivElement | null>(null);
+  const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const channelFavoriteHold = useLongPressFavorite();
 
   const activePlaylist = useMemo(() => {
@@ -200,7 +200,7 @@ export function ChannelsScreen() {
   }, [selectedChannelId]);
 
   useEffect(() => {
-    const node = channelGridRef.current;
+    const node = pageScrollRef.current;
     if (!node) return;
 
     const queryKey = normalizeSearch(deferredSearchTerm) || 'sem-busca';
@@ -232,7 +232,7 @@ export function ChannelsScreen() {
 
   return (
     <StreamingShell>
-      <div className="live-page">
+      <div ref={pageScrollRef} className="live-page">
         <header className="live-header">
           <div className="live-header-copy">
             <p className="stream-kicker">Lista conectada</p>
@@ -329,7 +329,7 @@ export function ChannelsScreen() {
             <div className="live-feature-art" aria-hidden="true">
               <div className="live-feature-logo-panel">
                 {selectedChannelLogo ? (
-                  <img src={selectedChannelLogo} alt="" />
+                  <img src={selectedChannelLogo} alt="" decoding="async" />
                 ) : (
                   <Tv size={62} strokeWidth={1.5} />
                 )}
@@ -368,7 +368,7 @@ export function ChannelsScreen() {
               </p>
             </div>
 
-            <div ref={channelGridRef} className="live-channel-grid">
+            <div className="live-channel-grid">
               {visibleChannelEntries.map(({ channel, groupName, logo }) => (
                 <LiveChannelCard
                   key={channel.id}
