@@ -15,6 +15,10 @@ android/build/
 android/app/build/
 *.apk
 *.aab
+*.jks
+*.keystore
+*.p12
+*.pem
 
 # Arquivos temporários de fusão
 _imports/
