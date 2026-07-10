@@ -55,6 +55,13 @@ function collectMatches(text, regex, group = 1) {
   return values;
 }
 
+function withoutInlineScriptBodies(html) {
+  return html.replace(
+    /(<script(?![^>]+\bsrc=)[^>]*>)[\s\S]*?(<\/script>)/gi,
+    '$1$2',
+  );
+}
+
 function localReferences(html) {
   return collectMatches(html, /(?:src|href)=["']([^"']+)["']/g)
     .map(value => value.trim())
@@ -101,7 +108,7 @@ function countWord(text, word) {
 }
 
 function auditDashboard(html) {
-  const ids = new Set(htmlIds(html));
+  const allIds = new Set(htmlIds(html));
   const scripts = inlineScripts(html);
   const script = scripts.join('\n');
 
@@ -111,13 +118,21 @@ function auditDashboard(html) {
     ...collectMatches(script, /querySelector\(\s*["']#([^"']+)["']\s*\)/g),
   ]);
 
-  const missingIds = [...staticDomRefs].filter(id => !ids.has(id));
+  const missingIds = [...staticDomRefs].filter(id => !allIds.has(id));
   if (missingIds.length) {
     errors.push(`admin-panel/dashboard.html: referências a IDs inexistentes: ${missingIds.join(', ')}`);
   }
 
-  const functionNames = collectMatches(script, /\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g);
-  const duplicateFunctions = duplicateValues(functionNames);
+  const declaredFunctions = collectMatches(script, /\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g);
+  const arrowFunctions = collectMatches(
+    script,
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/g,
+  );
+  const functionExpressions = collectMatches(
+    script,
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?function\b/g,
+  );
+  const duplicateFunctions = duplicateValues(declaredFunctions);
   if (duplicateFunctions.length) {
     errors.push(`admin-panel/dashboard.html: funções declaradas mais de uma vez: ${duplicateFunctions.join(', ')}`);
   }
@@ -129,13 +144,17 @@ function auditDashboard(html) {
     if (directCall) handlerFunctions.add(directCall[1]);
   }
 
-  const declared = new Set(functionNames);
-  const missingHandlers = [...handlerFunctions].filter(name => !declared.has(name));
+  const callableNames = new Set([
+    ...declaredFunctions,
+    ...arrowFunctions,
+    ...functionExpressions,
+  ]);
+  const missingHandlers = [...handlerFunctions].filter(name => !callableNames.has(name));
   if (missingHandlers.length) {
     errors.push(`admin-panel/dashboard.html: ações HTML sem função declarada: ${missingHandlers.join(', ')}`);
   }
 
-  const unusedCandidates = [...declared]
+  const unusedCandidates = [...callableNames]
     .filter(name => countWord(html, name) === 1)
     .sort();
 
@@ -144,18 +163,19 @@ function auditDashboard(html) {
   }
 
   auditNotes.push(
-    `Dashboard admin: ${ids.size} IDs, ${functionNames.length} funções, ${handlerBodies.length} ações inline e ${staticDomRefs.size} referências estáticas ao DOM.`,
+    `Dashboard admin: ${allIds.size} IDs declarados, ${callableNames.size} funções, ${handlerBodies.length} ações inline e ${staticDomRefs.size} referências estáticas ao DOM.`,
   );
 }
 
 for (const path of htmlFiles) {
   const html = read(path);
   if (!html) continue;
+  const staticMarkup = withoutInlineScriptBodies(html);
 
-  const duplicates = duplicateValues(htmlIds(html));
-  if (duplicates.length) errors.push(`${path}: IDs duplicados: ${duplicates.join(', ')}`);
+  const duplicates = duplicateValues(htmlIds(staticMarkup));
+  if (duplicates.length) errors.push(`${path}: IDs estáticos duplicados: ${duplicates.join(', ')}`);
 
-  for (const reference of localReferences(html)) {
+  for (const reference of localReferences(staticMarkup)) {
     const target = resolve(root, dirname(path), reference);
     if (!existsSync(target)) errors.push(`${path}: referência local inexistente: ${reference}`);
   }
