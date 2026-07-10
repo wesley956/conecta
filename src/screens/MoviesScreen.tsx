@@ -4,6 +4,11 @@ import { StreamingShell } from '@/components/layout/StreamingShell';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
 import { MovieDetailsView } from '@/components/media/MovieDetailsView';
 import { useAppStore } from '@/stores/appStore';
+import {
+  isContinuableProgress,
+  usePlaybackStore,
+  withMoviePlaybackProgress,
+} from '@/stores/playbackStore';
 import { useLongPressFavorite } from '@/utils/useLongPressFavorite';
 import type { Movie } from '@/types';
 import '@/styles/movies.css';
@@ -40,12 +45,17 @@ function getSafeImageUrl(url?: string) {
 }
 
 export function MoviesScreen() {
-  const movies = useAppStore(state => state.movies);
+  const rawMovies = useAppStore(state => state.movies);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
   const setCurrentSeries = useAppStore(state => state.setCurrentSeries);
   const toggleMovieFavorite = useAppStore(state => state.toggleMovieFavorite);
+  const playbackEntries = usePlaybackStore(state => state.entries);
 
+  const movies = useMemo(
+    () => rawMovies.map(movie => withMoviePlaybackProgress(movie, playbackEntries)),
+    [playbackEntries, rawMovies],
+  );
   const [selectedCategory, setSelectedCategory] = useState(() => window.sessionStorage.getItem('roneca:movies:selectedCategory') ?? 'all');
   const [searchTerm, setSearchTerm] = useState(() => window.sessionStorage.getItem('roneca:movies:searchTerm') ?? '');
   const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -71,7 +81,7 @@ export function MoviesScreen() {
     return [
       { id: 'all', name: 'Todos', count: movies.length },
       { id: 'favorites', name: 'Minha Lista', count: movies.filter(movie => movie.isFavorite).length },
-      { id: 'continue', name: 'Continuar', count: movies.filter(movie => (movie.progress ?? 0) > 0).length },
+      { id: 'continue', name: 'Continuar', count: movies.filter(movie => isContinuableProgress(movie.progress)).length },
       ...[...map.values()].sort(sortByName),
     ];
   }, [movies]);
@@ -82,7 +92,7 @@ export function MoviesScreen() {
     if (selectedCategory === 'favorites') {
       result = movies.filter(movie => movie.isFavorite);
     } else if (selectedCategory === 'continue') {
-      result = movies.filter(movie => (movie.progress ?? 0) > 0);
+      result = movies.filter(movie => isContinuableProgress(movie.progress));
     } else if (selectedCategory === 'all') {
       result = movies;
     } else {
