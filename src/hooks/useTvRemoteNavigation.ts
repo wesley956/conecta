@@ -53,29 +53,21 @@ function refreshFocusableCache(cache: FocusCache) {
   cache.elements = prepareElements(collectFocusableElements());
   cache.valid = true;
   cache.rafId = null;
-
   return cache.elements;
 }
 
 function getFocusableElements(cache: FocusCache) {
-  if (!cache.valid) {
-    return refreshFocusableCache(cache);
-  }
+  if (!cache.valid) return refreshFocusableCache(cache);
 
-  // Em listas longas, evita varrer o DOM a cada seta. Só revalida o array
-  // cacheado contra elementos removidos/invisíveis, que é bem mais barato.
-  const elements = cache.elements.filter(el => el.isConnected && isVisible(el));
-
-  if (elements.length !== cache.elements.length) {
-    cache.elements = elements;
-  }
-
+  // Não consulta layout/computedStyle de todos os cards a cada seta. A cache é
+  // invalidada quando a estrutura ou os atributos de acessibilidade mudam.
+  const connected = cache.elements.filter(el => el.isConnected);
+  if (connected.length !== cache.elements.length) cache.elements = connected;
   return cache.elements;
 }
 
 function invalidateFocusableCache(cache: FocusCache) {
   cache.valid = false;
-
   if (cache.rafId !== null) return;
 
   cache.rafId = window.requestAnimationFrame(() => {
@@ -85,7 +77,6 @@ function invalidateFocusableCache(cache: FocusCache) {
 
 function centerOf(el: HTMLElement) {
   const rect = el.getBoundingClientRect();
-
   return {
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2,
@@ -97,13 +88,12 @@ function focusElement(el: HTMLElement) {
   el.scrollIntoView({
     block: 'nearest',
     inline: 'nearest',
-    behavior: 'smooth',
+    behavior: 'auto',
   });
 }
 
 function findNextElement(elements: HTMLElement[], current: HTMLElement, direction: Direction) {
   const currentCenter = centerOf(current);
-
   let best: HTMLElement | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
 
@@ -134,45 +124,61 @@ function findNextElement(elements: HTMLElement[], current: HTMLElement, directio
 
 function isTypingElement(el: Element | null) {
   if (!el) return false;
-
   const tag = el.tagName.toLowerCase();
-
   return tag === 'input' || tag === 'textarea' || (el as HTMLElement).isContentEditable;
 }
 
+function shouldAutoFocusForRemote() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const looksLikeTv = /android tv|google tv|smarttv|smart-tv|aft|bravia|netcast|web0s|tizen/.test(userAgent);
+  const roomyLandscape = window.innerWidth >= 720 && window.innerWidth > window.innerHeight;
+  return looksLikeTv || roomyLandscape;
+}
+
 export function useTvRemoteNavigation() {
-  const currentScreen = useAppStore((state) => state.currentScreen);
-  const setScreen = useAppStore((state) => state.setScreen);
+  const currentScreen = useAppStore(state => state.currentScreen);
+  const setScreen = useAppStore(state => state.setScreen);
   const focusCacheRef = useRef<FocusCache>({ elements: [], valid: false, rafId: null });
 
   useEffect(() => {
     const cache = focusCacheRef.current;
 
+    // O player possui listeners próprios. Antes, o observador global continuava
+    // reagindo à atualização da barra de progresso e varria o DOM durante o vídeo.
+    if (currentScreen === 'player') {
+      cache.elements = [];
+      cache.valid = false;
+      if (cache.rafId !== null) {
+        window.cancelAnimationFrame(cache.rafId);
+        cache.rafId = null;
+      }
+      return;
+    }
+
     const prepare = () => {
       const elements = refreshFocusableCache(cache);
       const active = document.activeElement as HTMLElement | null;
 
-      if (!active || active === document.body || !isVisible(active)) {
+      if (
+        shouldAutoFocusForRemote() &&
+        (!active || active === document.body || !active.isConnected || !isVisible(active))
+      ) {
         const first = elements[0];
-
-        if (first) {
-          window.setTimeout(() => focusElement(first), 120);
-        }
+        if (first) window.setTimeout(() => focusElement(first), 90);
       }
     };
 
     cache.valid = false;
     prepare();
 
-    const observer = new MutationObserver(() => {
-      invalidateFocusableCache(cache);
-    });
-
+    const observer = new MutationObserver(() => invalidateFocusableCache(cache));
     observer.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'disabled', 'aria-hidden', 'style'],
+      // Alterações de style acontecem constantemente em barras de progresso.
+      // A estrutura e estes atributos bastam para manter a navegação correta.
+      attributeFilter: ['disabled', 'aria-hidden', 'hidden', 'tabindex'],
     });
 
     window.addEventListener('resize', prepare);
@@ -191,15 +197,13 @@ export function useTvRemoteNavigation() {
   }, [currentScreen]);
 
   useEffect(() => {
+    if (currentScreen === 'player') return;
+
     const cache = focusCacheRef.current;
 
     const onKeyDown = (event: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
-
       if (isTypingElement(active)) return;
-
-      // O player tem atalhos e controles próprios. Não interferir nele.
-      if (currentScreen === 'player') return;
 
       const directions: Record<string, Direction> = {
         ArrowUp: 'up',
@@ -212,10 +216,8 @@ export function useTvRemoteNavigation() {
 
       if (direction) {
         event.preventDefault();
-
         const elements = getFocusableElements(cache);
         const current = active && elements.includes(active) ? active : elements[0];
-
         if (!current) return;
 
         const next = findNextElement(elements, current, direction);
@@ -250,7 +252,6 @@ export function useTvRemoteNavigation() {
     };
 
     window.addEventListener('keydown', onKeyDown, true);
-
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [currentScreen, setScreen]);
 }
