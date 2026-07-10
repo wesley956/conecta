@@ -3,290 +3,165 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
   <title>Portal do Vendedor · RonecaPlayTV</title>
-  <style>
-    :root {
-      --bg: #070b18;
-      --panel: rgba(255,255,255,.06);
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --line: rgba(255,255,255,.12);
-      --green: #4ade80;
-      --red: #fb7185;
-      --orange: #fb923c;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at 20% 10%, rgba(59,130,246,.26), transparent 30%),
-        radial-gradient(circle at 85% 5%, rgba(168,85,247,.22), transparent 34%),
-        linear-gradient(135deg, #050816, #111827 60%, #020617);
-    }
-
-    .wrap {
-      width: min(1180px, calc(100% - 28px));
-      margin: 0 auto;
-      padding: 28px 0;
-    }
-
-    .hero, .section-title {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      align-items: center;
-      margin-bottom: 18px;
-    }
-
-    .brand {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-    }
-
-    .logo {
-      width: 50px;
-      height: 50px;
-      border-radius: 18px;
-      display: grid;
-      place-items: center;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
-      font-weight: 950;
-    }
-
-    h1, h2, h3, p { margin: 0; }
-    h1 { font-size: clamp(1.4rem, 3vw, 2.25rem); }
-    .muted { color: var(--muted); }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 18px;
-      box-shadow: 0 26px 90px rgba(0,0,0,.22);
-      backdrop-filter: blur(12px);
-      margin-bottom: 16px;
-    }
-
-    .login {
-      max-width: 560px;
-      margin: 12vh auto 0;
-    }
-
-    label {
-      display: block;
-      color: var(--muted);
-      font-size: .9rem;
-      margin-bottom: 8px;
-    }
-
-    input, select {
-      width: 100%;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,.25);
-      color: var(--text);
-      padding: 13px 14px;
-      border-radius: 14px;
-      outline: none;
-      font: inherit;
-    }
-
-    .actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 14px;
-    }
-
-    button, .btn {
-      border: 0;
-      color: white;
-      background: rgba(255,255,255,.12);
-      padding: 10px 13px;
-      border-radius: 13px;
-      cursor: pointer;
-      font-weight: 800;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    button.primary { background: linear-gradient(135deg, #2563eb, #7c3aed); }
-    button.red { background: rgba(251,113,133,.18); color: #fecdd3; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 12px;
-    }
-
-    .metric {
-      background: rgba(0,0,0,.22);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 14px;
-    }
-
-    .metric small {
-      display: block;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
-
-    .metric strong {
-      font-size: 1.45rem;
-    }
-
-    .positive { color: var(--green); }
-    .negative { color: var(--red); }
-    .warn { color: var(--orange); }
-
-    .filters {
-      display: grid;
-      grid-template-columns: minmax(220px, 1fr) 180px 210px auto;
-      gap: 10px;
-      align-items: end;
-      margin: 14px 0;
-    }
-
-    .result-count {
-      color: var(--muted);
-      margin-bottom: 10px;
-      font-size: .9rem;
-    }
-
-    .tablewrap {
-      overflow: auto;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-    }
-
-    table {
-      width: 100%;
-      min-width: 880px;
-      border-collapse: collapse;
-      background: rgba(0,0,0,.16);
-    }
-
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      vertical-align: top;
-      font-size: .92rem;
-    }
-
-    th {
-      color: var(--muted);
-      font-size: .78rem;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-    }
-
-    .badge {
-      display: inline-flex;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 5px 8px;
-      font-size: .78rem;
-      font-weight: 900;
-      background: rgba(255,255,255,.08);
-    }
-
-    .badge.active { color: #bbf7d0; border-color: rgba(74,222,128,.35); }
-    .badge.pending { color: #fed7aa; border-color: rgba(251,146,60,.35); }
-    .badge.blocked, .badge.expired { color: #fecdd3; border-color: rgba(251,113,133,.35); }
-
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-
-    .ledger {
-      display: grid;
-      gap: 10px;
-    }
-
-    .ledger-item {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: rgba(0,0,0,.18);
-      padding: 12px;
-    }
-
-    .hide { display: none !important; }
-
-    @media (max-width: 820px) {
-      .hero, .section-title { align-items: flex-start; flex-direction: column; }
-      .filters { grid-template-columns: 1fr; }
-      .wrap { width: min(100% - 18px, 1180px); padding-top: 16px; }
-    }
-  </style>
   <link rel="stylesheet" href="./pro-panel.css" />
-  <link rel="stylesheet" href="./seller-portal-ux.css" />
-  <link rel="stylesheet" href="./seller-lists-ux.css" />
+  <link rel="stylesheet" href="./seller.css" />
+  <script src="./seller.js" defer></script>
 </head>
 <body>
-  <main class="wrap">
-    <section id="loginView" class="card login">
-      <div class="brand" style="margin-bottom:18px;">
-        <div class="logo">R</div>
+  <main class="seller-shell">
+    <section id="loginView" class="seller-card seller-login" aria-labelledby="loginTitle">
+      <div class="seller-brand">
+        <img src="./assets/cruz-stars-logo.png" alt="RonecaPlayTV" class="seller-brand-logo" />
         <div>
-          <h1>Portal do Vendedor</h1>
-          <p class="muted">RonecaPlayTV · acesso comercial</p>
+          <h1 id="loginTitle">Portal do Vendedor</h1>
+          <p>Gestão comercial do RonecaPlayTV</p>
         </div>
       </div>
 
-      <label for="sellerToken">Token do vendedor</label>
-      <input id="sellerToken" type="password" autocomplete="off" placeholder="Cole o token recebido pelo administrador" />
-
-      <div class="actions">
-        <button class="primary" onclick="login()">Entrar</button>
-      </div>
-
-      <p id="loginMsg" class="muted" style="margin-top:14px;"></p>
+      <form id="loginForm" novalidate>
+        <label for="sellerToken">Token do vendedor</label>
+        <input id="sellerToken" type="password" autocomplete="current-password" placeholder="Cole o token recebido pelo administrador" />
+        <button id="loginButton" class="seller-button is-primary" type="submit">Entrar</button>
+      </form>
+      <p id="loginMsg" class="seller-message" role="status" aria-live="polite">Digite seu token para continuar.</p>
     </section>
 
-    <section id="dashboardView" class="hide">
-      <div class="hero">
-        <div class="brand">
-          <div class="logo">R</div>
+    <section id="dashboardView" class="seller-dashboard" hidden>
+      <header class="seller-hero seller-card">
+        <div class="seller-brand">
+          <img src="./assets/cruz-stars-logo.png" alt="" class="seller-brand-logo" />
           <div>
+            <p class="seller-kicker">RonecaPlayTV</p>
             <h1 id="sellerName">Portal do Vendedor</h1>
-            <p class="muted" id="sellerSub">Resumo comercial</p>
+            <p id="sellerSub">Resumo comercial</p>
           </div>
         </div>
-        <div class="actions">
-          <button onclick="loadPortal()">Atualizar</button>
-          <button class="red" onclick="logout()">Sair</button>
+        <div class="seller-actions">
+          <button id="refreshPortalButton" class="seller-button" type="button">Atualizar</button>
+          <button id="logoutButton" class="seller-button is-danger" type="button">Sair</button>
         </div>
-      </div>
+      </header>
 
-      <div class="card">
-        <div class="grid" id="statsGrid"></div>
-      </div>
-
-      <div class="card">
-        <div class="section-title">
+      <section class="seller-card" aria-labelledby="statsTitle">
+        <div class="seller-section-heading">
           <div>
-            <h2>Meus aparelhos</h2>
-            <p class="muted">Aparelhos vinculados a este vendedor.</p>
+            <p class="seller-kicker">Visão geral</p>
+            <h2 id="statsTitle">Resumo da conta</h2>
+          </div>
+        </div>
+        <div id="statsGrid" class="seller-stats"></div>
+      </section>
+
+      <section class="seller-card" aria-labelledby="activationTitle">
+        <div class="seller-section-heading">
+          <div>
+            <p class="seller-kicker">Ativação</p>
+            <h2 id="activationTitle">Ativar aparelho por código</h2>
+            <p>Busque o código mostrado no APK, vincule o aparelho e conclua a ativação usando seus créditos.</p>
           </div>
         </div>
 
-        <div class="filters">
+        <div class="seller-search-row">
           <div>
+            <label for="deviceCodeLookup">Código do aparelho</label>
+            <input id="deviceCodeLookup" class="seller-mono" placeholder="Ex: RPTV-ABC123" autocomplete="off" />
+          </div>
+          <button id="lookupDeviceButton" class="seller-button is-primary" type="button">Buscar código</button>
+        </div>
+
+        <div id="deviceLookupResult" class="seller-result" hidden></div>
+
+        <form id="activationForm" class="seller-form-panel" hidden>
+          <div class="seller-form-grid">
+            <div>
+              <label for="activationCustomerName">Nome do cliente</label>
+              <input id="activationCustomerName" placeholder="Ex: João Silva" />
+            </div>
+            <div>
+              <label for="activationCustomerWhatsapp">WhatsApp do cliente</label>
+              <input id="activationCustomerWhatsapp" inputmode="tel" placeholder="Ex: 19999999999" />
+            </div>
+            <div>
+              <label for="activationPlan">Plano</label>
+              <select id="activationPlan"></select>
+            </div>
+            <div>
+              <label for="activationPlaylist">Lista liberada</label>
+              <select id="activationPlaylist"></select>
+            </div>
+            <div class="is-wide">
+              <label for="activationExpiresAt">Validade opcional</label>
+              <input id="activationExpiresAt" type="date" />
+            </div>
+          </div>
+          <div class="seller-actions">
+            <button class="seller-button is-primary" type="submit">Ativar usando meus créditos</button>
+            <button id="cancelActivationButton" class="seller-button" type="button">Cancelar</button>
+          </div>
+        </form>
+        <p id="activationMsg" class="seller-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="seller-card" aria-labelledby="playlistsTitle">
+        <div class="seller-section-heading seller-section-actions">
+          <div>
+            <p class="seller-kicker">Conteúdo</p>
+            <h2 id="playlistsTitle">Minhas listas</h2>
+            <p>Cadastre listas autorizadas e acompanhe a geração do cache.</p>
+          </div>
+          <div class="seller-actions">
+            <button id="togglePlaylistFormButton" class="seller-button is-primary" type="button">Adicionar lista</button>
+            <button id="refreshPlaylistsButton" class="seller-button" type="button">Atualizar</button>
+          </div>
+        </div>
+
+        <form id="playlistForm" class="seller-form-panel" hidden>
+          <div class="seller-form-grid">
+            <div>
+              <label for="playlistName">Nome da lista</label>
+              <input id="playlistName" placeholder="Ex: Minha lista premium" />
+            </div>
+            <div>
+              <label for="playlistType">Tipo</label>
+              <select id="playlistType">
+                <option value="m3u">M3U</option>
+                <option value="xtream">Xtream</option>
+                <option value="stalker">Stalker</option>
+              </select>
+            </div>
+            <div class="is-wide">
+              <label for="playlistUrl">URL da lista</label>
+              <input id="playlistUrl" type="url" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="seller-actions">
+            <button class="seller-button is-primary" type="submit">Salvar e gerar cache</button>
+            <button id="cancelPlaylistButton" class="seller-button" type="button">Cancelar</button>
+          </div>
+        </form>
+        <p id="playlistsMsg" class="seller-message" role="status" aria-live="polite"></p>
+        <div id="playlistsList" class="seller-playlists"></div>
+      </section>
+
+      <section class="seller-card" aria-labelledby="devicesTitle">
+        <div class="seller-section-heading">
+          <div>
+            <p class="seller-kicker">Aparelhos</p>
+            <h2 id="devicesTitle">Meus aparelhos</h2>
+            <p>Consulte clientes, validade, plano, lista e ações disponíveis.</p>
+          </div>
+        </div>
+
+        <div class="seller-filters">
+          <div class="is-wide">
             <label for="deviceSearch">Buscar</label>
-            <input id="deviceSearch" placeholder="Código, cliente ou plano" oninput="renderDevicesTable()" />
+            <input id="deviceSearch" placeholder="Código, cliente, plano ou lista" />
           </div>
           <div>
             <label for="statusFilter">Status</label>
-            <select id="statusFilter" onchange="renderDevicesTable()">
+            <select id="statusFilter">
               <option value="">Todos</option>
               <option value="active">Ativos</option>
               <option value="pending">Pendentes</option>
@@ -297,23 +172,20 @@
           </div>
           <div>
             <label for="expiryFilter">Vencimento</label>
-            <select id="expiryFilter" onchange="renderDevicesTable()">
+            <select id="expiryFilter">
               <option value="">Todos</option>
               <option value="expired">Já vencidos</option>
               <option value="today">Vence hoje</option>
-              <option value="7">Vence em até 7 dias</option>
-              <option value="30">Vence em até 30 dias</option>
+              <option value="7">Até 7 dias</option>
+              <option value="30">Até 30 dias</option>
               <option value="ok">Mais de 30 dias</option>
             </select>
           </div>
-          <div>
-            <button onclick="clearDeviceFilters()">Limpar</button>
-          </div>
+          <button id="clearFiltersButton" class="seller-button" type="button">Limpar</button>
         </div>
 
-        <div id="resultCount" class="result-count"></div>
-
-        <div class="tablewrap">
+        <p id="resultCount" class="seller-result-count"></p>
+        <div class="seller-table-wrap">
           <table>
             <thead>
               <tr>
@@ -321,256 +193,41 @@
                 <th>Cliente</th>
                 <th>Status</th>
                 <th>Plano</th>
+                <th>Lista</th>
                 <th>Validade</th>
                 <th>Último acesso</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody id="devicesBody"></tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <div class="card">
-        <div class="section-title">
+      <section class="seller-card" aria-labelledby="ledgerTitle">
+        <div class="seller-section-heading">
           <div>
-            <h2>Extrato de créditos</h2>
-            <p class="muted">Últimas movimentações da sua conta.</p>
+            <p class="seller-kicker">Créditos</p>
+            <h2 id="ledgerTitle">Extrato</h2>
+            <p>Últimas movimentações da sua conta.</p>
           </div>
         </div>
-        <div id="ledgerList" class="ledger"></div>
-      </div>
+        <div id="ledgerList" class="seller-ledger"></div>
+      </section>
     </section>
   </main>
 
-  <script>
-    const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
-    const TOKEN_KEY = 'roneca_seller_token';
-    let currentPortalData = null;
-
-    function $(id) {
-      return document.getElementById(id);
-    }
-
-    function esc(value) {
-      return String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-    }
-
-    function fmtDate(value) {
-      if (!value) return '—';
-      const d = new Date(value);
-      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
-    }
-
-    function badge(status) {
-      const safe = esc(status || '—');
-      return '<span class="badge ' + safe + '">' + safe + '</span>';
-    }
-
-    function number(value) {
-      return Number(value || 0).toLocaleString('pt-BR');
-    }
-
-    function ledgerTypeText(type) {
-      const map = {
-        purchase: 'Compra',
-        activation: 'Ativação',
-        renewal: 'Renovação',
-        refund: 'Estorno',
-        manual_add: 'Crédito manual',
-        manual_remove: 'Remoção manual'
-      };
-      return map[type] || type || 'Movimento';
-    }
-
-    function whatsappUrl(value) {
-      const digits = String(value || '').replace(/\D/g, '');
-      if (!digits) return '';
-      const phone = digits.startsWith('55') ? digits : '55' + digits;
-      return 'https://wa.me/' + phone;
-    }
-
-    function normalizeText(value) {
-      return String(value || '')
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '');
-    }
-
-    async function fetchPortal(token) {
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-seller-token': token
-        },
-        body: JSON.stringify({ action: 'dashboard' })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || 'Erro ao carregar portal.');
-      return data;
-    }
-
-    async function login() {
-      const token = $('sellerToken').value.trim();
-      if (!token) {
-        $('loginMsg').textContent = 'Digite o token do vendedor.';
-        return;
-      }
-
-      try {
-        const data = await fetchPortal(token);
-        localStorage.setItem(TOKEN_KEY, token);
-        renderPortal(data);
-      } catch (err) {
-        $('loginMsg').textContent = err.message || 'Token inválido.';
-      }
-    }
-
-    async function loadPortal() {
-      const token = localStorage.getItem(TOKEN_KEY) || '';
-      if (!token) {
-        $('loginView').classList.remove('hide');
-        $('dashboardView').classList.add('hide');
-        return;
-      }
-
-      try {
-        const data = await fetchPortal(token);
-        renderPortal(data);
-      } catch (err) {
-        localStorage.removeItem(TOKEN_KEY);
-        $('loginMsg').textContent = err.message || 'Faça login novamente.';
-        $('loginView').classList.remove('hide');
-        $('dashboardView').classList.add('hide');
-      }
-    }
-
-    function filteredDevices() {
-      const data = currentPortalData || {};
-      const devices = data.devices || [];
-      const term = normalizeText(($('deviceSearch') && $('deviceSearch').value) || '');
-      const status = (($('statusFilter') && $('statusFilter').value) || '');
-      const expiry = (($('expiryFilter') && $('expiryFilter').value) || '');
-
-      return devices.filter(device => {
-        const matchTerm = !term ||
-          normalizeText(device.deviceCode).includes(term) ||
-          normalizeText(device.deviceUuid).includes(term) ||
-          normalizeText(device.customerName).includes(term) ||
-          normalizeText(device.customerWhatsapp).includes(term) ||
-          normalizeText(device.planName).includes(term);
-
-        const matchStatus = !status || device.status === status;
-        const days = Number(device.daysLeft);
-        let matchExpiry = true;
-
-        if (expiry === 'expired') matchExpiry = Number.isFinite(days) && days < 0;
-        if (expiry === 'today') matchExpiry = Number.isFinite(days) && days === 0;
-        if (expiry === '7') matchExpiry = Number.isFinite(days) && days >= 0 && days <= 7;
-        if (expiry === '30') matchExpiry = Number.isFinite(days) && days >= 0 && days <= 30;
-        if (expiry === 'ok') matchExpiry = Number.isFinite(days) && days > 30;
-
-        return matchTerm && matchStatus && matchExpiry;
-      });
-    }
-
-    function clearDeviceFilters() {
-      $('deviceSearch').value = '';
-      $('statusFilter').value = '';
-      $('expiryFilter').value = '';
-      renderDevicesTable();
-    }
-
-    function renderDevicesTable() {
-      const devices = filteredDevices();
-      const total = ((currentPortalData && currentPortalData.devices) || []).length;
-      $('resultCount').textContent = devices.length + ' de ' + total + ' aparelho(s) exibido(s).';
-
-      $('devicesBody').innerHTML = devices.length
-        ? devices.map(device => {
-          const wa = whatsappUrl(device.customerWhatsapp);
-          const days = device.daysLeft;
-          const validity = days === null
-            ? '—'
-            : days < 0
-              ? '<span class="negative">' + Math.abs(days) + ' dia(s) vencido</span>'
-              : days <= 7
-                ? '<span class="warn">' + days + ' dia(s)</span>'
-                : days + ' dia(s)';
-
-          return ''
-            + '<tr>'
-            + '<td><span class="mono">' + esc(device.deviceCode) + '</span><br><span class="muted">' + esc(device.deviceUuid || '') + '</span></td>'
-            + '<td>' + esc(device.customerName || 'Sem cliente') + (wa ? '<br><a class="btn" href="' + esc(wa) + '" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>' : '') + '</td>'
-            + '<td>' + badge(device.status) + '</td>'
-            + '<td>' + esc(device.planName || 'Sem plano') + '<br><span class="muted">' + esc(device.planCreditCost ? String(device.planCreditCost) + ' crédito(s)' : '') + '</span></td>'
-            + '<td>' + fmtDate(device.expiresAt) + '<br>' + validity + '</td>'
-            + '<td>' + fmtDate(device.lastSeenAt) + '</td>'
-            + '</tr>';
-        }).join('')
-        : '<tr><td colspan="6" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
-    }
-
-    function renderPortal(data) {
-      currentPortalData = data;
-
-      const seller = data.seller || {};
-      const stats = data.stats || {};
-      const ledger = data.creditLedger || [];
-      const balance = Number(seller.creditBalance || 0);
-
-      $('sellerName').textContent = seller.name || 'Portal do Vendedor';
-      $('sellerSub').textContent = (seller.whatsapp || '') + (seller.email ? ' · ' + seller.email : '');
-
-      $('statsGrid').innerHTML = ''
-        + '<div class="metric"><small>Saldo atual</small><strong class="' + (balance < 0 ? 'negative' : 'positive') + '">' + number(balance) + '</strong></div>'
-        + '<div class="metric"><small>Aparelhos ativos</small><strong>' + number(stats.activeDevices) + '</strong></div>'
-        + '<div class="metric"><small>Vencendo 7 dias</small><strong class="warn">' + number(stats.expiringSoon) + '</strong></div>'
-        + '<div class="metric"><small>Vencidos</small><strong class="negative">' + number(stats.expiredDevices) + '</strong></div>'
-        + '<div class="metric"><small>Pendentes</small><strong>' + number(stats.pendingDevices) + '</strong></div>'
-        + '<div class="metric"><small>Bloqueados</small><strong>' + number(stats.blockedDevices) + '</strong></div>'
-        + '<div class="metric"><small>Créditos adicionados</small><strong class="positive">' + number(stats.creditsAdded) + '</strong></div>'
-        + '<div class="metric"><small>Créditos consumidos</small><strong class="negative">' + number(stats.creditsConsumed) + '</strong></div>';
-
-      renderDevicesTable();
-
-      $('ledgerList').innerHTML = ledger.length
-        ? ledger.map(entry => {
-          const amount = Number(entry.amount || 0);
-          return ''
-            + '<div class="ledger-item">'
-            + '<strong>' + esc(ledgerTypeText(entry.type)) + '</strong> '
-            + '<span class="' + (amount >= 0 ? 'positive' : 'negative') + '" style="font-weight:900;">' + (amount > 0 ? '+' : '') + number(amount) + '</span>'
-            + '<div class="muted">' + esc(entry.description || 'Sem descrição') + '</div>'
-            + '<div class="muted">' + fmtDate(entry.createdAt) + ' · saldo após: ' + number(entry.balanceAfter) + '</div>'
-            + '</div>';
-        }).join('')
-        : '<div class="muted">Nenhuma movimentação ainda.</div>';
-
-      $('loginView').classList.add('hide');
-      $('dashboardView').classList.remove('hide');
-    }
-
-    function logout() {
-      localStorage.removeItem(TOKEN_KEY);
-      $('sellerToken').value = '';
-      $('loginView').classList.remove('hide');
-      $('dashboardView').classList.add('hide');
-    }
-
-    if ($('sellerToken')) $('sellerToken').addEventListener('keydown', event => {
-      if (event.key === 'Enter') login();
-    });
-
-    loadPortal();
-  </script>
-  <script src="./seller-portal-ux.js"></script>
-  <script src="./seller-lists-ux.js"></script>
+  <div id="sellerModal" class="seller-modal" hidden>
+    <div class="seller-modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="seller-modal-header">
+        <div>
+          <h2 id="modalTitle">Detalhes</h2>
+          <p id="modalSubtitle"></p>
+        </div>
+        <button id="closeModalButton" class="seller-button" type="button" aria-label="Fechar">×</button>
+      </header>
+      <div id="modalBody"></div>
+    </div>
+  </div>
 </body>
 </html>
