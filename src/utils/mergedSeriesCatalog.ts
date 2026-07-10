@@ -1,4 +1,6 @@
 import type { Playlist, Series } from '@/types';
+import type { PlaybackProgressEntry } from '@/stores/playbackStore';
+import { withSeriesPlaybackProgress } from '@/stores/playbackStore';
 import { canLoadXtreamSeriesFromPlaylist, getCachedXtreamSeriesCatalog } from '@/utils/xtreamSeries';
 
 const REMOTE_SERIES_FAVORITES_KEY = 'roneca:series:remoteFavorites';
@@ -23,12 +25,16 @@ function cloneSeries(item: Series): Series {
   };
 }
 
-export function getMergedSeriesCatalog(localSeries: Series[], playlists: Playlist[]) {
+export function getMergedSeriesCatalog(
+  localSeries: Series[],
+  playlists: Playlist[],
+  playbackEntries: Record<string, PlaybackProgressEntry> = {},
+) {
   const map = new Map<string, Series>();
   const remoteFavoriteIds = readRemoteFavoriteIds();
 
   for (const item of localSeries) {
-    map.set(item.id, cloneSeries(item));
+    map.set(item.id, withSeriesPlaybackProgress(cloneSeries(item), playbackEntries));
   }
 
   const xtreamPlaylist = playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
@@ -36,13 +42,14 @@ export function getMergedSeriesCatalog(localSeries: Series[], playlists: Playlis
 
   for (const item of remoteSeries) {
     const localItem = map.get(item.id);
-
-    map.set(item.id, {
+    const mergedItem: Series = {
       ...cloneSeries(item),
       ...localItem,
       isFavorite: Boolean(localItem?.isFavorite || item.isFavorite || remoteFavoriteIds.has(item.id)),
       seasons: localItem?.seasons?.length ? localItem.seasons : item.seasons,
-    });
+    };
+
+    map.set(item.id, withSeriesPlaybackProgress(mergedItem, playbackEntries));
   }
 
   return [...map.values()];
