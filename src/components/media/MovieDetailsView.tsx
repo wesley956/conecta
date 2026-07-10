@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { ArrowLeft, Film, Play, Star } from 'lucide-react';
+import { isContinuableProgress } from '@/stores/playbackStore';
 import type { Movie } from '@/types';
 import { CatalogPosterCard } from './CatalogPosterCard';
 
@@ -34,6 +35,9 @@ export function MovieDetailsView({
   const detailStyle = {
     '--movie-detail-image': image ? `url("${image.replace(/"/g, '%22')}")` : 'none',
   } as CSSProperties;
+  const progress = Math.min(100, Math.max(0, movie.progress ?? 0));
+  const canContinue = isContinuableProgress(progress);
+  const completed = progress >= 95;
 
   const meta = [
     movie.year > 0 ? String(movie.year) : null,
@@ -73,9 +77,9 @@ export function MovieDetailsView({
               </div>
             )}
 
-            {movie.progress !== undefined && movie.progress > 0 ? (
+            {progress > 0 ? (
               <div className="movie-detail-progress">
-                <span style={{ width: `${Math.min(100, Math.max(0, movie.progress))}%` }} />
+                <span style={{ width: `${progress}%` }} />
               </div>
             ) : null}
           </div>
@@ -87,6 +91,7 @@ export function MovieDetailsView({
             <div className="movie-detail-meta">
               {meta.map(item => <span key={item}>{item}</span>)}
               {movie.isFavorite ? <span className="is-gold">Na Minha Lista</span> : null}
+              {completed ? <span className="is-gold">Concluído</span> : null}
             </div>
 
             <p className="movie-detail-synopsis">
@@ -96,7 +101,7 @@ export function MovieDetailsView({
             <div className="movie-detail-actions">
               <button type="button" className="stream-primary-button" onClick={onPlay}>
                 <Play aria-hidden="true" size={17} fill="currentColor" />
-                {(movie.progress ?? 0) > 0 ? 'Continuar assistindo' : 'Assistir agora'}
+                {canContinue ? 'Continuar assistindo' : completed ? 'Assistir novamente' : 'Assistir agora'}
               </button>
 
               <button
