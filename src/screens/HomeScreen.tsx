@@ -1,10 +1,16 @@
 import { useMemo, type CSSProperties } from 'react';
 import { Film, Play, Tv } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
+import {
+  isContinuableProgress,
+  usePlaybackStore,
+  withMoviePlaybackProgress,
+} from '@/stores/playbackStore';
 import { StreamingShell } from '@/components/layout/StreamingShell';
 import { MediaRail } from '@/components/media/MediaRail';
 import { PosterCard } from '@/components/media/PosterCard';
 import { ChannelCard } from '@/components/live/ChannelCard';
+import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
 import type { Movie, Series } from '@/types';
 
 function getSafeImageUrl(url?: string) {
@@ -31,8 +37,9 @@ type HomeMediaItem = {
 export function HomeScreen() {
   const {
     channels,
-    movies,
-    series,
+    movies: rawMovies,
+    series: rawSeries,
+    playlists,
     setScreen,
     setCurrentChannel,
     setCurrentMovie,
@@ -40,6 +47,16 @@ export function HomeScreen() {
     deviceCode,
     daysRemaining,
   } = useAppStore();
+  const playbackEntries = usePlaybackStore(state => state.entries);
+
+  const movies = useMemo(
+    () => rawMovies.map(movie => withMoviePlaybackProgress(movie, playbackEntries)),
+    [playbackEntries, rawMovies],
+  );
+  const series = useMemo(
+    () => getMergedSeriesCatalog(rawSeries, playlists, playbackEntries),
+    [playbackEntries, playlists, rawSeries],
+  );
 
   const featured = useMemo(() => {
     const movie = movies.find(item => getSafeImageUrl(item.cover));
@@ -80,7 +97,7 @@ export function HomeScreen() {
 
   const continueItems = useMemo<HomeMediaItem[]>(() => {
     const movieItems: HomeMediaItem[] = movies
-      .filter(item => (item.progress ?? 0) > 0)
+      .filter(item => isContinuableProgress(item.progress))
       .map(item => ({
         type: 'movie',
         id: item.id,
@@ -93,7 +110,7 @@ export function HomeScreen() {
       }));
 
     const seriesItems: HomeMediaItem[] = series
-      .filter(item => (item.progress ?? 0) > 0)
+      .filter(item => isContinuableProgress(item.progress))
       .map(item => ({
         type: 'series',
         id: item.id,
