@@ -24,7 +24,7 @@ export function PosterCard({
   return (
     <button type="button" className="stream-poster-card" onClick={onClick}>
       <div className="stream-poster-frame">
-        {image ? <img src={image} alt="" loading="lazy" /> : null}
+        {image ? <img src={image} alt="" loading="lazy" decoding="async" /> : null}
 
         {badge ? <span className="stream-poster-badge">{badge}</span> : null}
 
