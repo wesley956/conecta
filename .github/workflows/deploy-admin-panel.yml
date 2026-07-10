@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - "admin-panel/**"
+      - "public/vendedor.html"
+      - "scripts/check-panels.mjs"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/deploy-admin-panel.yml"
   workflow_dispatch:
 
@@ -30,9 +34,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate admin and seller panels
+        run: npm run check:panels
+
       - name: Prepare static files
         run: |
           test -f admin-panel/index.html
+          test -f admin-panel/dashboard.html
+          test -f admin-panel/seller.html
           touch admin-panel/.nojekyll
 
       - name: Setup Pages
