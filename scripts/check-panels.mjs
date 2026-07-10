@@ -9,12 +9,20 @@ const htmlFiles = [
   'admin-panel/seller.html',
   'public/vendedor.html',
 ];
-const jsFiles = ['admin-panel/seller.js'];
+const jsFiles = [
+  'admin-panel/access.js',
+  'admin-panel/seller.js',
+];
 const cssFiles = [
   'admin-panel/pro-panel.css',
   'admin-panel/panel-ux.css',
   'admin-panel/panel-next-ux.css',
+  'admin-panel/access.css',
   'admin-panel/seller.css',
+];
+const cleanHtmlFiles = [
+  'admin-panel/index.html',
+  'admin-panel/seller.html',
 ];
 const forbiddenLegacyFiles = [
   'admin-panel/panel-ux.js',
@@ -156,7 +164,7 @@ for (const path of htmlFiles) {
     checkJavaScript(script, `${path} script inline ${index + 1}`);
   });
 
-  if (path === 'admin-panel/seller.html') {
+  if (cleanHtmlFiles.includes(path)) {
     if (/<style\b/i.test(html)) errors.push(`${path}: CSS inline voltou a ser usado.`);
     if (/<script(?![^>]+\bsrc=)[^>]*>/i.test(html)) errors.push(`${path}: JavaScript inline voltou a ser usado.`);
     if (/\son[a-z]+\s*=/i.test(html)) errors.push(`${path}: manipulador inline on*= voltou a ser usado.`);
