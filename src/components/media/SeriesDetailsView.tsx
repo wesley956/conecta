@@ -51,6 +51,7 @@ export function SeriesDetailsView({
     ?? (selectedSeason?.episodes[0] ? { season: selectedSeason, episode: selectedSeason.episodes[0] } : allEpisodes[0]);
   const episodeCount = allEpisodes.length;
   const seriesProgress = Math.min(100, Math.max(0, series.progress ?? 0));
+  const hasWatchedEpisodes = allEpisodes.some(({ episode }) => getEpisodeProgress(episode) > 0);
   const seriesCompleted = episodeCount > 0 && allEpisodes.every(({ episode }) => getEpisodeProgress(episode) >= 95);
 
   const detailStyle = {
@@ -126,7 +127,7 @@ export function SeriesDetailsView({
                     : seriesCompleted
                       ? 'Assistir novamente'
                       : primaryEntry
-                        ? 'Assistir próximo episódio'
+                        ? hasWatchedEpisodes ? 'Assistir próximo episódio' : 'Assistir primeiro episódio'
                         : 'Sem episódios'}
                 </button>
 
