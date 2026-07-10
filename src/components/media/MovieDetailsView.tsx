@@ -39,7 +39,7 @@ export function MovieDetailsView({
     movie.year > 0 ? String(movie.year) : null,
     movie.duration && movie.duration !== '—' ? movie.duration : null,
     movie.category || null,
-  ].filter(Boolean);
+  ].filter((item): item is string => Boolean(item));
 
   return (
     <div className="movie-detail-page" style={detailStyle} data-stream-detail="movie">
