@@ -1,0 +1,40 @@
+name: Validate Admin and Seller Panels
+
+on:
+  pull_request:
+    paths:
+      - "admin-panel/**"
+      - "public/vendedor.html"
+      - "scripts/check-panels.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/validate-panels.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-panels-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Static audit and application build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate panels and application
+        run: npm run verify
