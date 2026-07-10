@@ -1,6 +1,16 @@
-name: Release Android APK
+name: Publicar APK no GitHub Releases
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão pública no formato v2.0.0'
+        required: true
+        default: 'v2.0.0'
+      release_notes:
+        description: 'Resumo opcional desta versão'
+        required: false
+        default: 'Primeira versão pública do RonecaPlayTV com Player V2 e melhorias de estabilidade.'
   push:
     tags:
       - 'v*'
@@ -8,14 +18,82 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: public-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release-android:
-    name: Build and publish Android APK
+    name: Gerar e publicar APK assinado
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validar origem da publicação manual
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::Execute a publicação manual selecionando a branch main."
+            exit 1
+          fi
+
+      - name: Preparar metadados da versão
+        id: release_meta
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$VERSION" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Versão inválida: $VERSION. Use o formato v2.0.0."
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          PATCH="${BASH_REMATCH[3]}"
+
+          if [ "$MINOR" -gt 99 ] || [ "$PATCH" -gt 99 ]; then
+            echo "::error::Os números minor e patch devem estar entre 0 e 99."
+            exit 1
+          fi
+
+          VERSION_NAME="${VERSION#v}"
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Validar segredos da assinatura
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for SECRET_NAME in \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            ANDROID_KEY_PASSWORD
+          do
+            if [ -z "${!SECRET_NAME}" ]; then
+              echo "::error::O segredo $SECRET_NAME ainda não foi configurado no repositório."
+              exit 1
+            fi
+          done
 
       - name: Setup Node 22
         uses: actions/setup-node@v4
@@ -29,7 +107,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Prepare Android SDK
+      - name: Preparar Android SDK
         shell: bash
         run: |
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
@@ -45,58 +123,137 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Install dependencies
+      - name: Instalar dependências
         run: npm ci
 
-      - name: Verify production env was loaded
+      - name: Verificar ambiente de produção
         run: |
           test -f .env.production
           grep -q "VITE_ENABLE_DEVICE_PANEL=true" .env.production
           grep -q "VITE_DEVICE_CONFIG_URL=https://" .env.production
 
-      - name: Verify web build
+      - name: Validar parser, TypeScript e build web
         run: npm run verify
 
-      - name: Add Android platform if missing
+      - name: Adicionar plataforma Android quando necessário
         run: |
           if [ ! -d android ]; then
             npx cap add android
           fi
 
-      - name: Prepare Roneca launcher icon
+      - name: Preparar ícone do aplicativo
         run: node scripts/prepare-roneca-icon.cjs
 
-      - name: Generate Android assets
+      - name: Gerar assets Android
         run: npx -y @capacitor/assets generate --android
 
-      - name: Sync Capacitor Android
+      - name: Sincronizar Capacitor Android
         run: npx cap sync android
 
-      - name: Configure adaptive Android runtime
+      - name: Configurar Android adaptativo
         run: node scripts/configure-android-adaptive.cjs
 
-      - name: Configure Android SDK path
+      - name: Aplicar versão no projeto Android
+        shell: bash
+        env:
+          VERSION_NAME: ${{ steps.release_meta.outputs.version_name }}
+          VERSION_CODE: ${{ steps.release_meta.outputs.version_code }}
+        run: |
+          BUILD_FILE="android/app/build.gradle"
+
+          if [ ! -f "$BUILD_FILE" ]; then
+            echo "::error::$BUILD_FILE não foi encontrado."
+            exit 1
+          fi
+
+          sed -i -E "s/versionCode[[:space:]]+[0-9]+/versionCode $VERSION_CODE/" "$BUILD_FILE"
+          sed -i -E "s/versionName[[:space:]]+\"[^\"]+\"/versionName \"$VERSION_NAME\"/" "$BUILD_FILE"
+
+          grep -q "versionCode $VERSION_CODE" "$BUILD_FILE"
+          grep -q "versionName \"$VERSION_NAME\"" "$BUILD_FILE"
+
+      - name: Configurar caminho do Android SDK
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 
-      - name: Build debug APK
+      - name: Gerar APK release sem assinatura
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      - name: Prepare release asset
+      - name: Assinar e verificar APK público
+        id: sign_apk
         shell: bash
+        env:
+          VERSION: ${{ steps.release_meta.outputs.version }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
-          mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk "release/RonecaPlayTV-${TAG_NAME}-debug.apk"
-          ls -lh release
+          set -euo pipefail
 
-      - name: Publish GitHub Release
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          UNSIGNED_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          KEYSTORE_FILE="$RUNNER_TEMP/ronecaplaytv-release.jks"
+          RELEASE_DIR="$GITHUB_WORKSPACE/release"
+          APK_NAME="RonecaPlayTV-${VERSION}.apk"
+          ALIGNED_APK="$RUNNER_TEMP/ronecaplaytv-aligned.apk"
+          FINAL_APK="$RELEASE_DIR/$APK_NAME"
+
+          if [ ! -f "$UNSIGNED_APK" ]; then
+            echo "::error::APK release sem assinatura não encontrado."
+            find android/app/build/outputs -maxdepth 5 -type f -name '*.apk' -print || true
+            exit 1
+          fi
+
+          mkdir -p "$RELEASE_DIR"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+          chmod 600 "$KEYSTORE_FILE"
+
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED_APK" "$ALIGNED_APK"
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$KEYSTORE_FILE" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --out "$FINAL_APK" \
+            "$ALIGNED_APK"
+
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$FINAL_APK"
+
+          (
+            cd "$RELEASE_DIR"
+            sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          )
+
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          ls -lh "$RELEASE_DIR"
+
+      - name: Remover chave temporária
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/ronecaplaytv-release.jks" "$RUNNER_TEMP/ronecaplaytv-aligned.apk"
+
+      - name: Publicar versão estável no GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          name: RonecaPlayTV ${{ github.ref_name }}
+          tag_name: ${{ steps.release_meta.outputs.version }}
+          target_commitish: main
+          name: RonecaPlayTV ${{ steps.release_meta.outputs.version }}
           draft: false
-          prerelease: true
+          prerelease: false
+          make_latest: true
           generate_release_notes: true
-          files: release/*.apk
+          body: |
+            ## RonecaPlayTV para Android
+
+            APK público assinado para celular, tablet, TV Box, Android TV e Google TV.
+
+            Para instalar, baixe o arquivo **${{ steps.sign_apk.outputs.apk_name }}** nos anexos desta versão. Em alguns aparelhos Android será necessário autorizar a instalação de aplicativos de fontes externas.
+
+            ${{ github.event.inputs.release_notes }}
+          files: |
+            release/*.apk
+            release/*.sha256
