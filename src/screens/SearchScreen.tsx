@@ -4,6 +4,7 @@ import { StreamingShell } from '@/components/layout/StreamingShell';
 import { ChannelCard } from '@/components/live/ChannelCard';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
 import { useAppStore } from '@/stores/appStore';
+import { usePlaybackStore, withMoviePlaybackProgress } from '@/stores/playbackStore';
 import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
 import type { Channel, Movie, Series } from '@/types';
 import '@/styles/library.css';
@@ -31,19 +32,27 @@ type SearchFilter = 'all' | 'channels' | 'movies' | 'series';
 
 export function SearchScreen() {
   const channels = useAppStore(state => state.channels);
-  const movies = useAppStore(state => state.movies);
+  const rawMovies = useAppStore(state => state.movies);
   const series = useAppStore(state => state.series);
   const playlists = useAppStore(state => state.playlists);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
   const setCurrentSeries = useAppStore(state => state.setCurrentSeries);
+  const playbackEntries = usePlaybackStore(state => state.entries);
 
   const [query, setQuery] = useState(() => window.sessionStorage.getItem('roneca:search:query') ?? '');
   const [filter, setFilter] = useState<SearchFilter>('all');
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = normalizeSearch(deferredQuery);
-  const allSeries = useMemo(() => getMergedSeriesCatalog(series, playlists), [playlists, series]);
+  const movies = useMemo(
+    () => rawMovies.map(movie => withMoviePlaybackProgress(movie, playbackEntries)),
+    [playbackEntries, rawMovies],
+  );
+  const allSeries = useMemo(
+    () => getMergedSeriesCatalog(series, playlists, playbackEntries),
+    [playbackEntries, playlists, series],
+  );
 
   const results = useMemo(() => {
     if (!normalizedQuery) {
