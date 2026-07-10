@@ -12,6 +12,7 @@ import { useAppStore } from '@/stores/appStore';
 import type { AppState } from '@/types';
 import '@/styles/streaming.css';
 import '@/styles/preferences.css';
+import '@/styles/adaptive.css';
 
 type NavItem = {
   id: AppState;
