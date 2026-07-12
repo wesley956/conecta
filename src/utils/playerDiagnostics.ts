@@ -55,8 +55,11 @@ function sanitizeXtreamPath(url: URL) {
   const parts = url.pathname.split('/').filter(Boolean);
   if (parts.length < 3) return;
 
-  const route = parts[0]?.toLowerCase();
-  const offset = route === 'live' || route === 'movie' || route === 'series' ? 1 : 0;
+  const routeIndex = parts.findIndex(part => {
+    const route = part.toLowerCase();
+    return route === 'live' || route === 'movie' || route === 'series';
+  });
+  const offset = routeIndex >= 0 ? routeIndex + 1 : 0;
   if (parts.length - offset < 3) return;
 
   parts[offset] = '***';
