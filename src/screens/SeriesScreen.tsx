@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Clapperboard, LoaderCircle, Search, X } from 'lucide-react';
 import { StreamingShell } from '@/components/layout/StreamingShell';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
@@ -8,6 +8,7 @@ import {
   isContinuableProgress,
   usePlaybackStore,
   withSeriesPlaybackProgress,
+  type PlaybackProgressEntry,
 } from '@/stores/playbackStore';
 import type { Episode, Movie, Season, Series } from '@/types';
 import {
@@ -57,7 +58,7 @@ function withRemoteFavoriteState(items: XtreamSeries[], favoriteIds: string[]) {
 
   return items.map(item => ({
     ...item,
-    isFavorite: favoriteSet.has(item.id) || Boolean(item.isFavorite),
+    isFavorite: favoriteSet.has(item.id),
   }));
 }
 
@@ -104,8 +105,59 @@ function getSafeImageUrl(url?: string) {
   return url;
 }
 
+interface SeriesEpisodeMatch {
+  season: Season;
+  episode: Episode;
+}
+
+function findLatestContinuableSeriesEntry(
+  item: Series,
+  entries: Record<string, PlaybackProgressEntry>,
+) {
+  return Object.values(entries)
+    .filter(entry => (
+      entry.contentType === 'episode' &&
+      entry.seriesId === item.id &&
+      isContinuableProgress(entry.progress)
+    ))
+    .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt))[0];
+}
+
+function findEpisodeForEntry(
+  item: Series,
+  entry: PlaybackProgressEntry,
+): SeriesEpisodeMatch | null {
+  for (const season of item.seasons) {
+    const episode = season.episodes.find(
+      candidate => candidate.id === entry.contentId,
+    );
+
+    if (episode) return { season, episode };
+  }
+
+  if (
+    entry.seasonNumber === undefined ||
+    entry.episodeNumber === undefined
+  ) {
+    return null;
+  }
+
+  const season = item.seasons.find(
+    candidate => candidate.number === entry.seasonNumber,
+  );
+
+  const episode = season?.episodes.find(
+    candidate => candidate.number === entry.episodeNumber,
+  );
+
+  return season && episode ? { season, episode } : null;
+}
+
 export function SeriesScreen() {
   const series = useAppStore(state => state.series);
+  const currentMovie = useAppStore(state => state.currentMovie);
+  const currentSeries = useAppStore(state => state.currentSeries);
+  const previousScreen = useAppStore(state => state.previousScreen);
   const playlists = useAppStore(state => state.playlists);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
@@ -130,6 +182,7 @@ export function SeriesScreen() {
   const [detailSeasons, setDetailSeasons] = useState<Season[]>([]);
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number | null>(null);
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  const externalOpenHandledRef = useRef<string | null>(null);
   const seriesFavoriteHold = useLongPressFavorite();
 
   const xtreamPlaylist = useMemo(() => {
@@ -182,19 +235,37 @@ export function SeriesScreen() {
 
   const allSeries = useMemo<XtreamSeries[]>(() => {
     const map = new Map<string, XtreamSeries>();
+    const favoriteSet = new Set(remoteFavoriteIds);
 
     for (const item of series as XtreamSeries[]) {
-      map.set(item.id, item);
+      map.set(item.id, {
+        ...item,
+        isFavorite: favoriteSet.has(item.id) || Boolean(item.isFavorite),
+      });
     }
 
     for (const item of remoteSeries) {
-      map.set(item.id, item);
+      const localItem = map.get(item.id);
+
+      if (localItem) {
+        map.set(item.id, {
+          ...item,
+          ...localItem,
+          seasons: localItem.seasons.length > 0 ? localItem.seasons : item.seasons,
+          isFavorite: favoriteSet.has(item.id) || Boolean(localItem.isFavorite),
+        });
+      } else {
+        map.set(item.id, {
+          ...item,
+          isFavorite: favoriteSet.has(item.id),
+        });
+      }
     }
 
     return [...map.values()]
       .map(item => withSeriesPlaybackProgress(item, playbackEntries) as XtreamSeries)
       .sort(sortSeriesForDisplay);
-  }, [playbackEntries, remoteSeries, series]);
+  }, [playbackEntries, remoteFavoriteIds, remoteSeries, series]);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -237,8 +308,14 @@ export function SeriesScreen() {
 
   const selectedSeries = useMemo(() => {
     if (!selectedSeriesId) return null;
-    return allSeries.find(item => item.id === selectedSeriesId) ?? null;
-  }, [allSeries, selectedSeriesId]);
+
+    return allSeries.find(item => item.id === selectedSeriesId)
+      ?? (
+        currentSeries?.id === selectedSeriesId
+          ? currentSeries as XtreamSeries
+          : null
+      );
+  }, [allSeries, currentSeries, selectedSeriesId]);
 
   const recommendations = useMemo(() => {
     if (!selectedSeries) return [];
@@ -316,27 +393,33 @@ export function SeriesScreen() {
     }
   }, [selectedSeries, selectedSeriesId]);
 
-  const toggleFavoriteSeries = (item: XtreamSeries) => {
+  const toggleFavoriteSeries = useCallback((item: XtreamSeries) => {
+    const nextFavorite = !Boolean(item.isFavorite);
     const existsInLocalStore = series.some(seriesItem => seriesItem.id === item.id);
 
     if (existsInLocalStore) {
       toggleSeriesFavorite(item.id);
-      return;
     }
 
     setRemoteFavoriteIds(current => {
-      const isFavorite = current.includes(item.id);
-      const next = isFavorite
-        ? current.filter(id => id !== item.id)
-        : [...current, item.id];
+      const next = nextFavorite
+        ? current.includes(item.id) ? current : [...current, item.id]
+        : current.filter(id => id !== item.id);
 
       writeRemoteSeriesFavoriteIds(next);
 
       setRemoteSeries(currentRemote => {
-        const updated = withRemoteFavoriteState(currentRemote, next);
+        const updated = currentRemote.map(seriesItem => (
+          seriesItem.id === item.id
+            ? { ...seriesItem, isFavorite: nextFavorite }
+            : seriesItem
+        ));
 
         if (xtreamPlaylist?.url) {
-          remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(updated));
+          remoteSeriesScreenCache.set(
+            xtreamPlaylist.url.trim(),
+            cloneRemoteSeriesItems(updated),
+          );
         }
 
         return updated;
@@ -344,7 +427,59 @@ export function SeriesScreen() {
 
       return next;
     });
-  };
+  }, [series, toggleSeriesFavorite, xtreamPlaylist?.url]);
+
+  useEffect(() => {
+    if (selectedSeries) return;
+
+    const favoriteKeys = new Set([
+      'Menu',
+      'ContextMenu',
+      'Settings',
+      'Favorite',
+      'MediaFavorite',
+    ]);
+
+    const handleFavoriteKey = (event: KeyboardEvent) => {
+      if (!favoriteKeys.has(event.key) || event.repeat) return;
+
+      const active = document.activeElement;
+
+      if (
+        !(active instanceof HTMLButtonElement) ||
+        !active.matches('.series-grid .catalog-poster-card')
+      ) {
+        return;
+      }
+
+      const cards = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          '.series-grid .catalog-poster-card',
+        ),
+      );
+
+      const cardIndex = cards.indexOf(active);
+      const item = cardIndex >= 0 ? visibleSeries[cardIndex] : null;
+
+      if (!item) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      (
+        event as KeyboardEvent & {
+          stopImmediatePropagation?: () => void;
+        }
+      ).stopImmediatePropagation?.();
+
+      toggleFavoriteSeries(item);
+    };
+
+    window.addEventListener('keydown', handleFavoriteKey, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleFavoriteKey, true);
+    };
+  }, [selectedSeries, toggleFavoriteSeries, visibleSeries]);
 
   const playEpisode = (item: Series, season: Season, episode: Episode) => {
     const itemWithSeasons = withSeriesPlaybackProgress(
@@ -371,12 +506,41 @@ export function SeriesScreen() {
     setScreen('player');
   };
 
-  const openSeriesDetail = async (item: XtreamSeries) => {
+  const openSeriesDetail = async (
+    item: XtreamSeries,
+    resumeAfterLoad = false,
+  ) => {
     if (loadingSeriesId === item.id) return;
     setSeriesError(null);
 
     if (item.seasons.length > 0) {
-      const itemWithProgress = withSeriesPlaybackProgress(item, playbackEntries);
+      const itemWithProgress = withSeriesPlaybackProgress(
+        item,
+        playbackEntries,
+      );
+
+      setCurrentSeries(itemWithProgress);
+
+      if (resumeAfterLoad) {
+        const entry = findLatestContinuableSeriesEntry(
+          itemWithProgress,
+          playbackEntries,
+        );
+
+        const match = entry
+          ? findEpisodeForEntry(itemWithProgress, entry)
+          : null;
+
+        if (entry && match) {
+          playEpisode(
+            itemWithProgress,
+            match.season,
+            match.episode,
+          );
+          return;
+        }
+      }
+
       setDetailSeasons(itemWithProgress.seasons);
       setSelectedSeasonNumber(itemWithProgress.seasons[0].number);
       setSelectedSeriesId(item.id);
@@ -398,18 +562,55 @@ export function SeriesScreen() {
         return;
       }
 
-      const itemWithSeasons = withSeriesPlaybackProgress({ ...item, seasons }, playbackEntries) as XtreamSeries;
+      const itemWithSeasons = withSeriesPlaybackProgress(
+        { ...item, seasons },
+        playbackEntries,
+      ) as XtreamSeries;
+
+      setCurrentSeries(itemWithSeasons);
 
       setRemoteSeries(current => {
-        const next = current.map(seriesItem => (
-          seriesItem.id === item.id ? itemWithSeasons : seriesItem
-        ));
+        const exists = current.some(
+          seriesItem => seriesItem.id === item.id,
+        );
+
+        const next = exists
+          ? current.map(seriesItem => (
+              seriesItem.id === item.id
+                ? itemWithSeasons
+                : seriesItem
+            ))
+          : [...current, itemWithSeasons];
+
         if (xtreamPlaylist?.url) {
-          remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(next));
+          remoteSeriesScreenCache.set(
+            xtreamPlaylist.url.trim(),
+            cloneRemoteSeriesItems(next),
+          );
         }
 
         return next;
       });
+
+      if (resumeAfterLoad) {
+        const entry = findLatestContinuableSeriesEntry(
+          itemWithSeasons,
+          playbackEntries,
+        );
+
+        const match = entry
+          ? findEpisodeForEntry(itemWithSeasons, entry)
+          : null;
+
+        if (entry && match) {
+          playEpisode(
+            itemWithSeasons,
+            match.season,
+            match.episode,
+          );
+          return;
+        }
+      }
 
       setDetailSeasons(itemWithSeasons.seasons);
       setSelectedSeasonNumber(itemWithSeasons.seasons[0].number);
@@ -420,6 +621,40 @@ export function SeriesScreen() {
       setLoadingSeriesId(null);
     }
   };
+
+  useEffect(() => {
+    if (
+      currentMovie ||
+      !currentSeries ||
+      selectedSeries ||
+      loadingSeriesId ||
+      (
+        previousScreen !== 'favorites' &&
+        previousScreen !== 'home'
+      )
+    ) {
+      return;
+    }
+
+    const requestKey = `${previousScreen}:${currentSeries.id}`;
+
+    if (externalOpenHandledRef.current === requestKey) {
+      return;
+    }
+
+    externalOpenHandledRef.current = requestKey;
+
+    void openSeriesDetail(
+      currentSeries as XtreamSeries,
+      true,
+    );
+  }, [
+    currentMovie,
+    currentSeries,
+    loadingSeriesId,
+    previousScreen,
+    selectedSeries,
+  ]);
 
   const closeSeriesDetail = () => {
     setSelectedSeriesId(null);
@@ -530,7 +765,7 @@ export function SeriesScreen() {
                 <div className="series-library-heading">
                   <div>
                     <h2 className="series-library-title">{selectedLabel}</h2>
-                    <p className="series-library-subtitle">Pressione para abrir temporadas e episódios. Segure para favoritar.</p>
+                    <p className="series-library-subtitle">OK abre os detalhes • Menu adiciona ou remove da Minha Lista.</p>
                   </div>
 
                   <p className="series-library-count">
