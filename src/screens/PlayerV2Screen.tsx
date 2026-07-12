@@ -24,6 +24,9 @@ import {
 import type { AppSettings, Channel, Episode, Movie, Season } from '@/types';
 
 const MAX_RECOVERY_ATTEMPTS = 6;
+const STABLE_PLAYBACK_RESET_MS = 20_000;
+const LIVE_WATCHDOG_INTERVAL_MS = 4_000;
+const LIVE_STALL_THRESHOLD_MS = 16_000;
 const PLAYER_MEDIA_PREFS_KEY = 'ronecaplaytv-player-media-v1';
 
 type BufferSize = AppSettings['bufferSize'];
@@ -176,10 +179,6 @@ function isMpegTsUrl(url: string) {
   return /\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url);
 }
 
-function replaceKnownMediaExtension(url: string, extension: string) {
-  return url.replace(/\.(m3u8|ts|m2ts|mpegts)(\?|#|$)/i, `.${extension}$2`);
-}
-
 function buildXtreamLivePlaybackVariants(rawUrl: string) {
   try {
     const parsed = new URL(rawUrl.trim());
@@ -188,33 +187,47 @@ function buildXtreamLivePlaybackVariants(rawUrl: string) {
       .filter(Boolean)
       .map(part => decodeURIComponent(part));
 
-    const route = parts[0]?.toLowerCase();
+    const blockedRouteIndex = parts.findIndex(part => {
+      const route = part.toLowerCase();
+      return route === 'movie' || route === 'series';
+    });
 
-    if (route === 'movie' || route === 'series') {
-      return [];
-    }
+    if (blockedRouteIndex >= 0 || parts.length < 3) return [];
 
-    const offset = route === 'live' ? 1 : 0;
+    const liveRouteIndex = parts.findIndex(
+      part => part.toLowerCase() === 'live',
+    );
+    const credentialStart = liveRouteIndex >= 0
+      ? liveRouteIndex + 1
+      : parts.length - 3;
 
-    if (parts.length - offset < 3) return [];
+    if (parts.length - credentialStart !== 3) return [];
 
-    const username = parts[offset];
-    const password = parts[offset + 1];
-    const streamFile = parts[offset + 2];
-    const streamMatch = streamFile.match(/^([^/.]+)(?:\.[a-z0-9]+)?$/i);
+    const username = parts[credentialStart];
+    const password = parts[credentialStart + 1];
+    const streamFile = parts[credentialStart + 2];
+    const streamMatch = streamFile.match(/^([0-9]+)(?:\.[a-z0-9]+)?$/i);
 
     if (!username || !password || !streamMatch?.[1]) return [];
 
+    const prefixParts = parts.slice(
+      0,
+      liveRouteIndex >= 0 ? liveRouteIndex : credentialStart,
+    );
+    const prefix = prefixParts.length > 0
+      ? `/${prefixParts.map(encodeURIComponent).join('/')}`
+      : '';
+    const base = `${parsed.origin}${prefix}`;
     const streamId = streamMatch[1];
     const user = encodeURIComponent(username);
     const pass = encodeURIComponent(password);
     const suffix = `${parsed.search}${parsed.hash}`;
 
     return [
-      `${parsed.origin}/live/${user}/${pass}/${streamId}.m3u8${suffix}`,
-      `${parsed.origin}/${user}/${pass}/${streamId}.m3u8${suffix}`,
-      `${parsed.origin}/live/${user}/${pass}/${streamId}.ts${suffix}`,
-      `${parsed.origin}/${user}/${pass}/${streamId}.ts${suffix}`,
+      `${base}/live/${user}/${pass}/${streamId}.m3u8${suffix}`,
+      `${base}/${user}/${pass}/${streamId}.m3u8${suffix}`,
+      `${base}/live/${user}/${pass}/${streamId}.ts${suffix}`,
+      `${base}/${user}/${pass}/${streamId}.ts${suffix}`,
     ];
   } catch {
     return [];
@@ -232,21 +245,14 @@ function buildPlaybackUrlVariants(
     ? buildXtreamLivePlaybackVariants(url)
     : [];
 
+  // Só inventamos extensões alternativas quando a URL foi reconhecida com
+  // segurança como Xtream. URLs de CDN, tokens e rotas personalizadas devem
+  // ser reproduzidas exatamente como foram entregues pela lista.
   if (xtreamLiveVariants.length > 0) {
     return [...new Set([url, ...xtreamLiveVariants])];
   }
 
-  const variants: string[] = [];
-
-  if (/\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url)) {
-    variants.push(url, replaceKnownMediaExtension(url, 'm3u8'));
-  } else if (/\.m3u8(\?|#|$)/i.test(url)) {
-    variants.push(url, replaceKnownMediaExtension(url, 'ts'));
-  } else {
-    variants.push(url);
-  }
-
-  return [...new Set(variants)];
+  return [url];
 }
 
 function getVideoErrorMessage(video: HTMLVideoElement, fallback: string) {
@@ -506,14 +512,9 @@ export function PlayerV2Screen() {
     setReady(false);
     setIsBuffering(true);
 
-    try {
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-    } catch {
-      // Falhas de limpeza não devem impedir uma nova tentativa.
-    }
-
+    // A alteração de nonce desmonta primeiro a sessão atual pelo cleanup do
+    // efeito. Só depois uma nova sessão é criada. Isso evita chamar load()
+    // diretamente enquanto o mpegts.js ainda controla o MediaSource.
     setReloadNonce(value => value + 1);
     setShowControls(true);
   }, [streamUrl]);
@@ -559,6 +560,12 @@ export function PlayerV2Screen() {
     let cancelled = false;
     let recoveryTimer: number | null = null;
     let initialLoadTimer: number | null = null;
+    let stablePlaybackTimer: number | null = null;
+    let watchdogTimer: number | null = null;
+    let lastProgressTime = Number.isFinite(video.currentTime)
+      ? video.currentTime
+      : 0;
+    let lastProgressAt = performance.now();
     let markMpegReady: (() => void) | null = null;
     let markMpegError: (() => void) | null = null;
 
@@ -576,12 +583,35 @@ export function PlayerV2Screen() {
       }
     };
 
+    const clearStablePlaybackTimer = () => {
+      if (stablePlaybackTimer !== null) {
+        window.clearTimeout(stablePlaybackTimer);
+        stablePlaybackTimer = null;
+      }
+    };
+
+    const clearWatchdogTimer = () => {
+      if (watchdogTimer !== null) {
+        window.clearInterval(watchdogTimer);
+        watchdogTimer = null;
+      }
+    };
+
+    const armStablePlaybackReset = () => {
+      clearStablePlaybackTimer();
+      stablePlaybackTimer = window.setTimeout(() => {
+        recoveryAttemptsRef.current = 0;
+        stablePlaybackTimer = null;
+      }, STABLE_PLAYBACK_RESET_MS);
+    };
+
     const markReady = () => {
       if (cancelled) return;
       clearRecoveryTimer();
       clearInitialLoadTimer();
       setReady(true);
       setIsBuffering(false);
+      armStablePlaybackReset();
     };
 
     const tryNextPlaybackUrl = (message: string) => {
@@ -607,12 +637,14 @@ export function PlayerV2Screen() {
 
       if (recoveryTimer !== null) return;
 
-      recoveryAttemptsRef.current += 1;
+      const attempt = recoveryAttemptsRef.current + 1;
+      recoveryAttemptsRef.current = attempt;
+      clearStablePlaybackTimer();
       setIsBuffering(true);
       recoveryTimer = window.setTimeout(() => {
         recoveryTimer = null;
         if (!cancelled) action();
-      }, delayMs);
+      }, Math.round(delayMs * (1 + (attempt - 1) * 0.35)));
     };
 
     const scheduleInitialLoadTimeout = () => {
@@ -629,47 +661,115 @@ export function PlayerV2Screen() {
 
     const scheduleStallRecovery = () => {
       setIsBuffering(true);
-      if (!isLive || !autoReconnect) return;
+      if (!isLive || !autoReconnect || recoveryTimer !== null) return;
 
-      clearRecoveryTimer();
+      clearStablePlaybackTimer();
+
+      if (recoveryAttemptsRef.current >= MAX_RECOVERY_ATTEMPTS) {
+        tryNextPlaybackUrl(
+          'A transmissão permaneceu sem avanço após várias tentativas de recuperação.',
+        );
+        return;
+      }
+
+      const attempt = recoveryAttemptsRef.current + 1;
+      const delay = Math.round(
+        bufferProfile.stallRecoveryDelayMs *
+        (1 + (attempt - 1) * 0.3),
+      );
+
       recoveryTimer = window.setTimeout(() => {
         recoveryTimer = null;
 
-        if (recoveryAttemptsRef.current >= MAX_RECOVERY_ATTEMPTS) {
+        if (cancelled) return;
+
+        if (
+          video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
+          !video.paused &&
+          performance.now() - lastProgressAt < LIVE_STALL_THRESHOLD_MS
+        ) {
           setIsBuffering(false);
-          setError('A transmissão travou várias vezes. Tente trocar de canal ou reproduzir novamente.');
           return;
         }
 
-        recoveryAttemptsRef.current += 1;
+        recoveryAttemptsRef.current = attempt;
         recoverPlayback();
-      }, bufferProfile.stallRecoveryDelayMs);
+      }, delay);
+    };
+
+    const handlePlaybackProgress = () => {
+      const nextTime = Number.isFinite(video.currentTime)
+        ? video.currentTime
+        : lastProgressTime;
+
+      if (Math.abs(nextTime - lastProgressTime) < 0.25) return;
+
+      lastProgressTime = nextTime;
+      lastProgressAt = performance.now();
     };
 
     const handlePlaying = () => {
+      handlePlaybackProgress();
       markReady();
       setIsPlaying(true);
     };
-    const handleCanPlay = () => markReady();
-    const handlePause = () => setIsPlaying(false);
+    const handleCanPlay = () => {
+      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        markReady();
+      }
+    };
+    const handlePause = () => {
+      clearStablePlaybackTimer();
+      setIsPlaying(false);
+    };
 
     video.addEventListener('waiting', scheduleStallRecovery);
     video.addEventListener('stalled', scheduleStallRecovery);
     video.addEventListener('playing', handlePlaying);
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('pause', handlePause);
-    video.addEventListener('loadedmetadata', clearInitialLoadTimer);
+    video.addEventListener('timeupdate', handlePlaybackProgress);
     scheduleInitialLoadTimeout();
+
+    if (isLive && autoReconnect) {
+      watchdogTimer = window.setInterval(() => {
+        if (
+          cancelled ||
+          document.hidden ||
+          video.paused ||
+          video.ended
+        ) {
+          return;
+        }
+
+        handlePlaybackProgress();
+
+        if (performance.now() - lastProgressAt >= LIVE_STALL_THRESHOLD_MS) {
+          scheduleStallRecovery();
+        }
+      }, LIVE_WATCHDOG_INTERVAL_MS);
+    }
 
     const attachNativePlayback = () => {
       if (cancelled) return;
 
       video.src = playbackUrl;
       video.onloadedmetadata = () => {
-        markReady();
         video.play().catch(() => setShowControls(true));
       };
-      video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));
+      video.onerror = () => {
+        const message = getVideoErrorMessage(
+          video,
+          'Não foi possível reproduzir esta fonte.',
+        );
+
+        if (video.error?.code === 4) {
+          tryNextPlaybackUrl(message);
+          return;
+        }
+
+        attemptAutomaticRecovery(recoverPlayback, message, 900);
+      };
     };
 
     if (isMpegTsUrl(streamUrl)) {
@@ -717,9 +817,12 @@ export function PlayerV2Screen() {
           playResult?.catch?.(() => setShowControls(true));
 
           markMpegReady = () => markReady();
-          markMpegError = () => tryNextPlaybackUrl('Não foi possível reproduzir esta fonte MPEG-TS.');
+          markMpegError = () => attemptAutomaticRecovery(
+            recoverPlayback,
+            'Não foi possível recuperar esta fonte MPEG-TS.',
+            850,
+          );
 
-          video.addEventListener('loadedmetadata', markMpegReady);
           video.addEventListener('canplay', markMpegReady);
           video.addEventListener('error', markMpegError);
           tsPlayer.on?.(mpegts.Events.ERROR, markMpegError);
@@ -761,7 +864,8 @@ export function PlayerV2Screen() {
 
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             if (cancelled) return;
-            markReady();
+            // Manifesto válido ainda não significa primeiro quadro disponível.
+            // O estado pronto será confirmado pelos eventos canplay/playing.
             video.play().catch(() => setShowControls(true));
           });
 
@@ -798,15 +902,16 @@ export function PlayerV2Screen() {
       cancelled = true;
       clearRecoveryTimer();
       clearInitialLoadTimer();
+      clearStablePlaybackTimer();
+      clearWatchdogTimer();
       video.removeEventListener('waiting', scheduleStallRecovery);
       video.removeEventListener('stalled', scheduleStallRecovery);
       video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('pause', handlePause);
-      video.removeEventListener('loadedmetadata', clearInitialLoadTimer);
+      video.removeEventListener('timeupdate', handlePlaybackProgress);
 
       if (markMpegReady) {
-        video.removeEventListener('loadedmetadata', markMpegReady);
         video.removeEventListener('canplay', markMpegReady);
       }
       if (markMpegError) {
