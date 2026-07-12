@@ -2,16 +2,18 @@ import { useMemo, type CSSProperties } from 'react';
 import { Film, Play, Tv } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import {
+  getPlaybackEntry,
   isContinuableProgress,
   usePlaybackStore,
   withMoviePlaybackProgress,
+  type PlaybackProgressEntry,
 } from '@/stores/playbackStore';
 import { StreamingShell } from '@/components/layout/StreamingShell';
 import { MediaRail } from '@/components/media/MediaRail';
 import { PosterCard } from '@/components/media/PosterCard';
 import { ChannelCard } from '@/components/live/ChannelCard';
 import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
-import type { Movie, Series } from '@/types';
+import type { Episode, Movie, Season, Series } from '@/types';
 
 function getSafeImageUrl(url?: string) {
   if (!url) return undefined;
@@ -31,8 +33,48 @@ type HomeMediaItem = {
   meta: string;
   favorite?: boolean;
   progress?: number;
+  watchedAt?: string;
+  resumeEntry?: PlaybackProgressEntry;
   source: Movie | Series;
 };
+
+interface SeriesEpisodeMatch {
+  season: Season;
+  episode: Episode;
+}
+
+function findEpisodeForEntry(item: Series, entry: PlaybackProgressEntry): SeriesEpisodeMatch | null {
+  for (const season of item.seasons) {
+    const episodeById = season.episodes.find(episode => episode.id === entry.contentId);
+    if (episodeById) return { season, episode: episodeById };
+  }
+
+  if (entry.seasonNumber === undefined || entry.episodeNumber === undefined) return null;
+
+  const season = item.seasons.find(candidate => candidate.number === entry.seasonNumber);
+  const episode = season?.episodes.find(candidate => candidate.number === entry.episodeNumber);
+  return season && episode ? { season, episode } : null;
+}
+
+function makeEpisodeMovie(
+  item: Series,
+  match: SeriesEpisodeMatch,
+  entry: PlaybackProgressEntry,
+): Movie {
+  return {
+    id: match.episode.id,
+    name: `${item.name} - T${match.season.number}E${match.episode.number}`,
+    year: 0,
+    duration: match.episode.duration,
+    synopsis: item.synopsis,
+    cover: item.cover,
+    category: item.category,
+    url: match.episode.url,
+    playbackUrls: match.episode.playbackUrls,
+    progress: entry.progress,
+    isFavorite: item.isFavorite,
+  };
+}
 
 export function HomeScreen() {
   const {
@@ -96,34 +138,56 @@ export function HomeScreen() {
   }, [channels.length, movies, series]);
 
   const continueItems = useMemo<HomeMediaItem[]>(() => {
-    const movieItems: HomeMediaItem[] = movies
-      .filter(item => isContinuableProgress(item.progress))
-      .map(item => ({
+    const movieItems: HomeMediaItem[] = movies.flatMap(item => {
+      const entry = getPlaybackEntry(playbackEntries, 'movie', item.id);
+      if (!entry || !isContinuableProgress(entry.progress)) return [];
+
+      return [{
         type: 'movie',
         id: item.id,
         title: item.name,
         image: getSafeImageUrl(item.cover),
         meta: item.category || 'Filme',
         favorite: item.isFavorite,
-        progress: item.progress,
+        progress: entry.progress,
+        watchedAt: entry.watchedAt,
+        resumeEntry: entry,
         source: item,
-      }));
+      }];
+    });
 
-    const seriesItems: HomeMediaItem[] = series
-      .filter(item => isContinuableProgress(item.progress))
-      .map(item => ({
+    const seriesItems: HomeMediaItem[] = series.flatMap(item => {
+      const entry = Object.values(playbackEntries)
+        .filter(candidate => (
+          candidate.contentType === 'episode' &&
+          candidate.seriesId === item.id &&
+          isContinuableProgress(candidate.progress)
+        ))
+        .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt))[0];
+
+      if (!entry) return [];
+
+      const match = findEpisodeForEntry(item, entry);
+      if (!match) return [];
+
+      return [{
         type: 'series',
         id: item.id,
         title: item.name,
         image: getSafeImageUrl(item.cover),
-        meta: item.category || 'Série',
+        meta: `T${match.season.number} • E${match.episode.number}`,
         favorite: item.isFavorite,
-        progress: item.progress,
+        progress: entry.progress,
+        watchedAt: entry.watchedAt,
+        resumeEntry: entry,
         source: item,
-      }));
+      }];
+    });
 
-    return [...movieItems, ...seriesItems].slice(0, 14);
-  }, [movies, series]);
+    return [...movieItems, ...seriesItems]
+      .sort((a, b) => Date.parse(b.watchedAt || '') - Date.parse(a.watchedAt || ''))
+      .slice(0, 14);
+  }, [movies, playbackEntries, series]);
 
   const favoriteItems = useMemo<HomeMediaItem[]>(() => {
     const movieItems: HomeMediaItem[] = movies
@@ -166,6 +230,28 @@ export function HomeScreen() {
     setCurrentSeries(item.source as Series);
     setCurrentMovie(null);
     setScreen('series');
+  };
+
+  const resumeMedia = (item: HomeMediaItem) => {
+    if (item.type === 'movie') {
+      setCurrentSeries(null);
+      setCurrentMovie(item.source as Movie);
+      setScreen('player');
+      return;
+    }
+
+    const seriesItem = item.source as Series;
+    const entry = item.resumeEntry;
+    const match = entry ? findEpisodeForEntry(seriesItem, entry) : null;
+
+    if (!entry || !match) {
+      openMedia(item);
+      return;
+    }
+
+    setCurrentSeries(seriesItem);
+    setCurrentMovie(makeEpisodeMovie(seriesItem, match, entry));
+    setScreen('player');
   };
 
   const openFeatured = () => {
@@ -246,7 +332,7 @@ export function HomeScreen() {
                   favorite={item.favorite}
                   progress={item.progress}
                   badge={item.type === 'movie' ? 'Filme' : 'Série'}
-                  onClick={() => openMedia(item)}
+                  onClick={() => resumeMedia(item)}
                 />
               ))}
             </MediaRail>
