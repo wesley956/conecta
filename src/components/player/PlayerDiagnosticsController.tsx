@@ -248,10 +248,15 @@ export function PlayerDiagnosticsController() {
           continue;
         }
 
+        const proxiedSource = candidateUrl.pathname.endsWith('/api/media-proxy')
+          ? candidateUrl.searchParams.get('url') || ''
+          : '';
+        const observedSource = proxiedSource || entry.name;
         const sameServer = candidateUrl.origin === configuredUrl?.origin;
-        const looksLikeMedia = /\.(m3u8|ts|m2ts|mpegts|mp4|mkv)(\?|#|$)/i.test(candidateUrl.toString())
-          || /\/(live|movie|series)\//i.test(candidateUrl.pathname);
-        if (!sameServer || !looksLikeMedia) continue;
+        const isMediaProxy = Boolean(proxiedSource);
+        const looksLikeMedia = /\.(m3u8|ts|m2ts|mpegts|mp4|mkv)(\?|#|$)/i.test(observedSource)
+          || /\/(live|movie|series)\//i.test(observedSource);
+        if ((!sameServer && !isMediaProxy) || !looksLikeMedia) continue;
 
         seen.add(entry.name);
         recordPlayerDiagnostic({
@@ -262,11 +267,12 @@ export function PlayerDiagnosticsController() {
           event: 'media-resource',
           result: 'info',
           engine: engineRef.current,
-          source: entry.name,
-          sourceRole: entry.name === source ? 'configured' : 'current',
+          source: observedSource,
+          sourceRole: observedSource === source ? 'configured' : 'current',
           elapsedMs: Math.max(0, Math.round(performance.now() - startedAtRef.current)),
           details: {
-            candidate: entry.name === source ? 'original' : 'alternative-or-segment',
+            candidate: observedSource === source ? 'original' : 'alternative-or-segment',
+            proxied: isMediaProxy,
             initiatorType: entry.initiatorType || 'unknown',
             requestDurationMs: Number.isFinite(entry.duration) ? Math.round(entry.duration) : 0,
             transferSize: Number.isFinite(entry.transferSize) ? entry.transferSize : 0,
