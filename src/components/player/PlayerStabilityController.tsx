@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
+import {
+  recordPlayerDiagnostic,
+  type PlayerDiagnosticEvent,
+} from '@/utils/playerDiagnostics';
 
 type StabilityStatus = 'buffering' | 'offline' | null;
 type BufferSize = 'low' | 'medium' | 'high';
@@ -45,7 +49,7 @@ function isVideoActuallyWaiting(video: HTMLVideoElement) {
 }
 
 /**
- * Camada exclusivamente visual.
+ * Camada exclusivamente visual e de diagnóstico.
  *
  * A recuperação real pertence ao PlayerV2Screen. Este componente não chama
  * load(), play(), seek, startLoad(), recoverMediaError() nem interrompe eventos.
@@ -66,6 +70,7 @@ export function PlayerStabilityController() {
 
   const messageTimerRef = useRef<number | null>(null);
   const waitingRef = useRef(false);
+  const loadStartedAtRef = useRef(0);
 
   useLayoutEffect(() => {
     const locateVideo = () => {
@@ -94,6 +99,7 @@ export function PlayerStabilityController() {
 
   useEffect(() => {
     waitingRef.current = false;
+    loadStartedAtRef.current = 0;
     setStatus(null);
 
     if (messageTimerRef.current !== null) {
@@ -106,6 +112,28 @@ export function PlayerStabilityController() {
     if (!video) return;
 
     const activeVideo = video;
+    let lastDiagnosticKey = '';
+    let lastDiagnosticAt = 0;
+
+    const diagnose = (
+      event: PlayerDiagnosticEvent,
+      startupMs?: number,
+    ) => {
+      const now = performance.now();
+      const key = `${event}:${activeVideo.readyState}:${activeVideo.networkState}:${activeVideo.error?.code ?? 0}`;
+
+      if (key === lastDiagnosticKey && now - lastDiagnosticAt < 750) {
+        return;
+      }
+
+      lastDiagnosticKey = key;
+      lastDiagnosticAt = now;
+      recordPlayerDiagnostic(event, activeVideo, {
+        contentId,
+        isLive,
+        startupMs,
+      });
+    };
 
     const clearMessageTimer = () => {
       if (messageTimerRef.current === null) return;
@@ -145,7 +173,16 @@ export function PlayerStabilityController() {
       }, delay);
     };
 
-    const handleWaiting = () => {
+    const handleLoadStart = () => {
+      loadStartedAtRef.current = performance.now();
+      diagnose('loadstart');
+    };
+
+    const handleLoadedMetadata = () => diagnose('loadedmetadata');
+
+    const handleWaiting = (event: Event) => {
+      diagnose(event.type === 'stalled' ? 'stalled' : 'waiting');
+
       if (activeVideo.paused && !activeVideo.seeking) {
         markStable();
         return;
@@ -162,6 +199,21 @@ export function PlayerStabilityController() {
       scheduleMessage();
     };
 
+    const handleCanPlay = () => {
+      diagnose('canplay');
+      markStable();
+    };
+
+    const handlePlaying = () => {
+      const startupMs = loadStartedAtRef.current > 0
+        ? performance.now() - loadStartedAtRef.current
+        : undefined;
+
+      diagnose('playing', startupMs);
+      loadStartedAtRef.current = 0;
+      markStable();
+    };
+
     const handleProgress = () => {
       if (
         activeVideo.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
@@ -171,13 +223,19 @@ export function PlayerStabilityController() {
       }
     };
 
+    const handleError = () => diagnose('error');
+    const handleEnded = () => diagnose('ended');
+
     const handleOffline = () => {
       waitingRef.current = true;
       clearMessageTimer();
       setStatus('offline');
+      diagnose('offline');
     };
 
     const handleOnline = () => {
+      diagnose('online');
+
       if (isVideoActuallyWaiting(activeVideo)) {
         waitingRef.current = true;
         setStatus('buffering');
@@ -187,31 +245,39 @@ export function PlayerStabilityController() {
       markStable();
     };
 
+    activeVideo.addEventListener('loadstart', handleLoadStart);
+    activeVideo.addEventListener('loadedmetadata', handleLoadedMetadata);
     activeVideo.addEventListener('waiting', handleWaiting);
     activeVideo.addEventListener('stalled', handleWaiting);
-    activeVideo.addEventListener('playing', markStable);
-    activeVideo.addEventListener('canplay', markStable);
+    activeVideo.addEventListener('playing', handlePlaying);
+    activeVideo.addEventListener('canplay', handleCanPlay);
     activeVideo.addEventListener('timeupdate', handleProgress);
     activeVideo.addEventListener('progress', handleProgress);
     activeVideo.addEventListener('seeking', handleWaiting);
     activeVideo.addEventListener('seeked', markStable);
+    activeVideo.addEventListener('error', handleError);
+    activeVideo.addEventListener('ended', handleEnded);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
 
     return () => {
       clearMessageTimer();
+      activeVideo.removeEventListener('loadstart', handleLoadStart);
+      activeVideo.removeEventListener('loadedmetadata', handleLoadedMetadata);
       activeVideo.removeEventListener('waiting', handleWaiting);
       activeVideo.removeEventListener('stalled', handleWaiting);
-      activeVideo.removeEventListener('playing', markStable);
-      activeVideo.removeEventListener('canplay', markStable);
+      activeVideo.removeEventListener('playing', handlePlaying);
+      activeVideo.removeEventListener('canplay', handleCanPlay);
       activeVideo.removeEventListener('timeupdate', handleProgress);
       activeVideo.removeEventListener('progress', handleProgress);
       activeVideo.removeEventListener('seeking', handleWaiting);
       activeVideo.removeEventListener('seeked', markStable);
+      activeVideo.removeEventListener('error', handleError);
+      activeVideo.removeEventListener('ended', handleEnded);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [bufferSize, video]);
+  }, [bufferSize, contentId, isLive, video]);
 
   if (!status) return null;
 
