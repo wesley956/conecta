@@ -189,14 +189,19 @@ export function PlayerCinematicPanels() {
   }, [currentEpisodeIndex, playEpisodeAt]);
 
   useEffect(() => {
+    clearHideTimer();
+    setPanel(null);
+
     if (!contentId) {
-      setPanel(null);
+      setControlsVisible(false);
       return;
     }
 
-    setPanel(null);
-    revealControls();
-  }, [contentId, revealControls]);
+    setControlsVisible(true);
+    hideTimerRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+    }, CONTROLS_HIDE_DELAY_MS);
+  }, [clearHideTimer, contentId]);
 
   useEffect(() => {
     if (panel !== 'settings') return;
