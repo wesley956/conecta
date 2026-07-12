@@ -45,7 +45,9 @@ function trimText(value: unknown, maxLength = MAX_TEXT_LENGTH) {
 }
 
 function sanitizeQuery(url: URL) {
-  const keys = [...new Set([...url.searchParams.keys()])].slice(0, 12);
+  const keySet = new Set<string>();
+  url.searchParams.forEach((_value, key) => keySet.add(key));
+  const keys = [...keySet].slice(0, 12);
   url.search = '';
   for (const key of keys) url.searchParams.append(key, '***');
   url.hash = '';
