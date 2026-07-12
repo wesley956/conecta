@@ -5,9 +5,12 @@ import './styles/adaptive.css';
 import './runtime/adaptiveRuntime';
 import './runtime/nativeNavigation';
 import App from './App';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 );
