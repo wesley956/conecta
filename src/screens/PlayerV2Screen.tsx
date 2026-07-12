@@ -15,7 +15,8 @@ import {
 import { AppLayout } from '@/components/shared';
 import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { useAppStore } from '@/stores/appStore';
-import type { AppSettings, Episode, Movie, Season } from '@/types';
+import { cleanLiveGroupTitle } from '@/utils/m3u';
+import type { AppSettings, Channel, Episode, Movie, Season } from '@/types';
 
 const MAX_RECOVERY_ATTEMPTS = 6;
 const PLAYER_MEDIA_PREFS_KEY = 'ronecaplaytv-player-media-v1';
@@ -131,6 +132,22 @@ function writeMediaPreferences(preferences: StoredMediaPreferences) {
   } catch {
     // Preferências de mídia não devem impedir a reprodução.
   }
+}
+
+function humanizeChannelGroup(group: string) {
+  return group
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || 'Outros';
+}
+
+function getChannelGroupLabel(channel: Channel) {
+  if (channel.groupTitle?.trim()) {
+    return cleanLiveGroupTitle(channel.groupTitle);
+  }
+
+  return humanizeChannelGroup(channel.group || 'outros');
 }
 
 function isHttpUrl(url: string) {
@@ -268,6 +285,7 @@ export function PlayerV2Screen() {
   const currentChannel = useAppStore(state => state.currentChannel);
   const currentMovie = useAppStore(state => state.currentMovie);
   const currentSeries = useAppStore(state => state.currentSeries);
+  const previousScreen = useAppStore(state => state.previousScreen);
   const channels = useAppStore(state => state.channels);
   const settings = useAppStore(state => state.settings);
   const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
@@ -335,9 +353,66 @@ export function PlayerV2Screen() {
 
   const hasEpisodeControls = !isLive && currentEpisodeIndex >= 0 && seriesEpisodes.length > 1;
 
-  const quickChannels = useMemo(() => {
-    return channels.filter(channel => channel.url?.trim()).slice(0, 36);
-  }, [channels]);
+  const channelDrawerContext = useMemo(() => {
+    const validChannels = channels.filter(
+      channel => channel.url?.trim(),
+    );
+
+    if (!currentChannel) {
+      return {
+        label: 'Canais',
+        channels: validChannels,
+      };
+    }
+
+    const storedCategoryId = window.sessionStorage.getItem(
+      'roneca:channels:selectedCategoryId',
+    ) || 'all';
+
+    const shouldUseFavorites = Boolean(
+      currentChannel.isFavorite &&
+      (
+        previousScreen === 'favorites' ||
+        storedCategoryId === 'favorites'
+      ),
+    );
+
+    if (shouldUseFavorites) {
+      const favoriteChannels = validChannels.filter(
+        channel => channel.isFavorite,
+      );
+
+      return {
+        label: 'Favoritos',
+        channels: favoriteChannels.length > 0
+          ? favoriteChannels
+          : [currentChannel],
+      };
+    }
+
+    const currentGroupId = currentChannel.group || 'outros';
+    const storedGroupId = storedCategoryId.startsWith('group:')
+      ? storedCategoryId.slice('group:'.length)
+      : '';
+
+    const contextualGroupId = storedGroupId === currentGroupId
+      ? storedGroupId
+      : currentGroupId;
+
+    const groupChannels = validChannels.filter(
+      channel => (channel.group || 'outros') === contextualGroupId,
+    );
+
+    return {
+      label: getChannelGroupLabel(currentChannel),
+      channels: groupChannels.length > 0
+        ? groupChannels
+        : [currentChannel],
+    };
+  }, [channels, currentChannel, previousScreen]);
+
+  const channelDrawerChannels = channelDrawerContext.channels;
+  const channelDrawerLabel = channelDrawerContext.label;
 
   const recoverPlayback = useCallback(() => {
     const video = videoRef.current;
@@ -1238,9 +1313,23 @@ export function PlayerV2Screen() {
 
         {showList ? (
           <aside className="player-channel-drawer absolute bottom-0 right-0 top-0 z-50 w-[min(82vw,430px)] border-l border-white/10 bg-black/94 px-5 py-8 backdrop-blur-xl">
-            <h2 className="mb-7 text-3xl font-light text-white/82">Canais</h2>
-            <div className="max-h-[calc(100vh-110px)] space-y-1 overflow-y-auto">
-              {quickChannels.map(channel => (
+            <div className="mb-7 flex items-end justify-between gap-4">
+              <div className="min-w-0">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/38">
+                  Categoria
+                </p>
+                <h2 className="truncate text-3xl font-light text-white/82">
+                  {channelDrawerLabel}
+                </h2>
+              </div>
+
+              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm text-white/55">
+                {channelDrawerChannels.length}
+              </span>
+            </div>
+
+            <div className="max-h-[calc(100vh-125px)] space-y-1 overflow-y-auto">
+              {channelDrawerChannels.map(channel => (
                 <button
                   key={channel.id}
                   type="button"
@@ -1252,6 +1341,11 @@ export function PlayerV2Screen() {
                   className={`player-channel-row flex w-full items-center gap-4 rounded-xl px-5 py-4 text-left ${
                     currentChannel?.id === channel.id ? 'is-active' : ''
                   }`}
+                  aria-current={
+                    currentChannel?.id === channel.id
+                      ? 'true'
+                      : undefined
+                  }
                 >
                   <TvIcon aria-hidden="true" size={24} strokeWidth={2} className="w-8" />
                   <span className="truncate text-lg font-light">{channel.name}</span>
