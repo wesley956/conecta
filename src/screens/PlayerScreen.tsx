@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PlayerAdvancedControls } from '@/components/player/PlayerAdvancedControls';
+import { PlayerDiagnosticsController } from '@/components/player/PlayerDiagnosticsController';
 import { PlayerRemoteController } from '@/components/player/PlayerRemoteController';
 import { PlayerStabilityController } from '@/components/player/PlayerStabilityController';
 import { useAppStore } from '@/stores/appStore';
@@ -67,6 +68,7 @@ export function PlayerScreen() {
     <>
       <PlayerRemoteController />
       <PlayerV2Screen />
+      <PlayerDiagnosticsController />
       <PlayerStabilityController />
       <PlayerAdvancedControls />
     </>
