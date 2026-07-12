@@ -1,0 +1,94 @@
+/*
+ * RonecaPlayTV — otimizações de execução do player cinematográfico.
+ *
+ * A interface aprovada continua sendo a única camada visível. O antigo menu
+ * interno do PlayerV2 permanece oculto enquanto sua lógica é eliminada em uma
+ * refatoração futura, evitando duas interfaces de opções simultâneas.
+ */
+
+.roneca-exoplayer-shell .player-settings-arrow,
+.roneca-exoplayer-shell .player-settings-extension {
+  display: none !important;
+}
+
+.player-bottom-panel > .relative.mt-3.grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+
+.player-bottom-panel > .relative.mt-3.grid > button[aria-label="Ativar som"],
+.player-bottom-panel > .relative.mt-3.grid > button[aria-label="Silenciar"] {
+  grid-column: 1;
+}
+
+.player-bottom-panel > .relative.mt-3.grid > button[aria-label="Tela cheia"] {
+  grid-column: 2;
+}
+
+/* Controles completamente ocultos não devem continuar consumindo composição. */
+.roneca-exoplayer-center-controls.pointer-events-none.opacity-0,
+.player-bottom-panel.pointer-events-none.opacity-0,
+.roneca-exoplayer-top.pointer-events-none.opacity-0 {
+  visibility: hidden;
+  backdrop-filter: none !important;
+  will-change: auto !important;
+}
+
+.roneca-exoplayer-center-controls:not(.opacity-0),
+.player-bottom-panel:not(.opacity-0),
+.roneca-exoplayer-top:not(.opacity-0) {
+  visibility: visible;
+}
+
+.player-cinematic-side-panel,
+.player-channel-drawer {
+  contain: layout paint;
+}
+
+.player-cinematic-panel-backdrop {
+  contain: strict;
+}
+
+/*
+ * Em TV Box e aparelhos 720p, blur grande costuma disputar GPU com o decoder.
+ * Mantemos transparência e contraste usando superfícies um pouco mais opacas.
+ */
+@media (max-width: 1280px), (max-height: 720px) {
+  .player-bottom-panel,
+  .player-cinematic-side-panel,
+  .player-channel-drawer,
+  .roneca-exoplayer-back,
+  .roneca-exoplayer-top > div > button {
+    backdrop-filter: none !important;
+  }
+
+  .player-bottom-panel {
+    background: linear-gradient(
+      180deg,
+      rgba(13, 13, 14, 0.86),
+      rgba(4, 4, 5, 0.97)
+    ) !important;
+  }
+
+  .player-cinematic-side-panel,
+  .player-channel-drawer {
+    background: linear-gradient(
+      160deg,
+      rgba(16, 16, 17, 0.99),
+      rgba(3, 3, 4, 0.995)
+    ) !important;
+  }
+
+  .roneca-exoplayer-center-controls button {
+    backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roneca-exoplayer-shell *,
+  .player-cinematic-companion * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
