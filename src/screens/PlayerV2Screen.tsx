@@ -957,7 +957,7 @@ export function PlayerV2Screen() {
   const progressPercent = isSeekable ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 100;
   const playbackRates = [0.5, 1, 1.25, 1.5, 2];
 
-  const togglePlayPause = () => {
+  const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
@@ -968,17 +968,21 @@ export function PlayerV2Screen() {
     }
 
     setShowControls(true);
-  };
+  }, []);
 
-  const seekBy = (seconds: number) => {
+  const seekBy = useCallback((seconds: number) => {
     const video = videoRef.current;
     if (!video || !isSeekable) return;
 
-    const nextTime = Math.min(duration, Math.max(0, video.currentTime + seconds));
+    const nextTime = Math.min(
+      duration,
+      Math.max(0, video.currentTime + seconds),
+    );
+
     video.currentTime = nextTime;
     setCurrentTime(nextTime);
     setShowControls(true);
-  };
+  }, [duration, isSeekable]);
 
   const handleSeek = (value: string) => {
     const video = videoRef.current;
@@ -1075,7 +1079,13 @@ export function PlayerV2Screen() {
 
     window.addEventListener('keydown', handlePlayerKeyDown, true);
     return () => window.removeEventListener('keydown', handlePlayerKeyDown, true);
-  }, [goBack, isLive, showControls, duration]);
+  }, [
+    goBack,
+    isLive,
+    seekBy,
+    showControls,
+    togglePlayPause,
+  ]);
 
   const progressStyle = {
     '--player-progress-value': `${progressPercent}%`,
