@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
@@ -8,18 +14,86 @@ import { canUsePanelCacheParts, fetchPanelPlaylistCache, fetchPanelPlaylistCache
 import { canLoadXtreamSeriesFromPlaylist, prewarmXtreamSeriesCatalog } from '@/utils/xtreamSeries';
 import type { AppState, Playlist } from '@/types';
 
-// Screens
+// Telas críticas da inicialização.
 import { SplashScreen } from '@/screens/SplashScreen';
 import { ActivationScreen } from '@/screens/ActivationScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
-import { ChannelsScreen } from '@/screens/ChannelsScreen';
-import { MoviesScreen } from '@/screens/MoviesScreen';
-import { SeriesScreen } from '@/screens/SeriesScreen';
-import { PlayerScreen } from '@/screens/PlayerScreen';
-import { MyListScreen } from '@/screens/MyListScreen';
-import { SearchScreen } from '@/screens/SearchScreen';
-import { SettingsScreen } from '@/screens/SettingsScreen';
-import { ExpiredScreen, BlockedScreen, NoInternetScreen } from '@/screens/ErrorScreens';
+import {
+  ExpiredScreen,
+  BlockedScreen,
+  NoInternetScreen,
+} from '@/screens/ErrorScreens';
+
+// Telas secundárias carregadas somente quando forem abertas.
+const ChannelsScreen = lazy(() =>
+  import('@/screens/ChannelsScreen').then(module => ({
+    default: module.ChannelsScreen,
+  })),
+);
+
+const MoviesScreen = lazy(() =>
+  import('@/screens/MoviesScreen').then(module => ({
+    default: module.MoviesScreen,
+  })),
+);
+
+const SeriesScreen = lazy(() =>
+  import('@/screens/SeriesScreen').then(module => ({
+    default: module.SeriesScreen,
+  })),
+);
+
+const PlayerScreen = lazy(() =>
+  import('@/screens/PlayerScreen').then(module => ({
+    default: module.PlayerScreen,
+  })),
+);
+
+const MyListScreen = lazy(() =>
+  import('@/screens/MyListScreen').then(module => ({
+    default: module.MyListScreen,
+  })),
+);
+
+const SearchScreen = lazy(() =>
+  import('@/screens/SearchScreen').then(module => ({
+    default: module.SearchScreen,
+  })),
+);
+
+const SettingsScreen = lazy(() =>
+  import('@/screens/SettingsScreen').then(module => ({
+    default: module.SettingsScreen,
+  })),
+);
+
+function ScreenLoadingFallback() {
+  return (
+    <div
+      className="
+        flex min-h-screen w-full items-center justify-center
+        bg-black text-white
+      "
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="flex flex-col items-center gap-4">
+        <span
+          className="
+            h-10 w-10 animate-spin rounded-full
+            border-2 border-white/20 border-t-red-500
+          "
+          aria-hidden="true"
+        />
+
+        <p className="text-sm font-medium text-white/65">
+          Abrindo...
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ===== SCREEN ROUTER =====
 function AppScreen({ screen }: { screen: AppState }) {
@@ -561,7 +635,10 @@ export default function App() {
     <div className="h-screen w-screen overflow-hidden bg-black">
       <ContentCacheHydrator />
       <DevicePanelSync />
-      <AppScreen screen={currentScreen} />
+
+      <Suspense fallback={<ScreenLoadingFallback />}>
+        <AppScreen screen={currentScreen} />
+      </Suspense>
     </div>
   );
 }
