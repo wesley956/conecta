@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/stores/appStore';
 import { subscribeObservedHls, type ObservedHlsInstance } from '@/utils/hlsObserver';
+import { requestAdaptiveLiveBuffer } from '@/utils/playerAdaptiveBuffer';
 
 type StabilityStatus = 'buffering' | 'recovering' | 'offline' | null;
 type BufferSize = 'low' | 'medium' | 'high';
@@ -77,6 +78,7 @@ export function PlayerStabilityController() {
   const recoveryInFlightRef = useRef(false);
   const waitingRef = useRef(false);
   const savedPositionRef = useRef(0);
+  const adaptiveBufferRequestedRef = useRef(false);
 
   useLayoutEffect(() => {
     const locateVideo = () => {
@@ -103,6 +105,7 @@ export function PlayerStabilityController() {
     recoveryInFlightRef.current = false;
     waitingRef.current = false;
     savedPositionRef.current = 0;
+    adaptiveBufferRequestedRef.current = false;
     setStatus(null);
   }, [contentId]);
 
@@ -206,6 +209,15 @@ export function PlayerStabilityController() {
       recoveryInFlightRef.current = true;
       recoveryAttemptsRef.current += 1;
       setStatus('recovering');
+
+      if (
+        isLive &&
+        bufferSize !== 'high' &&
+        !adaptiveBufferRequestedRef.current
+      ) {
+        adaptiveBufferRequestedRef.current = true;
+        requestAdaptiveLiveBuffer();
+      }
 
       try {
         if (hls?.startLoad) {
