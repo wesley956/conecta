@@ -16,6 +16,7 @@ import { AppLayout } from '@/components/shared';
 import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { useAppStore } from '@/stores/appStore';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
+import { isNativeRuntime } from '@/utils/nativeRuntime';
 import {
   PLAYER_ADAPTIVE_BUFFER_EVENT,
   type PlayerAdaptiveBufferDetail,
@@ -156,11 +157,6 @@ function getChannelGroupLabel(channel: Channel) {
 
 function isHttpUrl(url: string) {
   return /^https?:\/\//i.test(url);
-}
-
-function isNativeRuntime() {
-  const capacitor = (window as typeof window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return Boolean(capacitor?.isNativePlatform?.());
 }
 
 function toMediaProxyUrl(url: string) {

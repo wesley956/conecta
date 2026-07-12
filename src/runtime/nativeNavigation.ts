@@ -1,6 +1,6 @@
-import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAppStore } from '@/stores/appStore';
+import { isNativeRuntime } from '@/utils/nativeRuntime';
 import type { AppState } from '@/types';
 
 const ROOT_SCREENS = new Set<AppState>([
@@ -68,7 +68,7 @@ async function handleNativeBack() {
 }
 
 export function installNativeNavigation() {
-  if (installed || !Capacitor.isNativePlatform()) return;
+  if (installed || !isNativeRuntime()) return;
   installed = true;
 
   void CapacitorApp.addListener('backButton', () => {
