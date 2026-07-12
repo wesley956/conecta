@@ -8,6 +8,7 @@ import {
   isContinuableProgress,
   usePlaybackStore,
   withSeriesPlaybackProgress,
+  type PlaybackProgressEntry,
 } from '@/stores/playbackStore';
 import type { Episode, Movie, Season, Series } from '@/types';
 import {
@@ -104,8 +105,59 @@ function getSafeImageUrl(url?: string) {
   return url;
 }
 
+interface SeriesEpisodeMatch {
+  season: Season;
+  episode: Episode;
+}
+
+function findLatestContinuableSeriesEntry(
+  item: Series,
+  entries: Record<string, PlaybackProgressEntry>,
+) {
+  return Object.values(entries)
+    .filter(entry => (
+      entry.contentType === 'episode' &&
+      entry.seriesId === item.id &&
+      isContinuableProgress(entry.progress)
+    ))
+    .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt))[0];
+}
+
+function findEpisodeForEntry(
+  item: Series,
+  entry: PlaybackProgressEntry,
+): SeriesEpisodeMatch | null {
+  for (const season of item.seasons) {
+    const episode = season.episodes.find(
+      candidate => candidate.id === entry.contentId,
+    );
+
+    if (episode) return { season, episode };
+  }
+
+  if (
+    entry.seasonNumber === undefined ||
+    entry.episodeNumber === undefined
+  ) {
+    return null;
+  }
+
+  const season = item.seasons.find(
+    candidate => candidate.number === entry.seasonNumber,
+  );
+
+  const episode = season?.episodes.find(
+    candidate => candidate.number === entry.episodeNumber,
+  );
+
+  return season && episode ? { season, episode } : null;
+}
+
 export function SeriesScreen() {
   const series = useAppStore(state => state.series);
+  const currentMovie = useAppStore(state => state.currentMovie);
+  const currentSeries = useAppStore(state => state.currentSeries);
+  const previousScreen = useAppStore(state => state.previousScreen);
   const playlists = useAppStore(state => state.playlists);
   const setScreen = useAppStore(state => state.setScreen);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
@@ -130,6 +182,7 @@ export function SeriesScreen() {
   const [detailSeasons, setDetailSeasons] = useState<Season[]>([]);
   const [selectedSeasonNumber, setSelectedSeasonNumber] = useState<number | null>(null);
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  const externalOpenHandledRef = useRef<string | null>(null);
   const seriesFavoriteHold = useLongPressFavorite();
 
   const xtreamPlaylist = useMemo(() => {
@@ -255,8 +308,14 @@ export function SeriesScreen() {
 
   const selectedSeries = useMemo(() => {
     if (!selectedSeriesId) return null;
-    return allSeries.find(item => item.id === selectedSeriesId) ?? null;
-  }, [allSeries, selectedSeriesId]);
+
+    return allSeries.find(item => item.id === selectedSeriesId)
+      ?? (
+        currentSeries?.id === selectedSeriesId
+          ? currentSeries as XtreamSeries
+          : null
+      );
+  }, [allSeries, currentSeries, selectedSeriesId]);
 
   const recommendations = useMemo(() => {
     if (!selectedSeries) return [];
@@ -447,12 +506,41 @@ export function SeriesScreen() {
     setScreen('player');
   };
 
-  const openSeriesDetail = async (item: XtreamSeries) => {
+  const openSeriesDetail = async (
+    item: XtreamSeries,
+    resumeAfterLoad = false,
+  ) => {
     if (loadingSeriesId === item.id) return;
     setSeriesError(null);
 
     if (item.seasons.length > 0) {
-      const itemWithProgress = withSeriesPlaybackProgress(item, playbackEntries);
+      const itemWithProgress = withSeriesPlaybackProgress(
+        item,
+        playbackEntries,
+      );
+
+      setCurrentSeries(itemWithProgress);
+
+      if (resumeAfterLoad) {
+        const entry = findLatestContinuableSeriesEntry(
+          itemWithProgress,
+          playbackEntries,
+        );
+
+        const match = entry
+          ? findEpisodeForEntry(itemWithProgress, entry)
+          : null;
+
+        if (entry && match) {
+          playEpisode(
+            itemWithProgress,
+            match.season,
+            match.episode,
+          );
+          return;
+        }
+      }
+
       setDetailSeasons(itemWithProgress.seasons);
       setSelectedSeasonNumber(itemWithProgress.seasons[0].number);
       setSelectedSeriesId(item.id);
@@ -474,18 +562,55 @@ export function SeriesScreen() {
         return;
       }
 
-      const itemWithSeasons = withSeriesPlaybackProgress({ ...item, seasons }, playbackEntries) as XtreamSeries;
+      const itemWithSeasons = withSeriesPlaybackProgress(
+        { ...item, seasons },
+        playbackEntries,
+      ) as XtreamSeries;
+
+      setCurrentSeries(itemWithSeasons);
 
       setRemoteSeries(current => {
-        const next = current.map(seriesItem => (
-          seriesItem.id === item.id ? itemWithSeasons : seriesItem
-        ));
+        const exists = current.some(
+          seriesItem => seriesItem.id === item.id,
+        );
+
+        const next = exists
+          ? current.map(seriesItem => (
+              seriesItem.id === item.id
+                ? itemWithSeasons
+                : seriesItem
+            ))
+          : [...current, itemWithSeasons];
+
         if (xtreamPlaylist?.url) {
-          remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(next));
+          remoteSeriesScreenCache.set(
+            xtreamPlaylist.url.trim(),
+            cloneRemoteSeriesItems(next),
+          );
         }
 
         return next;
       });
+
+      if (resumeAfterLoad) {
+        const entry = findLatestContinuableSeriesEntry(
+          itemWithSeasons,
+          playbackEntries,
+        );
+
+        const match = entry
+          ? findEpisodeForEntry(itemWithSeasons, entry)
+          : null;
+
+        if (entry && match) {
+          playEpisode(
+            itemWithSeasons,
+            match.season,
+            match.episode,
+          );
+          return;
+        }
+      }
 
       setDetailSeasons(itemWithSeasons.seasons);
       setSelectedSeasonNumber(itemWithSeasons.seasons[0].number);
@@ -496,6 +621,40 @@ export function SeriesScreen() {
       setLoadingSeriesId(null);
     }
   };
+
+  useEffect(() => {
+    if (
+      currentMovie ||
+      !currentSeries ||
+      selectedSeries ||
+      loadingSeriesId ||
+      (
+        previousScreen !== 'favorites' &&
+        previousScreen !== 'home'
+      )
+    ) {
+      return;
+    }
+
+    const requestKey = `${previousScreen}:${currentSeries.id}`;
+
+    if (externalOpenHandledRef.current === requestKey) {
+      return;
+    }
+
+    externalOpenHandledRef.current = requestKey;
+
+    void openSeriesDetail(
+      currentSeries as XtreamSeries,
+      true,
+    );
+  }, [
+    currentMovie,
+    currentSeries,
+    loadingSeriesId,
+    previousScreen,
+    selectedSeries,
+  ]);
 
   const closeSeriesDetail = () => {
     setSelectedSeriesId(null);

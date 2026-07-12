@@ -168,14 +168,15 @@ export function HomeScreen() {
       if (!entry) return [];
 
       const match = findEpisodeForEntry(item, entry);
-      if (!match) return [];
 
       return [{
         type: 'series',
         id: item.id,
         title: item.name,
         image: getSafeImageUrl(item.cover),
-        meta: `T${match.season.number} • E${match.episode.number}`,
+        meta: match
+          ? `T${match.season.number} • E${match.episode.number}`
+          : 'Episódio em andamento',
         favorite: item.isFavorite,
         progress: entry.progress,
         watchedAt: entry.watchedAt,
