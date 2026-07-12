@@ -34,8 +34,13 @@ function round(value: number, digits = 1) {
   return Math.round(value * factor) / factor;
 }
 
-function inspectSource(video: HTMLVideoElement) {
-  const source = video.currentSrc || video.src || '';
+function inspectSource(
+  video: HTMLVideoElement,
+  originalSource?: string,
+) {
+  const source = String(
+    originalSource || video.currentSrc || video.src || '',
+  ).trim();
   const normalized = source.toLowerCase();
 
   const transport: PlayerDiagnosticEntry['transport'] = /\.m3u8(\?|#|$)/i.test(normalized)
@@ -49,7 +54,9 @@ function inspectSource(video: HTMLVideoElement) {
     return {
       transport,
       // Somente host e porta. Caminho, query, usuário e senha nunca são salvos.
-      host: url.host,
+      host: url.protocol === 'blob:'
+        ? 'media-source-local'
+        : url.host,
     };
   } catch {
     return {
@@ -76,10 +83,11 @@ export function recordPlayerDiagnostic(
     contentId: string;
     isLive: boolean;
     startupMs?: number;
+    sourceUrl?: string;
   },
 ) {
   try {
-    const source = inspectSource(video);
+    const source = inspectSource(video, context.sourceUrl);
     const entry: PlayerDiagnosticEntry = {
       at: new Date().toISOString(),
       event,
