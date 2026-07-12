@@ -10,12 +10,6 @@ on:
       - stability-performance-audit
       - feature/player-cinematic-ui
       - fix/player-core-reliability
-    paths-ignore:
-      - .github/workflows/build-android-debug.yml
-      - .github/workflows/apply-player-core-reliability.yml
-      - scripts/apply-player-core-reliability.cjs
-      - scripts/apply-player-core-polish.cjs
-      - scripts/run-player-core-reliability.cjs
 
 jobs:
   build-android:
