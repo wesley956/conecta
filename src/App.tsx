@@ -11,7 +11,7 @@ import { fetchM3UContent } from '@/utils/fetchM3U';
 import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
 import { canUsePanelCacheParts, fetchPanelPlaylistCache, fetchPanelPlaylistCacheParts, type PanelPlaylistCacheSnapshot } from '@/utils/panelPlaylistCache';
-import { canLoadXtreamSeriesFromPlaylist, prewarmXtreamSeriesCatalog } from '@/utils/xtreamSeries';
+import { scheduleXtreamSeriesPrewarm } from '@/utils/deferredXtreamPrewarm';
 import type { AppState, Playlist } from '@/types';
 
 // Telas críticas da inicialização.
@@ -165,8 +165,11 @@ function ContentCacheHydrator() {
         playlists: snapshot.playlists,
       });
 
-      const xtreamPlaylist = snapshot.playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
-      prewarmXtreamSeriesCatalog(xtreamPlaylist?.url);
+      scheduleXtreamSeriesPrewarm(
+        snapshot.playlists.map(
+          playlist => playlist.url,
+        ),
+      );
     }
 
     void hydrate();
@@ -286,8 +289,12 @@ async function saveAndMarkPanelCache(
   localStorage.setItem(markerKey, markerValue);
   clearForcedPanelSync();
 
-  const xtreamPlaylist = afterHydrate.playlists.find(playlist => canLoadXtreamSeriesFromPlaylist(playlist.url));
-  prewarmXtreamSeriesCatalog(xtreamPlaylist?.url || playlistUrl);
+  scheduleXtreamSeriesPrewarm([
+    ...afterHydrate.playlists.map(
+      playlist => playlist.url,
+    ),
+    playlistUrl,
+  ]);
 }
 
 // ===== DEVICE PANEL AUTO SYNC =====
@@ -578,7 +585,9 @@ function DevicePanelSync() {
 
         localStorage.setItem(panelMarkerKey, directMarkerValue);
         clearForcedPanelSync();
-        prewarmXtreamSeriesCatalog(playlistUrl);
+        scheduleXtreamSeriesPrewarm(
+          playlistUrl,
+        );
 
         setActiveNotice(
           `✅ Lista pronta e salva no aparelho: ${result.imported} item(ns). ` +
