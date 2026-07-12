@@ -8,6 +8,7 @@ on:
       - redesign-streaming-v2
       - player-v2
       - stability-performance-audit
+      - feature/player-cinematic-ui
 
 jobs:
   build-android:
