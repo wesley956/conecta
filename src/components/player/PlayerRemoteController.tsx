@@ -12,7 +12,7 @@ const BACK_KEYS = new Set(['Escape', 'Backspace', 'GoBack']);
 const SELECT_KEYS = new Set(['Enter', 'NumpadEnter', ' ']);
 const MENU_KEYS = new Set(['Menu', 'ContextMenu', 'Settings']);
 
-function isVisible(element: HTMLElement | null): element is HTMLElement {
+function isVisible(element: HTMLElement | null | undefined): element is HTMLElement {
   if (!element || !element.isConnected) return false;
 
   const rect = element.getBoundingClientRect();
