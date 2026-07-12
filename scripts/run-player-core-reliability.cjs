@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
 const migrationPath = path.join(
   process.cwd(),
@@ -16,6 +15,11 @@ const duplicatedEscape = '\\\\' + '`';
 const validEscape = '\\' + '`';
 code = code.split(duplicatedEscape).join(validEscape);
 
-new vm.Script(code, {
-  filename: migrationPath,
-}).runInThisContext();
+const executeMigration = new Function(
+  'require',
+  'process',
+  'console',
+  `${code}\n//# sourceURL=${migrationPath}`,
+);
+
+executeMigration(require, process, console);
