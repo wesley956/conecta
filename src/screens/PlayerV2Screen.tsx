@@ -16,6 +16,10 @@ import { AppLayout } from '@/components/shared';
 import { usePlaybackProgress } from '@/hooks/usePlaybackProgress';
 import { useAppStore } from '@/stores/appStore';
 import { cleanLiveGroupTitle } from '@/utils/m3u';
+import {
+  PLAYER_ADAPTIVE_BUFFER_EVENT,
+  type PlayerAdaptiveBufferDetail,
+} from '@/utils/playerAdaptiveBuffer';
 import type { AppSettings, Channel, Episode, Movie, Season } from '@/types';
 
 const MAX_RECOVERY_ATTEMPTS = 6;
@@ -304,6 +308,7 @@ export function PlayerV2Screen() {
   const previousScreen = useAppStore(state => state.previousScreen);
   const channels = useAppStore(state => state.channels);
   const settings = useAppStore(state => state.settings);
+  const configuredBufferSize = (settings.bufferSize ?? 'medium') as BufferSize;
   const setCurrentChannel = useAppStore(state => state.setCurrentChannel);
   const setCurrentMovie = useAppStore(state => state.setCurrentMovie);
   const setScreen = useAppStore(state => state.setScreen);
@@ -322,10 +327,27 @@ export function PlayerV2Screen() {
   const [playbackRate, setPlaybackRate] = useState(mediaPreferencesRef.current.playbackRate);
   const [playbackUrlIndex, setPlaybackUrlIndex] = useState(0);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [adaptiveBufferState, setAdaptiveBufferState] = useState<{
+    contentId: string;
+    baseSize: BufferSize;
+    size: BufferSize;
+  }>({
+    contentId: currentMovie?.id ?? currentChannel?.id ?? '',
+    baseSize: configuredBufferSize,
+    size: configuredBufferSize,
+  });
 
   const content = currentMovie || currentChannel;
+  const contentId = content?.id ?? '';
   const isLive = Boolean(currentChannel && !currentMovie);
-  const bufferSize = settings.bufferSize ?? 'medium';
+  const adaptiveBufferApplies = (
+    isLive &&
+    adaptiveBufferState.contentId === contentId &&
+    adaptiveBufferState.baseSize === configuredBufferSize
+  );
+  const bufferSize = adaptiveBufferApplies
+    ? adaptiveBufferState.size
+    : configuredBufferSize;
   const bufferProfile = BUFFER_PROFILES[bufferSize];
   const autoReconnect = settings.autoReconnect ?? true;
 
@@ -335,6 +357,50 @@ export function PlayerV2Screen() {
     currentSeries,
     isLive,
   });
+
+  useEffect(() => {
+    if (!isLive || configuredBufferSize === 'high') return;
+
+    const handleAdaptiveBufferRequest = (event: Event) => {
+      const detail = (
+        event as CustomEvent<PlayerAdaptiveBufferDetail>
+      ).detail;
+
+      if (detail?.target !== 'high' || !currentChannel?.id) {
+        return;
+      }
+
+      recoveryAttemptsRef.current = 0;
+
+      setAdaptiveBufferState(current => {
+        if (
+          current.contentId === currentChannel.id &&
+          current.baseSize === configuredBufferSize &&
+          current.size === 'high'
+        ) {
+          return current;
+        }
+
+        return {
+          contentId: currentChannel.id,
+          baseSize: configuredBufferSize,
+          size: 'high',
+        };
+      });
+    };
+
+    window.addEventListener(
+      PLAYER_ADAPTIVE_BUFFER_EVENT,
+      handleAdaptiveBufferRequest,
+    );
+
+    return () => {
+      window.removeEventListener(
+        PLAYER_ADAPTIVE_BUFFER_EVENT,
+        handleAdaptiveBufferRequest,
+      );
+    };
+  }, [configuredBufferSize, currentChannel?.id, isLive]);
 
   const playbackCandidates = useMemo(() => {
     if (!content) return [];
