@@ -183,8 +183,18 @@ function replaceKnownMediaExtension(url: string, extension: string) {
 function buildXtreamLivePlaybackVariants(rawUrl: string) {
   try {
     const parsed = new URL(rawUrl.trim());
-    const parts = parsed.pathname.split('/').filter(Boolean).map(part => decodeURIComponent(part));
-    const offset = parts[0]?.toLowerCase() === 'live' ? 1 : 0;
+    const parts = parsed.pathname
+      .split('/')
+      .filter(Boolean)
+      .map(part => decodeURIComponent(part));
+
+    const route = parts[0]?.toLowerCase();
+
+    if (route === 'movie' || route === 'series') {
+      return [];
+    }
+
+    const offset = route === 'live' ? 1 : 0;
 
     if (parts.length - offset < 3) return [];
 
@@ -211,19 +221,25 @@ function buildXtreamLivePlaybackVariants(rawUrl: string) {
   }
 }
 
-function buildPlaybackUrlVariants(rawUrl: string) {
+function buildPlaybackUrlVariants(
+  rawUrl: string,
+  isLiveContent: boolean,
+) {
   const url = rawUrl.trim();
   if (!url) return [];
 
-  const xtreamLiveVariants = buildXtreamLivePlaybackVariants(url);
+  const xtreamLiveVariants = isLiveContent
+    ? buildXtreamLivePlaybackVariants(url)
+    : [];
+
   if (xtreamLiveVariants.length > 0) {
-    return [...new Set([...xtreamLiveVariants, url])];
+    return [...new Set([url, ...xtreamLiveVariants])];
   }
 
   const variants: string[] = [];
 
   if (/\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url)) {
-    variants.push(replaceKnownMediaExtension(url, 'm3u8'), url);
+    variants.push(url, replaceKnownMediaExtension(url, 'm3u8'));
   } else if (/\.m3u8(\?|#|$)/i.test(url)) {
     variants.push(url, replaceKnownMediaExtension(url, 'ts'));
   } else {
@@ -328,8 +344,14 @@ export function PlayerV2Screen() {
       .map(url => url?.trim())
       .filter(Boolean) as string[];
 
-    return [...new Set(rawUrls.flatMap(buildPlaybackUrlVariants))];
-  }, [content]);
+    return [
+      ...new Set(
+        rawUrls.flatMap(url => (
+          buildPlaybackUrlVariants(url, isLive)
+        )),
+      ),
+    ];
+  }, [content, isLive]);
 
   const streamUrl = playbackCandidates[playbackUrlIndex] || '';
   const playbackUrl = useMemo(() => toMediaProxyUrl(streamUrl), [streamUrl]);
