@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PlayerAdvancedControls } from '@/components/player/PlayerAdvancedControls';
+import { PlayerCinematicPanels } from '@/components/player/PlayerCinematicPanels';
 import { PlayerRemoteController } from '@/components/player/PlayerRemoteController';
 import { PlayerStabilityController } from '@/components/player/PlayerStabilityController';
 import { useAppStore } from '@/stores/appStore';
@@ -8,6 +9,7 @@ import { isNativeRuntime } from '@/utils/nativeRuntime';
 import { PlayerV2Screen } from './PlayerV2Screen';
 import '@/styles/player-stability.css';
 import '@/styles/player-cinematic.css';
+import '@/styles/player-cinematic-panels.css';
 
 function needsHlsObserver(urls: Array<string | undefined>) {
   // No APK o Android reproduz HLS nativamente. Importar hls.js antes de cada
@@ -67,6 +69,7 @@ export function PlayerScreen() {
   return (
     <>
       <PlayerRemoteController />
+      <PlayerCinematicPanels />
       <PlayerV2Screen />
       <PlayerStabilityController />
       <PlayerAdvancedControls />
