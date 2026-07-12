@@ -611,7 +611,6 @@ export function PlayerV2Screen() {
       clearInitialLoadTimer();
       setReady(true);
       setIsBuffering(false);
-      armStablePlaybackReset();
     };
 
     const tryNextPlaybackUrl = (message: string) => {
@@ -626,6 +625,8 @@ export function PlayerV2Screen() {
         return;
       }
 
+      clearStablePlaybackTimer();
+      clearWatchdogTimer();
       setError(message);
     };
 
@@ -650,7 +651,10 @@ export function PlayerV2Screen() {
     const scheduleInitialLoadTimeout = () => {
       clearInitialLoadTimer();
       initialLoadTimer = window.setTimeout(() => {
-        if (video.readyState >= 2 || cancelled) return;
+        if (
+          video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA ||
+          cancelled
+        ) return;
 
         tryNextPlaybackUrl(getVideoErrorMessage(
           video,
@@ -693,6 +697,14 @@ export function PlayerV2Screen() {
         }
 
         recoveryAttemptsRef.current = attempt;
+
+        if (hls?.startLoad) {
+          hls.stopLoad?.();
+          hls.startLoad(-1);
+          video.play().catch(() => setShowControls(true));
+          return;
+        }
+
         recoverPlayback();
       }, delay);
     };
@@ -711,6 +723,7 @@ export function PlayerV2Screen() {
     const handlePlaying = () => {
       handlePlaybackProgress();
       markReady();
+      armStablePlaybackReset();
       setIsPlaying(true);
     };
     const handleCanPlay = () => {
@@ -874,7 +887,11 @@ export function PlayerV2Screen() {
 
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
               attemptAutomaticRecovery(
-                () => hls?.startLoad(),
+                () => {
+                  hls?.stopLoad?.();
+                  hls?.startLoad?.(-1);
+                  video.play().catch(() => setShowControls(true));
+                },
                 'Não foi possível recuperar a conexão desta fonte HLS.',
               );
               return;
