@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { PlayerAdvancedControls } from '@/components/player/PlayerAdvancedControls';
 import { PlayerRemoteController } from '@/components/player/PlayerRemoteController';
 import { PlayerStabilityController } from '@/components/player/PlayerStabilityController';
 import { useAppStore } from '@/stores/appStore';
 import { installHlsObserver } from '@/utils/hlsObserver';
+import { isNativeRuntime } from '@/utils/nativeRuntime';
 import { PlayerV2Screen } from './PlayerV2Screen';
 import '@/styles/player-stability.css';
 
 function needsHlsObserver(urls: Array<string | undefined>) {
   // No APK o Android reproduz HLS nativamente. Importar hls.js antes de cada
   // vídeo só gastaria memória e atrasaria a abertura sem habilitar controles.
-  if (Capacitor.isNativePlatform()) return false;
+  if (isNativeRuntime()) return false;
 
   return urls.some(url => /\.(m3u8|ts|m2ts|mpegts)(\?|#|$)/i.test(url?.trim() || ''));
 }

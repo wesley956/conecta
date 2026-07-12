@@ -1,5 +1,6 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { CapacitorHttp } from '@capacitor/core';
 import { parseCapacitorJsonOrThrow, parseJsonOrThrow, SeriesApiError } from '@/utils/safeFetchJson';
+import { isNativeRuntime } from '@/utils/nativeRuntime';
 
 const REQUEST_HEADERS = {
   Accept: '*/*',
@@ -14,20 +15,6 @@ interface XtreamSourceInfo {
   username: string;
   password: string;
   output: string;
-}
-
-function isNativeRuntime() {
-  if (typeof window === 'undefined') return false;
-
-  const runtime = Capacitor?.getPlatform?.();
-  const capacitor = (window as any).Capacitor;
-
-  return (
-    runtime === 'android' ||
-    runtime === 'ios' ||
-    Boolean(Capacitor?.isNativePlatform?.()) ||
-    Boolean(capacitor?.isNativePlatform?.())
-  );
 }
 
 function looksLikeM3U(content: string) {

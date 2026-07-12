@@ -1,6 +1,7 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { CapacitorHttp } from '@capacitor/core';
 import type { Episode, Season, Series } from '@/types';
 import { parseCapacitorJsonOrThrow, parseJsonOrThrow, SeriesApiError } from '@/utils/safeFetchJson';
+import { isNativeRuntime } from '@/utils/nativeRuntime';
 
 interface XtreamSourceInfo {
   origin: string;
@@ -91,20 +92,6 @@ function writeStorageCache<T>(key: string, data: T) {
   } catch {
     // cache é otimização; se falhar, ignora
   }
-}
-
-function isNativeRuntime() {
-  if (typeof window === 'undefined') return false;
-
-  const runtime = Capacitor?.getPlatform?.();
-  const capacitor = (window as any).Capacitor;
-
-  return (
-    runtime === 'android' ||
-    runtime === 'ios' ||
-    Boolean(Capacitor?.isNativePlatform?.()) ||
-    Boolean(capacitor?.isNativePlatform?.())
-  );
 }
 
 function parseXtreamSource(rawUrl: string): XtreamSourceInfo | null {
