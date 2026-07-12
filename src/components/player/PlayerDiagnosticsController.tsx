@@ -13,9 +13,17 @@ import {
 
 const THROTTLED_EVENTS = new Set(['waiting', 'stalled', 'pause']);
 const EVENT_THROTTLE_MS = 900;
+const MAX_RESOURCE_EVENTS_PER_SESSION = 18;
 
 function isMpegTsSource(url: string) {
   return /\.(ts|m2ts|mpegts)(\?|#|$)/i.test(url);
+}
+
+function inferPlayerEngine(url: string, fallback: PlayerDiagnosticEngine = 'unknown'): PlayerDiagnosticEngine {
+  if (/^blob:|^data:/i.test(url)) return fallback;
+  if (isMpegTsSource(url)) return 'mpegts.js';
+  if (url) return 'html-video';
+  return fallback;
 }
 
 function isNativeRuntime() {
@@ -78,9 +86,7 @@ export function PlayerDiagnosticsController() {
 
   const engine = useMemo<PlayerDiagnosticEngine>(() => {
     if (hls) return 'hls.js';
-    if (isMpegTsSource(source)) return 'mpegts.js';
-    if (source) return 'html-video';
-    return 'unknown';
+    return inferPlayerEngine(source);
   }, [hls, source]);
 
   useEffect(() => {
@@ -180,7 +186,9 @@ export function PlayerDiagnosticsController() {
         contentName: contentName,
         event: eventName,
         result,
-        engine: engineRef.current,
+        engine: engineRef.current === 'hls.js'
+          ? 'hls.js'
+          : inferPlayerEngine(currentSource, engineRef.current),
         source: currentSource,
         sourceRole,
         elapsedMs: Math.max(0, Math.round(now - startedAtRef.current)),
@@ -234,9 +242,15 @@ export function PlayerDiagnosticsController() {
     }
 
     const seen = new Set<string>();
+    let recordedResources = 0;
     const sessionStartedAt = startedAtRef.current;
     const observer = new PerformanceObserver(list => {
       for (const rawEntry of list.getEntries()) {
+        if (recordedResources >= MAX_RESOURCE_EVENTS_PER_SESSION) {
+          observer.disconnect();
+          return;
+        }
+
         const entry = rawEntry as PerformanceResourceTiming;
         if (!entry.name || seen.has(entry.name)) continue;
         if (entry.startTime + entry.duration < sessionStartedAt - 250) continue;
@@ -259,6 +273,7 @@ export function PlayerDiagnosticsController() {
         if ((!sameServer && !isMediaProxy) || !looksLikeMedia) continue;
 
         seen.add(entry.name);
+        recordedResources += 1;
         recordPlayerDiagnostic({
           sessionId: sessionRef.current,
           contentId,
@@ -266,7 +281,9 @@ export function PlayerDiagnosticsController() {
           contentName,
           event: 'media-resource',
           result: 'info',
-          engine: engineRef.current,
+          engine: engineRef.current === 'hls.js'
+            ? 'hls.js'
+            : inferPlayerEngine(observedSource, engineRef.current),
           source: observedSource,
           sourceRole: observedSource === source ? 'configured' : 'current',
           elapsedMs: Math.max(0, Math.round(performance.now() - startedAtRef.current)),
