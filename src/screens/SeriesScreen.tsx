@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Clapperboard, LoaderCircle, Search, X } from 'lucide-react';
 import { StreamingShell } from '@/components/layout/StreamingShell';
 import { CatalogPosterCard } from '@/components/media/CatalogPosterCard';
@@ -57,7 +57,7 @@ function withRemoteFavoriteState(items: XtreamSeries[], favoriteIds: string[]) {
 
   return items.map(item => ({
     ...item,
-    isFavorite: favoriteSet.has(item.id) || Boolean(item.isFavorite),
+    isFavorite: favoriteSet.has(item.id),
   }));
 }
 
@@ -182,19 +182,37 @@ export function SeriesScreen() {
 
   const allSeries = useMemo<XtreamSeries[]>(() => {
     const map = new Map<string, XtreamSeries>();
+    const favoriteSet = new Set(remoteFavoriteIds);
 
     for (const item of series as XtreamSeries[]) {
-      map.set(item.id, item);
+      map.set(item.id, {
+        ...item,
+        isFavorite: favoriteSet.has(item.id) || Boolean(item.isFavorite),
+      });
     }
 
     for (const item of remoteSeries) {
-      map.set(item.id, item);
+      const localItem = map.get(item.id);
+
+      if (localItem) {
+        map.set(item.id, {
+          ...item,
+          ...localItem,
+          seasons: localItem.seasons.length > 0 ? localItem.seasons : item.seasons,
+          isFavorite: favoriteSet.has(item.id) || Boolean(localItem.isFavorite),
+        });
+      } else {
+        map.set(item.id, {
+          ...item,
+          isFavorite: favoriteSet.has(item.id),
+        });
+      }
     }
 
     return [...map.values()]
       .map(item => withSeriesPlaybackProgress(item, playbackEntries) as XtreamSeries)
       .sort(sortSeriesForDisplay);
-  }, [playbackEntries, remoteSeries, series]);
+  }, [playbackEntries, remoteFavoriteIds, remoteSeries, series]);
 
   const categoryOptions = useMemo<CategoryOption[]>(() => {
     const map = new Map<string, CategoryOption>();
@@ -316,27 +334,33 @@ export function SeriesScreen() {
     }
   }, [selectedSeries, selectedSeriesId]);
 
-  const toggleFavoriteSeries = (item: XtreamSeries) => {
+  const toggleFavoriteSeries = useCallback((item: XtreamSeries) => {
+    const nextFavorite = !Boolean(item.isFavorite);
     const existsInLocalStore = series.some(seriesItem => seriesItem.id === item.id);
 
     if (existsInLocalStore) {
       toggleSeriesFavorite(item.id);
-      return;
     }
 
     setRemoteFavoriteIds(current => {
-      const isFavorite = current.includes(item.id);
-      const next = isFavorite
-        ? current.filter(id => id !== item.id)
-        : [...current, item.id];
+      const next = nextFavorite
+        ? current.includes(item.id) ? current : [...current, item.id]
+        : current.filter(id => id !== item.id);
 
       writeRemoteSeriesFavoriteIds(next);
 
       setRemoteSeries(currentRemote => {
-        const updated = withRemoteFavoriteState(currentRemote, next);
+        const updated = currentRemote.map(seriesItem => (
+          seriesItem.id === item.id
+            ? { ...seriesItem, isFavorite: nextFavorite }
+            : seriesItem
+        ));
 
         if (xtreamPlaylist?.url) {
-          remoteSeriesScreenCache.set(xtreamPlaylist.url.trim(), cloneRemoteSeriesItems(updated));
+          remoteSeriesScreenCache.set(
+            xtreamPlaylist.url.trim(),
+            cloneRemoteSeriesItems(updated),
+          );
         }
 
         return updated;
@@ -344,7 +368,59 @@ export function SeriesScreen() {
 
       return next;
     });
-  };
+  }, [series, toggleSeriesFavorite, xtreamPlaylist?.url]);
+
+  useEffect(() => {
+    if (selectedSeries) return;
+
+    const favoriteKeys = new Set([
+      'Menu',
+      'ContextMenu',
+      'Settings',
+      'Favorite',
+      'MediaFavorite',
+    ]);
+
+    const handleFavoriteKey = (event: KeyboardEvent) => {
+      if (!favoriteKeys.has(event.key) || event.repeat) return;
+
+      const active = document.activeElement;
+
+      if (
+        !(active instanceof HTMLButtonElement) ||
+        !active.matches('.series-grid .catalog-poster-card')
+      ) {
+        return;
+      }
+
+      const cards = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          '.series-grid .catalog-poster-card',
+        ),
+      );
+
+      const cardIndex = cards.indexOf(active);
+      const item = cardIndex >= 0 ? visibleSeries[cardIndex] : null;
+
+      if (!item) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      (
+        event as KeyboardEvent & {
+          stopImmediatePropagation?: () => void;
+        }
+      ).stopImmediatePropagation?.();
+
+      toggleFavoriteSeries(item);
+    };
+
+    window.addEventListener('keydown', handleFavoriteKey, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleFavoriteKey, true);
+    };
+  }, [selectedSeries, toggleFavoriteSeries, visibleSeries]);
 
   const playEpisode = (item: Series, season: Season, episode: Episode) => {
     const itemWithSeasons = withSeriesPlaybackProgress(
@@ -530,7 +606,7 @@ export function SeriesScreen() {
                 <div className="series-library-heading">
                   <div>
                     <h2 className="series-library-title">{selectedLabel}</h2>
-                    <p className="series-library-subtitle">Pressione para abrir temporadas e episódios. Segure para favoritar.</p>
+                    <p className="series-library-subtitle">OK abre os detalhes • Menu adiciona ou remove da Minha Lista.</p>
                   </div>
 
                   <p className="series-library-count">
