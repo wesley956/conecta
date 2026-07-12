@@ -556,7 +556,6 @@ export function useTvRemoteNavigation() {
       attributeFilter: ['disabled', 'aria-hidden', 'hidden', 'tabindex', 'class'],
     });
 
-    document.addEventListener('focusin', event => rememberFocusedElement(event.target), true);
     window.addEventListener('resize', prepare);
     window.addEventListener('orientationchange', prepare);
 
