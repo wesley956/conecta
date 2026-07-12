@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PlayerAdvancedControls } from '@/components/player/PlayerAdvancedControls';
-import { PlayerNextEpisodeRemoteBridge } from '@/components/player/PlayerNextEpisodeRemoteBridge';
+import { PlayerRemoteController } from '@/components/player/PlayerRemoteController';
 import { PlayerStabilityController } from '@/components/player/PlayerStabilityController';
 import { useAppStore } from '@/stores/appStore';
 import { installHlsObserver } from '@/utils/hlsObserver';
@@ -65,10 +65,10 @@ export function PlayerScreen() {
 
   return (
     <>
+      <PlayerRemoteController />
       <PlayerV2Screen />
       <PlayerStabilityController />
       <PlayerAdvancedControls />
-      <PlayerNextEpisodeRemoteBridge />
     </>
   );
 }
