@@ -8,9 +8,10 @@ import {
   isContinuableProgress,
   usePlaybackStore,
   withMoviePlaybackProgress,
+  type PlaybackProgressEntry,
 } from '@/stores/playbackStore';
 import { getMergedSeriesCatalog } from '@/utils/mergedSeriesCatalog';
-import type { Channel, Movie, Series } from '@/types';
+import type { Channel, Episode, Movie, Season, Series } from '@/types';
 import '@/styles/library.css';
 
 function getSafeImageUrl(url?: string) {
@@ -21,6 +22,57 @@ function getSafeImageUrl(url?: string) {
   }
 
   return url;
+}
+
+interface SeriesEpisodeMatch {
+  season: Season;
+  episode: Episode;
+}
+
+function findLatestContinuableSeriesEntry(
+  item: Series,
+  entries: Record<string, PlaybackProgressEntry>,
+) {
+  return Object.values(entries)
+    .filter(entry => (
+      entry.contentType === 'episode' &&
+      entry.seriesId === item.id &&
+      isContinuableProgress(entry.progress)
+    ))
+    .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt))[0];
+}
+
+function findEpisodeForEntry(item: Series, entry: PlaybackProgressEntry): SeriesEpisodeMatch | null {
+  for (const season of item.seasons) {
+    const episodeById = season.episodes.find(episode => episode.id === entry.contentId);
+    if (episodeById) return { season, episode: episodeById };
+  }
+
+  if (entry.seasonNumber === undefined || entry.episodeNumber === undefined) return null;
+
+  const season = item.seasons.find(candidate => candidate.number === entry.seasonNumber);
+  const episode = season?.episodes.find(candidate => candidate.number === entry.episodeNumber);
+  return season && episode ? { season, episode } : null;
+}
+
+function makeEpisodeMovie(
+  item: Series,
+  match: SeriesEpisodeMatch,
+  entry: PlaybackProgressEntry,
+): Movie {
+  return {
+    id: match.episode.id,
+    name: `${item.name} - T${match.season.number}E${match.episode.number}`,
+    year: 0,
+    duration: match.episode.duration,
+    synopsis: item.synopsis,
+    cover: item.cover,
+    category: item.category,
+    url: match.episode.url,
+    playbackUrls: match.episode.playbackUrls,
+    progress: entry.progress,
+    isFavorite: item.isFavorite,
+  };
 }
 
 export function MyListScreen() {
@@ -46,7 +98,10 @@ export function MyListScreen() {
   const favoriteMovies = useMemo(() => movies.filter(item => item.isFavorite), [movies]);
   const favoriteSeries = useMemo(() => allSeries.filter(item => item.isFavorite), [allSeries]);
   const continueMovies = useMemo(() => movies.filter(item => isContinuableProgress(item.progress)), [movies]);
-  const continueSeries = useMemo(() => allSeries.filter(item => isContinuableProgress(item.progress)), [allSeries]);
+  const continueSeries = useMemo(
+    () => allSeries.filter(item => Boolean(findLatestContinuableSeriesEntry(item, playbackEntries))),
+    [allSeries, playbackEntries],
+  );
 
   const savedCount = favoriteChannels.length + favoriteMovies.length + favoriteSeries.length;
   const continueCount = continueMovies.length + continueSeries.length;
@@ -63,6 +118,16 @@ export function MyListScreen() {
   };
 
   const openSeries = (item: Series) => {
+    const entry = findLatestContinuableSeriesEntry(item, playbackEntries);
+    const match = entry ? findEpisodeForEntry(item, entry) : null;
+
+    if (entry && match) {
+      setCurrentSeries(item);
+      setCurrentMovie(makeEpisodeMovie(item, match, entry));
+      setScreen('player');
+      return;
+    }
+
     setCurrentMovie(null);
     setCurrentSeries(item);
     setScreen('series');
@@ -110,18 +175,23 @@ export function MyListScreen() {
                   />
                 ))}
 
-                {continueSeries.map(item => (
-                  <CatalogPosterCard
-                    key={`continue-series-${item.id}`}
-                    image={getSafeImageUrl(item.cover)}
-                    title={item.name}
-                    meta={item.category || 'Série'}
-                    progress={item.progress}
-                    favorite={item.isFavorite}
-                    badge="Série"
-                    onClick={() => openSeries(item)}
-                  />
-                ))}
+                {continueSeries.map(item => {
+                  const entry = findLatestContinuableSeriesEntry(item, playbackEntries);
+                  const match = entry ? findEpisodeForEntry(item, entry) : null;
+
+                  return (
+                    <CatalogPosterCard
+                      key={`continue-series-${item.id}`}
+                      image={getSafeImageUrl(item.cover)}
+                      title={item.name}
+                      meta={match ? `T${match.season.number} • E${match.episode.number}` : item.category || 'Série'}
+                      progress={entry?.progress ?? item.progress}
+                      favorite={item.isFavorite}
+                      badge="Série"
+                      onClick={() => openSeries(item)}
+                    />
+                  );
+                })}
               </div>
             </section>
           ) : null}
