@@ -30,6 +30,33 @@ function replaceOnce(label, before, after) {
   console.log(`✓ ${label}`);
 }
 
+function replaceSection(label, startMarker, endMarker, replacement) {
+  const startIndex = source.indexOf(startMarker);
+
+  if (startIndex < 0) {
+    if (source.includes(replacement.trim())) {
+      console.log(`✓ ${label}: já aplicado`);
+      return;
+    }
+
+    throw new Error(`${label}: início da seção não encontrado.`);
+  }
+
+  const endIndex = source.indexOf(endMarker, startIndex);
+  if (endIndex < 0) {
+    throw new Error(`${label}: fim da seção não encontrado.`);
+  }
+
+  const current = source.slice(startIndex, endIndex);
+  if (current.trim() === replacement.trim()) {
+    console.log(`✓ ${label}: já aplicado`);
+    return;
+  }
+
+  source = source.slice(0, startIndex) + replacement + source.slice(endIndex);
+  console.log(`✓ ${label}`);
+}
+
 replaceOnce(
   'constantes de estabilidade longa',
   `const MAX_RECOVERY_ATTEMPTS = 6;\nconst PLAYER_MEDIA_PREFS_KEY = 'ronecaplaytv-player-media-v1';`,
@@ -37,9 +64,96 @@ replaceOnce(
 );
 
 replaceOnce(
+  'remoção do alternador genérico de extensão',
+  `function replaceKnownMediaExtension(url: string, extension: string) {\n  return url.replace(/\\.(m3u8|ts|m2ts|mpegts)(\\?|#|$)/i, \\`.${'${extension}'}${'$2'}\\`);\n}\n\n`,
+  '',
+);
+
+const playbackVariantSection = [
+  'function buildXtreamLivePlaybackVariants(rawUrl: string) {',
+  '  try {',
+  '    const parsed = new URL(rawUrl.trim());',
+  '    const parts = parsed.pathname',
+  "      .split('/')",
+  '      .filter(Boolean)',
+  '      .map(part => decodeURIComponent(part));',
+  '',
+  '    const blockedRouteIndex = parts.findIndex(part => {',
+  '      const route = part.toLowerCase();',
+  "      return route === 'movie' || route === 'series';",
+  '    });',
+  '',
+  '    if (blockedRouteIndex >= 0 || parts.length < 3) return [];',
+  '',
+  '    const liveRouteIndex = parts.findIndex(',
+  "      part => part.toLowerCase() === 'live',",
+  '    );',
+  '    const credentialStart = liveRouteIndex >= 0',
+  '      ? liveRouteIndex + 1',
+  '      : parts.length - 3;',
+  '',
+  '    if (parts.length - credentialStart !== 3) return [];',
+  '',
+  '    const username = parts[credentialStart];',
+  '    const password = parts[credentialStart + 1];',
+  '    const streamFile = parts[credentialStart + 2];',
+  '    const streamMatch = streamFile.match(/^([0-9]+)(?:\\.[a-z0-9]+)?$/i);',
+  '',
+  '    if (!username || !password || !streamMatch?.[1]) return [];',
+  '',
+  '    const prefixParts = parts.slice(',
+  '      0,',
+  '      liveRouteIndex >= 0 ? liveRouteIndex : credentialStart,',
+  '    );',
+  '    const prefix = prefixParts.length > 0',
+  "      ? `/${prefixParts.map(encodeURIComponent).join('/')}`",
+  "      : '';",
+  '    const base = `${parsed.origin}${prefix}`;',
+  '    const streamId = streamMatch[1];',
+  '    const user = encodeURIComponent(username);',
+  '    const pass = encodeURIComponent(password);',
+  '    const suffix = `${parsed.search}${parsed.hash}`;',
+  '',
+  '    return [',
+  '      `${base}/live/${user}/${pass}/${streamId}.m3u8${suffix}`,',
+  '      `${base}/${user}/${pass}/${streamId}.m3u8${suffix}`,',
+  '      `${base}/live/${user}/${pass}/${streamId}.ts${suffix}`,',
+  '      `${base}/${user}/${pass}/${streamId}.ts${suffix}`,',
+  '    ];',
+  '  } catch {',
+  '    return [];',
+  '  }',
+  '}',
+  '',
+  'function buildPlaybackUrlVariants(',
+  '  rawUrl: string,',
+  '  isLiveContent: boolean,',
+  ') {',
+  '  const url = rawUrl.trim();',
+  '  if (!url) return [];',
+  '',
+  '  const xtreamLiveVariants = isLiveContent',
+  '    ? buildXtreamLivePlaybackVariants(url)',
+  '    : [];',
+  '',
+  '  // Só inventamos extensões alternativas quando a URL foi reconhecida com',
+  '  // segurança como Xtream. URLs de CDN, tokens e rotas personalizadas devem',
+  '  // ser reproduzidas exatamente como foram entregues pela lista.',
+  '  if (xtreamLiveVariants.length > 0) {',
+  '    return [...new Set([url, ...xtreamLiveVariants])];',
+  '  }',
+  '',
+  '  return [url];',
+  '}',
+  '',
+  '',
+].join('\n');
+
+replaceSection(
   'fallback Xtream conservador com subpastas',
-  `function buildXtreamLivePlaybackVariants(rawUrl: string) {\n  try {\n    const parsed = new URL(rawUrl.trim());\n    const parts = parsed.pathname\n      .split('/')\n      .filter(Boolean)\n      .map(part => decodeURIComponent(part));\n\n    const route = parts[0]?.toLowerCase();\n\n    if (route === 'movie' || route === 'series') {\n      return [];\n    }\n\n    const offset = route === 'live' ? 1 : 0;\n\n    if (parts.length - offset < 3) return [];\n\n    const username = parts[offset];\n    const password = parts[offset + 1];\n    const streamFile = parts[offset + 2];\n    const streamMatch = streamFile.match(/^([^/.]+)(?:\\.[a-z0-9]+)?$/i);\n\n    if (!username || !password || !streamMatch?.[1]) return [];\n\n    const streamId = streamMatch[1];\n    const user = encodeURIComponent(username);\n    const pass = encodeURIComponent(password);\n    const suffix = \\`${parsed.search}${parsed.hash}\\`;\n\n    return [\n      \\`${parsed.origin}/live/${user}/${pass}/${streamId}.m3u8${suffix}\\`,\n      \\`${parsed.origin}/${user}/${pass}/${streamId}.m3u8${suffix}\\`,\n      \\`${parsed.origin}/live/${user}/${pass}/${streamId}.ts${suffix}\\`,\n      \\`${parsed.origin}/${user}/${pass}/${streamId}.ts${suffix}\\`,\n    ];\n  } catch {\n    return [];\n  }\n}\n\nfunction buildPlaybackUrlVariants(\n  rawUrl: string,\n  isLiveContent: boolean,\n) {\n  const url = rawUrl.trim();\n  if (!url) return [];\n\n  const xtreamLiveVariants = isLiveContent\n    ? buildXtreamLivePlaybackVariants(url)\n    : [];\n\n  if (xtreamLiveVariants.length > 0) {\n    return [...new Set([url, ...xtreamLiveVariants])];\n  }\n\n  const variants: string[] = [];\n\n  if (/\\.(ts|m2ts|mpegts)(\\?|#|$)/i.test(url)) {\n    variants.push(url, replaceKnownMediaExtension(url, 'm3u8'));\n  } else if (/\\.m3u8(\\?|#|$)/i.test(url)) {\n    variants.push(url, replaceKnownMediaExtension(url, 'ts'));\n  } else {\n    variants.push(url);\n  }\n\n  return [...new Set(variants)];\n}`,
-  `function buildXtreamLivePlaybackVariants(rawUrl: string) {\n  try {\n    const parsed = new URL(rawUrl.trim());\n    const parts = parsed.pathname\n      .split('/')\n      .filter(Boolean)\n      .map(part => decodeURIComponent(part));\n\n    const blockedRouteIndex = parts.findIndex(part => {\n      const route = part.toLowerCase();\n      return route === 'movie' || route === 'series';\n    });\n\n    if (blockedRouteIndex >= 0 || parts.length < 3) return [];\n\n    const liveRouteIndex = parts.findIndex(\n      part => part.toLowerCase() === 'live',\n    );\n    const credentialStart = liveRouteIndex >= 0\n      ? liveRouteIndex + 1\n      : parts.length - 3;\n\n    if (parts.length - credentialStart !== 3) return [];\n\n    const username = parts[credentialStart];\n    const password = parts[credentialStart + 1];\n    const streamFile = parts[credentialStart + 2];\n    const streamMatch = streamFile.match(/^([0-9]+)(?:\\.[a-z0-9]+)?$/i);\n\n    if (!username || !password || !streamMatch?.[1]) return [];\n\n    const prefixParts = parts.slice(\n      0,\n      liveRouteIndex >= 0 ? liveRouteIndex : credentialStart,\n    );\n    const prefix = prefixParts.length > 0\n      ? \\`/${prefixParts.map(encodeURIComponent).join('/')}\\`\n      : '';\n    const base = \\`${parsed.origin}${prefix}\\`;\n    const streamId = streamMatch[1];\n    const user = encodeURIComponent(username);\n    const pass = encodeURIComponent(password);\n    const suffix = \\`${parsed.search}${parsed.hash}\\`;\n\n    return [\n      \\`${base}/live/${user}/${pass}/${streamId}.m3u8${suffix}\\`,\n      \\`${base}/${user}/${pass}/${streamId}.m3u8${suffix}\\`,\n      \\`${base}/live/${user}/${pass}/${streamId}.ts${suffix}\\`,\n      \\`${base}/${user}/${pass}/${streamId}.ts${suffix}\\`,\n    ];\n  } catch {\n    return [];\n  }\n}\n\nfunction buildPlaybackUrlVariants(\n  rawUrl: string,\n  isLiveContent: boolean,\n) {\n  const url = rawUrl.trim();\n  if (!url) return [];\n\n  const xtreamLiveVariants = isLiveContent\n    ? buildXtreamLivePlaybackVariants(url)\n    : [];\n\n  // Só inventamos extensões alternativas quando a URL foi reconhecida com\n  // segurança como Xtream. URLs de CDN, tokens e rotas personalizadas devem\n  // ser reproduzidas exatamente como foram entregues pela lista.\n  if (xtreamLiveVariants.length > 0) {\n    return [...new Set([url, ...xtreamLiveVariants])];\n  }\n\n  return [url];\n}`,
+  'function buildXtreamLivePlaybackVariants(rawUrl: string) {',
+  'function getVideoErrorMessage',
+  playbackVariantSection,
 );
 
 replaceOnce(
@@ -81,7 +195,7 @@ replaceOnce(
 replaceOnce(
   'erro nativo específico por tipo',
   `      video.src = playbackUrl;\n      video.onloadedmetadata = () => {\n        markReady();\n        video.play().catch(() => setShowControls(true));\n      };\n      video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));`,
-  `      video.src = playbackUrl;\n      video.onloadedmetadata = () => {\n        video.play().catch(() => setShowControls(true));\n      };\n      video.onerror = () => {\n        const message = getVideoErrorMessage(\n          video,\n          'Não foi possível reproduzir esta fonte.',\n        );\n\n        if (video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {\n          tryNextPlaybackUrl(message);\n          return;\n        }\n\n        attemptAutomaticRecovery(recoverPlayback, message, 900);\n      };`,
+  `      video.src = playbackUrl;\n      video.onloadedmetadata = () => {\n        video.play().catch(() => setShowControls(true));\n      };\n      video.onerror = () => {\n        const message = getVideoErrorMessage(\n          video,\n          'Não foi possível reproduzir esta fonte.',\n        );\n\n        if (video.error?.code === 4) {\n          tryNextPlaybackUrl(message);\n          return;\n        }\n\n        attemptAutomaticRecovery(recoverPlayback, message, 900);\n      };`,
 );
 
 replaceOnce(
