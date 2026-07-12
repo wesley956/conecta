@@ -64,6 +64,7 @@ export function PlayerStabilityController() {
 
   const isLive = Boolean(currentChannel && !currentMovie);
   const contentId = currentMovie?.id ?? currentChannel?.id ?? '';
+  const sourceUrl = currentMovie?.url ?? currentChannel?.url ?? '';
 
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<StabilityStatus>(null);
@@ -131,6 +132,7 @@ export function PlayerStabilityController() {
       recordPlayerDiagnostic(event, activeVideo, {
         contentId,
         isLive,
+        sourceUrl,
         startupMs,
       });
     };
@@ -277,7 +279,7 @@ export function PlayerStabilityController() {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [bufferSize, contentId, isLive, video]);
+  }, [bufferSize, contentId, isLive, sourceUrl, video]);
 
   if (!status) return null;
 
