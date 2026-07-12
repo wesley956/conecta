@@ -171,6 +171,16 @@ function getPreferredBaseFocus() {
   );
 }
 
+function focusOpenCinematicPanel() {
+  focusAfterRender(() => {
+    const panel = document.querySelector<HTMLElement>(
+      '.player-cinematic-side-panel',
+    );
+
+    return panel ? getPreferredPanelFocus(panel) : null;
+  });
+}
+
 export function PlayerCinematicRemoteBridge() {
   useInsertionEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -240,29 +250,25 @@ export function PlayerCinematicRemoteBridge() {
       const quickActions = document.querySelector<HTMLElement>(
         '.player-cinematic-quick-actions',
       );
-
-      if (!isVisible(quickActions)) return;
-
-      const quickButtons = getFocusableElements(quickActions);
-      const settingsButton = quickActions.querySelector<HTMLButtonElement>(
+      const settingsButton = quickActions?.querySelector<HTMLButtonElement>(
         '[aria-controls="player-cinematic-settings"]',
-      );
+      ) ?? null;
 
+      // Menu pertence exclusivamente ao painel cinematográfico. O botão pode
+      // estar visualmente oculto junto dos controles, mas continua disponível
+      // para abrir a gaveta e restaurar o foco corretamente.
       if (isMenu && settingsButton) {
         stopEvent(event);
         if (event.repeat) return;
 
         settingsButton.click();
-        focusAfterRender(() => {
-          const panel = document.querySelector<HTMLElement>(
-            '#player-cinematic-settings',
-          );
-
-          return panel ? getPreferredPanelFocus(panel) : null;
-        });
+        focusOpenCinematicPanel();
         return;
       }
 
+      if (!isVisible(quickActions)) return;
+
+      const quickButtons = getFocusableElements(quickActions);
       const activeInQuickActions = Boolean(
         active && quickActions.contains(active),
       );
@@ -279,13 +285,7 @@ export function PlayerCinematicRemoteBridge() {
           if (event.repeat) return;
 
           active?.click();
-          focusAfterRender(() => {
-            const panel = document.querySelector<HTMLElement>(
-              '.player-cinematic-side-panel',
-            );
-
-            return panel ? getPreferredPanelFocus(panel) : active;
-          });
+          focusOpenCinematicPanel();
           return;
         }
 
