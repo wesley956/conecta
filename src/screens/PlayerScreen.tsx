@@ -7,6 +7,7 @@ import { installHlsObserver } from '@/utils/hlsObserver';
 import { isNativeRuntime } from '@/utils/nativeRuntime';
 import { PlayerV2Screen } from './PlayerV2Screen';
 import '@/styles/player-stability.css';
+import '@/styles/player-cinematic.css';
 
 function needsHlsObserver(urls: Array<string | undefined>) {
   // No APK o Android reproduz HLS nativamente. Importar hls.js antes de cada
