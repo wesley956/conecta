@@ -610,7 +610,7 @@ export function PlayerV2Screen() {
       video.onerror = () => tryNextPlaybackUrl(getVideoErrorMessage(video, 'Não foi possível reproduzir esta fonte.'));
     };
 
-    if (isMpegTsUrl(streamUrl) && !isNativeRuntime()) {
+    if (isMpegTsUrl(streamUrl)) {
       void import('mpegts.js')
         .then(module => {
           if (cancelled) return;
