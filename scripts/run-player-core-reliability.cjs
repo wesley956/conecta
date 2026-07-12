@@ -1,25 +1,32 @@
 const fs = require('fs');
 const path = require('path');
 
-const migrationPath = path.join(
-  process.cwd(),
-  'scripts',
+const migrationFiles = [
   'apply-player-core-reliability.cjs',
-);
+  'apply-player-core-polish.cjs',
+];
 
-let code = fs.readFileSync(migrationPath, 'utf8');
+for (const fileName of migrationFiles) {
+  const migrationPath = path.join(
+    process.cwd(),
+    'scripts',
+    fileName,
+  );
 
-// O arquivo de migração contém uma representação textual de um template
-// TypeScript. Normalizamos somente o escape duplicado de crase nessa amostra.
-const duplicatedEscape = '\\\\' + '`';
-const validEscape = '\\' + '`';
-code = code.split(duplicatedEscape).join(validEscape);
+  let code = fs.readFileSync(migrationPath, 'utf8');
 
-const executeMigration = new Function(
-  'require',
-  'process',
-  'console',
-  `${code}\n//# sourceURL=${migrationPath}`,
-);
+  // Uma migração contém uma representação textual de um template TypeScript.
+  // Normalizamos somente o escape duplicado de crase nessa amostra.
+  const duplicatedEscape = '\\\\' + '`';
+  const validEscape = '\\' + '`';
+  code = code.split(duplicatedEscape).join(validEscape);
 
-executeMigration(require, process, console);
+  const executeMigration = new Function(
+    'require',
+    'process',
+    'console',
+    `${code}\n//# sourceURL=${migrationPath}`,
+  );
+
+  executeMigration(require, process, console);
+}
