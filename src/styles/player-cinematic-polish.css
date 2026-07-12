@@ -1,0 +1,591 @@
+/*
+ * RonecaPlayTV — Fase 3 do player cinematográfico.
+ *
+ * Polimento visual e de navegação para TV: foco, ritmo de animação,
+ * espaçamento, contraste, responsividade e acabamento final.
+ */
+
+.roneca-exoplayer-shell,
+.player-cinematic-companion {
+  --cinema-focus-core: #f3d58b;
+  --cinema-focus-soft: rgba(216, 177, 91, 0.2);
+  --cinema-focus-shadow: rgba(0, 0, 0, 0.55);
+  --cinema-motion-fast: 140ms;
+  --cinema-motion-normal: 210ms;
+  --cinema-motion-slow: 320ms;
+  --cinema-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* --------------------------------------------------------------------------
+ * Transições gerais e presença cinematográfica
+ * ----------------------------------------------------------------------- */
+
+.roneca-exoplayer-top,
+.roneca-exoplayer-center-controls,
+.player-bottom-panel {
+  transition:
+    opacity var(--cinema-motion-normal) var(--cinema-ease-out),
+    transform var(--cinema-motion-normal) var(--cinema-ease-out) !important;
+}
+
+.roneca-exoplayer-top.opacity-0 {
+  transform: translateY(-0.5rem);
+}
+
+.roneca-exoplayer-center-controls.opacity-0 {
+  transform: scale(0.985);
+}
+
+.player-bottom-panel.opacity-0 {
+  transform: translateY(0.75rem) !important;
+}
+
+.roneca-exoplayer-shell::before {
+  transition: opacity var(--cinema-motion-slow) var(--cinema-ease-out);
+}
+
+/* Carregamento e reconexão com menos peso visual. */
+.roneca-exoplayer-shell .animate-spin {
+  border-width: 2px !important;
+  filter: drop-shadow(0 0 14px rgba(216, 177, 91, 0.18));
+}
+
+.roneca-exoplayer-shell .pointer-events-none.absolute.inset-0.z-20 > div {
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  background: rgba(7, 7, 7, 0.72) !important;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px) saturate(1.04) !important;
+}
+
+/* --------------------------------------------------------------------------
+ * Sistema de foco unificado para TV
+ * ----------------------------------------------------------------------- */
+
+.roneca-exoplayer-shell button,
+.roneca-exoplayer-shell input,
+.player-cinematic-companion button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.roneca-exoplayer-shell button:focus-visible,
+.player-cinematic-companion button:focus-visible,
+.player-bottom-panel input[type="range"]:focus-visible {
+  outline: none !important;
+}
+
+.roneca-exoplayer-shell button:focus-visible,
+.player-cinematic-companion button:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(5, 5, 5, 0.94),
+    0 0 0 4px rgba(243, 213, 139, 0.9),
+    0 14px 38px var(--cinema-focus-shadow) !important;
+}
+
+.roneca-exoplayer-shell button:active,
+.player-cinematic-companion button:active {
+  transform: scale(0.965) !important;
+  transition-duration: 70ms !important;
+}
+
+.roneca-exoplayer-back:focus-visible,
+.player-back-button:focus-visible,
+.roneca-exoplayer-top > div > button:focus-visible {
+  border-color: rgba(243, 213, 139, 0.76) !important;
+  color: #fff !important;
+  background: rgba(18, 16, 12, 0.74) !important;
+}
+
+.roneca-exoplayer-center-controls button:focus-visible {
+  border-color: rgba(243, 213, 139, 0.86) !important;
+  background: rgba(20, 18, 13, 0.76) !important;
+  transform: scale(1.075);
+}
+
+.roneca-exoplayer-center-controls
+button[aria-label="Reproduzir"]:focus-visible,
+.roneca-exoplayer-center-controls
+button[aria-label="Pausar"]:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(5, 5, 5, 0.95),
+    0 0 0 5px rgba(243, 213, 139, 0.92),
+    0 22px 62px rgba(0, 0, 0, 0.58) !important;
+}
+
+.player-bottom-panel button:focus-visible {
+  border-color: rgba(243, 213, 139, 0.62) !important;
+  color: #fff !important;
+  background: rgba(216, 177, 91, 0.1) !important;
+  transform: translateY(-2px);
+}
+
+.player-bottom-panel .player-progress:focus-visible,
+.player-bottom-panel .player-progress-slim:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(5, 5, 5, 0.92),
+    0 0 0 5px rgba(216, 177, 91, 0.26) !important;
+}
+
+/* --------------------------------------------------------------------------
+ * Barra superior e inferior: espaçamento e leitura à distância
+ * ----------------------------------------------------------------------- */
+
+.roneca-exoplayer-top > div {
+  gap: clamp(1rem, 2.6vw, 3rem);
+}
+
+.roneca-exoplayer-top h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-bottom-panel {
+  max-width: 118rem;
+  margin-inline: auto;
+}
+
+.player-bottom-panel .mb-3 {
+  align-items: end !important;
+}
+
+.player-bottom-panel p:first-child {
+  max-width: min(72vw, 72rem);
+}
+
+.player-bottom-panel .player-progress,
+.player-bottom-panel .player-progress-slim {
+  transition:
+    filter var(--cinema-motion-fast) ease,
+    box-shadow var(--cinema-motion-fast) ease,
+    height var(--cinema-motion-fast) ease !important;
+}
+
+.player-bottom-panel .player-progress:hover,
+.player-bottom-panel .player-progress-slim:hover,
+.player-bottom-panel .player-progress:focus-visible,
+.player-bottom-panel .player-progress-slim:focus-visible {
+  filter: brightness(1.13);
+}
+
+/* --------------------------------------------------------------------------
+ * Ações rápidas: ícones discretos, rótulo revelado no foco
+ * ----------------------------------------------------------------------- */
+
+.player-cinematic-quick-actions {
+  z-index: 5;
+  min-height: 3.15rem;
+  padding: 0.25rem;
+  border-radius: 0.8rem;
+}
+
+.player-cinematic-quick-actions > button {
+  min-width: 3rem;
+  min-height: 3rem;
+  overflow: hidden;
+  border-radius: 0.72rem;
+  white-space: nowrap;
+  transform-origin: center;
+}
+
+.player-cinematic-quick-actions > button span {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-0.25rem);
+  transition:
+    max-width var(--cinema-motion-normal) var(--cinema-ease-out),
+    opacity var(--cinema-motion-fast) ease,
+    transform var(--cinema-motion-normal) var(--cinema-ease-out);
+}
+
+.player-cinematic-quick-actions > button:hover span,
+.player-cinematic-quick-actions > button:focus-visible span,
+.player-cinematic-quick-actions > button.is-active span {
+  max-width: 8rem;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.player-cinematic-quick-actions > button:focus-visible,
+.player-cinematic-quick-actions > button.is-active {
+  min-width: 7.4rem;
+  color: #fff;
+  border-color: rgba(243, 213, 139, 0.6);
+  background: rgba(14, 14, 14, 0.84);
+}
+
+.player-cinematic-quick-actions > button.is-active {
+  box-shadow:
+    inset 0 -2px 0 rgba(216, 177, 91, 0.9),
+    0 12px 34px rgba(0, 0, 0, 0.34) !important;
+}
+
+/* --------------------------------------------------------------------------
+ * Painéis laterais: profundidade, foco e ritmo de entrada
+ * ----------------------------------------------------------------------- */
+
+.player-cinematic-panel-backdrop {
+  animation: cinema-backdrop-in var(--cinema-motion-normal) ease-out both;
+}
+
+.player-cinematic-side-panel {
+  border-left-color: rgba(255, 255, 255, 0.115);
+  box-shadow:
+    -2rem 0 5rem rgba(0, 0, 0, 0.54),
+    inset 1px 0 0 rgba(255, 255, 255, 0.025);
+  animation:
+    cinema-panel-polish-in
+    var(--cinema-motion-slow)
+    var(--cinema-ease-out)
+    both;
+}
+
+.player-cinematic-side-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background:
+    linear-gradient(
+      180deg,
+      transparent,
+      rgba(216, 177, 91, 0.2) 30%,
+      rgba(216, 177, 91, 0.08) 70%,
+      transparent
+    );
+  pointer-events: none;
+}
+
+@keyframes cinema-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cinema-panel-polish-in {
+  from {
+    opacity: 0;
+    transform: translateX(2.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.player-cinematic-panel-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin:
+    calc(-1 * max(1.4rem, env(safe-area-inset-top)))
+    calc(-1 * clamp(1.15rem, 2.1vw, 1.65rem))
+    0;
+  padding:
+    max(1.4rem, env(safe-area-inset-top))
+    clamp(1.15rem, 2.1vw, 1.65rem)
+    1.25rem;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(12, 12, 13, 0.995) 0%,
+      rgba(12, 12, 13, 0.97) 78%,
+      rgba(12, 12, 13, 0) 100%
+    );
+  backdrop-filter: blur(22px);
+}
+
+.player-cinematic-panel-header h2 {
+  max-width: min(68vw, 22rem);
+}
+
+.player-cinematic-panel-close:focus-visible {
+  border-color: rgba(243, 213, 139, 0.72);
+  background: rgba(216, 177, 91, 0.12);
+}
+
+.player-cinematic-rate-grid button,
+.player-cinematic-episode-navigation button {
+  transition:
+    color var(--cinema-motion-fast) ease,
+    border-color var(--cinema-motion-fast) ease,
+    background var(--cinema-motion-fast) ease,
+    transform var(--cinema-motion-fast) ease,
+    box-shadow var(--cinema-motion-fast) ease;
+}
+
+.player-cinematic-rate-grid button:focus-visible,
+.player-cinematic-episode-navigation button:focus-visible {
+  border-color: rgba(243, 213, 139, 0.72);
+  color: #fff;
+  background: rgba(216, 177, 91, 0.1);
+  transform: translateY(-1px);
+}
+
+.player-cinematic-rate-grid button.is-selected {
+  color: #f7e6bd;
+  background: rgba(216, 177, 91, 0.11);
+}
+
+.player-cinematic-setting-row {
+  border-radius: 0.45rem;
+  transition: background var(--cinema-motion-fast) ease;
+}
+
+.player-cinematic-setting-row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.player-cinematic-setting-row strong {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* --------------------------------------------------------------------------
+ * Episódios: foco contínuo, rolagem legível e estado atual discreto
+ * ----------------------------------------------------------------------- */
+
+.player-cinematic-episode-list {
+  overscroll-behavior: contain;
+  scroll-padding-block: 0.8rem 2rem;
+  mask-image:
+    linear-gradient(
+      180deg,
+      transparent 0,
+      #000 0.65rem,
+      #000 calc(100% - 1.25rem),
+      transparent 100%
+    );
+}
+
+.player-cinematic-episode-row {
+  scroll-margin-block: 0.7rem;
+}
+
+.player-cinematic-episode-row:focus-visible {
+  border-color: rgba(243, 213, 139, 0.5);
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateX(-0.18rem);
+  box-shadow:
+    0 0 0 2px rgba(5, 5, 5, 0.9),
+    0 0 0 4px rgba(216, 177, 91, 0.34),
+    0 12px 28px rgba(0, 0, 0, 0.3) !important;
+}
+
+.player-cinematic-episode-row.is-current {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(216, 177, 91, 0.08),
+      rgba(216, 177, 91, 0.025) 62%,
+      transparent
+    );
+}
+
+.player-cinematic-episode-row.is-current::before {
+  width: 3px;
+  border-radius: 999px;
+}
+
+.player-cinematic-episode-row.is-current
+.player-cinematic-episode-number {
+  background: rgba(216, 177, 91, 0.065);
+}
+
+.player-cinematic-episode-progress {
+  height: 3px;
+}
+
+.player-cinematic-playing-indicator {
+  padding: 0.28rem 0.45rem;
+  border: 1px solid rgba(216, 177, 91, 0.2);
+  border-radius: 999px;
+  background: rgba(216, 177, 91, 0.055);
+}
+
+/* --------------------------------------------------------------------------
+ * Lista de canais: foco mais claro sem preencher a linha inteira
+ * ----------------------------------------------------------------------- */
+
+.player-channel-drawer {
+  overscroll-behavior: contain;
+}
+
+.player-channel-row {
+  scroll-margin-block: 0.6rem;
+}
+
+.player-channel-row:focus-visible {
+  border-color: rgba(243, 213, 139, 0.36) !important;
+  background: rgba(255, 255, 255, 0.065) !important;
+  box-shadow:
+    0 0 0 2px rgba(5, 5, 5, 0.92),
+    0 0 0 4px rgba(216, 177, 91, 0.28) !important;
+}
+
+.player-channel-row.is-active::before,
+.player-channel-row:focus-visible::before {
+  box-shadow: 0 0 14px rgba(216, 177, 91, 0.28);
+}
+
+/* --------------------------------------------------------------------------
+ * TV Full HD e 4K
+ * ----------------------------------------------------------------------- */
+
+@media (min-width: 1280px) and (min-height: 700px) {
+  .roneca-exoplayer-top {
+    padding-right: clamp(2.5rem, 4vw, 5rem) !important;
+    padding-left: clamp(2.5rem, 4vw, 5rem) !important;
+  }
+
+  .player-bottom-panel {
+    right: clamp(2.5rem, 4vw, 5rem) !important;
+    left: clamp(2.5rem, 4vw, 5rem) !important;
+  }
+
+  .player-cinematic-side-panel {
+    width: min(42vw, 31rem);
+  }
+
+  .player-cinematic-episode-row {
+    min-height: 4.85rem;
+  }
+}
+
+@media (min-width: 2200px) and (min-height: 1200px) {
+  .roneca-exoplayer-top h1 {
+    font-size: clamp(2rem, 1.75vw, 3rem) !important;
+  }
+
+  .roneca-exoplayer-top p,
+  .player-bottom-panel p + p {
+    font-size: 1.05rem !important;
+  }
+
+  .player-bottom-panel p:first-child {
+    font-size: 1.75rem !important;
+  }
+
+  .player-cinematic-quick-actions > button {
+    min-width: 3.7rem;
+    min-height: 3.7rem;
+    font-size: 1.05rem;
+  }
+
+  .player-cinematic-side-panel {
+    width: min(38vw, 38rem);
+    padding-right: 2.2rem;
+    padding-left: 2.2rem;
+  }
+
+  .player-cinematic-panel-header h2 {
+    font-size: 2.35rem;
+  }
+
+  .player-cinematic-setting-row,
+  .player-cinematic-episode-row {
+    font-size: 1.05rem;
+  }
+
+  .player-cinematic-episode-row {
+    min-height: 5.6rem;
+  }
+}
+
+/* Paisagem baixa: preservar vídeo e evitar sobreposição. */
+@media (max-height: 620px) and (orientation: landscape) {
+  .player-cinematic-quick-actions {
+    bottom: max(0.35rem, env(safe-area-inset-bottom));
+  }
+
+  .player-cinematic-quick-actions > button {
+    min-width: 2.65rem;
+    min-height: 2.65rem;
+    padding: 0.45rem 0.62rem;
+  }
+
+  .player-cinematic-side-panel {
+    width: min(72vw, 27rem);
+  }
+
+  .player-cinematic-panel-header {
+    margin-top: calc(-1 * max(0.8rem, env(safe-area-inset-top)));
+    padding-top: max(0.8rem, env(safe-area-inset-top));
+    padding-bottom: 0.8rem;
+  }
+
+  .player-cinematic-panel-section {
+    padding-block: 0.8rem;
+  }
+
+  .player-cinematic-episode-navigation {
+    padding-block: 0.65rem;
+  }
+
+  .player-cinematic-episode-row {
+    min-height: 3.55rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .player-cinematic-quick-actions > button span {
+    max-width: 8rem;
+    opacity: 1;
+    transform: none;
+  }
+
+  .player-cinematic-quick-actions > button {
+    min-width: auto;
+  }
+
+  .player-cinematic-side-panel {
+    width: min(96vw, 28rem);
+  }
+
+  .player-cinematic-setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.28rem;
+  }
+
+  .player-cinematic-setting-row strong {
+    text-align: left;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .roneca-exoplayer-shell,
+  .player-cinematic-companion {
+    --cinema-muted: rgba(255, 255, 255, 0.76);
+    --cinematic-muted: rgba(255, 255, 255, 0.76);
+  }
+
+  .player-cinematic-side-panel,
+  .player-channel-drawer {
+    border-left-color: rgba(255, 255, 255, 0.28) !important;
+  }
+
+  .roneca-exoplayer-shell button:focus-visible,
+  .player-cinematic-companion button:focus-visible {
+    box-shadow:
+      0 0 0 2px #000,
+      0 0 0 5px #f3d58b !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roneca-exoplayer-top,
+  .roneca-exoplayer-center-controls,
+  .player-bottom-panel,
+  .player-cinematic-panel-backdrop,
+  .player-cinematic-side-panel,
+  .player-cinematic-quick-actions,
+  .player-cinematic-quick-actions > button,
+  .player-cinematic-quick-actions > button span,
+  .player-cinematic-episode-row,
+  .player-channel-row {
+    animation: none !important;
+    transition: none !important;
+  }
+}
