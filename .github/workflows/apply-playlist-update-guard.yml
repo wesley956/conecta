@@ -21,7 +21,7 @@ jobs:
           ref: agent/fix-store-playlist-update-not-found
           fetch-depth: 0
 
-      - name: Apply exact playlist update guard
+      - name: Apply playlist update guard
         shell: bash
         run: |
           python - <<'PY'
@@ -29,17 +29,18 @@ jobs:
 
           path = Path('src/stores/appStore.ts')
           source = path.read_text(encoding='utf-8')
+          start_marker = '  updatePlaylist: (playlistId, partial) =>'
+          end_marker = '\n\n  replaceM3UPlaylist:'
 
-          old = """  updatePlaylist: (playlistId, partial) => set((state) => ({
-    playlists: state.playlists.map((playlist) =>
-      playlist.id === playlistId
-        ? { ...playlist, ...partial, lastSync: partial.lastSync ?? playlist.lastSync }
-        : playlist
-    ),
-    activeNotice: '✅ Lista atualizada.',
-  })),"""
+          start = source.find(start_marker)
+          if start < 0:
+              raise SystemExit('Início de updatePlaylist não encontrado.')
 
-          new = """  updatePlaylist: (playlistId, partial) => set((state) => {
+          end = source.find(end_marker, start)
+          if end < 0:
+              raise SystemExit('Fim de updatePlaylist não encontrado.')
+
+          new_block = """  updatePlaylist: (playlistId, partial) => set((state) => {
     const exists = state.playlists.some((playlist) => playlist.id === playlistId);
 
     if (!exists) {
@@ -58,10 +59,8 @@ jobs:
     };
   }),"""
 
-          if source.count(old) != 1:
-              raise SystemExit('Bloco updatePlaylist não encontrado exatamente uma vez.')
-
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          next_source = source[:start] + new_block + source[end:]
+          path.write_text(next_source, encoding='utf-8')
           PY
 
       - name: Install dependencies
