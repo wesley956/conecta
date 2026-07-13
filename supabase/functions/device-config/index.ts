@@ -137,17 +137,24 @@ serve(async request => {
   }
 
   const boundDeviceUuid = device.device_uuid || deviceUuid;
-  const { error: updateError } = await supabase
+  let updateQuery = supabase
     .from('panel_devices')
     .update({
       device_uuid: boundDeviceUuid,
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', device.id)
-    .or(`device_uuid.is.null,device_uuid.eq.${deviceUuid}`);
+    .eq('id', device.id);
 
-  if (updateError) {
+  updateQuery = device.device_uuid
+    ? updateQuery.eq('device_uuid', deviceUuid)
+    : updateQuery.is('device_uuid', null);
+
+  const { data: updatedDevice, error: updateError } = await updateQuery
+    .select('id')
+    .maybeSingle();
+
+  if (updateError || !updatedDevice) {
     return json({
       active: false,
       status: 'blocked',
