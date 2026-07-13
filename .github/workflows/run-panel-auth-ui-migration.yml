@@ -1,0 +1,51 @@
+name: Run Panel Auth UI Migration
+
+on:
+  pull_request:
+    branches:
+      - agent/security-session-only-panel-tokens
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'agent/frontend-panel-supabase-auth' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/frontend-panel-supabase-auth
+          fetch-depth: 0
+
+      - name: Extract and execute UI codemod
+        shell: bash
+        run: |
+          awk '
+            /python - <<'"'"'PY'"'"'/ { capture=1; next }
+            capture && /^          PY$/ { capture=0; exit }
+            capture { sub(/^          /, ""); print }
+          ' .github/workflows/apply-panel-auth-ui.yml > /tmp/codemod.py
+          python /tmp/codemod.py
+
+      - name: Validate local auth client and generated config
+        shell: bash
+        run: |
+          node --check admin-panel/panel-auth-session.js
+          SUPABASE_URL=https://example.supabase.co \
+          SUPABASE_ANON_KEY=public-anon-key-for-build-validation-only-1234567890 \
+          node scripts/generate-panel-config.mjs
+
+          ! grep -RInE 'accessToken|sellerToken|x-admin-token|x-seller-token' \
+            admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html
+
+      - name: Commit validated change
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html
+          git commit -m 'frontend: migrate panel login to Supabase Auth'
+          git push origin HEAD:agent/frontend-panel-supabase-auth
