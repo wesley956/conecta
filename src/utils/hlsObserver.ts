@@ -34,7 +34,9 @@ type HlsPrototype = {
   [key: symbol]: unknown;
 };
 
-type HlsDefaultConfig = Record<string, unknown>;
+type HlsDefaultConfig = Record<string, unknown> & {
+  [key: symbol]: unknown;
+};
 
 type HlsConstructor = {
   prototype: HlsPrototype;
