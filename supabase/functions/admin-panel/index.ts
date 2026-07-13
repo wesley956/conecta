@@ -935,6 +935,10 @@ serve(async (req) => {
         'expiresAt' in body &&
         timestampOrZero(nextExpiresAt) > timestampOrZero(previousExpiresAt);
 
+      const currentCustomer = Array.isArray(currentDevice.customer)
+        ? currentDevice.customer[0] ?? null
+        : currentDevice.customer;
+
       let creditConsumption = null;
 
       if (isActivation || isRenewal) {
@@ -951,7 +955,7 @@ serve(async (req) => {
           type: isActivation ? 'activation' : 'renewal',
           creditCost: plan.creditCost,
           planName: plan.name,
-          customerName: currentDevice.customer?.name || null,
+          customerName: currentCustomer?.name || null,
         });
       }
 
