@@ -1,0 +1,71 @@
+name: Apply Admin Edge Type Fix
+
+on:
+  push:
+    branches:
+      - agent/fix-admin-edge-customer-relation-type
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/fix-admin-edge-customer-relation-type
+          fetch-depth: 0
+
+      - name: Apply exact type-safe patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/admin-panel/index.ts')
+          source = path.read_text(encoding='utf-8')
+
+          marker = """      let creditConsumption = null;\n\n      if (isActivation || isRenewal) {"""
+          replacement = """      const currentCustomer = Array.isArray(currentDevice.customer)\n        ? currentDevice.customer[0] ?? null\n        : currentDevice.customer;\n\n      let creditConsumption = null;\n\n      if (isActivation || isRenewal) {"""
+
+          if source.count(marker) != 1:
+              raise SystemExit('Marcador de currentCustomer não encontrado exatamente uma vez.')
+
+          source = source.replace(marker, replacement, 1)
+
+          old_access = "customerName: currentDevice.customer?.name || null,"
+          new_access = "customerName: currentCustomer?.name || null,"
+
+          if source.count(old_access) != 1:
+              raise SystemExit('Acesso customer?.name não encontrado exatamente uma vez.')
+
+          source = source.replace(old_access, new_access, 1)
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check admin Edge Function
+        run: deno check supabase/functions/admin-panel/index.ts
+
+      - name: Commit generated patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'Nenhuma alteração necessária.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/admin-panel/index.ts
+          git commit -m 'fix: normalize customer relation before access'
+          git push origin HEAD:agent/fix-admin-edge-customer-relation-type
