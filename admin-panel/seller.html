@@ -425,7 +425,7 @@
 
       try {
         const data = await fetchPortal(token);
-        localStorage.setItem(TOKEN_KEY, token);
+        sessionStorage.setItem(TOKEN_KEY, token);
         renderPortal(data);
       } catch (err) {
         $('loginMsg').textContent = err.message || 'Token inválido.';
@@ -433,7 +433,7 @@
     }
 
     async function loadPortal() {
-      const token = localStorage.getItem(TOKEN_KEY) || '';
+      const token = sessionStorage.getItem(TOKEN_KEY) || '';
       if (!token) {
         $('loginView').classList.remove('hide');
         $('dashboardView').classList.add('hide');
@@ -444,7 +444,7 @@
         const data = await fetchPortal(token);
         renderPortal(data);
       } catch (err) {
-        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
         $('loginMsg').textContent = err.message || 'Faça login novamente.';
         $('loginView').classList.remove('hide');
         $('dashboardView').classList.add('hide');
@@ -558,7 +558,7 @@
     }
 
     function logout() {
-      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
       $('sellerToken').value = '';
       $('loginView').classList.remove('hide');
       $('dashboardView').classList.add('hide');

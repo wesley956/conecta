@@ -1536,7 +1536,7 @@ let auditLogs = [];
 const $ = id => document.getElementById(id);
 
 function token() {
-  return localStorage.getItem(KEY) || '';
+  return sessionStorage.getItem(KEY) || '';
 }
 
 function esc(value) {
@@ -3333,7 +3333,7 @@ async function updatePlan(id) {
 
 
 function logout() {
-  localStorage.removeItem(KEY);
+  sessionStorage.removeItem(KEY);
   window.location.href = './index.html';
 }
 

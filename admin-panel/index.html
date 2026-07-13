@@ -228,16 +228,16 @@
 
       try {
         if (await tryAdmin(token)) {
-          localStorage.setItem(ADMIN_KEY, token);
-          localStorage.removeItem(SELLER_KEY);
+          sessionStorage.setItem(ADMIN_KEY, token);
+          sessionStorage.removeItem(SELLER_KEY);
           setMsg('Acesso de administrador confirmado.', 'ok');
           window.location.href = './dashboard.html';
           return;
         }
 
         if (await trySeller(token)) {
-          localStorage.setItem(SELLER_KEY, token);
-          localStorage.removeItem(ADMIN_KEY);
+          sessionStorage.setItem(SELLER_KEY, token);
+          sessionStorage.removeItem(ADMIN_KEY);
           setMsg('Acesso de vendedor confirmado.', 'ok');
           window.location.href = './seller.html';
           return;
@@ -250,8 +250,8 @@
     }
 
     function clearLogin() {
-      localStorage.removeItem(ADMIN_KEY);
-      localStorage.removeItem(SELLER_KEY);
+      sessionStorage.removeItem(ADMIN_KEY);
+      sessionStorage.removeItem(SELLER_KEY);
       el('accessToken').value = '';
       setMsg('Acesso salvo removido deste navegador.', 'ok');
     }
