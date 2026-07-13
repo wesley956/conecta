@@ -20,7 +20,7 @@ jobs:
           ref: agent/backend-admin-jwt-auth
           fetch-depth: 0
 
-      - name: Extract and execute codemod
+      - name: Extract and execute authentication codemod
         shell: bash
         run: |
           awk '
@@ -29,6 +29,43 @@ jobs:
             capture { sub(/^          /, ""); print }
           ' .github/workflows/apply-admin-jwt-auth.yml > /tmp/codemod.py
           python /tmp/codemod.py
+
+      - name: Apply already-audited customer relation dependency
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/admin-panel/index.ts')
+          source = path.read_text(encoding='utf-8')
+
+          if 'customerName: currentCustomer?.name || null,' not in source:
+              marker = "      let creditConsumption = null;\n\n      if (isActivation || isRenewal) {"
+              replacement = """      const currentCustomer = Array.isArray(currentDevice.customer)
+        ? currentDevice.customer[0] ?? null
+        : currentDevice.customer;
+
+      let creditConsumption = null;
+
+      if (isActivation || isRenewal) {"""
+
+              if source.count(marker) != 1:
+                  raise SystemExit('Marcador de currentCustomer não encontrado exatamente uma vez.')
+
+              source = source.replace(marker, replacement, 1)
+
+              old_access = 'customerName: currentDevice.customer?.name || null,'
+              if source.count(old_access) != 1:
+                  raise SystemExit('Acesso customer?.name não encontrado exatamente uma vez.')
+
+              source = source.replace(
+                  old_access,
+                  'customerName: currentCustomer?.name || null,',
+                  1,
+              )
+
+          path.write_text(source, encoding='utf-8')
+          PY
 
       - uses: denoland/setup-deno@v2
         with:
