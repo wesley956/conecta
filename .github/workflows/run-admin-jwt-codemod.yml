@@ -3,7 +3,7 @@ name: Run Admin JWT Codemod
 on:
   pull_request:
     branches:
-      - agent/backend-shared-panel-auth
+      - agent/runner-admin-jwt-base
 
 permissions:
   contents: write
