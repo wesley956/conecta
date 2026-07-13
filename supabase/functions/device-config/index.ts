@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 function json(body: unknown, status = 200) {
@@ -13,13 +13,17 @@ function json(body: unknown, status = 200) {
     headers: {
       ...corsHeaders,
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
     },
   });
 }
 
-async function readPayload(request: Request) {
+async function readPayload(request: Request): Promise<Record<string, unknown>> {
   try {
-    return await request.json();
+    const payload = await request.json();
+    return payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : {};
   } catch {
     return {};
   }
@@ -30,44 +34,12 @@ function textOrNull(value: unknown) {
   return text || null;
 }
 
-function allowDeviceUuidRebind() {
-  const value = String(Deno.env.get('ALLOW_DEVICE_UUID_REBIND') ?? 'true').trim().toLowerCase();
-  return !['0', 'false', 'no', 'não', 'nao'].includes(value);
-}
-
-async function resolveDeviceCode(request: Request) {
-  const url = new URL(request.url);
-
-  const fromQuery =
-    textOrNull(url.searchParams.get('deviceCode')) ||
-    textOrNull(url.searchParams.get('device_code')) ||
-    textOrNull(url.searchParams.get('code')) ||
-    textOrNull(url.searchParams.get('deviceId')) ||
-    textOrNull(url.searchParams.get('device_id'));
-
-  if (fromQuery) return fromQuery;
-
-  if (request.method === 'POST') {
-    const payload = await readPayload(request);
-
-    return (
-      textOrNull(payload.deviceCode) ||
-      textOrNull(payload.device_code) ||
-      textOrNull(payload.code) ||
-      textOrNull(payload.deviceId) ||
-      textOrNull(payload.device_id)
-    );
-  }
-
-  return null;
-}
-
 serve(async request => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  if (request.method !== 'GET' && request.method !== 'POST') {
+  if (request.method !== 'POST') {
     return json({ active: false, message: 'Método não permitido.' }, 405);
   }
 
@@ -78,19 +50,37 @@ serve(async request => {
     return json({ active: false, message: 'Servidor não configurado.' }, 500);
   }
 
-  const url = new URL(request.url);
-  const code = await resolveDeviceCode(request);
+  const payload = await readPayload(request);
+  const code =
+    textOrNull(payload.deviceCode) ||
+    textOrNull(payload.device_code) ||
+    textOrNull(payload.code) ||
+    textOrNull(payload.deviceId) ||
+    textOrNull(payload.device_id);
   const deviceUuid =
-    textOrNull(url.searchParams.get('deviceUuid')) ||
-    textOrNull(url.searchParams.get('device_uuid')) ||
-    textOrNull(url.searchParams.get('deviceId')) ||
-    textOrNull(url.searchParams.get('device_id'));
+    textOrNull(payload.deviceUuid) ||
+    textOrNull(payload.device_uuid);
 
   if (!code) {
-    return json({ active: false, status: 'pending', message: 'Código do aparelho não informado.' }, 400);
+    return json({
+      active: false,
+      status: 'pending',
+      message: 'Código do aparelho não informado.',
+    }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  if (!deviceUuid) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: code,
+      message: 'Identificador seguro do aparelho não informado.',
+    }, 400);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 
   const { data: device, error } = await supabase
     .from('panel_devices')
@@ -137,29 +127,34 @@ serve(async request => {
     });
   }
 
-  const uuidMismatch = Boolean(device.device_uuid && deviceUuid && device.device_uuid !== deviceUuid);
-
-  if (uuidMismatch && !allowDeviceUuidRebind()) {
+  if (device.device_uuid && device.device_uuid !== deviceUuid) {
     return json({
       active: false,
       status: 'blocked',
-      deviceCode: code,
-      message: 'Código pertence a outro aparelho. Solicite um novo código no app.',
+      deviceCode: device.device_code,
+      message: 'Este código pertence a outro aparelho. Solicite a transferência pelo painel.',
     }, 403);
   }
 
-  const nextDeviceUuid = uuidMismatch
-    ? deviceUuid
-    : (device.device_uuid || deviceUuid || null);
-
-  await supabase
+  const boundDeviceUuid = device.device_uuid || deviceUuid;
+  const { error: updateError } = await supabase
     .from('panel_devices')
     .update({
-      device_uuid: nextDeviceUuid,
+      device_uuid: boundDeviceUuid,
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', device.id);
+    .eq('id', device.id)
+    .or(`device_uuid.is.null,device_uuid.eq.${deviceUuid}`);
+
+  if (updateError) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: device.device_code,
+      message: 'Não foi possível confirmar a identidade deste aparelho.',
+    }, 409);
+  }
 
   const expiresAt = device.subscription_expires_at;
   const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
@@ -172,7 +167,6 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
-      deviceUuidRebound: uuidMismatch,
       message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.',
     });
   }
@@ -184,7 +178,6 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
-      deviceUuidRebound: uuidMismatch,
       message: 'Aparelho ativo, mas sem lista ativa vinculada.',
     });
   }
@@ -192,10 +185,11 @@ serve(async request => {
   async function signedCacheUrl(path: string | null | undefined) {
     if (!path) return null;
 
-    const { data } = await supabase.storage
+    const { data, error: signedUrlError } = await supabase.storage
       .from('playlist-cache')
-      .createSignedUrl(path, 60 * 60);
+      .createSignedUrl(path, 15 * 60);
 
+    if (signedUrlError) return null;
     return data?.signedUrl ?? null;
   }
 
@@ -232,7 +226,6 @@ serve(async request => {
     deviceCode: device.device_code,
     clientName: device.client_name,
     expiresAt,
-    deviceUuidRebound: uuidMismatch,
     playlistName: playlist.name,
     playlistUrl: playlist.playlist_url,
     playlistType: playlist.playlist_type,
