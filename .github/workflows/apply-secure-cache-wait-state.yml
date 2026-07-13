@@ -28,37 +28,37 @@ jobs:
 
           path = Path('src/App.tsx')
           source = path.read_text(encoding='utf-8')
+          start_marker = '        if (!playlistUrl) {'
+          end_marker = "\n\n        setActiveNotice(\n          cacheErrorMessage"
 
-          old = """        if (!playlistUrl) {
-          setActiveNotice(
-            cacheErrorMessage
-              ? `Atenção: cache do painel falhou e nenhuma URL de lista foi enviada. ${cacheErrorMessage}`
-              : '✅ Aparelho ativo, mas nenhuma lista foi vinculada no painel.'
-          );
-          return;
-        }"""
+          start = source.find(start_marker)
+          if start < 0:
+              raise SystemExit('Início do bloco sem playlistUrl não encontrado.')
 
-          new = """        if (!playlistUrl) {
-          const secureCacheMessage = config.message || (
-            cacheStatus === 'building' || cacheStatus === 'processing'
-              ? 'Aparelho ativo. O catálogo seguro ainda está sendo preparado no painel.'
-              : cacheStatus === 'error'
-                ? `Aparelho ativo, mas o cache seguro falhou. ${config.cacheError || ''}`.trim()
-                : 'Aparelho ativo, mas nenhuma lista segura está disponível no momento.'
-          );
+          end = source.find(end_marker, start)
+          if end < 0:
+              raise SystemExit('Fim do bloco sem playlistUrl não encontrado.')
 
-          setActiveNotice(
-            cacheErrorMessage
-              ? `Atenção: cache do painel falhou e o fallback direto está desabilitado. ${cacheErrorMessage}`
-              : secureCacheMessage
-          );
-          return;
-        }"""
+          new_block = "\n".join([
+              "        if (!playlistUrl) {",
+              "          const secureCacheMessage = config.message || (",
+              "            cacheStatus === 'building' || cacheStatus === 'processing'",
+              "              ? 'Aparelho ativo. O catálogo seguro ainda está sendo preparado no painel.'",
+              "              : cacheStatus === 'error'",
+              "                ? `Aparelho ativo, mas o cache seguro falhou. ${config.cacheError || ''}`.trim()",
+              "                : 'Aparelho ativo, mas nenhuma lista segura está disponível no momento.'",
+              "          );",
+              "",
+              "          setActiveNotice(",
+              "            cacheErrorMessage",
+              "              ? `Atenção: cache do painel falhou e o fallback direto está desabilitado. ${cacheErrorMessage}`",
+              "              : secureCacheMessage",
+              "          );",
+              "          return;",
+              "        }",
+          ])
 
-          if source.count(old) != 1:
-              raise SystemExit('Bloco de ausência de playlistUrl não encontrado exatamente uma vez.')
-
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          path.write_text(source[:start] + new_block + source[end:], encoding='utf-8')
           PY
 
       - uses: actions/setup-node@v4
