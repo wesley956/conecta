@@ -261,14 +261,24 @@ export const useAppStore = create<AppStore>()(
     };
   }),
 
-  updatePlaylist: (playlistId, partial) => set((state) => ({
-    playlists: state.playlists.map((playlist) =>
-      playlist.id === playlistId
-        ? { ...playlist, ...partial, lastSync: partial.lastSync ?? playlist.lastSync }
-        : playlist
-    ),
-    activeNotice: '✅ Lista atualizada.',
-  })),
+  updatePlaylist: (playlistId, partial) => set((state) => {
+    const exists = state.playlists.some((playlist) => playlist.id === playlistId);
+
+    if (!exists) {
+      return {
+        activeNotice: `Atenção: lista ${playlistId} não encontrada.`,
+      };
+    }
+
+    return {
+      playlists: state.playlists.map((playlist) =>
+        playlist.id === playlistId
+? { ...playlist, ...partial, lastSync: partial.lastSync ?? playlist.lastSync }
+: playlist
+      ),
+      activeNotice: '✅ Lista atualizada.',
+    };
+  }),
 
   replaceM3UPlaylist: async (playlistId, name, sourceUrl, content) => {
     if (!isLikelyM3U(content)) {
