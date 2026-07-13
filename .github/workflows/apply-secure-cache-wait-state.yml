@@ -1,0 +1,79 @@
+name: Apply Secure Cache Wait State
+
+on:
+  push:
+    branches:
+      - agent/fix-secure-cache-wait-state
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-secure-cache-wait-state
+          fetch-depth: 0
+
+      - name: Apply secure cache message
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/App.tsx')
+          source = path.read_text(encoding='utf-8')
+
+          old = """        if (!playlistUrl) {
+          setActiveNotice(
+            cacheErrorMessage
+              ? `Atenção: cache do painel falhou e nenhuma URL de lista foi enviada. ${cacheErrorMessage}`
+              : '✅ Aparelho ativo, mas nenhuma lista foi vinculada no painel.'
+          );
+          return;
+        }"""
+
+          new = """        if (!playlistUrl) {
+          const secureCacheMessage = config.message || (
+            cacheStatus === 'building' || cacheStatus === 'processing'
+              ? 'Aparelho ativo. O catálogo seguro ainda está sendo preparado no painel.'
+              : cacheStatus === 'error'
+                ? `Aparelho ativo, mas o cache seguro falhou. ${config.cacheError || ''}`.trim()
+                : 'Aparelho ativo, mas nenhuma lista segura está disponível no momento.'
+          );
+
+          setActiveNotice(
+            cacheErrorMessage
+              ? `Atenção: cache do painel falhou e o fallback direto está desabilitado. ${cacheErrorMessage}`
+              : secureCacheMessage
+          );
+          return;
+        }"""
+
+          if source.count(old) != 1:
+              raise SystemExit('Bloco de ausência de playlistUrl não encontrado exatamente uma vez.')
+
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+
+      - name: Commit generated patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/App.tsx
+          git commit -m 'fix: show secure cache preparation state'
+          git push origin HEAD:agent/fix-secure-cache-wait-state
