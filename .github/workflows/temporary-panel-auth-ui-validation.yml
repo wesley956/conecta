@@ -1,0 +1,78 @@
+name: Temporary Panel Auth UI Validation
+
+on:
+  pull_request:
+    branches:
+      - agent/runner-panel-auth-ui-base
+
+permissions:
+  contents: read
+
+jobs:
+  validate-panel-auth-ui:
+    if: github.head_ref == 'agent/frontend-panel-supabase-auth'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/frontend-panel-supabase-auth
+
+      - name: Validate auth client and generated configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check admin-panel/panel-auth-session.js
+          SUPABASE_URL=https://example.supabase.co \
+          SUPABASE_ANON_KEY=public-anon-key-for-build-validation-only-1234567890 \
+          node scripts/generate-panel-config.mjs
+
+      - name: Validate migrated login surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if grep -RInE 'id="accessToken"|id="sellerToken"|x-admin-token|x-seller-token' \
+            admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html; then
+            echo 'Autenticação legada ainda encontrada nas páginas migradas.'
+            exit 1
+          fi
+
+          grep -q 'id="email"' admin-panel/index.html
+          grep -q 'id="password"' admin-panel/index.html
+          grep -q 'id="sellerEmail"' admin-panel/seller.html
+          grep -q 'id="sellerPassword"' admin-panel/seller.html
+          grep -q 'panel-auth-session.js' admin-panel/index.html
+          grep -q 'panel-auth-session.js' admin-panel/dashboard.html
+          grep -q 'panel-auth-session.js' admin-panel/seller.html
+
+      - name: Parse inline JavaScript blocks
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          output = Path('/tmp/panel-inline-js')
+          output.mkdir(parents=True, exist_ok=True)
+
+          count = 0
+          for html_path in [
+              Path('admin-panel/index.html'),
+              Path('admin-panel/dashboard.html'),
+              Path('admin-panel/seller.html'),
+          ]:
+              html = html_path.read_text(encoding='utf-8')
+              blocks = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', html, flags=re.I | re.S)
+              for index, block in enumerate(blocks, start=1):
+                  count += 1
+                  target = output / f'{html_path.stem}-{index}.js'
+                  target.write_text(block, encoding='utf-8')
+                  print(target)
+
+          if count == 0:
+              raise SystemExit('Nenhum script inline foi encontrado para validação.')
+          PY
+
+          find /tmp/panel-inline-js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
