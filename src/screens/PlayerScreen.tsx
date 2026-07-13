@@ -3,12 +3,10 @@ import { PlayerAdvancedControls } from '@/components/player/PlayerAdvancedContro
 import { PlayerCinematicPanels } from '@/components/player/PlayerCinematicPanels';
 import { PlayerCinematicRemoteBridge } from '@/components/player/PlayerCinematicRemoteBridge';
 import { PlayerRemoteController } from '@/components/player/PlayerRemoteController';
-import { PlayerStabilityController } from '@/components/player/PlayerStabilityController';
 import { useAppStore } from '@/stores/appStore';
 import { installHlsObserver } from '@/utils/hlsObserver';
 import { isNativeRuntime } from '@/utils/nativeRuntime';
 import { PlayerV2Screen } from './PlayerV2Screen';
-import '@/styles/player-stability.css';
 import '@/styles/player-cinematic.css';
 import '@/styles/player-cinematic-panels.css';
 import '@/styles/player-cinematic-polish.css';
@@ -74,7 +72,6 @@ export function PlayerScreen() {
       <PlayerRemoteController />
       <PlayerCinematicPanels />
       <PlayerV2Screen />
-      <PlayerStabilityController />
       <PlayerAdvancedControls />
     </>
   );
