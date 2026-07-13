@@ -6,6 +6,10 @@ dist/
 .env.*.local
 *.log
 
+# Configuração pública gerada no deploy do painel
+admin-panel/panel-config.js
+public/panel-config.js
+
 # Android/Capacitor
 # A pasta android/ pode ser versionada quando você quiser preservar ajustes nativos
 # como permissões, ícones, splash, assinatura e configurações Gradle.
