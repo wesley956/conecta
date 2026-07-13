@@ -64,7 +64,7 @@ jobs:
   edge-functions:
     name: Supabase Edge Functions
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -75,15 +75,54 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Type-check Edge Functions
+      - name: Type-check Edge Functions individually
+        id: edge-check
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mapfile -t functions < <(find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -print | sort)
+          : > deno-check.log
 
           if [ "${#functions[@]}" -eq 0 ]; then
-            echo 'Nenhuma Edge Function encontrada.'
+            echo 'Nenhuma Edge Function encontrada.' | tee -a deno-check.log
             exit 1
           fi
 
-          deno check "${functions[@]}"
+          failed=0
+          echo '## Supabase Edge Functions' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Function | Result |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|' >> "$GITHUB_STEP_SUMMARY"
+
+          for function_file in "${functions[@]}"; do
+            function_name=$(basename "$(dirname "$function_file")")
+            echo "===== $function_name ($function_file) =====" | tee -a deno-check.log
+
+            set +e
+            deno check "$function_file" 2>&1 | tee -a deno-check.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              echo "| \`$function_name\` | ✅ |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| \`$function_name\` | ❌ |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error file=$function_file::deno check falhou para $function_name"
+              failed=1
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo '' >> "$GITHUB_STEP_SUMMARY"
+            echo 'O relatório completo está no artefato `deno-check-report`.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Upload Deno check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deno-check-report
+          path: deno-check.log
+          if-no-files-found: error
+          retention-days: 14
