@@ -1,4 +1,4 @@
-name: Run Panel Auth UI Migration
+name: Validate Migrated Panel Auth UI
 
 on:
   pull_request:
@@ -6,64 +6,20 @@ on:
       - agent/runner-panel-auth-ui-base
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
-    if: github.head_ref == 'agent/frontend-panel-supabase-auth' && github.actor != 'github-actions[bot]'
+  validate:
+    if: github.head_ref == 'agent/frontend-panel-supabase-auth'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/frontend-panel-supabase-auth
-          fetch-depth: 0
 
-      - name: Extract and execute UI codemod
-        id: codemod
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          awk '
-            /python - <<'"'"'PY'"'"'/ { capture=1; next }
-            capture && /^          PY$/ { capture=0; exit }
-            capture { sub(/^          /, ""); print }
-          ' .github/workflows/apply-panel-auth-ui.yml > /tmp/codemod.py
-          python /tmp/codemod.py 2>&1 | tee panel-auth-codemod.log
-
-      - name: Upload codemod diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: panel-auth-codemod-diagnostics
-          path: panel-auth-codemod.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Stop after codemod failure
-        if: steps.codemod.outcome == 'failure'
-        run: exit 1
-
-      - name: Remove the remaining legacy admin header
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('admin-panel/dashboard.html')
-          source = path.read_text(encoding='utf-8')
-          old = "      'Accept': 'application/json',\n      'x-admin-token': token()\n"
-          new = "      'Accept': 'application/json'\n"
-
-          if old in source:
-              source = source.replace(old, new, 1)
-
-          path.write_text(source, encoding='utf-8')
-          PY
-
-      - name: Validate local auth client and generated config
+      - name: Validate auth client and generated configuration
         shell: bash
         run: |
           set -euo pipefail
@@ -71,6 +27,11 @@ jobs:
           SUPABASE_URL=https://example.supabase.co \
           SUPABASE_ANON_KEY=public-anon-key-for-build-validation-only-1234567890 \
           node scripts/generate-panel-config.mjs
+
+      - name: Validate migrated login surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
 
           if grep -RInE 'id="accessToken"|id="sellerToken"|x-admin-token|x-seller-token' \
             admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html; then
@@ -82,12 +43,37 @@ jobs:
           grep -q 'id="password"' admin-panel/index.html
           grep -q 'id="sellerEmail"' admin-panel/seller.html
           grep -q 'id="sellerPassword"' admin-panel/seller.html
+          grep -q 'panel-auth-session.js' admin-panel/index.html
+          grep -q 'panel-auth-session.js' admin-panel/dashboard.html
+          grep -q 'panel-auth-session.js' admin-panel/seller.html
 
-      - name: Commit validated change
+      - name: Parse inline JavaScript blocks
         shell: bash
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html
-          git commit -m 'frontend: migrate panel login to Supabase Auth'
-          git push origin HEAD:agent/frontend-panel-supabase-auth
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          output = Path('/tmp/panel-inline-js')
+          output.mkdir(parents=True, exist_ok=True)
+
+          count = 0
+          for html_path in [
+              Path('admin-panel/index.html'),
+              Path('admin-panel/dashboard.html'),
+              Path('admin-panel/seller.html'),
+          ]:
+              html = html_path.read_text(encoding='utf-8')
+              blocks = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', html, flags=re.I | re.S)
+              for index, block in enumerate(blocks, start=1):
+                  count += 1
+                  target = output / f'{html_path.stem}-{index}.js'
+                  target.write_text(block, encoding='utf-8')
+                  print(target)
+
+          if count == 0:
+              raise SystemExit('Nenhum script inline foi encontrado para validação.')
+          PY
+
+          find /tmp/panel-inline-js -type f -name '*.js' -print0 | \
+            xargs -0 -n1 node --check
