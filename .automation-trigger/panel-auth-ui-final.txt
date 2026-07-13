@@ -1,1 +1,0 @@
-Trigger the corrected panel auth UI runner from its temporary base.
