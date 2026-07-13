@@ -1,0 +1,1 @@
+Trigger authenticated admin JWT codemod.
