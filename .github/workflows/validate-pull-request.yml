@@ -1,0 +1,89 @@
+name: Validate Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-and-server:
+    name: Web, parser and production server
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify parser, TypeScript and standard build
+        run: npm run verify
+
+      - name: Validate production server syntax
+        run: node --check server.mjs
+
+      - name: Build single-file distribution
+        run: npm run build:singlefile
+
+      - name: Publish bundle measurements
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '## Bundle measurements' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '| File | Bytes | MiB |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---:|---:|' >> "$GITHUB_STEP_SUMMARY"
+
+          find dist -type f -print0 | sort -z | while IFS= read -r -d '' file; do
+            bytes=$(stat -c '%s' "$file")
+            mib=$(awk -v value="$bytes" 'BEGIN { printf "%.2f", value / 1024 / 1024 }')
+            echo "| \`$file\` | $bytes | $mib |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          total=$(find dist -type f -printf '%s\n' | awk '{sum += $1} END {print sum + 0}')
+          total_mib=$(awk -v value="$total" 'BEGIN { printf "%.2f", value / 1024 / 1024 }')
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo "**Total: $total bytes ($total_mib MiB)**" >> "$GITHUB_STEP_SUMMARY"
+
+  edge-functions:
+    name: Supabase Edge Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t functions < <(find supabase/functions -mindepth 2 -maxdepth 2 -name index.ts -print | sort)
+
+          if [ "${#functions[@]}" -eq 0 ]; then
+            echo 'Nenhuma Edge Function encontrada.'
+            exit 1
+          fi
+
+          deno check "${functions[@]}"
