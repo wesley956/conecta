@@ -30,6 +30,23 @@ jobs:
           ' .github/workflows/apply-panel-auth-ui.yml > /tmp/codemod.py
           python /tmp/codemod.py
 
+      - name: Remove the remaining legacy admin header
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('admin-panel/dashboard.html')
+          source = path.read_text(encoding='utf-8')
+          old = "      'Accept': 'application/json',\n      'x-admin-token': token()\n"
+          new = "      'Accept': 'application/json'\n"
+
+          if source.count(old) != 1:
+              raise SystemExit('Header legado do dashboard não encontrado exatamente uma vez.')
+
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Validate local auth client and generated config
         shell: bash
         run: |
