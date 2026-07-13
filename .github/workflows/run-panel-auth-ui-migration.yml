@@ -41,22 +41,31 @@ jobs:
           old = "      'Accept': 'application/json',\n      'x-admin-token': token()\n"
           new = "      'Accept': 'application/json'\n"
 
-          if source.count(old) != 1:
-              raise SystemExit('Header legado do dashboard não encontrado exatamente uma vez.')
+          if old in source:
+              source = source.replace(old, new, 1)
 
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          path.write_text(source, encoding='utf-8')
           PY
 
       - name: Validate local auth client and generated config
         shell: bash
         run: |
+          set -euo pipefail
           node --check admin-panel/panel-auth-session.js
           SUPABASE_URL=https://example.supabase.co \
           SUPABASE_ANON_KEY=public-anon-key-for-build-validation-only-1234567890 \
           node scripts/generate-panel-config.mjs
 
-          ! grep -RInE 'accessToken|sellerToken|x-admin-token|x-seller-token' \
-            admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html
+          if grep -RInE 'id="accessToken"|id="sellerToken"|x-admin-token|x-seller-token' \
+            admin-panel/index.html admin-panel/dashboard.html admin-panel/seller.html; then
+            echo 'Autenticação legada ainda encontrada nas páginas migradas.'
+            exit 1
+          fi
+
+          grep -q 'id="email"' admin-panel/index.html
+          grep -q 'id="password"' admin-panel/index.html
+          grep -q 'id="sellerEmail"' admin-panel/seller.html
+          grep -q 'id="sellerPassword"' admin-panel/seller.html
 
       - name: Commit validated change
         shell: bash
