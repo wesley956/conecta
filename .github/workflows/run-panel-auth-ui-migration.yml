@@ -3,7 +3,7 @@ name: Run Panel Auth UI Migration
 on:
   pull_request:
     branches:
-      - agent/security-session-only-panel-tokens
+      - agent/runner-panel-auth-ui-base
 
 permissions:
   contents: write
