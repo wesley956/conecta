@@ -34,22 +34,18 @@ type HlsPrototype = {
   [key: symbol]: unknown;
 };
 
-type HlsDefaultConfig = Record<string, unknown> & {
-  [key: symbol]: unknown;
-};
-
 type HlsConstructor = {
   prototype: HlsPrototype;
-  DefaultConfig?: HlsDefaultConfig;
+  DefaultConfig?: Record<string, unknown>;
 };
 
 type HlsListener = (instance: ObservedHlsInstance | null) => void;
 
 const PATCHED = Symbol.for('ronecaplaytv.hls-observer-patched');
-const DEFAULTS_PATCHED = Symbol.for('ronecaplaytv.hls-defaults-patched');
 const listeners = new Set<HlsListener>();
 let currentInstance: ObservedHlsInstance | null = null;
 let installPromise: Promise<void> | null = null;
+let defaultsPatched = false;
 
 function publish(instance: ObservedHlsInstance | null) {
   currentInstance = instance;
@@ -59,7 +55,7 @@ function publish(instance: ObservedHlsInstance | null) {
 function applyIptvDefaults(Hls: HlsConstructor) {
   const defaults = Hls.DefaultConfig;
 
-  if (!defaults || defaults[DEFAULTS_PATCHED]) return;
+  if (!defaults || defaultsPatched) return;
 
   Object.assign(defaults, {
     // Começa em seleção automática e limita níveis maiores que a área do player.
@@ -92,7 +88,7 @@ function applyIptvDefaults(Hls: HlsConstructor) {
     fragLoadingMaxRetryTimeout: 10_000,
   });
 
-  defaults[DEFAULTS_PATCHED] = true;
+  defaultsPatched = true;
 }
 
 export function getObservedHlsInstance() {
