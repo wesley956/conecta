@@ -1,0 +1,77 @@
+name: Temporary Admin JWT Validation
+
+on:
+  pull_request:
+    branches:
+      - agent/runner-admin-jwt-base
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-commit:
+    if: github.head_ref == 'agent/backend-admin-jwt-auth'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/backend-admin-jwt-auth
+          fetch-depth: 0
+
+      - name: Apply admin JWT codemod
+        shell: bash
+        run: |
+          awk '
+            /python - <<'"'"'PY'"'"'/ { capture=1; next }
+            capture && /^          PY$/ { capture=0; exit }
+            capture { sub(/^          /, ""); print }
+          ' .github/workflows/apply-admin-jwt-auth.yml > /tmp/codemod.py
+          python /tmp/codemod.py
+
+      - name: Normalize customer relation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/admin-panel/index.ts')
+          source = path.read_text(encoding='utf-8')
+
+          if 'customerName: currentCustomer?.name || null,' not in source:
+              marker = "      let creditConsumption = null;\n\n      if (isActivation || isRenewal) {"
+              replacement = """      const currentCustomer = Array.isArray(currentDevice.customer)
+        ? currentDevice.customer[0] ?? null
+        : currentDevice.customer;
+
+      let creditConsumption = null;
+
+      if (isActivation || isRenewal) {"""
+              if source.count(marker) != 1:
+                  raise SystemExit('Marcador do relacionamento customer não encontrado.')
+              source = source.replace(marker, replacement, 1)
+
+              old = 'customerName: currentDevice.customer?.name || null,'
+              if source.count(old) != 1:
+                  raise SystemExit('Acesso legado ao customer não encontrado.')
+              source = source.replace(old, 'customerName: currentCustomer?.name || null,', 1)
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check admin JWT
+        run: deno check supabase/functions/admin-panel/index.ts supabase/functions/_shared/panelAuth.ts
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/admin-panel/index.ts
+          git commit -m 'backend: require authenticated admin JWT'
+          git push origin HEAD:agent/backend-admin-jwt-auth
