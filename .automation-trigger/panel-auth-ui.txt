@@ -1,1 +1,0 @@
-Trigger the one-time Supabase Auth panel UI migration.
