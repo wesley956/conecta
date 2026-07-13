@@ -242,8 +242,11 @@
         </div>
       </div>
 
-      <label for="sellerToken">Token do vendedor</label>
-      <input id="sellerToken" type="password" autocomplete="off" placeholder="Cole o token recebido pelo administrador" />
+      <label for="sellerEmail">Email</label>
+      <input id="sellerEmail" type="email" autocomplete="username" placeholder="seu@email.com" />
+
+      <label for="sellerPassword">Senha</label>
+      <input id="sellerPassword" type="password" autocomplete="current-password" placeholder="Digite sua senha" />
 
       <div class="actions">
         <button class="primary" onclick="login()">Entrar</button>
@@ -342,9 +345,10 @@
     </section>
   </main>
 
+  <script src="./panel-config.js"></script>
+  <script src="./panel-auth-session.js"></script>
   <script>
     const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
-    const TOKEN_KEY = 'roneca_seller_token';
     let currentPortalData = null;
 
     function $(id) {
@@ -401,12 +405,11 @@
         .replace(/[\u0300-\u036f]/g, '');
     }
 
-    async function fetchPortal(token) {
+    async function fetchPortal() {
       const res = await fetch(API, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-seller-token': token
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ action: 'dashboard' })
       });
@@ -417,34 +420,36 @@
     }
 
     async function login() {
-      const token = $('sellerToken').value.trim();
-      if (!token) {
-        $('loginMsg').textContent = 'Digite o token do vendedor.';
+      const email = $('sellerEmail').value.trim();
+      const password = $('sellerPassword').value;
+
+      if (!email || !password) {
+        $('loginMsg').textContent = 'Informe email e senha.';
         return;
       }
 
       try {
-        const data = await fetchPortal(token);
-        sessionStorage.setItem(TOKEN_KEY, token);
+        await RonecaPanelAuth.signIn(email, password);
+        const data = await fetchPortal();
         renderPortal(data);
       } catch (err) {
-        $('loginMsg').textContent = err.message || 'Token inválido.';
+        await RonecaPanelAuth.signOut();
+        $('loginMsg').textContent = err.message || 'Acesso inválido.';
       }
     }
 
     async function loadPortal() {
-      const token = sessionStorage.getItem(TOKEN_KEY) || '';
-      if (!token) {
+      if (!RonecaPanelAuth.hasSession()) {
         $('loginView').classList.remove('hide');
         $('dashboardView').classList.add('hide');
         return;
       }
 
       try {
-        const data = await fetchPortal(token);
+        const data = await fetchPortal();
         renderPortal(data);
       } catch (err) {
-        sessionStorage.removeItem(TOKEN_KEY);
+        await RonecaPanelAuth.signOut();
         $('loginMsg').textContent = err.message || 'Faça login novamente.';
         $('loginView').classList.remove('hide');
         $('dashboardView').classList.add('hide');
@@ -557,14 +562,14 @@
       $('dashboardView').classList.remove('hide');
     }
 
-    function logout() {
-      sessionStorage.removeItem(TOKEN_KEY);
-      $('sellerToken').value = '';
+    async function logout() {
+      await RonecaPanelAuth.signOut();
+      $('sellerPassword').value = '';
       $('loginView').classList.remove('hide');
       $('dashboardView').classList.add('hide');
     }
 
-    if ($('sellerToken')) $('sellerToken').addEventListener('keydown', event => {
+    if ($('sellerPassword')) $('sellerPassword').addEventListener('keydown', event => {
       if (event.key === 'Enter') login();
     });
 

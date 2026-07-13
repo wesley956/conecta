@@ -1520,10 +1520,10 @@ tbody tr:hover td {
     <div id="msg" class="msg">Painel carregado.</div>
   </main>
 
+<script src="./panel-config.js"></script>
+<script src="./panel-auth-session.js"></script>
 <script>
 const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
-const KEY = 'cruz-stars-admin-token';
-
 let customers = [];
 let playlists = [];
 let devices = [];
@@ -1536,7 +1536,7 @@ let auditLogs = [];
 const $ = id => document.getElementById(id);
 
 function token() {
-  return sessionStorage.getItem(KEY) || '';
+  return RonecaPanelAuth.hasSession() ? 'authenticated-session' : '';
 }
 
 function esc(value) {
@@ -1711,8 +1711,7 @@ async function api(action, payload = {}) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'x-admin-token': token()
+      'Accept': 'application/json'
     },
     body: JSON.stringify({ action, ...payload })
   });
@@ -3332,8 +3331,8 @@ async function updatePlan(id) {
 }
 
 
-function logout() {
-  sessionStorage.removeItem(KEY);
+async function logout() {
+  await RonecaPanelAuth.signOut();
   window.location.href = './index.html';
 }
 
