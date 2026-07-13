@@ -1,0 +1,80 @@
+name: Apply Playlist Update Guard
+
+on:
+  push:
+    branches:
+      - agent/fix-store-playlist-update-not-found
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/fix-store-playlist-update-not-found
+          fetch-depth: 0
+
+      - name: Apply exact playlist update guard
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/stores/appStore.ts')
+          source = path.read_text(encoding='utf-8')
+
+          old = """  updatePlaylist: (playlistId, partial) => set((state) => ({
+    playlists: state.playlists.map((playlist) =>
+      playlist.id === playlistId
+        ? { ...playlist, ...partial, lastSync: partial.lastSync ?? playlist.lastSync }
+        : playlist
+    ),
+    activeNotice: '✅ Lista atualizada.',
+  })),"""
+
+          new = """  updatePlaylist: (playlistId, partial) => set((state) => {
+    const exists = state.playlists.some((playlist) => playlist.id === playlistId);
+
+    if (!exists) {
+      return {
+        activeNotice: `Atenção: lista ${playlistId} não encontrada.`,
+      };
+    }
+
+    return {
+      playlists: state.playlists.map((playlist) =>
+        playlist.id === playlistId
+          ? { ...playlist, ...partial, lastSync: partial.lastSync ?? playlist.lastSync }
+          : playlist
+      ),
+      activeNotice: '✅ Lista atualizada.',
+    };
+  }),"""
+
+          if source.count(old) != 1:
+              raise SystemExit('Bloco updatePlaylist não encontrado exatamente uma vez.')
+
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check frontend
+        run: npm run typecheck
+
+      - name: Commit generated patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/stores/appStore.ts
+          git commit -m 'fix: report missing playlist updates'
+          git push origin HEAD:agent/fix-store-playlist-update-not-found
