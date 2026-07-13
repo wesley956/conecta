@@ -34,13 +34,17 @@ type HlsPrototype = {
   [key: symbol]: unknown;
 };
 
+type HlsDefaultConfig = Record<string, unknown>;
+
 type HlsConstructor = {
   prototype: HlsPrototype;
+  DefaultConfig?: HlsDefaultConfig;
 };
 
 type HlsListener = (instance: ObservedHlsInstance | null) => void;
 
 const PATCHED = Symbol.for('ronecaplaytv.hls-observer-patched');
+const DEFAULTS_PATCHED = Symbol.for('ronecaplaytv.hls-defaults-patched');
 const listeners = new Set<HlsListener>();
 let currentInstance: ObservedHlsInstance | null = null;
 let installPromise: Promise<void> | null = null;
@@ -48,6 +52,45 @@ let installPromise: Promise<void> | null = null;
 function publish(instance: ObservedHlsInstance | null) {
   currentInstance = instance;
   for (const listener of listeners) listener(instance);
+}
+
+function applyIptvDefaults(Hls: HlsConstructor) {
+  const defaults = Hls.DefaultConfig;
+
+  if (!defaults || defaults[DEFAULTS_PATCHED]) return;
+
+  Object.assign(defaults, {
+    // Começa em seleção automática e limita níveis maiores que a área do player.
+    startLevel: -1,
+    capLevelToPlayerSize: true,
+
+    // IPTV tradicional costuma funcionar melhor sem o modo LL-HLS agressivo.
+    lowLatencyMode: false,
+    liveSyncDurationCount: 3,
+    liveMaxLatencyDurationCount: 10,
+    maxLiveSyncPlaybackRate: 1.25,
+
+    // Recuperação de pequenos buracos de buffer sem recarregar a página.
+    nudgeOffset: 0.1,
+    nudgeMaxRetry: 3,
+
+    // Timeouts e backoff dos carregadores. Os limites específicos de memória
+    // continuam sendo definidos pelo perfil low/medium/high do PlayerV2Screen.
+    manifestLoadingTimeOut: 15_000,
+    manifestLoadingMaxRetry: 4,
+    manifestLoadingRetryDelay: 1_000,
+    manifestLoadingMaxRetryTimeout: 8_000,
+    levelLoadingTimeOut: 15_000,
+    levelLoadingMaxRetry: 4,
+    levelLoadingRetryDelay: 1_000,
+    levelLoadingMaxRetryTimeout: 8_000,
+    fragLoadingTimeOut: 20_000,
+    fragLoadingMaxRetry: 6,
+    fragLoadingRetryDelay: 1_000,
+    fragLoadingMaxRetryTimeout: 10_000,
+  });
+
+  defaults[DEFAULTS_PATCHED] = true;
 }
 
 export function getObservedHlsInstance() {
@@ -71,6 +114,8 @@ export function installHlsObserver() {
       const exported = (module as { default?: unknown }).default ?? module;
       const Hls = exported as HlsConstructor;
       const prototype = Hls.prototype;
+
+      applyIptvDefaults(Hls);
 
       if (!prototype || prototype[PATCHED]) return;
 
