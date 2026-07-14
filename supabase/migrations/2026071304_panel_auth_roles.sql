@@ -16,8 +16,9 @@ create unique index if not exists panel_user_roles_seller_id_uidx
   where seller_id is not null;
 
 alter table public.panel_user_roles enable row level security;
+alter table public.panel_user_roles force row level security;
 
-revoke all on table public.panel_user_roles from anon, authenticated;
+revoke all on table public.panel_user_roles from public, anon, authenticated;
 grant all on table public.panel_user_roles to service_role;
 
 create or replace function public.touch_panel_user_roles_updated_at()
@@ -39,6 +40,12 @@ before update on public.panel_user_roles
 for each row
 execute function public.touch_panel_user_roles_updated_at();
 
+revoke all on function public.touch_panel_user_roles_updated_at()
+  from public, anon, authenticated;
+
+grant execute on function public.touch_panel_user_roles_updated_at()
+  to service_role;
+
 create or replace function public.assign_panel_role(
   p_user_id uuid,
   p_role text,
@@ -52,13 +59,20 @@ set search_path = public
 as $$
 declare
   v_result public.panel_user_roles;
+  v_active boolean := coalesce(p_active, true);
 begin
   if p_user_id is null then
     raise exception using errcode = '22023', message = 'Usuário é obrigatório.';
   end if;
 
-  if p_role not in ('admin', 'seller') then
+  if p_role is null or p_role not in ('admin', 'seller') then
     raise exception using errcode = '22023', message = 'Papel inválido.';
+  end if;
+
+  if not exists (
+    select 1 from auth.users where id = p_user_id
+  ) then
+    raise exception using errcode = 'P0002', message = 'Usuário autenticado não encontrado.';
   end if;
 
   if p_role = 'admin' and p_seller_id is not null then
@@ -75,6 +89,15 @@ begin
     raise exception using errcode = 'P0002', message = 'Vendedor não encontrado.';
   end if;
 
+  if p_seller_id is not null and exists (
+    select 1
+      from public.panel_user_roles
+     where seller_id = p_seller_id
+       and user_id <> p_user_id
+  ) then
+    raise exception using errcode = '23505', message = 'Este vendedor já está vinculado a outro usuário.';
+  end if;
+
   insert into public.panel_user_roles (
     user_id,
     role,
@@ -84,7 +107,7 @@ begin
     p_user_id,
     p_role,
     p_seller_id,
-    p_active
+    v_active
   )
   on conflict (user_id) do update
     set role = excluded.role,
@@ -112,6 +135,10 @@ security definer
 set search_path = public
 as $$
 begin
+  if p_user_id is null then
+    raise exception using errcode = '22023', message = 'Usuário é obrigatório.';
+  end if;
+
   update public.panel_user_roles
      set active = false,
          updated_at = now()
