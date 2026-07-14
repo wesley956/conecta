@@ -1,0 +1,3 @@
+Solicitação de build Android de teste.
+Data: 2026-07-14
+Base: main após o rollout administrativo JWT.
