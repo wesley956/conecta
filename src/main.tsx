@@ -5,6 +5,7 @@ import './styles/adaptive.css';
 import './runtime/adaptiveRuntime';
 import './runtime/nativeNavigation';
 import './runtime/accessGuard';
+import './runtime/storeConsistency';
 import App from './App';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 
