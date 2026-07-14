@@ -1,4 +1,5 @@
 import { parseM3U, type ParsedM3UResult } from '@/utils/m3u';
+import { normalizeM3UInput } from '@/utils/normalizeM3U';
 
 type ParseWorkerResponse =
   | {
@@ -21,29 +22,6 @@ function canUseWorker() {
 
 function getUtf8Size(content: string) {
   return new TextEncoder().encode(content).byteLength;
-}
-
-export function normalizeM3UInput(content: string) {
-  return String(content ?? '')
-    .replace(/^\uFEFF/, '')
-    .replace(/\u0000/g, '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map(line => {
-      const trimmedStart = line.trimStart();
-      const indentation = line.slice(0, line.length - trimmedStart.length);
-
-      if (/^#extm3u\b/i.test(trimmedStart)) {
-        return indentation + trimmedStart.replace(/^#extm3u\b/i, '#EXTM3U');
-      }
-
-      if (/^#extinf\s*:/i.test(trimmedStart)) {
-        return indentation + trimmedStart.replace(/^#extinf\s*:/i, '#EXTINF:');
-      }
-
-      return line;
-    })
-    .join('\n');
 }
 
 function parseOnMainThread(content: string, playlistId: string, sourceUrl: string) {
