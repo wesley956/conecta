@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 function json(body: unknown, status = 200) {
@@ -13,6 +13,7 @@ function json(body: unknown, status = 200) {
     headers: {
       ...corsHeaders,
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
     },
   });
 }
@@ -37,6 +38,28 @@ function makeDeviceCode() {
   return `RPTV-${suffix}`;
 }
 
+function makeDeviceCredential() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+
+  const binary = String.fromCharCode(...bytes);
+  return btoa(binary)
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
+    .replace(/=+$/g, '');
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  );
+
+  return [...new Uint8Array(digest)]
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function normalizeWhatsapp(value: unknown) {
   return String(value ?? '')
     .replace(/[^\d+]/g, '')
@@ -48,32 +71,12 @@ function textOrNull(value: unknown) {
   return text || null;
 }
 
-function normalizeSellerCode(value: unknown) {
-  const text = String(value ?? '').trim().toLowerCase();
-  return text || null;
-}
-
-function isValidSellerPublicCode(value: string | null) {
-  if (!value) return true;
-  return /^[a-z0-9][a-z0-9-]{2,63}$/.test(value);
-}
-
-async function readPayload(request: Request) {
-  if (request.method === 'GET') {
-    const url = new URL(request.url);
-
-    return {
-      deviceUuid: url.searchParams.get('deviceUuid'),
-      deviceType: url.searchParams.get('deviceType'),
-      appVersion: url.searchParams.get('appVersion'),
-      customerName: url.searchParams.get('customerName'),
-      customerWhatsapp: url.searchParams.get('customerWhatsapp'),
-      sellerCode: url.searchParams.get('sellerCode'),
-    };
-  }
-
+async function readPayload(request: Request): Promise<Record<string, unknown>> {
   try {
-    return await request.json();
+    const payload = await request.json();
+    return payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : {};
   } catch {
     return {};
   }
@@ -85,7 +88,7 @@ async function findSellerByCode(supabase: any, sellerCode: string | null) {
   const { data, error } = await supabase
     .from('panel_sellers')
     .select('id, name, status, public_code')
-    .eq('public_code', sellerCode)
+    .eq('public_code', sellerCode.toLowerCase())
     .maybeSingle();
 
   if (error) {
@@ -133,7 +136,14 @@ async function upsertBasicCustomer(
       if (sellerId && !existing.seller_id) updates.seller_id = sellerId;
 
       if (Object.keys(updates).length > 1) {
-        await supabase.from('panel_customers').update(updates).eq('id', existing.id);
+        const { error: updateError } = await supabase
+          .from('panel_customers')
+          .update(updates)
+          .eq('id', existing.id);
+
+        if (updateError) {
+          throw new Error(`Falha ao atualizar cliente: ${updateError.message}`);
+        }
       }
 
       return existing.id;
@@ -159,12 +169,44 @@ async function upsertBasicCustomer(
   return created.id;
 }
 
+async function issueCredentialIfMissing(
+  supabase: any,
+  deviceId: string,
+  existingHash: string | null,
+) {
+  if (existingHash) return null;
+
+  const deviceCredential = makeDeviceCredential();
+  const deviceCredentialHash = await sha256Hex(deviceCredential);
+  const issuedAt = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('panel_devices')
+    .update({
+      device_credential_hash: deviceCredentialHash,
+      credential_issued_at: issuedAt,
+      updated_at: issuedAt,
+    })
+    .eq('id', deviceId)
+    .is('device_credential_hash', null)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Falha ao emitir credencial do aparelho: ${error.message}`);
+  }
+
+  // Outra requisição pode ter emitido a credencial primeiro. Nesse caso, não
+  // revelamos um segredo que não corresponde ao hash salvo.
+  return data ? deviceCredential : null;
+}
+
 serve(async request => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  if (request.method !== 'GET' && request.method !== 'POST') {
+  if (request.method !== 'POST') {
     return json({ active: false, message: 'Método não permitido.' }, 405);
   }
 
@@ -192,7 +234,17 @@ serve(async request => {
     }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  if (deviceUuid.length > 160) {
+    return json({
+      active: false,
+      status: 'pending',
+      message: 'Identificador do aparelho inválido.',
+    }, 400);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 
   try {
     const seller = sellerCode ? await findSellerByCode(supabase, sellerCode) : null;
@@ -206,11 +258,26 @@ serve(async request => {
     }
 
     const sellerId = seller?.id ?? null;
-    const customerId = await upsertBasicCustomer(supabase, customerName, customerWhatsapp, sellerId);
+    const customerId = await upsertBasicCustomer(
+      supabase,
+      customerName,
+      customerWhatsapp,
+      sellerId,
+    );
 
     const { data: existingDevice, error: existingError } = await supabase
       .from('panel_devices')
-      .select('id, device_code, client_name, status, subscription_expires_at, customer_id, seller_id')
+      .select(`
+        id,
+        device_code,
+        device_uuid,
+        device_credential_hash,
+        client_name,
+        status,
+        subscription_expires_at,
+        customer_id,
+        seller_id
+      `)
       .eq('device_uuid', deviceUuid)
       .maybeSingle();
 
@@ -231,15 +298,32 @@ serve(async request => {
     if (sellerId) baseUpdate.seller_id = sellerId;
 
     if (existingDevice) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('panel_devices')
         .update(baseUpdate)
-        .eq('id', existingDevice.id);
+        .eq('id', existingDevice.id)
+        .eq('device_uuid', deviceUuid);
+
+      if (updateError) {
+        return json({
+          active: false,
+          status: 'pending',
+          message: updateError.message,
+        }, 500);
+      }
+
+      const deviceCredential = await issueCredentialIfMissing(
+        supabase,
+        existingDevice.id,
+        existingDevice.device_credential_hash,
+      );
 
       return json({
         active: existingDevice.status === 'active',
         status: existingDevice.status,
         deviceCode: existingDevice.device_code,
+        deviceCredential,
+        credentialIssued: Boolean(deviceCredential),
         clientName: customerName || existingDevice.client_name,
         customerName,
         customerWhatsapp,
@@ -252,6 +336,10 @@ serve(async request => {
       });
     }
 
+    const deviceCredential = makeDeviceCredential();
+    const deviceCredentialHash = await sha256Hex(deviceCredential);
+    const issuedAt = new Date().toISOString();
+
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const deviceCode = makeDeviceCode();
 
@@ -260,6 +348,8 @@ serve(async request => {
         .insert({
           device_code: deviceCode,
           device_uuid: deviceUuid,
+          device_credential_hash: deviceCredentialHash,
+          credential_issued_at: issuedAt,
           client_name: customerName,
           customer_id: customerId,
           seller_id: sellerId,
@@ -267,8 +357,8 @@ serve(async request => {
           device_type: deviceType,
           app_version: appVersion,
           last_ip: lastIp,
-          last_seen_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          last_seen_at: issuedAt,
+          updated_at: issuedAt,
         })
         .select('id, device_code, status')
         .single();
@@ -278,6 +368,8 @@ serve(async request => {
           active: false,
           status: 'pending',
           deviceCode: data.device_code,
+          deviceCredential,
+          credentialIssued: true,
           clientName: customerName,
           customerName,
           customerWhatsapp,
@@ -291,6 +383,19 @@ serve(async request => {
 
       if (!message.includes('duplicate') && !message.includes('unique')) {
         return json({ active: false, status: 'pending', message }, 500);
+      }
+
+      // Se o conflito foi no UUID ou no hash, outra requisição criou o aparelho.
+      // O cliente deve repetir a ativação para consultar o registro já existente.
+      if (
+        message.includes('device_uuid') ||
+        message.includes('device_credential_hash')
+      ) {
+        return json({
+          active: false,
+          status: 'pending',
+          message: 'Aparelho criado por outra solicitação. Atualize a liberação.',
+        }, 409);
       }
     }
 
