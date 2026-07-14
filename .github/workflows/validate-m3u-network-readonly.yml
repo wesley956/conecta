@@ -1,0 +1,30 @@
+name: Validate M3U Network Hardening Read-only
+
+on:
+  pull_request:
+    branches:
+      - agent/runner-m3u-network-base
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.head_ref == 'agent/network-cancel-m3u-downloads'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/network-cancel-m3u-downloads
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run check:m3u-parser
+      - run: npm run build
