@@ -142,106 +142,60 @@ async function getActivePlanForCharge(supabase: any, planId: string | null) {
   };
 }
 
-async function consumeSellerCredits(
+async function applyAdminDeviceSubscription(
   supabase: any,
   payload: {
     sellerId: string;
     deviceId: string;
     deviceCode?: string | null;
-    type: 'activation' | 'renewal';
-    creditCost: number;
-    planName?: string | null;
+    customerId?: string | null;
     customerName?: string | null;
+    planId: string;
+    planName?: string | null;
+    playlistId: string;
+    expiresAt: string;
+    type: 'activation' | 'renewal';
+    idempotencyKey: string;
   },
 ) {
-  const cost = Math.max(1, Math.floor(Number(payload.creditCost || 1)));
+  const { data, error } = await supabase.rpc('apply_device_subscription_transaction', {
+    p_seller_id: payload.sellerId,
+    p_device_id: payload.deviceId,
+    p_plan_id: payload.planId,
+    p_playlist_id: payload.playlistId,
+    p_expires_at: payload.expiresAt,
+    p_operation_type: payload.type,
+    p_performed_by: 'admin',
+    p_idempotency_key: payload.idempotencyKey,
+    p_customer_id: payload.customerId || null,
+    p_client_name: payload.customerName || null,
+    p_enforce_seller_ownership: false,
+  });
 
-  const { data: seller, error: sellerError } = await supabase
-    .from('panel_sellers')
-    .select('id, name, status, credit_balance, can_go_negative, public_code')
-    .eq('id', payload.sellerId)
-    .single();
-
-  if (sellerError) {
-    throw new Error(`Vendedor não encontrado: ${sellerError.message}`);
+  if (error) {
+    throw new Error(`Falha na operação comercial: ${error.message}`);
   }
 
-  if (seller.status !== 'active') {
-    throw new Error('Vendedor bloqueado ou inativo. Não é possível consumir crédito.');
-  }
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) throw new Error('A operação comercial não retornou resultado.');
 
-  const currentBalance = Number(seller.credit_balance || 0);
-
-  const duplicateSince = new Date(Date.now() - 15000).toISOString();
-  const { data: recentCharge, error: recentChargeError } = await supabase
-    .from('panel_credit_ledger')
-    .select('id, created_at')
-    .eq('seller_id', payload.sellerId)
-    .eq('reference_id', payload.deviceId)
-    .eq('type', payload.type)
-    .gte('created_at', duplicateSince)
-    .limit(1);
-
-  if (recentChargeError) {
-    throw new Error(`Falha ao verificar cobrança duplicada: ${recentChargeError.message}`);
-  }
-
-  if ((recentCharge ?? []).length > 0) {
-    throw new Error('Operação duplicada detectada. Aguarde alguns segundos antes de tentar novamente.');
-  }
-
-  const balanceAfter = currentBalance - cost;
-
-  if (balanceAfter < 0 && seller.can_go_negative !== true) {
-    throw new Error(`Saldo insuficiente para ${seller.name}. Saldo atual: ${currentBalance}. Custo: ${cost}.`);
-  }
-
-  const customerText = payload.customerName ? ` — cliente ${payload.customerName}` : '';
-  const planText = payload.planName ? ` — plano ${payload.planName}` : '';
-
-  const description =
-    `${payload.type === 'activation' ? 'Ativação' : 'Renovação'} do aparelho ${payload.deviceCode || payload.deviceId}` +
-    customerText +
-    planText;
-
-  const { error: updateError } = await supabase
-    .from('panel_sellers')
-    .update({
-      credit_balance: balanceAfter,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', payload.sellerId);
-
-  if (updateError) {
-    throw new Error(`Falha ao atualizar saldo do vendedor: ${updateError.message}`);
-  }
-
-  const { error: ledgerError } = await supabase
-    .from('panel_credit_ledger')
-    .insert({
-      seller_id: payload.sellerId,
-      amount: -cost,
-      type: payload.type,
-      reference_id: payload.deviceId,
-      description,
-      balance_after: balanceAfter,
-      performed_by: 'admin',
-    });
-
-  if (ledgerError) {
-    throw new Error(`Falha ao registrar extrato de crédito: ${ledgerError.message}`);
-  }
+  const balanceBefore = Number(result.balance_before ?? result.balanceBefore ?? 0);
+  const balanceAfter = Number(result.balance_after ?? result.balanceAfter ?? balanceBefore);
 
   return {
     sellerId: payload.sellerId,
-    sellerName: seller.name,
-    amount: -cost,
-    balanceBefore: currentBalance,
+    amount: balanceAfter - balanceBefore,
+    balanceBefore,
     balanceAfter,
     type: payload.type,
-    description,
+    applied: result.applied !== false,
+    ledgerId: result.ledger_id ?? result.ledgerId ?? null,
+    description:
+      `${payload.type === 'activation' ? 'Ativação' : 'Renovação'} do aparelho ` +
+      `${payload.deviceCode || payload.deviceId}${payload.planName ? ` — plano ${payload.planName}` : ''}`,
   };
 }
+
 
 
 async function writeAudit(
@@ -879,9 +833,12 @@ serve(async (req) => {
         .select(`
           id,
           device_code,
+          client_name,
+          customer_id,
           status,
           seller_id,
           plan_id,
+          playlist_id,
           subscription_expires_at,
           customer:panel_customers (
             id,
@@ -891,7 +848,9 @@ serve(async (req) => {
         .eq('id', id)
         .single();
 
-      if (currentError) return json({ error: currentError.message }, 500);
+      if (currentError || !currentDevice) {
+        return json({ error: currentError?.message || 'Aparelho não encontrado.' }, 404);
+      }
 
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -909,56 +868,101 @@ serve(async (req) => {
       const nextStatus = 'status' in body ? String(updates.status) : previousStatus;
       const nextSellerId = 'sellerId' in body ? textOrNull(body.sellerId) : (currentDevice.seller_id || null);
       const nextPlanId = 'planId' in body ? textOrNull(body.planId) : (currentDevice.plan_id || null);
+      const nextPlaylistId = 'playlistId' in body ? textOrNull(body.playlistId) : (currentDevice.playlist_id || null);
+      const nextCustomerId = 'customerId' in body ? textOrNull(body.customerId) : (currentDevice.customer_id || null);
       const previousExpiresAt = currentDevice.subscription_expires_at || null;
       const nextExpiresAt = 'expiresAt' in body ? textOrNull(body.expiresAt) : previousExpiresAt;
+      const requestedOperation = textOrNull(body.operationType);
 
-      const isActivation = previousStatus !== 'active' && nextStatus === 'active';
-      const isRenewal =
+      if (requestedOperation && !['activation', 'renewal'].includes(requestedOperation)) {
+        return json({ error: 'Tipo de operação comercial inválido.' }, 400);
+      }
+
+      if (
+        previousStatus === 'active' &&
+        nextStatus === 'active' &&
+        'expiresAt' in body &&
+        timestampOrZero(nextExpiresAt) < timestampOrZero(previousExpiresAt)
+      ) {
+        return json({ error: 'A validade de um aparelho ativo não pode ser reduzida.' }, 400);
+      }
+
+      const inferredActivation = previousStatus !== 'active' && nextStatus === 'active';
+      const inferredRenewal =
         previousStatus === 'active' &&
         nextStatus === 'active' &&
         'expiresAt' in body &&
         timestampOrZero(nextExpiresAt) > timestampOrZero(previousExpiresAt);
-
+      const operationType = requestedOperation || (inferredActivation ? 'activation' : (inferredRenewal ? 'renewal' : null));
       const currentCustomer = Array.isArray(currentDevice.customer)
         ? currentDevice.customer[0] ?? null
         : currentDevice.customer;
+      const nextClientName = 'clientName' in body
+        ? textOrNull(body.clientName)
+        : (currentDevice.client_name || currentCustomer?.name || null);
 
       let creditConsumption = null;
 
-      if (isActivation || isRenewal) {
-        if (!nextSellerId) {
-          return json({ error: 'Escolha um vendedor para consumir crédito.' }, 400);
+      if (operationType) {
+        if (nextStatus !== 'active') {
+          return json({ error: 'Ativação e renovação exigem status ativo.' }, 400);
         }
 
+        if (!nextSellerId) return json({ error: 'Escolha um vendedor para consumir crédito.' }, 400);
+        if (!nextPlanId) return json({ error: 'Escolha um plano para consumir crédito.' }, 400);
+        if (!nextPlaylistId) return json({ error: 'Escolha uma lista para ativar ou renovar.' }, 400);
+        if (!nextExpiresAt) return json({ error: 'Informe a validade da assinatura.' }, 400);
+
+        const idempotencyKey = requiredText(body.idempotencyKey, 'Chave de idempotência');
         const plan = await getActivePlanForCharge(supabase, nextPlanId);
 
-        creditConsumption = await consumeSellerCredits(supabase, {
+        creditConsumption = await applyAdminDeviceSubscription(supabase, {
           sellerId: nextSellerId,
           deviceId: id,
           deviceCode: currentDevice.device_code,
-          type: isActivation ? 'activation' : 'renewal',
-          creditCost: plan.creditCost,
+          customerId: nextCustomerId,
+          customerName: nextClientName,
+          planId: plan.id,
           planName: plan.name,
-          customerName: currentCustomer?.name || null,
+          playlistId: nextPlaylistId,
+          expiresAt: nextExpiresAt,
+          type: operationType as 'activation' | 'renewal',
+          idempotencyKey,
         });
+      } else {
+        const { error } = await supabase
+          .from('panel_devices')
+          .update(updates)
+          .eq('id', id);
+
+        if (error) return json({ error: error.message }, 500);
       }
 
-      const { error } = await supabase
-        .from('panel_devices')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) return json({ error: error.message }, 500);
+      const auditAction = operationType === 'activation'
+        ? 'device.activated'
+        : (operationType === 'renewal' ? 'device.renewed' : 'device.updated');
+      const auditDescription = operationType === 'activation'
+        ? 'Aparelho ativado com consumo atômico de crédito'
+        : (operationType === 'renewal'
+          ? 'Aparelho renovado com consumo atômico de crédito'
+          : 'Aparelho atualizado');
 
       await writeAudit(supabase, {
-        action: isActivation ? 'device.activated' : (isRenewal ? 'device.renewed' : 'device.updated'),
+        action: auditAction,
         entityType: 'device',
         entityId: id,
-        description: isActivation ? 'Aparelho ativado com consumo de crédito' : (isRenewal ? 'Aparelho renovado com consumo de crédito' : 'Aparelho atualizado'),
-        metadata: { updates, creditConsumption },
+        description: auditDescription,
+        metadata: { updates, operationType, creditConsumption },
       });
 
-      return json({ ok: true, creditConsumption });
+      return json({
+        ok: true,
+        operationType,
+        creditConsumption,
+        message: creditConsumption?.applied === false
+          ? 'Esta operação comercial já havia sido processada.'
+          : undefined,
+      });
     }
 
     if (action === 'deleteDevice') {

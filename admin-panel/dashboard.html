@@ -1531,6 +1531,59 @@ let sellers = [];
 let plans = [];
 let creditLedger = [];
 const deviceActionLocks = new Set();
+const deviceCommercialAttempts = new Map();
+
+function newDeviceOperationKey(prefix) {
+  const random = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}:${random}`;
+}
+
+function selectedAdminPlan(planId) {
+  return plans.find(plan => plan.id === planId) || null;
+}
+
+function explicitExpiry(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(`${dateValue}T23:59:59.999Z`);
+  if (Number.isNaN(date.getTime())) throw new Error('Data de validade inválida.');
+  return date.toISOString();
+}
+
+function calculatedExpiry(planId, currentExpiresAt = null, fallbackDays = null) {
+  const plan = selectedAdminPlan(planId);
+  const durationDays = Math.max(1, Number(fallbackDays || plan?.durationDays || 30));
+  const now = new Date();
+  const current = currentExpiresAt ? new Date(currentExpiresAt) : null;
+  const base = current && !Number.isNaN(current.getTime()) && current > now
+    ? new Date(current)
+    : now;
+
+  base.setUTCDate(base.getUTCDate() + durationDays);
+  base.setUTCHours(23, 59, 59, 999);
+  return base.toISOString();
+}
+
+function ensureDeviceCommercialAttempt(deviceId, operationType, input, expiryFactory) {
+  const mapKey = `${operationType}:${deviceId}`;
+  const fingerprint = JSON.stringify(input);
+  const current = deviceCommercialAttempts.get(mapKey);
+
+  if (current && current.fingerprint === fingerprint) return current;
+
+  const attempt = {
+    fingerprint,
+    idempotencyKey: newDeviceOperationKey(`admin-${operationType}`),
+    expiresAt: expiryFactory(),
+  };
+  deviceCommercialAttempts.set(mapKey, attempt);
+  return attempt;
+}
+
+function clearDeviceCommercialAttempt(deviceId, operationType) {
+  deviceCommercialAttempts.delete(`${operationType}:${deviceId}`);
+}
+
 let auditLogs = [];
 
 const $ = id => document.getElementById(id);
@@ -2179,40 +2232,68 @@ async function withDeviceActionLock(id, actionName, runner) {
 async function saveDevice(id) {
   try {
     const device = devices.find(d => d.id === id);
+    if (!device) throw new Error('Aparelho não encontrado.');
+
+    const nextCustomerId = $('dev-customer-' + id).value || null;
     const nextSellerId = $('dev-seller-' + id).value || null;
     const nextPlanId = $('dev-plan-' + id).value || null;
     const nextStatus = $('dev-status-' + id).value;
-    const nextExpiresAt = $('dev-exp-' + id).value || null;
-
-    const isActivation = device && device.status !== 'active' && nextStatus === 'active';
+    const nextPlaylistId = $('dev-playlist-' + id).value || null;
+    const expiresAtInput = $('dev-exp-' + id).value || '';
+    const isActivation = device.status !== 'active' && nextStatus === 'active';
     const isRenewal =
-      device &&
       device.status === 'active' &&
       nextStatus === 'active' &&
-      dateTimeForCreditCheck(nextExpiresAt) > dateTimeForCreditCheck(device.expiresAt);
+      dateTimeForCreditCheck(expiresAtInput) > dateTimeForCreditCheck(device.expiresAt);
+    const operationType = isActivation ? 'activation' : (isRenewal ? 'renewal' : null);
 
-    if ((isActivation || isRenewal) && !confirmCreditConsumption(
+    if (operationType && !confirmCreditConsumption(
       id,
       nextSellerId,
       nextPlanId,
-      isActivation ? 'Ativar aparelho' : 'Renovar aparelho'
+      operationType === 'activation' ? 'Ativar aparelho' : 'Renovar aparelho'
     )) {
       return;
     }
 
     await withDeviceActionLock(id, 'saveDevice', async () => {
-      await api('updateDevice', {
+      const payload = {
         id,
-        customerId: $('dev-customer-' + id).value || null,
+        customerId: nextCustomerId,
         sellerId: nextSellerId,
         planId: nextPlanId,
         status: nextStatus,
-        playlistId: $('dev-playlist-' + id).value || null,
-        expiresAt: nextExpiresAt
-      });
+        playlistId: nextPlaylistId,
+        expiresAt: expiresAtInput || null
+      };
 
+      if (operationType) {
+        const input = {
+          customerId: nextCustomerId,
+          sellerId: nextSellerId,
+          planId: nextPlanId,
+          status: nextStatus,
+          playlistId: nextPlaylistId,
+          expiresAtInput
+        };
+        const attempt = ensureDeviceCommercialAttempt(
+          id,
+          operationType,
+          input,
+          () => explicitExpiry(expiresAtInput) || calculatedExpiry(nextPlanId, operationType === 'renewal' ? device.expiresAt : null)
+        );
+        payload.expiresAt = attempt.expiresAt;
+        payload.operationType = operationType;
+        payload.idempotencyKey = attempt.idempotencyKey;
+      }
+
+      await api('updateDevice', payload);
+
+      if (operationType) clearDeviceCommercialAttempt(id, operationType);
       await loadAll();
-      show('Aparelho salvo.');
+      show(operationType === 'activation'
+        ? 'Aparelho ativado.'
+        : (operationType === 'renewal' ? 'Aparelho renovado.' : 'Aparelho salvo.'));
     });
   } catch (err) {
     show(err.message, true);
@@ -2222,20 +2303,37 @@ async function saveDevice(id) {
 async function renewDevice(id) {
   try {
     const device = devices.find(d => d.id === id);
-    const sellerId = device?.sellerId || null;
-    const planId = device?.planId || null;
+    if (!device) throw new Error('Aparelho não encontrado.');
+
+    const sellerId = device.sellerId || null;
+    const planId = device.planId || null;
+    const playlistId = device.playlistId || null;
 
     if (!confirmCreditConsumption(id, sellerId, planId, 'Renovar aparelho por 30 dias')) {
       return;
     }
 
     await withDeviceActionLock(id, 'renewDevice', async () => {
+      const input = { sellerId, planId, playlistId, currentExpiresAt: device.expiresAt || null, days: 30 };
+      const attempt = ensureDeviceCommercialAttempt(
+        id,
+        'renewal',
+        input,
+        () => calculatedExpiry(planId, device.expiresAt, 30)
+      );
+
       await api('updateDevice', {
         id,
+        sellerId,
+        planId,
+        playlistId,
         status: 'active',
-        expiresAt: thirtyDaysDate()
+        expiresAt: attempt.expiresAt,
+        operationType: 'renewal',
+        idempotencyKey: attempt.idempotencyKey
       });
 
+      clearDeviceCommercialAttempt(id, 'renewal');
       await loadAll();
       show('Aparelho renovado por 30 dias.');
     });
@@ -2258,22 +2356,36 @@ async function activatePending(id) {
   try {
     const sellerId = $('pend-seller-' + id).value || null;
     const planId = $('pend-plan-' + id).value || null;
+    const playlistId = $('pend-playlist-' + id).value || null;
+    const customerId = $('pend-customer-' + id).value || null;
+    const expiresAtInput = $('pend-exp-' + id).value || '';
 
     if (!confirmCreditConsumption(id, sellerId, planId, 'Liberar aparelho pendente')) {
       return;
     }
 
     await withDeviceActionLock(id, 'activatePending', async () => {
+      const input = { customerId, sellerId, planId, playlistId, expiresAtInput };
+      const attempt = ensureDeviceCommercialAttempt(
+        id,
+        'activation',
+        input,
+        () => explicitExpiry(expiresAtInput) || calculatedExpiry(planId)
+      );
+
       await api('updateDevice', {
         id,
-        customerId: $('pend-customer-' + id).value || null,
+        customerId,
         sellerId,
         planId,
-        playlistId: $('pend-playlist-' + id).value || null,
+        playlistId,
         status: 'active',
-        expiresAt: $('pend-exp-' + id).value || thirtyDaysDate()
+        expiresAt: attempt.expiresAt,
+        operationType: 'activation',
+        idempotencyKey: attempt.idempotencyKey
       });
 
+      clearDeviceCommercialAttempt(id, 'activation');
       await loadAll();
       show('Aparelho liberado.');
     });
@@ -2558,6 +2670,15 @@ function showDeviceDetails(id) {
 
 async function setDeviceStatus(id, status) {
   try {
+    if (status === 'active') {
+      const statusSelect = $('dev-status-' + id);
+      if (!statusSelect) throw new Error('Abra a tabela de aparelhos para ativar este dispositivo.');
+      statusSelect.value = 'active';
+      closeDetails();
+      await saveDevice(id);
+      return;
+    }
+
     await api('updateDevice', { id, status });
     await loadAll();
     show('Status do aparelho atualizado.');
