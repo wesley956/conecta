@@ -204,7 +204,26 @@ export async function fetchDevicePanelConfig(
   const configUrl = getDevicePanelUrl();
   const code = String(deviceCode || getStoredDeviceCode()).trim();
   const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
-  const deviceCredential = await getStoredDeviceCredential();
+  let deviceCredential = await getStoredDeviceCredential();
+
+  if (!deviceCredential) {
+    try {
+      await activateDeviceWithPanel();
+      deviceCredential = await getStoredDeviceCredential();
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível emitir a credencial segura deste aparelho.';
+
+      return {
+        active: false,
+        status: 'blocked',
+        deviceCode: code,
+        credentialRequired: true,
+        message,
+      };
+    }
+  }
 
   if (!configUrl) {
     return {
