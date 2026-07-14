@@ -1,0 +1,5 @@
+status=success
+commit=7aee987dd61a6163443abd23251197a54f46e6a5
+generated_at=2026-07-14T22:11:17Z
+release_tag=ronecaplaytv-test-apk
+apk_url=https://github.com/wesley956/conecta/releases/download/ronecaplaytv-test-apk/RonecaPlayTV-debug.apk
