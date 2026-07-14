@@ -518,8 +518,8 @@
     }
 
     async function loadDashboard() {
-      localStorage.setItem('ronecaSellerPanelUrl', els.apiUrl.value.trim());
-      localStorage.setItem('ronecaSellerToken', els.sellerToken.value.trim());
+      sessionStorage.setItem('ronecaSellerPanelUrl', els.apiUrl.value.trim());
+      sessionStorage.setItem('ronecaSellerToken', els.sellerToken.value.trim());
 
       setNotice('Carregando painel do vendedor...', 'warn');
 
@@ -665,8 +665,8 @@
       });
     }
 
-    els.apiUrl.value = localStorage.getItem('ronecaSellerPanelUrl') || '';
-    els.sellerToken.value = localStorage.getItem('ronecaSellerToken') || '';
+    els.apiUrl.value = sessionStorage.getItem('ronecaSellerPanelUrl') || '';
+    els.sellerToken.value = sessionStorage.getItem('ronecaSellerToken') || '';
 
     bindAsync(els.saveAccess, loadDashboard);
     bindAsync(els.lookupDevice, lookupDevice);
@@ -674,8 +674,8 @@
     bindAsync(els.activateDevice, activateDevice);
 
     els.clearAccess.addEventListener('click', () => {
-      localStorage.removeItem('ronecaSellerPanelUrl');
-      localStorage.removeItem('ronecaSellerToken');
+      sessionStorage.removeItem('ronecaSellerPanelUrl');
+      sessionStorage.removeItem('ronecaSellerToken');
       els.apiUrl.value = '';
       els.sellerToken.value = '';
       els.dashboard.classList.add('hidden');

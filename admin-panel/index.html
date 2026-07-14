@@ -159,8 +159,11 @@
       <h1>Cruz Stars</h1>
       <p>Entrada única para administrador e vendedores.</p>
 
-      <label for="accessToken">Token de acesso</label>
-      <input id="accessToken" type="password" autocomplete="off" placeholder="Digite seu token" />
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" placeholder="seu@email.com" />
+
+      <label for="password">Senha</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="Digite sua senha" />
 
       <div class="actions">
         <button onclick="login()">Entrar</button>
@@ -171,11 +174,11 @@
     </section>
   </main>
 
+  <script src="./panel-config.js"></script>
+  <script src="./panel-auth-session.js"></script>
   <script>
     var ADMIN_API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
     var SELLER_API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
-    var ADMIN_KEY = 'cruz-stars-admin-token';
-    var SELLER_KEY = 'roneca_seller_token';
 
     function el(id) {
       return document.getElementById(id);
@@ -186,14 +189,11 @@
       el('msg').className = 'msg ' + (cls || '');
     }
 
-    async function tryAdmin(token) {
-      var res = await fetch(ADMIN_API, {
+    async function callRoleApi(api, action) {
+      var res = await fetch(api, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-token': token
-        },
-        body: JSON.stringify({ action: 'listCommercialData' })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action })
       });
 
       if (!res.ok) return false;
@@ -201,64 +201,62 @@
       return true;
     }
 
-    async function trySeller(token) {
-      var res = await fetch(SELLER_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-seller-token': token
-        },
-        body: JSON.stringify({ action: 'dashboard' })
-      });
+    async function routeAuthenticatedSession() {
+      if (await callRoleApi(ADMIN_API, 'listCommercialData')) {
+        window.location.href = './dashboard.html';
+        return true;
+      }
 
-      if (!res.ok) return false;
-      await res.json().catch(function () { return {}; });
-      return true;
+      if (await callRoleApi(SELLER_API, 'dashboard')) {
+        window.location.href = './seller.html';
+        return true;
+      }
+
+      return false;
     }
 
     async function login() {
-      var token = String(el('accessToken').value || '').trim();
+      var email = String(el('email').value || '').trim();
+      var password = String(el('password').value || '');
 
-      if (!token) {
-        setMsg('Digite o token de acesso.', 'err');
+      if (!email || !password) {
+        setMsg('Informe email e senha.', 'err');
         return;
       }
 
-      setMsg('Verificando acesso...', '');
+      setMsg('Autenticando...', '');
 
       try {
-        if (await tryAdmin(token)) {
-          localStorage.setItem(ADMIN_KEY, token);
-          localStorage.removeItem(SELLER_KEY);
-          setMsg('Acesso de administrador confirmado.', 'ok');
-          window.location.href = './dashboard.html';
-          return;
-        }
+        await RonecaPanelAuth.signIn(email, password);
 
-        if (await trySeller(token)) {
-          localStorage.setItem(SELLER_KEY, token);
-          localStorage.removeItem(ADMIN_KEY);
-          setMsg('Acesso de vendedor confirmado.', 'ok');
-          window.location.href = './seller.html';
-          return;
-        }
+        if (await routeAuthenticatedSession()) return;
 
-        setMsg('Token inválido para admin e vendedor.', 'err');
+        await RonecaPanelAuth.signOut();
+        setMsg('Usuário autenticado, mas sem papel ativo no painel.', 'err');
       } catch (err) {
-        setMsg(err && err.message ? err.message : 'Falha ao verificar token.', 'err');
+        await RonecaPanelAuth.signOut();
+        setMsg(err && err.message ? err.message : 'Falha ao autenticar.', 'err');
       }
     }
 
-    function clearLogin() {
-      localStorage.removeItem(ADMIN_KEY);
-      localStorage.removeItem(SELLER_KEY);
-      el('accessToken').value = '';
-      setMsg('Acesso salvo removido deste navegador.', 'ok');
+    async function clearLogin() {
+      await RonecaPanelAuth.signOut();
+      el('email').value = '';
+      el('password').value = '';
+      setMsg('Sessão removida deste navegador.', 'ok');
     }
 
-    el('accessToken').addEventListener('keydown', function (event) {
+    el('password').addEventListener('keydown', function (event) {
       if (event.key === 'Enter') login();
     });
+
+    if (RonecaPanelAuth.hasSession()) {
+      setMsg('Restaurando sessão...', '');
+      routeAuthenticatedSession().catch(async function () {
+        await RonecaPanelAuth.signOut();
+        setMsg('Sessão expirada. Entre novamente.', 'err');
+      });
+    }
   </script>
 </body>
 </html>
