@@ -9,6 +9,7 @@ on:
       - player-v2
       - stability-performance-audit
       - feature/player-cinematic-ui
+      - fix/player-core-reliability
 
 jobs:
   build-android:
@@ -89,5 +90,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RonecaPlayTV-debug-apk
+          name: RonecaPlayTV-player-reliability-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
