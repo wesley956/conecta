@@ -4,6 +4,50 @@
   let sellerUxData = null;
   let lookupDevice = null;
   let renewDeviceTarget = null;
+  let activationAttempt = null;
+  let renewalAttempt = null;
+
+  function newOperationKey(prefix) {
+    const random = globalThis.crypto?.randomUUID?.()
+      || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return `${prefix}:${random}`;
+  }
+
+  function selectedPlan(planId) {
+    return (sellerUxData?.plans || []).find(plan => plan.id === planId) || null;
+  }
+
+  function resolveExpiry(dateValue, planId, currentExpiresAt = null) {
+    if (dateValue) {
+      const explicit = new Date(`${dateValue}T23:59:59.999Z`);
+      if (Number.isNaN(explicit.getTime())) throw new Error('Data de validade inválida.');
+      return explicit.toISOString();
+    }
+
+    const plan = selectedPlan(planId);
+    const durationDays = Math.max(1, Number(plan?.durationDays || 30));
+    const now = new Date();
+    const current = currentExpiresAt ? new Date(currentExpiresAt) : null;
+    const base = current && !Number.isNaN(current.getTime()) && current > now
+      ? new Date(current)
+      : now;
+
+    base.setUTCDate(base.getUTCDate() + durationDays);
+    base.setUTCHours(23, 59, 59, 999);
+    return base.toISOString();
+  }
+
+  function ensureAttempt(current, prefix, input, expiryFactory) {
+    const fingerprint = JSON.stringify(input);
+    if (!current || current.fingerprint !== fingerprint) {
+      return {
+        fingerprint,
+        key: newOperationKey(prefix),
+        expiresAt: expiryFactory(),
+      };
+    }
+    return current;
+  }
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '')
@@ -329,6 +373,7 @@
       showMsg('Busque um aparelho primeiro.', 'err');
       return;
     }
+    activationAttempt = null;
     $('sellerActivationForm').classList.add('open');
     $('sellerActivationCustomerName').value = lookupDevice.customerName || '';
     $('sellerActivationCustomerWhatsapp').value = lookupDevice.customerWhatsapp || '';
@@ -337,6 +382,7 @@
   };
 
   window.sellerUxCloseActivationForm = function sellerUxCloseActivationForm() {
+    activationAttempt = null;
     $('sellerActivationForm')?.classList.remove('open');
   };
 
@@ -351,15 +397,33 @@
       if (!lookupDevice?.deviceCode) throw new Error('Busque um aparelho primeiro.');
       showMsg('Ativando aparelho e consumindo créditos...');
 
-      await api('activateDeviceByCode', {
+      const input = {
         deviceCode: lookupDevice.deviceCode,
         customerName: $('sellerActivationCustomerName').value.trim(),
         customerWhatsapp: $('sellerActivationCustomerWhatsapp').value.trim(),
         planId: $('sellerActivationPlan').value,
         playlistId: $('sellerActivationPlaylist').value,
-        expiresAt: $('sellerActivationExpiresAt').value || null,
+        expiresAtInput: $('sellerActivationExpiresAt').value || '',
+      };
+
+      activationAttempt = ensureAttempt(
+        activationAttempt,
+        'seller-activation',
+        input,
+        () => resolveExpiry(input.expiresAtInput, input.planId),
+      );
+
+      await api('activateDeviceByCode', {
+        deviceCode: input.deviceCode,
+        customerName: input.customerName,
+        customerWhatsapp: input.customerWhatsapp,
+        planId: input.planId,
+        playlistId: input.playlistId,
+        expiresAt: activationAttempt.expiresAt,
+        idempotencyKey: activationAttempt.key,
       });
 
+      activationAttempt = null;
       showMsg('Aparelho ativado com sucesso.', 'ok');
       $('sellerActivationForm').classList.remove('open');
       $('sellerDeviceLookupResult').innerHTML = '';
@@ -370,6 +434,7 @@
       showMsg(err.message || 'Erro ao ativar aparelho.', 'err');
     }
   };
+
 
   window.sellerUxShowDeviceDetails = function sellerUxShowDeviceDetails(deviceId) {
     const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
@@ -397,6 +462,7 @@
     const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
     if (!device) return;
     renewDeviceTarget = device;
+    renewalAttempt = null;
 
     openSellerUxModal(
       'Renovar aparelho',
@@ -427,12 +493,31 @@
   window.sellerUxRenewDevice = async function sellerUxRenewDevice() {
     try {
       if (!renewDeviceTarget) throw new Error('Aparelho não selecionado.');
-      await api('renewDevice', {
+
+      const input = {
         deviceId: renewDeviceTarget.id,
         planId: $('sellerRenewPlan').value,
         playlistId: $('sellerRenewPlaylist').value,
-        expiresAt: $('sellerRenewExpiresAt').value || null,
+        expiresAtInput: $('sellerRenewExpiresAt').value || '',
+      };
+
+      renewalAttempt = ensureAttempt(
+        renewalAttempt,
+        'seller-renewal',
+        input,
+        () => resolveExpiry(input.expiresAtInput, input.planId, renewDeviceTarget.expiresAt),
+      );
+
+      await api('renewDevice', {
+        deviceId: input.deviceId,
+        planId: input.planId,
+        playlistId: input.playlistId,
+        expiresAt: renewalAttempt.expiresAt,
+        idempotencyKey: renewalAttempt.key,
       });
+
+      renewalAttempt = null;
+      renewDeviceTarget = null;
       closeSellerUxModal();
       await window.loadPortal?.();
       await refreshSellerUxData();
@@ -440,6 +525,7 @@
       alert(err.message || 'Erro ao renovar aparelho.');
     }
   };
+
 
   window.sellerUxBlockDevice = async function sellerUxBlockDevice(deviceId) {
     try {
