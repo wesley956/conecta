@@ -114,25 +114,6 @@ begin
       message = 'Este aparelho pertence a outro vendedor.';
   end if;
 
-  if p_operation_type = 'activation' and v_device.status = 'active' then
-    raise exception using
-      errcode = 'P0001',
-      message = 'Aparelho já está ativo. Use renovação.';
-  end if;
-
-  if p_operation_type = 'renewal' and v_device.status <> 'active' then
-    raise exception using
-      errcode = 'P0001',
-      message = 'Somente aparelhos ativos podem ser renovados.';
-  end if;
-
-  if p_operation_type = 'renewal'
-     and p_expires_at <= greatest(now(), coalesce(v_device.subscription_expires_at, now())) then
-    raise exception using
-      errcode = '22023',
-      message = 'A renovação deve ampliar a data atual de expiração.';
-  end if;
-
   select *
     into v_plan
     from public.panel_plans
@@ -203,6 +184,25 @@ begin
       v_device.status,
       v_device.subscription_expires_at;
     return;
+  end if;
+
+  if p_operation_type = 'activation' and v_device.status = 'active' then
+    raise exception using
+      errcode = 'P0001',
+      message = 'Aparelho já está ativo. Use renovação.';
+  end if;
+
+  if p_operation_type = 'renewal' and v_device.status <> 'active' then
+    raise exception using
+      errcode = 'P0001',
+      message = 'Somente aparelhos ativos podem ser renovados.';
+  end if;
+
+  if p_operation_type = 'renewal'
+     and p_expires_at <= greatest(now(), coalesce(v_device.subscription_expires_at, now())) then
+    raise exception using
+      errcode = '22023',
+      message = 'A renovação deve ampliar a data atual de expiração.';
   end if;
 
   v_balance_before := coalesce(v_seller.credit_balance, 0);
