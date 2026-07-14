@@ -39,7 +39,8 @@ jobs:
 
       - name: Generate public Supabase config
         env:
-          # URL e chave publishable são configurações públicas próprias para o navegador.
+          # Estes valores são públicos por design e são enviados ao navegador.
+          # A chave service_role nunca é usada ou exposta neste workflow.
           SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
           SUPABASE_ANON_KEY: sb_publishable_QhNyg55ZhiOCPZyuSjsX8A_Kq7nTiYN
         run: |
