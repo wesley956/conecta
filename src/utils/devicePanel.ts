@@ -1,3 +1,5 @@
+import { SecureStorage } from '@aparajita/capacitor-secure-storage';
+
 export interface DevicePanelCacheParts {
   manifestUrl?: string | null;
   channelsUrl?: string | null;
@@ -99,20 +101,20 @@ export function setStoredDeviceCode(deviceCode: string) {
   }
 }
 
-export function getStoredDeviceCredential() {
+export async function getStoredDeviceCredential() {
   try {
-    return localStorage.getItem(DEVICE_CREDENTIAL_STORAGE_KEY) || '';
+    return (await SecureStorage.getItem(DEVICE_CREDENTIAL_STORAGE_KEY))?.trim() || '';
   } catch {
     return '';
   }
 }
 
-export function setStoredDeviceCredential(deviceCredential: string) {
+export async function setStoredDeviceCredential(deviceCredential: string) {
   const credential = deviceCredential.trim();
   if (!credential) return;
 
   try {
-    localStorage.setItem(DEVICE_CREDENTIAL_STORAGE_KEY, credential);
+    await SecureStorage.setItem(DEVICE_CREDENTIAL_STORAGE_KEY, credential);
   } catch {
     throw new Error(
       'Não foi possível salvar a credencial segura deste aparelho. Verifique o armazenamento do aplicativo.',
@@ -120,11 +122,11 @@ export function setStoredDeviceCredential(deviceCredential: string) {
   }
 }
 
-export function clearStoredDeviceCredential() {
+export async function clearStoredDeviceCredential() {
   try {
-    localStorage.removeItem(DEVICE_CREDENTIAL_STORAGE_KEY);
+    await SecureStorage.removeItem(DEVICE_CREDENTIAL_STORAGE_KEY);
   } catch {
-    // ignora falha de limpeza; o backend continuará rejeitando credenciais revogadas
+    // O backend continuará rejeitando credenciais revogadas.
   }
 }
 
@@ -185,7 +187,7 @@ export async function activateDeviceWithPanel(): Promise<DevicePanelActivation> 
   }
 
   if (activation.deviceCredential) {
-    setStoredDeviceCredential(activation.deviceCredential);
+    await setStoredDeviceCredential(activation.deviceCredential);
   }
 
   return {
@@ -202,7 +204,7 @@ export async function fetchDevicePanelConfig(
   const configUrl = getDevicePanelUrl();
   const code = String(deviceCode || getStoredDeviceCode()).trim();
   const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
-  const deviceCredential = getStoredDeviceCredential();
+  const deviceCredential = await getStoredDeviceCredential();
 
   if (!configUrl) {
     return {
