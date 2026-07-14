@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, subscribeWithSelector } from 'zustand/middleware';
 import type { AppState, UIMode, AppSettings, WatchHistory, Channel, Movie, Series, Playlist } from '@/types';
 import { channels as mockChannels, movies as mockMovies, series as mockSeries, playlists as mockPlaylists, watchHistory as mockHistory, DEVICE_CODE, LEGAL_NOTICE } from '@/data/mock';
 import { isLikelyM3U, type ParsedM3UResult } from '@/utils/m3u';
@@ -99,7 +99,8 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>()(
-  persist(
+  subscribeWithSelector(
+    persist(
     (set) => ({
   // Navigation
   currentScreen: 'splash',
@@ -444,5 +445,6 @@ export const useAppStore = create<AppStore>()(
         };
       },
     }
+  )
   )
 );
