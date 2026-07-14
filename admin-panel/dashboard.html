@@ -2240,11 +2240,15 @@ async function saveDevice(id) {
     const nextStatus = $('dev-status-' + id).value;
     const nextPlaylistId = $('dev-playlist-' + id).value || null;
     const expiresAtInput = $('dev-exp-' + id).value || '';
+    const currentExpiryInput = dateInput(device.expiresAt);
+    const normalizedExpiresAt = explicitExpiry(expiresAtInput);
+    const expiryChanged = expiresAtInput !== currentExpiryInput;
     const isActivation = device.status !== 'active' && nextStatus === 'active';
     const isRenewal =
       device.status === 'active' &&
       nextStatus === 'active' &&
-      dateTimeForCreditCheck(expiresAtInput) > dateTimeForCreditCheck(device.expiresAt);
+      expiryChanged &&
+      dateTimeForCreditCheck(normalizedExpiresAt) > dateTimeForCreditCheck(device.expiresAt);
     const operationType = isActivation ? 'activation' : (isRenewal ? 'renewal' : null);
 
     if (operationType && !confirmCreditConsumption(
@@ -2263,9 +2267,12 @@ async function saveDevice(id) {
         sellerId: nextSellerId,
         planId: nextPlanId,
         status: nextStatus,
-        playlistId: nextPlaylistId,
-        expiresAt: expiresAtInput || null
+        playlistId: nextPlaylistId
       };
+
+      if (expiryChanged) {
+        payload.expiresAt = normalizedExpiresAt;
+      }
 
       if (operationType) {
         const input = {
