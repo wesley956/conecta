@@ -3,8 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-device-credential',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 function json(body: unknown, status = 200) {
@@ -13,13 +13,17 @@ function json(body: unknown, status = 200) {
     headers: {
       ...corsHeaders,
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
     },
   });
 }
 
-async function readPayload(request: Request) {
+async function readPayload(request: Request): Promise<Record<string, unknown>> {
   try {
-    return await request.json();
+    const payload = await request.json();
+    return payload && typeof payload === 'object'
+      ? payload as Record<string, unknown>
+      : {};
   } catch {
     return {};
   }
@@ -30,36 +34,46 @@ function textOrNull(value: unknown) {
   return text || null;
 }
 
-function allowDeviceUuidRebind() {
-  const value = String(Deno.env.get('ALLOW_DEVICE_UUID_REBIND') ?? 'true').trim().toLowerCase();
-  return !['0', 'false', 'no', 'não', 'nao'].includes(value);
+function readDeviceCredential(request: Request, payload: Record<string, unknown>) {
+  const explicitHeader = textOrNull(request.headers.get('x-device-credential'));
+  if (explicitHeader) return explicitHeader;
+
+  const authorization = textOrNull(request.headers.get('authorization'));
+  const authorizationMatch = authorization?.match(/^Device\s+(.+)$/i);
+  if (authorizationMatch?.[1]) return authorizationMatch[1].trim();
+
+  return (
+    textOrNull(payload.deviceCredential) ||
+    textOrNull(payload.device_credential)
+  );
 }
 
-async function resolveDeviceCode(request: Request) {
-  const url = new URL(request.url);
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  );
 
-  const fromQuery =
-    textOrNull(url.searchParams.get('deviceCode')) ||
-    textOrNull(url.searchParams.get('device_code')) ||
-    textOrNull(url.searchParams.get('code')) ||
-    textOrNull(url.searchParams.get('deviceId')) ||
-    textOrNull(url.searchParams.get('device_id'));
+  return [...new Uint8Array(digest)]
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
 
-  if (fromQuery) return fromQuery;
+function constantTimeEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
 
-  if (request.method === 'POST') {
-    const payload = await readPayload(request);
-
-    return (
-      textOrNull(payload.deviceCode) ||
-      textOrNull(payload.device_code) ||
-      textOrNull(payload.code) ||
-      textOrNull(payload.deviceId) ||
-      textOrNull(payload.device_id)
-    );
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
   }
 
-  return null;
+  return difference === 0;
+}
+
+function allowDirectPlaylistFallback() {
+  return /^(1|true|yes|sim)$/i.test(
+    String(Deno.env.get('ALLOW_DIRECT_PLAYLIST_FALLBACK') || ''),
+  );
 }
 
 serve(async request => {
@@ -67,7 +81,7 @@ serve(async request => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  if (request.method !== 'GET' && request.method !== 'POST') {
+  if (request.method !== 'POST') {
     return json({ active: false, message: 'Método não permitido.' }, 405);
   }
 
@@ -78,19 +92,57 @@ serve(async request => {
     return json({ active: false, message: 'Servidor não configurado.' }, 500);
   }
 
-  const url = new URL(request.url);
-  const code = await resolveDeviceCode(request);
+  const payload = await readPayload(request);
+  const code =
+    textOrNull(payload.deviceCode) ||
+    textOrNull(payload.device_code) ||
+    textOrNull(payload.code) ||
+    textOrNull(payload.deviceId) ||
+    textOrNull(payload.device_id);
   const deviceUuid =
-    textOrNull(url.searchParams.get('deviceUuid')) ||
-    textOrNull(url.searchParams.get('device_uuid')) ||
-    textOrNull(url.searchParams.get('deviceId')) ||
-    textOrNull(url.searchParams.get('device_id'));
+    textOrNull(payload.deviceUuid) ||
+    textOrNull(payload.device_uuid);
+  const deviceCredential = readDeviceCredential(request, payload);
 
   if (!code) {
-    return json({ active: false, status: 'pending', message: 'Código do aparelho não informado.' }, 400);
+    return json({
+      active: false,
+      status: 'pending',
+      message: 'Código do aparelho não informado.',
+    }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  if (!deviceUuid) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: code,
+      message: 'Identificador seguro do aparelho não informado.',
+    }, 400);
+  }
+
+  if (!deviceCredential) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: code,
+      credentialRequired: true,
+      message: 'Credencial da instalação não informada. Gere um novo código no aplicativo.',
+    }, 401);
+  }
+
+  if (code.length > 80 || deviceUuid.length > 160 || deviceCredential.length > 256) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: code,
+      message: 'Identificação do aparelho inválida.',
+    }, 400);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 
   const { data: device, error } = await supabase
     .from('panel_devices')
@@ -98,6 +150,7 @@ serve(async request => {
       id,
       device_code,
       device_uuid,
+      device_credential_hash,
       client_name,
       status,
       subscription_expires_at,
@@ -137,29 +190,56 @@ serve(async request => {
     });
   }
 
-  const uuidMismatch = Boolean(device.device_uuid && deviceUuid && device.device_uuid !== deviceUuid);
-
-  if (uuidMismatch && !allowDeviceUuidRebind()) {
+  if (!device.device_credential_hash) {
     return json({
       active: false,
       status: 'blocked',
-      deviceCode: code,
-      message: 'Código pertence a outro aparelho. Solicite um novo código no app.',
+      deviceCode: device.device_code,
+      credentialRequired: true,
+      message: 'Este aparelho ainda não possui credencial segura. Atualize a ativação no aplicativo.',
+    }, 428);
+  }
+
+  const providedCredentialHash = await sha256Hex(deviceCredential);
+
+  if (!constantTimeEqual(providedCredentialHash, device.device_credential_hash)) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: device.device_code,
+      message: 'Credencial da instalação inválida ou revogada.',
     }, 403);
   }
 
-  const nextDeviceUuid = uuidMismatch
-    ? deviceUuid
-    : (device.device_uuid || deviceUuid || null);
+  if (!device.device_uuid || device.device_uuid !== deviceUuid) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: device.device_code,
+      message: 'Este código e credencial pertencem a outro aparelho.',
+    }, 403);
+  }
 
-  await supabase
+  const { data: updatedDevice, error: updateError } = await supabase
     .from('panel_devices')
     .update({
-      device_uuid: nextDeviceUuid,
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', device.id);
+    .eq('id', device.id)
+    .eq('device_uuid', deviceUuid)
+    .eq('device_credential_hash', device.device_credential_hash)
+    .select('id')
+    .maybeSingle();
+
+  if (updateError || !updatedDevice) {
+    return json({
+      active: false,
+      status: 'blocked',
+      deviceCode: device.device_code,
+      message: 'Não foi possível confirmar a identidade deste aparelho.',
+    }, 409);
+  }
 
   const expiresAt = device.subscription_expires_at;
   const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
@@ -172,7 +252,6 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
-      deviceUuidRebound: uuidMismatch,
       message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.',
     });
   }
@@ -184,7 +263,6 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
-      deviceUuidRebound: uuidMismatch,
       message: 'Aparelho ativo, mas sem lista ativa vinculada.',
     });
   }
@@ -192,10 +270,11 @@ serve(async request => {
   async function signedCacheUrl(path: string | null | undefined) {
     if (!path) return null;
 
-    const { data } = await supabase.storage
+    const { data, error: signedUrlError } = await supabase.storage
       .from('playlist-cache')
-      .createSignedUrl(path, 60 * 60);
+      .createSignedUrl(path, 15 * 60);
 
+    if (signedUrlError) return null;
     return data?.signedUrl ?? null;
   }
 
@@ -226,15 +305,17 @@ serve(async request => {
     };
   }
 
+  const directFallbackAllowed = allowDirectPlaylistFallback();
+  const cacheReady = Boolean(playlistCacheSnapshotUrl || playlistCacheParts?.channelsUrl);
+
   return json({
     active: true,
     status: 'active',
     deviceCode: device.device_code,
     clientName: device.client_name,
     expiresAt,
-    deviceUuidRebound: uuidMismatch,
     playlistName: playlist.name,
-    playlistUrl: playlist.playlist_url,
+    playlistUrl: directFallbackAllowed ? playlist.playlist_url : null,
     playlistType: playlist.playlist_type,
     playlistUpdatedAt: playlist.playlist_updated_at,
     cacheStatus: playlist.playlist_cache_status,
@@ -245,5 +326,9 @@ serve(async request => {
     cacheError: playlist.playlist_cache_error,
     cacheSnapshotUrl: playlistCacheSnapshotUrl,
     cacheParts: playlistCacheParts,
+    directPlaylistFallbackAllowed: directFallbackAllowed,
+    message: !cacheReady && !directFallbackAllowed
+      ? 'A lista está vinculada, mas o cache seguro ainda não está pronto.'
+      : null,
   });
 });
