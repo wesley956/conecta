@@ -202,9 +202,9 @@ export async function fetchDevicePanelConfig(
   deviceUuid?: string,
 ): Promise<DevicePanelConfig> {
   const configUrl = getDevicePanelUrl();
-  const code = String(deviceCode || getStoredDeviceCode()).trim();
+  let code = String(deviceCode || getStoredDeviceCode()).trim();
   const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
-  const deviceCredential = await getStoredDeviceCredential();
+  let deviceCredential = await getStoredDeviceCredential();
 
   if (!configUrl) {
     return {
@@ -213,6 +213,26 @@ export async function fetchDevicePanelConfig(
       deviceCode: code,
       message: 'Endpoint do painel não configurado no APK.',
     };
+  }
+
+  if (!deviceCredential) {
+    try {
+      await activateDeviceWithPanel();
+      code = String(getStoredDeviceCode()).trim();
+      deviceCredential = await getStoredDeviceCredential();
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível emitir a credencial segura deste aparelho.';
+
+      return {
+        active: false,
+        status: 'blocked',
+        deviceCode: code,
+        credentialRequired: true,
+        message,
+      };
+    }
   }
 
   if (!code) {
