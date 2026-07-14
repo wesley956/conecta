@@ -165,6 +165,15 @@ jobs:
 
           tail -n 8 supabase-db-start.log
 
+      - name: Upload PostgreSQL startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-db-start-diagnostics
+          path: supabase-db-start.log
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Reapply all migrations from zero
         run: npx supabase db reset --local --no-seed
 
