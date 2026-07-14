@@ -1,11 +1,12 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { PanelAuthError, panelAuthErrorResponse, requirePanelPrincipal } from '../_shared/panelAuth.ts';
 
 const ADMIN_PANEL_AUDIT_BUILD = '2026-06-22T03:42:21.651747Z';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -25,21 +26,6 @@ function getEnv(name: string) {
   const value = Deno.env.get(name);
   if (!value) throw new Error(`Variável ${name} não configurada.`);
   return value;
-}
-
-function requireAdmin(req: Request) {
-  const expected = Deno.env.get('ADMIN_PANEL_TOKEN') || '';
-  const provided = req.headers.get('x-admin-token') || '';
-
-  if (!expected) {
-    return json({ error: 'ADMIN_PANEL_TOKEN não configurado no Supabase.' }, 500);
-  }
-
-  if (!provided || provided !== expected) {
-    return json({ error: 'Token de administrador inválido.' }, 401);
-  }
-
-  return null;
 }
 
 async function readBody(req: Request): Promise<JsonBody> {
@@ -287,9 +273,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const authError = requireAdmin(req);
-  if (authError) return authError;
-
   try {
     const supabaseUrl = getEnv('SUPABASE_URL');
     const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
@@ -297,6 +280,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
+    await requirePanelPrincipal(req, supabase, ['admin']);
 
     const url = new URL(req.url);
     const body = await readBody(req);
@@ -935,6 +919,10 @@ serve(async (req) => {
         'expiresAt' in body &&
         timestampOrZero(nextExpiresAt) > timestampOrZero(previousExpiresAt);
 
+      const currentCustomer = Array.isArray(currentDevice.customer)
+        ? currentDevice.customer[0] ?? null
+        : currentDevice.customer;
+
       let creditConsumption = null;
 
       if (isActivation || isRenewal) {
@@ -951,7 +939,7 @@ serve(async (req) => {
           type: isActivation ? 'activation' : 'renewal',
           creditCost: plan.creditCost,
           planName: plan.name,
-          customerName: currentDevice.customer?.name || null,
+          customerName: currentCustomer?.name || null,
         });
       }
 
@@ -1082,6 +1070,10 @@ serve(async (req) => {
 
     return json({ error: 'Ação inválida.' }, 400);
   } catch (error) {
+    if (error instanceof PanelAuthError) {
+      return panelAuthErrorResponse(error, corsHeaders);
+    }
+
     return json({
       error: error instanceof Error ? error.message : 'Erro inesperado no painel.',
     }, 500);
