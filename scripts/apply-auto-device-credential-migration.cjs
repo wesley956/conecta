@@ -1,44 +1,41 @@
 const fs = require('node:fs');
 
 const file = 'src/utils/devicePanel.ts';
-const source = fs.readFileSync(file, 'utf8');
+let source = fs.readFileSync(file, 'utf8');
 
-const before = `  const deviceCredential = await getStoredDeviceCredential();
+const desiredFragments = [
+  '  let code = String(deviceCode || getStoredDeviceCode()).trim();',
+  '  if (configUrl && !deviceCredential) {',
+  '      code = String(getStoredDeviceCode()).trim();',
+];
 
-  if (!configUrl) {`;
-
-const after = `  let deviceCredential = await getStoredDeviceCredential();
-
-  if (!deviceCredential) {
-    try {
-      await activateDeviceWithPanel();
-      deviceCredential = await getStoredDeviceCredential();
-    } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : 'Não foi possível emitir a credencial segura deste aparelho.';
-
-      return {
-        active: false,
-        status: 'blocked',
-        deviceCode: code,
-        credentialRequired: true,
-        message,
-      };
-    }
-  }
-
-  if (!configUrl) {`;
-
-if (source.includes(after)) {
-  console.log('Migração automática de credencial já aplicada.');
+if (desiredFragments.every(fragment => source.includes(fragment))) {
+  console.log('Migração automática de credencial já corrigida.');
   process.exit(0);
 }
 
-const occurrences = source.split(before).length - 1;
-if (occurrences !== 1) {
-  throw new Error(`Bloco esperado encontrado ${occurrences} vez(es).`);
+const replacements = [
+  [
+    '  const code = String(deviceCode || getStoredDeviceCode()).trim();',
+    '  let code = String(deviceCode || getStoredDeviceCode()).trim();',
+  ],
+  [
+    '  if (!deviceCredential) {',
+    '  if (configUrl && !deviceCredential) {',
+  ],
+  [
+    '      await activateDeviceWithPanel();\n      deviceCredential = await getStoredDeviceCredential();',
+    '      await activateDeviceWithPanel();\n      code = String(getStoredDeviceCode()).trim();\n      deviceCredential = await getStoredDeviceCredential();',
+  ],
+];
+
+for (const [before, after] of replacements) {
+  const occurrences = source.split(before).length - 1;
+  if (occurrences !== 1) {
+    throw new Error(`Trecho esperado encontrado ${occurrences} vez(es): ${before}`);
+  }
+  source = source.replace(before, after);
 }
 
-fs.writeFileSync(file, source.replace(before, after));
-console.log('Migração automática de credencial aplicada em src/utils/devicePanel.ts.');
+fs.writeFileSync(file, source);
+console.log('Migração automática de credencial corrigida em src/utils/devicePanel.ts.');
