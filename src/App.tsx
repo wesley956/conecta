@@ -543,10 +543,18 @@ function DevicePanelSync() {
         }
 
         if (!playlistUrl) {
+          const secureCacheMessage = config.message || (
+            cacheStatus === 'building' || cacheStatus === 'processing'
+              ? 'Aparelho ativo. O catálogo seguro ainda está sendo preparado no painel.'
+              : cacheStatus === 'error'
+                ? `Aparelho ativo, mas o cache seguro falhou. ${config.cacheError || ''}`.trim()
+                : 'Aparelho ativo, mas nenhuma lista segura está disponível no momento.'
+          );
+
           setActiveNotice(
             cacheErrorMessage
-              ? `Atenção: cache do painel falhou e nenhuma URL de lista foi enviada. ${cacheErrorMessage}`
-              : '✅ Aparelho ativo, mas nenhuma lista foi vinculada no painel.'
+              ? `Atenção: cache do painel falhou e o fallback direto está desabilitado. ${cacheErrorMessage}`
+              : secureCacheMessage
           );
           return;
         }
