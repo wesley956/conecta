@@ -9,9 +9,15 @@ on:
       - player-v2
       - stability-performance-audit
       - feature/player-cinematic-ui
+    paths-ignore:
+      - ".github/latest-android-build.txt"
 
 permissions:
   contents: write
+
+concurrency:
+  group: android-debug-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-android:
@@ -120,3 +126,20 @@ jobs:
           gh release upload "$RELEASE_TAG" "$APK_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --clobber
+
+      - name: Record latest successful APK build
+        run: |
+          GENERATED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          cat > .github/latest-android-build.txt <<EOF
+          status=success
+          commit=$GITHUB_SHA
+          generated_at=$GENERATED_AT
+          release_tag=ronecaplaytv-test-apk
+          apk_url=https://github.com/$GITHUB_REPOSITORY/releases/download/ronecaplaytv-test-apk/RonecaPlayTV-debug.apk
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/latest-android-build.txt
+          git commit -m "ci: registrar APK de teste gerado [skip ci]"
+          git push
