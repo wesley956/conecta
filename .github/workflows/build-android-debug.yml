@@ -10,6 +10,9 @@ on:
       - stability-performance-audit
       - feature/player-cinematic-ui
 
+permissions:
+  contents: write
+
 jobs:
   build-android:
     name: Build Android Debug APK
@@ -91,3 +94,29 @@ jobs:
         with:
           name: RonecaPlayTV-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK in fixed test release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK_SOURCE="android/app/build/outputs/apk/debug/app-debug.apk"
+          APK_NAME="RonecaPlayTV-debug.apk"
+          RELEASE_TAG="ronecaplaytv-test-apk"
+
+          cp "$APK_SOURCE" "$APK_NAME"
+
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "RonecaPlayTV APK de teste" \
+              --notes "APK debug gerado automaticamente para testes em Android TV e TV Box." \
+              --prerelease
+          fi
+
+          gh release edit "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes "APK debug atualizado automaticamente a partir do commit $GITHUB_SHA."
+
+          gh release upload "$RELEASE_TAG" "$APK_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
