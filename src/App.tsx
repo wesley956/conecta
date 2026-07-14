@@ -115,30 +115,6 @@ function AppScreen({ screen }: { screen: AppState }) {
   }
 }
 
-function buildContentCacheSignature() {
-  const state = useAppStore.getState();
-
-  const playlistSignature = state.playlists
-    .map(playlist => [
-      playlist.id,
-      playlist.url || '',
-      playlist.status,
-      playlist.channelCount,
-      playlist.movieCount,
-      playlist.seriesCount,
-      playlist.lastSync || '',
-    ].join(':'))
-    .join('|');
-
-  return [
-    state.channels.length,
-    state.movies.length,
-    state.series.length,
-    state.playlists.length,
-    playlistSignature,
-  ].join('::');
-}
-
 // ===== CONTENT CACHE HYDRATOR =====
 function ContentCacheHydrator() {
   const hydratedRef = useRef(false);
@@ -181,30 +157,32 @@ function ContentCacheHydrator() {
 
   useEffect(() => {
     let saveTimer: number | undefined;
-    let previousSignature = buildContentCacheSignature();
 
-    const unsubscribe = useAppStore.subscribe(() => {
-      const nextSignature = buildContentCacheSignature();
+    const unsubscribe = useAppStore.subscribe(
+      state => ({
+        channels: state.channels,
+        movies: state.movies,
+        series: state.series,
+        playlists: state.playlists,
+      }),
+      snapshot => {
+        if (saveTimer) {
+          window.clearTimeout(saveTimer);
+        }
 
-      if (nextSignature === previousSignature) return;
-
-      previousSignature = nextSignature;
-
-      if (saveTimer) {
-        window.clearTimeout(saveTimer);
-      }
-
-      saveTimer = window.setTimeout(() => {
-        const latest = useAppStore.getState();
-
-        void saveContentCache({
-          channels: latest.channels,
-          movies: latest.movies,
-          series: latest.series,
-          playlists: latest.playlists,
-        });
-      }, 2500);
-    });
+        saveTimer = window.setTimeout(() => {
+          void saveContentCache(snapshot);
+        }, 2500);
+      },
+      {
+        equalityFn: (previous, next) => (
+          previous.channels === next.channels &&
+          previous.movies === next.movies &&
+          previous.series === next.series &&
+          previous.playlists === next.playlists
+        ),
+      },
+    );
 
     return () => {
       unsubscribe();
