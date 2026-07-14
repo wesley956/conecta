@@ -1,0 +1,32 @@
+name: Export Repository Snapshot
+
+on:
+  pull_request:
+    branches:
+      - agent/runner-repo-snapshot-base
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.head_ref == 'agent/trigger-repo-snapshot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Remove Git metadata
+        run: rm -rf .git
+
+      - name: Upload repository snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: conecta-main-snapshot
+          path: .
+          include-hidden-files: true
+          retention-days: 3
