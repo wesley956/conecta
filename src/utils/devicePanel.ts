@@ -1,3 +1,5 @@
+import { SecureStorage } from '@aparajita/capacitor-secure-storage';
+
 export interface DevicePanelCacheParts {
   manifestUrl?: string | null;
   channelsUrl?: string | null;
@@ -23,6 +25,8 @@ export interface DevicePanelConfig {
   cacheSnapshotUrl?: string | null;
   cacheParts?: DevicePanelCacheParts | null;
   expiresAt?: string | null;
+  credentialRequired?: boolean;
+  directPlaylistFallbackAllowed?: boolean;
   message?: string | null;
 }
 
@@ -30,6 +34,8 @@ export interface DevicePanelActivation {
   active: boolean;
   status?: 'pending' | 'active' | 'blocked' | 'expired' | 'inactive';
   deviceCode: string;
+  deviceCredential?: string | null;
+  credentialIssued?: boolean;
   clientName?: string | null;
   customerName?: string | null;
   customerWhatsapp?: string | null;
@@ -41,6 +47,7 @@ export interface DevicePanelActivation {
 
 const DEVICE_UUID_STORAGE_KEY = 'ronecaplaytv-device-uuid';
 const DEVICE_CODE_STORAGE_KEY = 'ronecaplaytv-device-code';
+const DEVICE_CREDENTIAL_STORAGE_KEY = 'ronecaplaytv-device-credential-v1';
 
 export function isDevicePanelEnabled() {
   const enabled = String(import.meta.env.VITE_ENABLE_DEVICE_PANEL ?? '').toLowerCase() === 'true';
@@ -72,7 +79,6 @@ export function getOrCreateDeviceUuid() {
       : `device-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     localStorage.setItem(DEVICE_UUID_STORAGE_KEY, uuid);
-
     return uuid;
   } catch {
     return `device-${Date.now()}`;
@@ -91,8 +97,61 @@ export function setStoredDeviceCode(deviceCode: string) {
   try {
     localStorage.setItem(DEVICE_CODE_STORAGE_KEY, deviceCode);
   } catch {
-    // ignora falha de storage
+    // O código continuará disponível na store durante a sessão atual.
   }
+}
+
+export async function getStoredDeviceCredential() {
+  try {
+    return (await SecureStorage.getItem(DEVICE_CREDENTIAL_STORAGE_KEY))?.trim() || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function setStoredDeviceCredential(deviceCredential: string) {
+  const credential = deviceCredential.trim();
+  if (!credential) return;
+
+  try {
+    await SecureStorage.setItem(DEVICE_CREDENTIAL_STORAGE_KEY, credential);
+  } catch {
+    throw new Error(
+      'Não foi possível salvar a credencial segura deste aparelho. Verifique o armazenamento do aplicativo.',
+    );
+  }
+}
+
+export async function clearStoredDeviceCredential() {
+  try {
+    await SecureStorage.removeItem(DEVICE_CREDENTIAL_STORAGE_KEY);
+  } catch {
+    // O backend continuará rejeitando credenciais revogadas.
+  }
+}
+
+async function readJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  let payload: T | null = null;
+
+  try {
+    payload = await response.json() as T;
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message = payload && typeof payload === 'object' && 'message' in payload
+      ? String((payload as { message?: unknown }).message || fallbackMessage)
+      : fallbackMessage;
+
+    throw new Error(`${message} (HTTP ${response.status})`);
+  }
+
+  if (!payload) {
+    throw new Error('O painel respondeu sem dados válidos.');
+  }
+
+  return payload;
 }
 
 export async function activateDeviceWithPanel(): Promise<DevicePanelActivation> {
@@ -118,23 +177,34 @@ export async function activateDeviceWithPanel(): Promise<DevicePanelActivation> 
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Painel respondeu HTTP ${response.status}.`);
+  const activation = await readJsonResponse<DevicePanelActivation>(
+    response,
+    'Falha ao gerar ou consultar o código do aparelho.',
+  );
+
+  if (activation.deviceCode) {
+    setStoredDeviceCode(activation.deviceCode);
   }
 
-  const config = await response.json() as DevicePanelActivation;
-
-  if (config.deviceCode) {
-    setStoredDeviceCode(config.deviceCode);
+  if (activation.deviceCredential) {
+    await setStoredDeviceCredential(activation.deviceCredential);
   }
 
-  return config;
+  return {
+    ...activation,
+    // O segredo já foi persistido. Não o propaga para componentes ou logs.
+    deviceCredential: undefined,
+  };
 }
 
-export async function fetchDevicePanelConfig(deviceCode?: string, deviceUuid?: string): Promise<DevicePanelConfig> {
+export async function fetchDevicePanelConfig(
+  deviceCode?: string,
+  deviceUuid?: string,
+): Promise<DevicePanelConfig> {
   const configUrl = getDevicePanelUrl();
   const code = String(deviceCode || getStoredDeviceCode()).trim();
   const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
+  const deviceCredential = await getStoredDeviceCredential();
 
   if (!configUrl) {
     return {
@@ -154,49 +224,33 @@ export async function fetchDevicePanelConfig(deviceCode?: string, deviceUuid?: s
     };
   }
 
-  const url = new URL(configUrl);
-  url.searchParams.set('code', code);
-  url.searchParams.set('deviceCode', code);
-
-  if (uuid) {
-    url.searchParams.set('deviceUuid', uuid);
-    url.searchParams.set('device_uuid', uuid);
+  if (!deviceCredential) {
+    return {
+      active: false,
+      status: 'blocked',
+      deviceCode: code,
+      credentialRequired: true,
+      message: 'Credencial segura ausente. Atualize a ativação para emitir uma nova credencial.',
+    };
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await fetch(configUrl, {
     method: 'POST',
     cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      Accept: 'application/json',
+      'X-Device-Credential': deviceCredential,
     },
     body: JSON.stringify({
       code,
       deviceCode: code,
-      device_code: code,
-      deviceUuid: uuid || undefined,
-      device_uuid: uuid || undefined,
+      deviceUuid: uuid,
     }),
   });
 
-  let payload: DevicePanelConfig | null = null;
-
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    const detail = payload?.message ? ` ${payload.message}` : '';
-    throw new Error(`Painel respondeu HTTP ${response.status}.${detail}`);
-  }
-
-  return payload ?? {
-    active: false,
-    status: 'pending',
-    deviceCode: code,
-    message: 'Painel respondeu vazio.',
-  };
+  return await readJsonResponse<DevicePanelConfig>(
+    response,
+    'Falha ao validar este aparelho no painel.',
+  );
 }
-
