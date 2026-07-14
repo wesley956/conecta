@@ -9,6 +9,9 @@ const REQUEST_HEADERS = {
 
 const DOWNLOAD_TIMEOUT_MS = 55_000;
 const XTREAM_API_FALLBACK_TIMEOUT_MS = 45_000;
+const CONNECT_TIMEOUT_MS = 15_000;
+const MAX_M3U_BYTES = 80 * 1024 * 1024;
+const MAX_JSON_BYTES = 30 * 1024 * 1024;
 
 interface XtreamSourceInfo {
   origin: string;
@@ -45,6 +48,90 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
     }
   }
 }
+
+function decodeResponseBytes(bytes: Uint8Array, contentType: string | null) {
+  const charset = /charset\s*=\s*([^;\s]+)/i
+    .exec(contentType || '')?.[1]
+    ?.replace(/["']/g, '')
+    .toLowerCase();
+  const encoding = charset === 'iso-8859-1' ? 'windows-1252' : charset || 'utf-8';
+
+  try {
+    const decoded = new TextDecoder(encoding).decode(bytes).replace(/^\uFEFF/, '');
+
+    if (encoding === 'utf-8' && decoded.includes('\uFFFD')) {
+      return new TextDecoder('windows-1252').decode(bytes).replace(/^\uFEFF/, '');
+    }
+
+    return decoded;
+  } catch {
+    return new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
+  }
+}
+
+async function readTextResponse(response: Response, maxBytes: number) {
+  const declaredLength = Number(response.headers.get('content-length') || 0);
+
+  if (declaredLength > maxBytes) {
+    throw new Error(`Resposta excede o limite de ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+  }
+
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+
+    totalBytes += value.byteLength;
+
+    if (totalBytes > maxBytes) {
+      await reader.cancel('response too large');
+      throw new Error(`Resposta excede o limite de ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+    }
+
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return decodeResponseBytes(bytes, response.headers.get('content-type'));
+}
+
+async function fetchWithAbort(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Tempo limite atingido após ${Math.round(timeoutMs / 1000)}s.`);
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 
 function parseXtreamSource(rawUrl: string): XtreamSourceInfo | null {
   try {
@@ -135,6 +222,8 @@ async function fetchJsonWithCapacitor<T>(url: string, context: string): Promise<
     // isso e gerar uma mensagem clara em vez de um SyntaxError cru.
     responseType: 'text' as any,
     headers: REQUEST_HEADERS,
+    connectTimeout: CONNECT_TIMEOUT_MS,
+    readTimeout: XTREAM_API_FALLBACK_TIMEOUT_MS,
   });
 
   const status = Number(response.status ?? 0);
@@ -147,17 +236,21 @@ async function fetchJsonWithCapacitor<T>(url: string, context: string): Promise<
 }
 
 async function fetchJsonDirect<T>(url: string, context: string): Promise<T> {
-  const response = await fetch(url, {
-    method: 'GET',
-    cache: 'no-store',
-    headers: REQUEST_HEADERS,
-  });
+  const response = await fetchWithAbort(
+    url,
+    {
+      method: 'GET',
+      cache: 'no-store',
+      headers: REQUEST_HEADERS,
+    },
+    XTREAM_API_FALLBACK_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
     throw new SeriesApiError(`${context}: a API respondeu HTTP ${response.status}.`);
   }
 
-  const text = await response.text();
+  const text = await readTextResponse(response, MAX_JSON_BYTES);
   return parseJsonOrThrow<T>(text, context);
 }
 
@@ -250,6 +343,8 @@ async function fetchM3UWithCapacitorHttp(url: string) {
     url,
     responseType: 'text' as any,
     headers: REQUEST_HEADERS,
+    connectTimeout: CONNECT_TIMEOUT_MS,
+    readTimeout: DOWNLOAD_TIMEOUT_MS,
   });
 
   const status = Number(response.status ?? 0);
@@ -262,6 +357,11 @@ async function fetchM3UWithCapacitorHttp(url: string) {
 
   if (status < 200 || status >= 300) {
     throw new Error(`A URL respondeu HTTP ${status}. O servidor não entregou a lista M3U no APK.`);
+  }
+
+  const contentBytes = new TextEncoder().encode(content).byteLength;
+  if (contentBytes > MAX_M3U_BYTES) {
+    throw new Error(`A lista excede o limite de ${Math.round(MAX_M3U_BYTES / 1024 / 1024)} MB.`);
   }
 
   if (!looksLikeM3U(content)) {
@@ -308,30 +408,38 @@ async function fetchDirect(url: string): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-    });
+    const response = await fetchWithAbort(
+      url,
+      {
+        method: 'GET',
+        cache: 'no-store',
+      },
+      DOWNLOAD_TIMEOUT_MS,
+    );
 
-    if (response.ok) return await response.text();
-    return null;
+    if (!response.ok) return null;
+    return await readTextResponse(response, MAX_M3U_BYTES);
   } catch {
     return null;
   }
 }
 
 async function fetchViaDevProxy(url: string): Promise<string> {
-  const response = await fetch(`/api/dev-m3u-proxy?url=${encodeURIComponent(url)}`, {
-    method: 'GET',
-    cache: 'no-store',
-  });
+  const response = await fetchWithAbort(
+    `/api/dev-m3u-proxy?url=${encodeURIComponent(url)}`,
+    {
+      method: 'GET',
+      cache: 'no-store',
+    },
+    DOWNLOAD_TIMEOUT_MS,
+  );
 
   if (!response.ok) {
-    const message = await response.text().catch(() => '');
+    const message = await readTextResponse(response, 64 * 1024).catch(() => '');
     throw new Error(message || `Não foi possível buscar a lista. HTTP ${response.status}`);
   }
 
-  return await response.text();
+  return await readTextResponse(response, MAX_M3U_BYTES);
 }
 
 export async function fetchM3UContent(url: string): Promise<string> {
