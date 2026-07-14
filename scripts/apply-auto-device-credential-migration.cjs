@@ -1,41 +1,84 @@
 const fs = require('node:fs');
 
 const file = 'src/utils/devicePanel.ts';
-let source = fs.readFileSync(file, 'utf8');
+const source = fs.readFileSync(file, 'utf8');
 
-const desiredFragments = [
-  '  let code = String(deviceCode || getStoredDeviceCode()).trim();',
-  '  if (configUrl && !deviceCredential) {',
-  '      code = String(getStoredDeviceCode()).trim();',
-];
+const before = `  const configUrl = getDevicePanelUrl();
+  const code = String(deviceCode || getStoredDeviceCode()).trim();
+  const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
+  let deviceCredential = await getStoredDeviceCredential();
 
-if (desiredFragments.every(fragment => source.includes(fragment))) {
+  if (!deviceCredential) {
+    try {
+      await activateDeviceWithPanel();
+      deviceCredential = await getStoredDeviceCredential();
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível emitir a credencial segura deste aparelho.';
+
+      return {
+        active: false,
+        status: 'blocked',
+        deviceCode: code,
+        credentialRequired: true,
+        message,
+      };
+    }
+  }
+
+  if (!configUrl) {
+    return {
+      active: false,
+      status: 'pending',
+      deviceCode: code,
+      message: 'Endpoint do painel não configurado no APK.',
+    };
+  }`;
+
+const after = `  const configUrl = getDevicePanelUrl();
+  let code = String(deviceCode || getStoredDeviceCode()).trim();
+  const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
+  let deviceCredential = await getStoredDeviceCredential();
+
+  if (!configUrl) {
+    return {
+      active: false,
+      status: 'pending',
+      deviceCode: code,
+      message: 'Endpoint do painel não configurado no APK.',
+    };
+  }
+
+  if (!deviceCredential) {
+    try {
+      await activateDeviceWithPanel();
+      code = String(getStoredDeviceCode()).trim();
+      deviceCredential = await getStoredDeviceCredential();
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Não foi possível emitir a credencial segura deste aparelho.';
+
+      return {
+        active: false,
+        status: 'blocked',
+        deviceCode: code,
+        credentialRequired: true,
+        message,
+      };
+    }
+  }`;
+
+if (source.includes(after)) {
   console.log('Migração automática de credencial já corrigida.');
   process.exit(0);
 }
 
-const replacements = [
-  [
-    '  const code = String(deviceCode || getStoredDeviceCode()).trim();',
-    '  let code = String(deviceCode || getStoredDeviceCode()).trim();',
-  ],
-  [
-    '  if (!deviceCredential) {',
-    '  if (configUrl && !deviceCredential) {',
-  ],
-  [
-    '      await activateDeviceWithPanel();\n      deviceCredential = await getStoredDeviceCredential();',
-    '      await activateDeviceWithPanel();\n      code = String(getStoredDeviceCode()).trim();\n      deviceCredential = await getStoredDeviceCredential();',
-  ],
-];
-
-for (const [before, after] of replacements) {
-  const occurrences = source.split(before).length - 1;
-  if (occurrences !== 1) {
-    throw new Error(`Trecho esperado encontrado ${occurrences} vez(es): ${before}`);
-  }
-  source = source.replace(before, after);
+const occurrences = source.split(before).length - 1;
+if (occurrences !== 1) {
+  throw new Error(`Bloco completo esperado encontrado ${occurrences} vez(es).`);
 }
 
-fs.writeFileSync(file, source);
+fs.writeFileSync(file, source.replace(before, after));
 console.log('Migração automática de credencial corrigida em src/utils/devicePanel.ts.');
