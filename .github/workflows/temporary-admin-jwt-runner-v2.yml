@@ -1,0 +1,40 @@
+name: Temporary Admin JWT Runner V2
+
+on:
+  pull_request:
+    branches:
+      - agent/runner-admin-jwt-base
+
+permissions:
+  contents: write
+
+jobs:
+  apply-admin-jwt:
+    if: github.head_ref == 'agent/backend-admin-jwt-auth'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/backend-admin-jwt-auth
+          fetch-depth: 0
+
+      - name: Apply codemod
+        run: python scripts/apply-admin-jwt-auth.py
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check
+        run: deno check supabase/functions/admin-panel/index.ts supabase/functions/_shared/panelAuth.ts
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/admin-panel/index.ts
+          git commit -m 'backend: require authenticated admin JWT'
+          git push origin HEAD:agent/backend-admin-jwt-auth
