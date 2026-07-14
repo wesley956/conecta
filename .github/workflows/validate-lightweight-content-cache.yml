@@ -1,0 +1,41 @@
+name: Validate Lightweight Content Cache Subscription
+
+on:
+  pull_request:
+    branches:
+      - agent/runner-lightweight-cache-base
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.head_ref == 'agent/performance-selective-content-cache-subscription'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/performance-selective-content-cache-subscription
+          fetch-depth: 0
+
+      - run: python scripts/apply-lightweight-content-cache-subscription.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/App.tsx
+          git commit -m 'performance: avoid full cache signature recalculation'
+          git push origin HEAD:agent/performance-selective-content-cache-subscription
