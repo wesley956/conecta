@@ -1,0 +1,58 @@
+name: Fix admin expiry normalization
+
+on:
+  push:
+    branches:
+      - agent/backend-admin-atomic-subscriptions
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-admin-expiry-normalization
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/backend-admin-atomic-subscriptions
+          fetch-depth: 0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply expiry normalization
+        run: node scripts/fix-admin-expiry-normalization.cjs
+
+      - name: Validate admin panel
+        run: |
+          npm run verify
+          git diff --check
+
+      - name: Commit functional fix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet; then
+            echo 'Nenhuma alteração pendente.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin-panel/dashboard.html
+          git commit -m 'fix: preservar validade ao salvar aparelho no admin'
+          git push origin HEAD:agent/backend-admin-atomic-subscriptions
