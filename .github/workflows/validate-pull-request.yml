@@ -133,6 +133,7 @@ jobs:
     timeout-minutes: 25
     env:
       SUPABASE_TELEMETRY_DISABLED: '1'
+      OPENAI_API_KEY: unused-in-ci
 
     steps:
       - name: Checkout repository
@@ -145,12 +146,26 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --silent
 
       - name: Start isolated Supabase database
-        run: >-
-          npx supabase start
-          -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          npx supabase start \
+            -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor \
+            > supabase-start.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo '::error::Falha ao iniciar o Supabase local.'
+            tail -n 12 supabase-start.log
+            exit "$status"
+          fi
+
+          tail -n 8 supabase-start.log
 
       - name: Reapply all migrations from zero
         run: npx supabase db reset --local --no-seed
