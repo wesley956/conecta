@@ -126,3 +126,48 @@ jobs:
           path: deno-check.log
           if-no-files-found: error
           retention-days: 14
+
+  database:
+    name: Supabase migrations and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start isolated Supabase database
+        run: >-
+          npx supabase start
+          -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Reapply all migrations from zero
+        run: npx supabase db reset --local --no-seed
+
+      - name: Lint PostgreSQL functions and schema
+        run: npx supabase db lint --local --schema public --level error --fail-on error
+
+      - name: Run pgTAP database tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! compgen -G 'supabase/tests/*' > /dev/null; then
+            echo 'Nenhum teste de banco foi encontrado em supabase/tests.'
+            exit 1
+          fi
+          npx supabase test db --local
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --no-backup
