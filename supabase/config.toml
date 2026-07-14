@@ -113,8 +113,10 @@ verify_jwt = false
 [functions.playlist-cache]
 verify_jwt = false
 
+# A função administrativa já usa Supabase Auth e papel individual.
 [functions.admin-panel]
-verify_jwt = false
+verify_jwt = true
 
+# O portal de vendedores permanece compatível até cada vendedor possuir conta Auth vinculada.
 [functions.seller-panel]
 verify_jwt = false

@@ -22,7 +22,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_PANEL_AUTO_DEPLOY == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -40,8 +39,10 @@ jobs:
 
       - name: Generate public Supabase config
         env:
-          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY }}
+          # Estes valores são públicos por design e são enviados ao navegador.
+          # A chave service_role nunca é usada ou exposta neste workflow.
+          SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_QhNyg55ZhiOCPZyuSjsX8A_Kq7nTiYN
         run: |
           node scripts/generate-panel-config.mjs
           test -s admin-panel/panel-config.js
