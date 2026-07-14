@@ -3,23 +3,39 @@
 
   var STORAGE_KEY = 'roneca-panel-auth-session-v1';
   var LEGACY_SESSION_MARKER = 'supabase-session';
-  var LEGACY_KEYS = ['roneca_admin_token', 'roneca_seller_token'];
+  var LEGACY_KEYS = ['roneca_admin_token', 'cruz-stars-admin-token', 'roneca_seller_token'];
   var REFRESH_MARGIN_SECONDS = 90;
+  var MAX_TOKEN_LENGTH = 16 * 1024;
+  var PANEL_FUNCTIONS = Object.freeze({
+    'admin-panel': true,
+    'seller-panel': true,
+  });
   var originalFetch = global.fetch.bind(global);
   var refreshPromise = null;
 
   function getConfig() {
     var config = global.RONECA_PANEL_CONFIG || {};
-    var supabaseUrl = String(config.supabaseUrl || '').replace(/\/$/, '');
+    var rawUrl = String(config.supabaseUrl || '').trim();
     var anonKey = String(config.anonKey || '').trim();
+    var parsed;
 
-    if (!/^https:\/\//i.test(supabaseUrl) || !anonKey) {
+    try {
+      parsed = new URL(rawUrl);
+    } catch (_error) {
       throw new Error('Configuração pública do Supabase não encontrada. Gere panel-config.js no deploy.');
     }
 
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+      throw new Error('SUPABASE_URL precisa usar HTTPS e não pode conter credenciais.');
+    }
+
+    if (!anonKey || anonKey.length > MAX_TOKEN_LENGTH) {
+      throw new Error('Chave pública anon do Supabase não encontrada ou inválida.');
+    }
+
     return {
-      supabaseUrl: supabaseUrl,
-      supabaseOrigin: new URL(supabaseUrl).origin,
+      supabaseUrl: parsed.origin,
+      supabaseOrigin: parsed.origin,
       anonKey: anonKey,
     };
   }
@@ -41,6 +57,14 @@
 
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.access_token || !parsed.refresh_token) return null;
+      if (
+        String(parsed.access_token).length > MAX_TOKEN_LENGTH ||
+        String(parsed.refresh_token).length > MAX_TOKEN_LENGTH
+      ) {
+        clearSession();
+        return null;
+      }
+
       return parsed;
     } catch (_error) {
       return null;
@@ -52,6 +76,12 @@
       throw new Error('Sessão de autenticação incompleta.');
     }
 
+    var accessToken = String(session.access_token);
+    var refreshToken = String(session.refresh_token);
+    if (accessToken.length > MAX_TOKEN_LENGTH || refreshToken.length > MAX_TOKEN_LENGTH) {
+      throw new Error('Sessão de autenticação excede o tamanho permitido.');
+    }
+
     var expiresIn = Number(session.expires_in || 3600);
     if (!Number.isFinite(expiresIn) || expiresIn <= 0) expiresIn = 3600;
 
@@ -61,8 +91,8 @@
     }
 
     var safeSession = {
-      access_token: String(session.access_token),
-      refresh_token: String(session.refresh_token),
+      access_token: accessToken,
+      refresh_token: refreshToken,
       token_type: String(session.token_type || 'bearer'),
       expires_in: expiresIn,
       expires_at: expiresAt,
@@ -198,20 +228,26 @@
     }
   }
 
-  function resolvePanelFunctionUrl(value, allowRewrite) {
+  function resolvePanelFunctionUrl(value) {
     try {
       var config = getConfig();
       var url = new URL(String(value), global.location.href);
-      var matchesPanelPath = /\/functions\/v1\/(admin-panel|seller-panel)(?:\/|$)/.test(url.pathname);
+      var match = url.pathname.match(/^\/functions\/v1\/(admin-panel|seller-panel)(?:\/|$)/);
 
-      if (!matchesPanelPath) return null;
-      if (url.origin === config.supabaseOrigin) return url.toString();
-      if (!allowRewrite) return null;
-
+      if (!match || !PANEL_FUNCTIONS[match[1]]) return null;
       return new URL(url.pathname + url.search, config.supabaseOrigin).toString();
     } catch (_error) {
       return null;
     }
+  }
+
+  function getFunctionUrl(name) {
+    var functionName = String(name || '').trim();
+    if (!PANEL_FUNCTIONS[functionName]) {
+      throw new Error('Função do painel não permitida.');
+    }
+
+    return getConfig().supabaseUrl + '/functions/v1/' + functionName;
   }
 
   function mergeHeaders(input, init) {
@@ -229,7 +265,7 @@
   global.fetch = async function authenticatedPanelFetch(input, init) {
     var isRequestObject = input instanceof Request;
     var requestUrl = isRequestObject ? input.url : String(input);
-    var panelUrl = resolvePanelFunctionUrl(requestUrl, !isRequestObject);
+    var panelUrl = resolvePanelFunctionUrl(requestUrl);
 
     if (!panelUrl) {
       return originalFetch(input, init);
@@ -238,8 +274,6 @@
     var token = await getAccessToken();
     var config = getConfig();
     var headers = mergeHeaders(input, init);
-    var firstInput = isRequestObject ? input.clone() : panelUrl;
-    var retryInput = isRequestObject ? input.clone() : panelUrl;
 
     headers.delete('x-admin-token');
     headers.delete('x-seller-token');
@@ -251,13 +285,18 @@
       cache: 'no-store',
     });
 
-    var response = await originalFetch(firstInput, nextInit);
+    function nextInput() {
+      return isRequestObject
+        ? new Request(panelUrl, input.clone())
+        : panelUrl;
+    }
 
+    var response = await originalFetch(nextInput(), nextInit);
     if (response.status !== 401) return response;
 
     await refreshSession();
     headers.set('Authorization', 'Bearer ' + await getAccessToken());
-    return await originalFetch(retryInput, Object.assign({}, nextInit, { headers: headers }));
+    return await originalFetch(nextInput(), Object.assign({}, nextInit, { headers: headers }));
   };
 
   global.RonecaPanelAuth = Object.freeze({
@@ -267,6 +306,7 @@
     getAccessToken: getAccessToken,
     refreshSession: refreshSession,
     clearSession: clearSession,
+    getFunctionUrl: getFunctionUrl,
     getUser: function getUser() {
       var session = readSession();
       return session ? session.user || null : null;
