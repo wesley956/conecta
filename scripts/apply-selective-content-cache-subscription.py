@@ -34,7 +34,7 @@ app_path = Path('src/App.tsx')
 app_source = app_path.read_text(encoding='utf-8')
 
 signature_start = app_source.find('function buildContentCacheSignature() {')
-signature_end = app_source.find('\n\nfunction ContentCachePersistence()', signature_start)
+signature_end = app_source.find('\n\n// ===== CONTENT CACHE HYDRATOR =====', signature_start)
 if signature_start < 0 or signature_end < 0:
     raise SystemExit('Função antiga de assinatura do cache não encontrada.')
 app_source = app_source[:signature_start] + app_source[signature_end + 2:]
