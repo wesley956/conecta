@@ -7,20 +7,27 @@ function requiredEnv(name) {
   return value;
 }
 
-const supabaseUrl = requiredEnv('SUPABASE_URL').replace(/\/$/, '');
+const rawSupabaseUrl = requiredEnv('SUPABASE_URL');
 const anonKey = requiredEnv('SUPABASE_ANON_KEY');
+let parsedUrl;
 
-if (!/^https:\/\//i.test(supabaseUrl)) {
-  throw new Error('SUPABASE_URL precisa usar HTTPS.');
+try {
+  parsedUrl = new URL(rawSupabaseUrl);
+} catch {
+  throw new Error('SUPABASE_URL inválida.');
 }
 
-if (anonKey.length < 40) {
+if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password) {
+  throw new Error('SUPABASE_URL precisa usar HTTPS e não pode conter credenciais.');
+}
+
+if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
   throw new Error('SUPABASE_ANON_KEY parece inválida.');
 }
 
 const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `window.RONECA_PANEL_CONFIG = Object.freeze(${JSON.stringify({
-    supabaseUrl,
+    supabaseUrl: parsedUrl.origin,
     anonKey,
   }, null, 2)});\n`;
 
@@ -31,6 +38,6 @@ const outputs = [
 
 for (const output of outputs) {
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  fs.writeFileSync(output, payload, { encoding: 'utf8', mode: 0o600 });
+  fs.writeFileSync(output, payload, { encoding: 'utf8', mode: 0o644 });
   console.log(`Configuração pública gerada: ${path.relative(process.cwd(), output)}`);
 }
