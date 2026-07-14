@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
 
 const BUCKET = 'playlist-cache';
 
@@ -174,19 +175,15 @@ function buildXtreamApiUrl(source: ReturnType<typeof parseXtreamSource>, action?
 }
 
 async function fetchJson(url: string, label: string) {
-  const response = await fetch(url, {
-    method: 'GET',
+  const raw = await safeFetchPlaylistText(url, {
+    label,
+    timeoutMs: 45_000,
+    maxBytes: 30 * 1024 * 1024,
     headers: {
       Accept: 'application/json, text/plain, */*',
       'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
     },
   });
-
-  const raw = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`${label}: HTTP ${response.status}. ${raw.slice(0, 120)}`);
-  }
 
   try {
     return JSON.parse(raw);
@@ -196,21 +193,15 @@ async function fetchJson(url: string, label: string) {
 }
 
 async function fetchText(url: string, label: string) {
-  const response = await fetch(url, {
-    method: 'GET',
+  return await safeFetchPlaylistText(url, {
+    label,
+    timeoutMs: 60_000,
+    maxBytes: 80 * 1024 * 1024,
     headers: {
       Accept: '*/*',
       'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
     },
   });
-
-  const raw = await response.text();
-
-  if (!response.ok) {
-    throw new Error(`${label}: HTTP ${response.status}. ${raw.slice(0, 120)}`);
-  }
-
-  return raw;
 }
 
 async function sha256Short(value: string) {
