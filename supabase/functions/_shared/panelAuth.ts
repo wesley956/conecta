@@ -17,10 +17,22 @@ export class PanelAuthError extends Error {
   }
 }
 
+const MAX_BEARER_TOKEN_LENGTH = 16 * 1024;
+
+function isPanelRole(value: unknown): value is PanelRole {
+  return value === 'admin' || value === 'seller';
+}
+
 function readBearerToken(request: Request) {
   const authorization = String(request.headers.get('authorization') || '').trim();
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || '';
+  const match = authorization.match(/^Bearer\s+([^\s]+)$/i);
+  const token = match?.[1]?.trim() || '';
+
+  if (token.length > MAX_BEARER_TOKEN_LENGTH) {
+    throw new PanelAuthError('Sessão do painel inválida.', 401);
+  }
+
+  return token;
 }
 
 export async function requirePanelPrincipal(
@@ -28,6 +40,10 @@ export async function requirePanelPrincipal(
   supabase: any,
   allowedRoles: PanelRole[],
 ): Promise<PanelPrincipal> {
+  if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) {
+    throw new PanelAuthError('Área do painel sem papéis autorizados.', 500);
+  }
+
   const accessToken = readBearerToken(request);
 
   if (!accessToken) {
@@ -37,7 +53,7 @@ export async function requirePanelPrincipal(
   const { data: authData, error: authError } = await supabase.auth.getUser(accessToken);
   const user = authData?.user;
 
-  if (authError || !user) {
+  if (authError || !user?.id) {
     throw new PanelAuthError('Sessão do painel inválida ou expirada.', 401);
   }
 
@@ -59,12 +75,20 @@ export async function requirePanelPrincipal(
     throw new PanelAuthError('Usuário sem acesso ativo ao painel.', 403);
   }
 
-  if (!allowedRoles.includes(roleRecord.role as PanelRole)) {
+  if (!isPanelRole(roleRecord.role)) {
+    throw new PanelAuthError('Papel do usuário do painel é inválido.', 403);
+  }
+
+  if (!allowedRoles.includes(roleRecord.role)) {
     throw new PanelAuthError('Usuário sem permissão para esta área.', 403);
   }
 
-  const role = roleRecord.role as PanelRole;
+  const role = roleRecord.role;
   const sellerId = roleRecord.seller_id ? String(roleRecord.seller_id) : null;
+
+  if (role === 'admin' && sellerId) {
+    throw new PanelAuthError('Conta administrativa possui vínculo comercial inválido.', 403);
+  }
 
   if (role === 'seller') {
     if (!sellerId) {
@@ -92,8 +116,8 @@ export async function requirePanelPrincipal(
   }
 
   return {
-    userId: user.id,
-    email: user.email || null,
+    userId: String(user.id),
+    email: user.email ? String(user.email) : null,
     role,
     sellerId,
   };
