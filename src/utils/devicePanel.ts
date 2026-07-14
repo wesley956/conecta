@@ -202,13 +202,23 @@ export async function fetchDevicePanelConfig(
   deviceUuid?: string,
 ): Promise<DevicePanelConfig> {
   const configUrl = getDevicePanelUrl();
-  const code = String(deviceCode || getStoredDeviceCode()).trim();
+  let code = String(deviceCode || getStoredDeviceCode()).trim();
   const uuid = String(deviceUuid || getOrCreateDeviceUuid()).trim();
   let deviceCredential = await getStoredDeviceCredential();
+
+  if (!configUrl) {
+    return {
+      active: false,
+      status: 'pending',
+      deviceCode: code,
+      message: 'Endpoint do painel não configurado no APK.',
+    };
+  }
 
   if (!deviceCredential) {
     try {
       await activateDeviceWithPanel();
+      code = String(getStoredDeviceCode()).trim();
       deviceCredential = await getStoredDeviceCredential();
     } catch (error) {
       const message = error instanceof Error
@@ -223,15 +233,6 @@ export async function fetchDevicePanelConfig(
         message,
       };
     }
-  }
-
-  if (!configUrl) {
-    return {
-      active: false,
-      status: 'pending',
-      deviceCode: code,
-      message: 'Endpoint do painel não configurado no APK.',
-    };
   }
 
   if (!code) {
