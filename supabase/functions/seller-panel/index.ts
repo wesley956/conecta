@@ -1,9 +1,10 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { PanelAuthError, panelAuthErrorResponse, requirePanelPrincipal } from '../_shared/panelAuth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-seller-token',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
@@ -605,22 +606,20 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const sellerToken = String(req.headers.get('x-seller-token') || '').trim();
-    if (!sellerToken) return json({ error: 'Token do vendedor não informado.' }, 401);
-
     const supabase = createClient(
       getEnv('SUPABASE_URL'),
       getEnv('SUPABASE_SERVICE_ROLE_KEY'),
       { auth: { persistSession: false } },
     );
+    const principal = await requirePanelPrincipal(req, supabase, ['seller']);
 
     const { data: seller, error: sellerError } = await supabase
       .from('panel_sellers')
       .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, created_at, updated_at')
-      .eq('access_token', sellerToken)
+      .eq('id', principal.sellerId)
       .single();
 
-    if (sellerError || !seller) return json({ error: 'Token do vendedor inválido.' }, 401);
+    if (sellerError || !seller) return json({ error: 'Vendedor autenticado não encontrado.' }, 403);
     if (seller.status !== 'active') return json({ error: 'Vendedor bloqueado ou inativo.' }, 403);
 
     const url = new URL(req.url);
@@ -837,6 +836,10 @@ serve(async (req) => {
 
     return json({ error: 'Ação inválida.' }, 400);
   } catch (error) {
+    if (error instanceof PanelAuthError) {
+      return panelAuthErrorResponse(error, corsHeaders);
+    }
+
     return json({ error: error instanceof Error ? error.message : 'Erro inesperado no portal do vendedor.' }, 500);
   }
 });

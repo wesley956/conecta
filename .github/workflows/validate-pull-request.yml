@@ -126,3 +126,70 @@ jobs:
           path: deno-check.log
           if-no-files-found: error
           retention-days: 14
+
+  database:
+    name: Supabase migrations and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      OPENAI_API_KEY: unused-in-ci
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Start isolated PostgreSQL
+        shell: bash
+        run: |
+          set -uo pipefail
+          set +e
+          npx supabase db start > supabase-db-start.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo '::error::Falha ao iniciar o PostgreSQL local do Supabase.'
+            tail -n 20 supabase-db-start.log
+            exit "$status"
+          fi
+
+          tail -n 8 supabase-db-start.log
+
+      - name: Upload PostgreSQL startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-db-start-diagnostics
+          path: supabase-db-start.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Reapply all migrations from zero
+        run: npx supabase db reset --local --no-seed
+
+      - name: Lint PostgreSQL functions and schema
+        run: npx supabase db lint --local --schema public --level error --fail-on error
+
+      - name: Run pgTAP database tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! compgen -G 'supabase/tests/*' > /dev/null; then
+            echo 'Nenhum teste de banco foi encontrado em supabase/tests.'
+            exit 1
+          fi
+          npx supabase test db --local
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --no-backup

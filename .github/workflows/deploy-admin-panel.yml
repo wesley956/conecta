@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "admin-panel/**"
+      - "scripts/generate-panel-config.mjs"
+      - "package.json"
       - ".github/workflows/deploy-admin-panel.yml"
   workflow_dispatch:
 
@@ -20,6 +22,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_PANEL_AUTO_DEPLOY == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -29,6 +32,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate public Supabase config
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY }}
+        run: |
+          node scripts/generate-panel-config.mjs
+          test -s admin-panel/panel-config.js
+          node --check admin-panel/panel-auth-session.js
 
       - name: Prepare static files
         run: |

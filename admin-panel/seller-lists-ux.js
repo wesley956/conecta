@@ -12,7 +12,7 @@
     .replaceAll("'", '&#039;');
 
   function token() {
-    return localStorage.getItem(TOKEN_KEY) || '';
+    return sessionStorage.getItem(TOKEN_KEY) || '';
   }
 
   async function api(action, payload = {}) {
