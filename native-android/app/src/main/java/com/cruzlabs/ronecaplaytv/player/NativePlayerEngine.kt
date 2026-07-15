@@ -10,7 +10,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import java.io.Closeable
 
-@OptIn(UnstableApi::class)
+@UnstableApi
 class NativePlayerEngine(context: Context) : Closeable {
     private val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(
