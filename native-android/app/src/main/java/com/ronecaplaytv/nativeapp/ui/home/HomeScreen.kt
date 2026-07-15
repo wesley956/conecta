@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
+import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.delay
 
 private enum class HomeFocusTarget {
@@ -55,7 +58,7 @@ fun HomeScreen(
 
     LaunchedEffect(isTelevision, channelCount, movieCount, seriesCount) {
         if (isTelevision && (channelCount + movieCount + seriesCount) > 0) {
-            delay(250)
+            delay(260)
             runCatching { firstFocusRequester.requestFocus() }
         }
     }
@@ -72,9 +75,9 @@ fun HomeScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF090612),
-                        Color(0xFF110C20),
-                        Color(0xFF070911),
+                        Color(0xFF100824),
+                        Color(0xFF090B14),
+                        RonecaColors.Background,
                     ),
                 ),
             ),
@@ -82,9 +85,12 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(
+                    if (isTelevision) Modifier else Modifier.verticalScroll(rememberScrollState()),
+                )
                 .padding(
                     horizontal = if (isTelevision) 64.dp else 20.dp,
-                    vertical = if (isTelevision) 36.dp else 22.dp,
+                    vertical = if (isTelevision) 34.dp else 22.dp,
                 ),
         ) {
             Row(
@@ -95,13 +101,14 @@ fun HomeScreen(
                 Column {
                     Text(
                         text = "RONECA",
-                        color = Color(0xFFB99BFF),
-                        fontSize = if (isTelevision) 20.sp else 15.sp,
+                        color = RonecaColors.Primary,
+                        fontSize = if (isTelevision) 19.sp else 14.sp,
                         fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 3.sp,
                     )
                     Text(
                         text = "PLAY TV",
-                        color = Color.White,
+                        color = RonecaColors.TextPrimary,
                         fontSize = if (isTelevision) 34.sp else 25.sp,
                         fontWeight = FontWeight.Black,
                     )
@@ -109,11 +116,11 @@ fun HomeScreen(
 
                 Text(
                     text = if (isTelevision) "ANDROID TV" else "ANDROID",
-                    color = Color(0xFFD8CCFF),
-                    fontSize = if (isTelevision) 15.sp else 12.sp,
+                    color = Color(0xFFE1D8FF),
+                    fontSize = if (isTelevision) 14.sp else 11.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
-                        .background(Color(0xFF2A1C54), RoundedCornerShape(50.dp))
+                        .background(Color(0xFF2D2058), RoundedCornerShape(50.dp))
                         .padding(horizontal = 16.dp, vertical = 9.dp),
                 )
             }
@@ -126,12 +133,12 @@ fun HomeScreen(
                     .background(
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                Color(0xFF34206F),
-                                Color(0xFF17112F),
-                                Color(0xFF121522),
+                                Color(0xFF40258A),
+                                Color(0xFF20163F),
+                                Color(0xFF111520),
                             ),
                         ),
-                        shape = RoundedCornerShape(28.dp),
+                        shape = RoundedCornerShape(30.dp),
                     )
                     .padding(
                         horizontal = if (isTelevision) 38.dp else 24.dp,
@@ -140,39 +147,42 @@ fun HomeScreen(
             ) {
                 Text(
                     text = "SUA DIVERSÃO COMEÇA AQUI",
-                    color = Color(0xFFC9B5FF),
-                    fontSize = if (isTelevision) 16.sp else 12.sp,
+                    color = Color(0xFFD2C3FF),
+                    fontSize = if (isTelevision) 15.sp else 11.sp,
                     fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Escolha o que assistir",
-                    color = Color.White,
+                    color = RonecaColors.TextPrimary,
                     fontSize = if (isTelevision) 38.sp else 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = statusText,
-                    color = if (catalogError == null) Color(0xFFBFC7DC) else Color(0xFFFFB4A8),
-                    fontSize = if (isTelevision) 18.sp else 14.sp,
+                    color = if (catalogError == null) RonecaColors.TextSecondary else Color(0xFFFFB4A8),
+                    fontSize = if (isTelevision) 17.sp else 14.sp,
+                    maxLines = 2,
                 )
             }
 
-            Spacer(modifier = Modifier.height(if (isTelevision) 32.dp else 24.dp))
+            Spacer(modifier = Modifier.height(if (isTelevision) 30.dp else 24.dp))
 
             Text(
                 text = "EXPLORAR",
-                color = Color(0xFF9DA6BE),
-                fontSize = if (isTelevision) 16.sp else 13.sp,
+                color = RonecaColors.TextMuted,
+                fontSize = if (isTelevision) 15.sp else 12.sp,
                 fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
             )
             Spacer(modifier = Modifier.height(14.dp))
 
             if (isTelevision) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     FocusableActionCard(
                         title = "Canais ao vivo",
@@ -180,7 +190,10 @@ fun HomeScreen(
                         badge = channelCount.toString(),
                         enabled = channelCount > 0,
                         isTelevision = true,
-                        modifier = Modifier.weight(1f),
+                        accentColor = RonecaColors.Primary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(184.dp),
                         focusRequester = if (firstTarget == HomeFocusTarget.Channels) firstFocusRequester else null,
                         onClick = onOpenChannels,
                     )
@@ -190,7 +203,10 @@ fun HomeScreen(
                         badge = movieCount.toString(),
                         enabled = movieCount > 0,
                         isTelevision = true,
-                        modifier = Modifier.weight(1f),
+                        accentColor = RonecaColors.Pink,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(184.dp),
                         focusRequester = if (firstTarget == HomeFocusTarget.Movies) firstFocusRequester else null,
                         onClick = onOpenMovies,
                     )
@@ -200,20 +216,33 @@ fun HomeScreen(
                         badge = seriesCount.toString(),
                         enabled = seriesCount > 0,
                         isTelevision = true,
-                        modifier = Modifier.weight(1f),
+                        accentColor = RonecaColors.Cyan,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(184.dp),
                         focusRequester = if (firstTarget == HomeFocusTarget.Series) firstFocusRequester else null,
                         onClick = onOpenSeries,
                     )
                 }
+
+                Spacer(modifier = Modifier.height(22.dp))
+                Text(
+                    text = "Use as setas para navegar e pressione OK para abrir",
+                    color = RonecaColors.TextMuted,
+                    fontSize = 14.sp,
+                )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
                     FocusableActionCard(
                         title = "Canais ao vivo",
                         subtitle = "Programação em tempo real",
                         badge = channelCount.toString(),
                         enabled = channelCount > 0,
                         isTelevision = false,
-                        modifier = Modifier.fillMaxWidth(),
+                        accentColor = RonecaColors.Primary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(126.dp),
                         onClick = onOpenChannels,
                     )
                     FocusableActionCard(
@@ -222,7 +251,10 @@ fun HomeScreen(
                         badge = movieCount.toString(),
                         enabled = movieCount > 0,
                         isTelevision = false,
-                        modifier = Modifier.fillMaxWidth(),
+                        accentColor = RonecaColors.Pink,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(126.dp),
                         onClick = onOpenMovies,
                     )
                     FocusableActionCard(
@@ -231,8 +263,23 @@ fun HomeScreen(
                         badge = seriesCount.toString(),
                         enabled = seriesCount > 0,
                         isTelevision = false,
-                        modifier = Modifier.fillMaxWidth(),
+                        accentColor = RonecaColors.Cyan,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(126.dp),
                         onClick = onOpenSeries,
+                    )
+                    FocusableActionCard(
+                        title = "Testar player",
+                        subtitle = "Verificar vídeo e controles nativos",
+                        badge = "TESTE",
+                        enabled = true,
+                        isTelevision = false,
+                        accentColor = RonecaColors.Green,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(116.dp),
+                        onClick = onOpenPlayer,
                     )
                 }
             }
