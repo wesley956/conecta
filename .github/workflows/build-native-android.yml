@@ -1,0 +1,75 @@
+name: Build Native Android
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'native-android/**'
+      - '.github/workflows/build-native-android.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-native-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar plataforma Android
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Configurar Gradle 9.4.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
+
+      - name: Validar e compilar APK universal
+        id: native_build
+        shell: bash
+        run: |
+          set +e
+          gradle --no-daemon -p native-android \
+            :app:lintDebug \
+            :app:testDebugUnitTest \
+            :app:assembleDebug \
+            2>&1 | tee native-android-build.log
+          status=${PIPESTATUS[0]}
+          grep -nE 'FAILURE:|What went wrong|Could not|Caused by:|error:' \
+            native-android-build.log | tail -n 250 > native-android-build-summary.log || true
+          exit "$status"
+
+      - name: Publicar diagnóstico nativo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RonecaPlayTV-native-build-diagnostics
+          path: |
+            native-android-build.log
+            native-android-build-summary.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Publicar APK nativo
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RonecaPlayTV-native-universal-debug
+          path: native-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

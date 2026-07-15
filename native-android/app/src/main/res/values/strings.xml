@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RonecaPlayTV</string>
+    <string name="native_alpha_title">RonecaPlayTV Nativo</string>
+    <string name="native_alpha_subtitle">Base nativa pronta para celular, Android TV e TV Box.</string>
+</resources>
