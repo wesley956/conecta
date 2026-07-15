@@ -1,6 +1,5 @@
 package com.ronecaplaytv.nativeapp.ui.components
 
-import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,8 +30,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.nativeKeyEvent
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
@@ -93,14 +93,9 @@ fun FocusableActionCard(
                     return@onPreviewKeyEvent false
                 }
 
-                val shouldActivate = when (event.nativeKeyEvent.keyCode) {
-                    AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                    AndroidKeyEvent.KEYCODE_ENTER,
-                    AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
-                    AndroidKeyEvent.KEYCODE_BUTTON_A,
-                    AndroidKeyEvent.KEYCODE_SPACE -> true
-                    else -> false
-                }
+                val shouldActivate = event.key == Key.DirectionCenter ||
+                    event.key == Key.Enter ||
+                    event.key == Key.Spacebar
 
                 if (shouldActivate) {
                     onClick()
