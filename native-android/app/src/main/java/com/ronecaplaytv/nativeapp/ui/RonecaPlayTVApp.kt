@@ -17,8 +17,6 @@ import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListScreen
 import com.ronecaplaytv.nativeapp.ui.home.HomeScreen
 import com.ronecaplaytv.nativeapp.ui.player.NativePlayerScreen
 
-private const val DEFAULT_TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
-
 private enum class NativeDestination {
     Home,
     Channels,
@@ -36,8 +34,8 @@ fun RonecaPlayTVApp(
     val sessionState by activationViewModel.state.collectAsStateWithLifecycle()
     val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
     var destination by remember { mutableStateOf(NativeDestination.Home) }
-    var selectedStreamUrls by remember { mutableStateOf(listOf(DEFAULT_TEST_STREAM)) }
-    var selectedTitle by remember { mutableStateOf("Teste de reprodução") }
+    var selectedStreamUrls by remember { mutableStateOf(emptyList<String>()) }
+    var selectedTitle by remember { mutableStateOf("") }
 
     LaunchedEffect(isTelevision) {
         activationViewModel.initialize(isTelevision)
@@ -106,7 +104,7 @@ fun RonecaPlayTVApp(
     }
 
     fun openPlayer(item: CatalogListItem) {
-        if (!item.isPlayable) return
+        if (item.playbackUrls.isEmpty()) return
         selectedStreamUrls = item.playbackUrls
         selectedTitle = item.title
         destination = NativeDestination.Player
@@ -134,11 +132,7 @@ fun RonecaPlayTVApp(
                 onOpenChannels = { destination = NativeDestination.Channels },
                 onOpenMovies = { destination = NativeDestination.Movies },
                 onOpenSeries = { destination = NativeDestination.Series },
-                onOpenPlayer = {
-                    selectedStreamUrls = listOf(DEFAULT_TEST_STREAM)
-                    selectedTitle = "Teste de reprodução"
-                    destination = NativeDestination.Player
-                },
+                onOpenPlayer = {},
             )
 
             NativeDestination.Channels -> CatalogListScreen(
