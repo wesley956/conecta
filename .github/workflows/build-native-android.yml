@@ -40,13 +40,33 @@ jobs:
           gradle-version: '9.4.1'
 
       - name: Validar e compilar APK universal
-        run: >-
-          gradle --no-daemon -p native-android
-          :app:lintDebug
-          :app:testDebugUnitTest
-          :app:assembleDebug
+        id: native_build
+        shell: bash
+        run: |
+          set +e
+          gradle --no-daemon -p native-android \
+            :app:lintDebug \
+            :app:testDebugUnitTest \
+            :app:assembleDebug \
+            2>&1 | tee native-android-build.log
+          status=${PIPESTATUS[0]}
+          grep -nE 'FAILURE:|What went wrong|Could not|Caused by:|error:' \
+            native-android-build.log | tail -n 250 > native-android-build-summary.log || true
+          exit "$status"
+
+      - name: Publicar diagnóstico nativo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RonecaPlayTV-native-build-diagnostics
+          path: |
+            native-android-build.log
+            native-android-build-summary.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Publicar APK nativo
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: RonecaPlayTV-native-universal-debug
