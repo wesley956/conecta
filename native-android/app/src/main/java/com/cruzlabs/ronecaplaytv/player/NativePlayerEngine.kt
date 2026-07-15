@@ -3,12 +3,14 @@ package com.cruzlabs.ronecaplaytv.player
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import java.io.Closeable
 
+@OptIn(UnstableApi::class)
 class NativePlayerEngine(context: Context) : Closeable {
     private val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(
