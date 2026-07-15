@@ -23,18 +23,26 @@ import androidx.tv.material3.Text
 @Composable
 fun HomeScreen(
     isTelevision: Boolean,
+    channelCount: Int,
+    movieCount: Int,
+    seriesCount: Int,
+    loadingSection: String?,
+    catalogError: String?,
+    onOpenChannels: () -> Unit,
+    onOpenMovies: () -> Unit,
+    onOpenSeries: () -> Unit,
     onOpenPlayer: () -> Unit,
 ) {
     val horizontalPadding = if (isTelevision) 72.dp else 24.dp
     val titleSize = if (isTelevision) 44.sp else 30.sp
     val bodySize = if (isTelevision) 22.sp else 17.sp
-    val buttonWidth = if (isTelevision) 360.dp else 260.dp
+    val buttonWidth = if (isTelevision) 420.dp else 300.dp
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF080B12))
-            .padding(horizontal = horizontalPadding, vertical = 36.dp),
+            .padding(horizontal = horizontalPadding, vertical = 30.dp),
     ) {
         Column(
             modifier = Modifier
@@ -50,29 +58,84 @@ fun HomeScreen(
                 fontWeight = FontWeight.Bold,
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = if (isTelevision) {
-                    "Modo TV detectado: navegação por controle remoto e reprodução nativa."
+                    "Modo TV: controle remoto, listas virtuais e reprodução nativa."
                 } else {
-                    "Modo celular detectado: interface preparada para toque e rotação."
+                    "Modo celular: toque, rotação e reprodução nativa."
                 },
                 color = Color(0xFFB8C0D9),
                 fontSize = bodySize,
             )
 
-            Spacer(modifier = Modifier.height(if (isTelevision) 38.dp else 28.dp))
-
-            Button(
-                onClick = onOpenPlayer,
-                modifier = Modifier.widthIn(min = buttonWidth),
-            ) {
-                Text(
-                    text = "Testar player nativo",
-                    fontSize = if (isTelevision) 21.sp else 17.sp,
-                )
+            val statusText = when {
+                loadingSection != null -> "Carregando $loadingSection..."
+                catalogError != null -> catalogError
+                else -> "Catálogo seguro carregado."
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = statusText,
+                color = if (catalogError == null) Color(0xFF8FE3B0) else Color(0xFFFFB4A8),
+                fontSize = if (isTelevision) 18.sp else 14.sp,
+            )
+
+            Spacer(modifier = Modifier.height(if (isTelevision) 28.dp else 22.dp))
+
+            CatalogButton(
+                label = "Canais ao vivo ($channelCount)",
+                enabled = channelCount > 0,
+                isTelevision = isTelevision,
+                minimumWidth = buttonWidth,
+                onClick = onOpenChannels,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            CatalogButton(
+                label = "Filmes ($movieCount)",
+                enabled = movieCount > 0,
+                isTelevision = isTelevision,
+                minimumWidth = buttonWidth,
+                onClick = onOpenMovies,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            CatalogButton(
+                label = "Séries ($seriesCount)",
+                enabled = seriesCount > 0,
+                isTelevision = isTelevision,
+                minimumWidth = buttonWidth,
+                onClick = onOpenSeries,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            CatalogButton(
+                label = "Testar player nativo",
+                enabled = true,
+                isTelevision = isTelevision,
+                minimumWidth = buttonWidth,
+                onClick = onOpenPlayer,
+            )
         }
+    }
+}
+
+@Composable
+private fun CatalogButton(
+    label: String,
+    enabled: Boolean,
+    isTelevision: Boolean,
+    minimumWidth: androidx.compose.ui.unit.Dp,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.widthIn(min = minimumWidth),
+    ) {
+        Text(
+            text = label,
+            fontSize = if (isTelevision) 20.sp else 16.sp,
+        )
     }
 }
