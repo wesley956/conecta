@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RonecaPlayTV</string>
+    <string name="native_demo_title">RonecaPlayTV Native</string>
+    <string name="native_demo_subtitle">Base adaptativa para celular e Android TV</string>
+    <string name="play_test_stream">Testar player nativo</string>
+    <string name="back">Voltar</string>
+</resources>
