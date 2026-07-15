@@ -36,7 +36,8 @@ fun RonecaPlayTVApp(
     val sessionState by activationViewModel.state.collectAsStateWithLifecycle()
     val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
     var destination by remember { mutableStateOf(NativeDestination.Home) }
-    var selectedStreamUrl by remember { mutableStateOf(DEFAULT_TEST_STREAM) }
+    var selectedStreamUrls by remember { mutableStateOf(listOf(DEFAULT_TEST_STREAM)) }
+    var selectedTitle by remember { mutableStateOf("Teste de reprodução") }
 
     LaunchedEffect(isTelevision) {
         activationViewModel.initialize(isTelevision)
@@ -63,7 +64,7 @@ fun RonecaPlayTVApp(
                 id = channel.id,
                 title = channel.name,
                 subtitle = channel.groupTitle,
-                playbackUrl = channel.primaryUrl,
+                playbackUrls = channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
             )
         }
     }
@@ -78,7 +79,7 @@ fun RonecaPlayTVApp(
                     movie.year?.toString(),
                     movie.duration,
                 ).joinToString(" • "),
-                playbackUrl = movie.primaryUrl,
+                playbackUrls = movie.playbackUrls.ifEmpty { listOf(movie.primaryUrl) },
             )
         }
     }
@@ -86,6 +87,11 @@ fun RonecaPlayTVApp(
     val seriesItems = remember(catalogState.series) {
         catalogState.series.map { series ->
             val episodes = series.seasons.sumOf { it.episodes.size }
+            val firstEpisode = series.seasons
+                .firstOrNull()
+                ?.episodes
+                ?.firstOrNull()
+
             CatalogListItem(
                 id = series.id,
                 title = series.name,
@@ -94,18 +100,15 @@ fun RonecaPlayTVApp(
                 } else {
                     "${series.category} • detalhes ainda não sincronizados"
                 },
-                playbackUrl = series.seasons
-                    .firstOrNull()
-                    ?.episodes
-                    ?.firstOrNull()
-                    ?.primaryUrl,
+                playbackUrls = firstEpisode?.playbackUrls.orEmpty(),
             )
         }
     }
 
     fun openPlayer(item: CatalogListItem) {
-        val url = item.playbackUrl ?: return
-        selectedStreamUrl = url
+        if (!item.isPlayable) return
+        selectedStreamUrls = item.playbackUrls
+        selectedTitle = item.title
         destination = NativeDestination.Player
     }
 
@@ -132,7 +135,8 @@ fun RonecaPlayTVApp(
                 onOpenMovies = { destination = NativeDestination.Movies },
                 onOpenSeries = { destination = NativeDestination.Series },
                 onOpenPlayer = {
-                    selectedStreamUrl = DEFAULT_TEST_STREAM
+                    selectedStreamUrls = listOf(DEFAULT_TEST_STREAM)
+                    selectedTitle = "Teste de reprodução"
                     destination = NativeDestination.Player
                 },
             )
@@ -163,7 +167,8 @@ fun RonecaPlayTVApp(
 
             NativeDestination.Player -> NativePlayerScreen(
                 isTelevision = isTelevision,
-                streamUrl = selectedStreamUrl,
+                title = selectedTitle,
+                streamUrls = selectedStreamUrls,
                 onBack = { destination = NativeDestination.Home },
             )
         }
