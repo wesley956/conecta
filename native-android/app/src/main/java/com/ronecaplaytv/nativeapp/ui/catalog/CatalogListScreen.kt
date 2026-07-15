@@ -23,8 +23,11 @@ data class CatalogListItem(
     val id: String,
     val title: String,
     val subtitle: String,
-    val playbackUrl: String?,
-)
+    val playbackUrls: List<String>,
+) {
+    val isPlayable: Boolean
+        get() = playbackUrls.isNotEmpty()
+}
 
 @Composable
 fun CatalogListScreen(
@@ -70,7 +73,7 @@ fun CatalogListScreen(
             ) { item ->
                 Button(
                     onClick = { onPlay(item) },
-                    enabled = item.playbackUrl != null,
+                    enabled = item.isPlayable,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(
