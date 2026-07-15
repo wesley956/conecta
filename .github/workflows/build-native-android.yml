@@ -31,7 +31,7 @@ jobs:
       - name: Instalar plataforma Android
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null
+          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Configurar Gradle 9.4.1
