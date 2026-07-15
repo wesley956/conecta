@@ -62,7 +62,7 @@ fun NativePlayerScreen(
                     keepScreenOn = true
                     useController = true
                     controllerAutoShow = true
-                    showBuffering = PlayerView.SHOW_BUFFERING_WHEN_PLAYING
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             },
