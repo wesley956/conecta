@@ -10,12 +10,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.MaterialTheme
 import com.ronecaplaytv.nativeapp.activation.ActivationViewModel
+import com.ronecaplaytv.nativeapp.catalog.CatalogViewModel
 import com.ronecaplaytv.nativeapp.ui.activation.ActivationScreen
+import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListItem
+import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListScreen
 import com.ronecaplaytv.nativeapp.ui.home.HomeScreen
 import com.ronecaplaytv.nativeapp.ui.player.NativePlayerScreen
 
+private const val DEFAULT_TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+
 private enum class NativeDestination {
     Home,
+    Channels,
+    Movies,
+    Series,
     Player,
 }
 
@@ -23,12 +31,82 @@ private enum class NativeDestination {
 fun RonecaPlayTVApp(
     isTelevision: Boolean,
     activationViewModel: ActivationViewModel = viewModel(),
+    catalogViewModel: CatalogViewModel = viewModel(),
 ) {
     val sessionState by activationViewModel.state.collectAsStateWithLifecycle()
+    val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
     var destination by remember { mutableStateOf(NativeDestination.Home) }
+    var selectedStreamUrl by remember { mutableStateOf(DEFAULT_TEST_STREAM) }
 
     LaunchedEffect(isTelevision) {
         activationViewModel.initialize(isTelevision)
+    }
+
+    LaunchedEffect(
+        sessionState.isActive,
+        sessionState.channelsUrl,
+        sessionState.moviesUrl,
+        sessionState.seriesUrl,
+    ) {
+        if (sessionState.isActive) {
+            catalogViewModel.load(
+                channelsUrl = sessionState.channelsUrl,
+                moviesUrl = sessionState.moviesUrl,
+                seriesUrl = sessionState.seriesUrl,
+            )
+        }
+    }
+
+    val channelItems = remember(catalogState.channels) {
+        catalogState.channels.map { channel ->
+            CatalogListItem(
+                id = channel.id,
+                title = channel.name,
+                subtitle = channel.groupTitle,
+                playbackUrl = channel.primaryUrl,
+            )
+        }
+    }
+
+    val movieItems = remember(catalogState.movies) {
+        catalogState.movies.map { movie ->
+            CatalogListItem(
+                id = movie.id,
+                title = movie.name,
+                subtitle = listOfNotNull(
+                    movie.category,
+                    movie.year?.toString(),
+                    movie.duration,
+                ).joinToString(" • "),
+                playbackUrl = movie.primaryUrl,
+            )
+        }
+    }
+
+    val seriesItems = remember(catalogState.series) {
+        catalogState.series.map { series ->
+            val episodes = series.seasons.sumOf { it.episodes.size }
+            CatalogListItem(
+                id = series.id,
+                title = series.name,
+                subtitle = if (episodes > 0) {
+                    "${series.category} • $episodes episódios"
+                } else {
+                    "${series.category} • detalhes ainda não sincronizados"
+                },
+                playbackUrl = series.seasons
+                    .firstOrNull()
+                    ?.episodes
+                    ?.firstOrNull()
+                    ?.primaryUrl,
+            )
+        }
+    }
+
+    fun openPlayer(item: CatalogListItem) {
+        val url = item.playbackUrl ?: return
+        selectedStreamUrl = url
+        destination = NativeDestination.Player
     }
 
     MaterialTheme {
@@ -45,11 +123,47 @@ fun RonecaPlayTVApp(
         when (destination) {
             NativeDestination.Home -> HomeScreen(
                 isTelevision = isTelevision,
-                onOpenPlayer = { destination = NativeDestination.Player },
+                channelCount = catalogState.channels.size,
+                movieCount = catalogState.movies.size,
+                seriesCount = catalogState.series.size,
+                loadingSection = catalogState.loadingSection,
+                catalogError = catalogState.error,
+                onOpenChannels = { destination = NativeDestination.Channels },
+                onOpenMovies = { destination = NativeDestination.Movies },
+                onOpenSeries = { destination = NativeDestination.Series },
+                onOpenPlayer = {
+                    selectedStreamUrl = DEFAULT_TEST_STREAM
+                    destination = NativeDestination.Player
+                },
+            )
+
+            NativeDestination.Channels -> CatalogListScreen(
+                title = "Canais ao vivo",
+                items = channelItems,
+                isTelevision = isTelevision,
+                onBack = { destination = NativeDestination.Home },
+                onPlay = ::openPlayer,
+            )
+
+            NativeDestination.Movies -> CatalogListScreen(
+                title = "Filmes",
+                items = movieItems,
+                isTelevision = isTelevision,
+                onBack = { destination = NativeDestination.Home },
+                onPlay = ::openPlayer,
+            )
+
+            NativeDestination.Series -> CatalogListScreen(
+                title = "Séries",
+                items = seriesItems,
+                isTelevision = isTelevision,
+                onBack = { destination = NativeDestination.Home },
+                onPlay = ::openPlayer,
             )
 
             NativeDestination.Player -> NativePlayerScreen(
                 isTelevision = isTelevision,
+                streamUrl = selectedStreamUrl,
                 onBack = { destination = NativeDestination.Home },
             )
         }
