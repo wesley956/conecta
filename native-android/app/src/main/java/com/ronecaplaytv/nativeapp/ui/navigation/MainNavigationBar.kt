@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -43,7 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
-
+import kotlin.math.cos
+import kotlin.math.sin
 
 enum class MainTab(val label: String) {
     Home("Início"),
@@ -60,18 +62,20 @@ fun MainNavigationRail(
     isTelevision: Boolean,
     onSelect: (MainTab) -> Unit,
 ) {
+    val railWidth = if (isTelevision) 82.dp else 70.dp
+
     Column(
         modifier = Modifier
-            .width(if (isTelevision) 108.dp else 92.dp)
+            .width(railWidth)
             .fillMaxHeight()
-            .background(Color(0xFF080806))
+            .background(Color(0xFF080706))
             .border(width = 1.dp, color = RonecaColors.Divider)
-            .padding(vertical = if (isTelevision) 26.dp else 18.dp),
+            .padding(vertical = if (isTelevision) 15.dp else 11.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(if (isTelevision) 54.dp else 46.dp)
+                .size(if (isTelevision) 40.dp else 35.dp)
                 .clip(CircleShape)
                 .background(RonecaColors.Primary.copy(alpha = 0.10f))
                 .border(1.dp, RonecaColors.Primary.copy(alpha = 0.55f), CircleShape),
@@ -80,26 +84,24 @@ fun MainNavigationRail(
             Text(
                 text = "RP",
                 color = RonecaColors.Primary,
-                fontSize = if (isTelevision) 16.sp else 13.sp,
+                fontSize = if (isTelevision) 12.sp else 10.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
 
-        Spacer(modifier = Modifier.height(if (isTelevision) 34.dp else 24.dp))
-
-        val topTabs = listOf(
-            MainTab.Home,
-            MainTab.Channels,
-            MainTab.Movies,
-            MainTab.Series,
-            MainTab.Playback,
-        )
+        Spacer(modifier = Modifier.height(if (isTelevision) 17.dp else 12.dp))
 
         Column(
-            verticalArrangement = Arrangement.spacedBy(if (isTelevision) 10.dp else 7.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isTelevision) 5.dp else 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            topTabs.forEach { tab ->
+            listOf(
+                MainTab.Home,
+                MainTab.Channels,
+                MainTab.Movies,
+                MainTab.Series,
+                MainTab.Playback,
+            ).forEach { tab ->
                 RailItem(
                     tab = tab,
                     selected = tab == selectedTab,
@@ -110,15 +112,13 @@ fun MainNavigationRail(
         }
 
         Spacer(modifier = Modifier.weight(1f))
-
         Box(
             modifier = Modifier
-                .width(if (isTelevision) 64.dp else 54.dp)
+                .width(if (isTelevision) 46.dp else 40.dp)
                 .height(1.dp)
                 .background(RonecaColors.Divider),
         )
-        Spacer(modifier = Modifier.height(14.dp))
-
+        Spacer(modifier = Modifier.height(7.dp))
         RailItem(
             tab = MainTab.Settings,
             selected = selectedTab == MainTab.Settings,
@@ -147,7 +147,7 @@ fun MainNavigationBar(
             .fillMaxWidth()
             .background(Color(0xFF090806))
             .border(width = 1.dp, color = RonecaColors.Divider)
-            .padding(horizontal = 6.dp, vertical = 5.dp),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -172,25 +172,25 @@ private fun RailItem(
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val active = selected || focused
-    val width = if (isTelevision) 78.dp else 66.dp
-    val height = if (isTelevision) 66.dp else 56.dp
+    val width = if (isTelevision) 60.dp else 52.dp
+    val height = if (isTelevision) 48.dp else 42.dp
 
     Box(
         modifier = Modifier
             .width(width)
             .height(height)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(11.dp))
             .background(
                 when {
-                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    selected -> RonecaColors.Primary.copy(alpha = 0.10f)
                     focused -> RonecaColors.SurfaceRaised
                     else -> Color.Transparent
                 },
             )
             .border(
                 width = if (active) 1.dp else 0.dp,
-                color = if (active) RonecaColors.Primary.copy(alpha = 0.70f) else Color.Transparent,
-                shape = RoundedCornerShape(14.dp),
+                color = if (active) RonecaColors.Primary.copy(alpha = 0.68f) else Color.Transparent,
+                shape = RoundedCornerShape(11.dp),
             )
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
@@ -202,15 +202,9 @@ private fun RailItem(
                 ) {
                     onClick()
                     true
-                } else {
-                    false
-                }
+                } else false
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
@@ -219,9 +213,9 @@ private fun RailItem(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .width(3.dp)
-                    .height(if (isTelevision) 30.dp else 24.dp)
+                    .height(if (isTelevision) 22.dp else 18.dp)
                     .clip(RoundedCornerShape(999.dp))
-                    .background(RonecaColors.Primary),
+                    .background(RonecaColors.RedStrong),
             )
         }
 
@@ -229,14 +223,14 @@ private fun RailItem(
             NavigationGlyph(
                 tab = tab,
                 color = if (active) RonecaColors.Primary else RonecaColors.TextSecondary,
-                modifier = Modifier.size(if (isTelevision) 28.dp else 24.dp),
+                modifier = Modifier.size(if (isTelevision) 21.dp else 19.dp),
             )
             if (focused) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = tab.label,
                     color = RonecaColors.TextPrimary,
-                    fontSize = if (isTelevision) 10.sp else 9.sp,
+                    fontSize = if (isTelevision) 8.sp else 7.sp,
                     maxLines = 1,
                 )
             }
@@ -255,28 +249,24 @@ private fun BottomItem(
 
     Column(
         modifier = modifier
-            .height(58.dp)
+            .height(55.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) RonecaColors.Primary.copy(alpha = 0.10f) else Color.Transparent)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(vertical = 8.dp),
+            .background(if (selected) RonecaColors.Primary.copy(alpha = 0.09f) else Color.Transparent)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         NavigationGlyph(
             tab = tab,
             color = if (selected) RonecaColors.Primary else RonecaColors.TextMuted,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(21.dp),
         )
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = tab.label,
             color = if (selected) RonecaColors.TextPrimary else RonecaColors.TextMuted,
-            fontSize = 9.sp,
+            fontSize = 8.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
         )
@@ -284,11 +274,7 @@ private fun BottomItem(
 }
 
 @Composable
-private fun NavigationGlyph(
-    tab: MainTab,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
+private fun NavigationGlyph(tab: MainTab, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val stroke = Stroke(width = size.minDimension * 0.085f)
         val w = size.width
@@ -315,7 +301,7 @@ private fun NavigationGlyph(
                     color = color,
                     topLeft = Offset(w * 0.14f, h * 0.24f),
                     size = Size(w * 0.72f, h * 0.58f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.08f),
+                    cornerRadius = CornerRadius(w * 0.08f),
                     style = stroke,
                 )
                 drawLine(color, Offset(w * 0.37f, h * 0.10f), Offset(w * 0.50f, h * 0.24f), strokeWidth = stroke.width)
@@ -326,7 +312,7 @@ private fun NavigationGlyph(
                     color = color,
                     topLeft = Offset(w * 0.18f, h * 0.12f),
                     size = Size(w * 0.64f, h * 0.76f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.08f),
+                    cornerRadius = CornerRadius(w * 0.08f),
                     style = stroke,
                 )
                 listOf(0.28f, 0.50f, 0.72f).forEach { y ->
@@ -355,21 +341,15 @@ private fun NavigationGlyph(
             MainTab.Settings -> {
                 drawCircle(color = color, radius = w * 0.17f, center = Offset(w * 0.50f, h * 0.50f), style = stroke)
                 repeat(8) { index ->
-                    val angle = Math.toRadians((index * 45.0))
+                    val angle = Math.toRadians(index * 45.0)
                     val inner = w * 0.29f
                     val outer = w * 0.42f
                     val cx = w * 0.50f
                     val cy = h * 0.50f
                     drawLine(
                         color = color,
-                        start = Offset(
-                            (cx + kotlin.math.cos(angle).toFloat() * inner),
-                            (cy + kotlin.math.sin(angle).toFloat() * inner),
-                        ),
-                        end = Offset(
-                            (cx + kotlin.math.cos(angle).toFloat() * outer),
-                            (cy + kotlin.math.sin(angle).toFloat() * outer),
-                        ),
+                        start = Offset(cx + cos(angle).toFloat() * inner, cy + sin(angle).toFloat() * inner),
+                        end = Offset(cx + cos(angle).toFloat() * outer, cy + sin(angle).toFloat() * outer),
                         strokeWidth = stroke.width,
                     )
                 }
