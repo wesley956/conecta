@@ -14,6 +14,8 @@ import com.ronecaplaytv.nativeapp.catalog.CatalogViewModel
 import com.ronecaplaytv.nativeapp.ui.activation.ActivationScreen
 import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListItem
 import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListScreen
+import com.ronecaplaytv.nativeapp.ui.home.HomePreviewItem
+import com.ronecaplaytv.nativeapp.ui.home.HomePreviewKind
 import com.ronecaplaytv.nativeapp.ui.home.HomeScreen
 import com.ronecaplaytv.nativeapp.ui.player.NativePlayerScreen
 
@@ -62,6 +64,7 @@ fun RonecaPlayTVApp(
                 id = channel.id,
                 title = channel.name,
                 subtitle = channel.groupTitle,
+                imageUrl = channel.logoUrl,
                 playbackUrls = channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
             )
         }
@@ -77,6 +80,7 @@ fun RonecaPlayTVApp(
                     movie.year?.toString(),
                     movie.duration,
                 ).joinToString(" • "),
+                imageUrl = movie.coverUrl,
                 playbackUrls = movie.playbackUrls.ifEmpty { listOf(movie.primaryUrl) },
             )
         }
@@ -96,19 +100,65 @@ fun RonecaPlayTVApp(
                 subtitle = if (episodes > 0) {
                     "${series.category} • $episodes episódios"
                 } else {
-                    "${series.category} • detalhes ainda não sincronizados"
+                    "${series.category} • abrir detalhes"
                 },
+                imageUrl = series.coverUrl,
                 playbackUrls = firstEpisode?.playbackUrls.orEmpty(),
             )
         }
     }
 
-    fun openPlayer(item: CatalogListItem) {
-        if (item.playbackUrls.isEmpty()) return
-        selectedStreamUrls = item.playbackUrls
-        selectedTitle = item.title
+    val channelPreviews = remember(catalogState.channels) {
+        catalogState.channels.map { channel ->
+            HomePreviewItem(
+                id = channel.id,
+                title = channel.name,
+                subtitle = channel.groupTitle,
+                imageUrl = channel.logoUrl,
+                playbackUrls = channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
+                kind = HomePreviewKind.Channel,
+            )
+        }
+    }
+
+    val moviePreviews = remember(catalogState.movies) {
+        catalogState.movies.map { movie ->
+            HomePreviewItem(
+                id = movie.id,
+                title = movie.name,
+                subtitle = listOfNotNull(movie.year?.toString(), movie.category)
+                    .joinToString(" • ")
+                    .ifBlank { "Filme" },
+                imageUrl = movie.coverUrl,
+                playbackUrls = movie.playbackUrls.ifEmpty { listOf(movie.primaryUrl) },
+                kind = HomePreviewKind.Movie,
+            )
+        }
+    }
+
+    val seriesPreviews = remember(catalogState.series) {
+        catalogState.series.map { series ->
+            val firstEpisode = series.seasons.firstOrNull()?.episodes?.firstOrNull()
+            HomePreviewItem(
+                id = series.id,
+                title = series.name,
+                subtitle = series.category,
+                imageUrl = series.coverUrl,
+                playbackUrls = firstEpisode?.playbackUrls.orEmpty(),
+                kind = HomePreviewKind.Series,
+            )
+        }
+    }
+
+    fun openPlayer(title: String, playbackUrls: List<String>) {
+        val validUrls = playbackUrls.map(String::trim).filter(String::isNotBlank).distinct()
+        if (validUrls.isEmpty()) return
+        selectedStreamUrls = validUrls
+        selectedTitle = title
         destination = NativeDestination.Player
     }
+
+    fun openPlayer(item: CatalogListItem) = openPlayer(item.title, item.playbackUrls)
 
     MaterialTheme {
         if (!sessionState.isActive) {
@@ -124,15 +174,23 @@ fun RonecaPlayTVApp(
         when (destination) {
             NativeDestination.Home -> HomeScreen(
                 isTelevision = isTelevision,
-                channelCount = catalogState.channels.size,
-                movieCount = catalogState.movies.size,
-                seriesCount = catalogState.series.size,
+                deviceCode = sessionState.deviceCode,
+                expiresAt = sessionState.expiresAt,
                 loadingSection = catalogState.loadingSection,
                 catalogError = catalogState.error,
+                channels = channelPreviews,
+                movies = moviePreviews,
+                series = seriesPreviews,
                 onOpenChannels = { destination = NativeDestination.Channels },
                 onOpenMovies = { destination = NativeDestination.Movies },
                 onOpenSeries = { destination = NativeDestination.Series },
-                onOpenPlayer = {},
+                onPlay = { item ->
+                    if (item.playbackUrls.isNotEmpty()) {
+                        openPlayer(item.title, item.playbackUrls)
+                    } else if (item.kind == HomePreviewKind.Series) {
+                        destination = NativeDestination.Series
+                    }
+                },
             )
 
             NativeDestination.Channels -> CatalogListScreen(
