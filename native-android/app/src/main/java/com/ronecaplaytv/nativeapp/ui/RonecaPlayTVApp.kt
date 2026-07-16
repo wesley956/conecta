@@ -130,7 +130,7 @@ fun RonecaPlayTVApp(
         if (!sessionState.isActive) {
             ActivationScreen(
                 state = sessionState,
-                isTelevision = isTelevision,
+                isTelevision = isWideLayout,
                 onRefresh = activationViewModel::refresh,
                 onReset = activationViewModel::resetSecureActivation,
             )
@@ -176,7 +176,7 @@ fun RonecaPlayTVApp(
                     channels = catalogState.channels,
                     movies = catalogState.movies,
                     series = catalogState.series,
-                    isTelevision = isTelevision,
+                    isTelevision = isWideLayout,
                     onBack = { destination = NativeDestination.Home },
                     onPlayChannel = { channel ->
                         openPlayer(
@@ -196,7 +196,7 @@ fun RonecaPlayTVApp(
 
                 NativeDestination.Channels -> ChannelsScreen(
                     channels = catalogState.channels,
-                    isTelevision = isTelevision,
+                    isTelevision = isWideLayout,
                     onPlay = { channel ->
                         openPlayer(
                             channel.name,
@@ -207,7 +207,7 @@ fun RonecaPlayTVApp(
 
                 NativeDestination.Movies -> MoviesScreen(
                     movies = catalogState.movies,
-                    isTelevision = isTelevision,
+                    isTelevision = isWideLayout,
                     onOpenDetails = { movie ->
                         selectedMovie = movie
                         destination = NativeDestination.MovieDetail
@@ -221,7 +221,7 @@ fun RonecaPlayTVApp(
                     } else {
                         MovieDetailScreen(
                             movie = movie,
-                            isTelevision = isTelevision,
+                            isTelevision = isWideLayout,
                             onBack = { destination = NativeDestination.Movies },
                             onPlay = { selected ->
                                 openPlayer(
@@ -235,7 +235,7 @@ fun RonecaPlayTVApp(
 
                 NativeDestination.Series -> SeriesScreen(
                     series = catalogState.series,
-                    isTelevision = isTelevision,
+                    isTelevision = isWideLayout,
                     onOpenDetails = { series ->
                         selectedSeries = series
                         destination = NativeDestination.SeriesDetail
@@ -249,7 +249,7 @@ fun RonecaPlayTVApp(
                     } else {
                         SeriesDetailScreen(
                             series = series,
-                            isTelevision = isTelevision,
+                            isTelevision = isWideLayout,
                             onBack = { destination = NativeDestination.Series },
                             onPlayEpisode = { episode, displayTitle ->
                                 openPlayer(
@@ -262,12 +262,12 @@ fun RonecaPlayTVApp(
                 }
 
                 NativeDestination.Playback -> PlaybackScreen(
-                    isTelevision = isTelevision,
+                    isTelevision = isWideLayout,
                     onBack = { destination = NativeDestination.Home },
                 )
 
                 NativeDestination.Settings -> SettingsScreen(
-                    isTelevision = isTelevision,
+                    isTelevision = isWideLayout,
                     state = settingsState,
                     onStateChange = { settingsState = it },
                 )
