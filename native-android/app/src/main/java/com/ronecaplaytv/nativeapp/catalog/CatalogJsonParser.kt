@@ -155,6 +155,7 @@ object CatalogJsonParser {
         var category = "Séries"
         var synopsis: String? = null
         var seasons = emptyList<NativeSeason>()
+        var xtreamSeriesId: String? = null
 
         json.beginObject()
         while (json.hasNext()) {
@@ -165,6 +166,7 @@ object CatalogJsonParser {
                 "category" -> category = json.nextSafeString() ?: "Séries"
                 "synopsis" -> synopsis = json.nextSafeString()
                 "seasons" -> seasons = json.readSeasons()
+                "xtreamSeriesId" -> xtreamSeriesId = json.nextSafeString()
                 else -> json.skipValue()
             }
         }
@@ -178,6 +180,7 @@ object CatalogJsonParser {
             category = category,
             synopsis = synopsis,
             seasons = seasons.sortedBy(NativeSeason::number),
+            xtreamSeriesId = xtreamSeriesId,
         )
     }
 
@@ -274,7 +277,7 @@ object CatalogJsonParser {
             nextNull()
             null
         }
-        JsonToken.STRING, JsonToken.NUMBER, JsonToken.BOOLEAN -> nextString().trim().takeIf(String::isNotEmpty)
+        JsonToken.STRING, JsonToken.NUMBER, JsonToken.BOOLEAN -> nextString().trim().takeIf { it.isNotEmpty() }
         else -> {
             skipValue()
             null
