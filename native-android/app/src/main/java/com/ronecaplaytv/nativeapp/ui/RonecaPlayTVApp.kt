@@ -15,15 +15,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronecaplaytv.nativeapp.activation.ActivationViewModel
 import com.ronecaplaytv.nativeapp.catalog.CatalogViewModel
+import com.ronecaplaytv.nativeapp.catalog.NativeMovie
+import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.activation.ActivationScreen
-import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListItem
-import com.ronecaplaytv.nativeapp.ui.catalog.CatalogListScreen
+import com.ronecaplaytv.nativeapp.ui.channels.ChannelsScreen
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.home.HomeScreen
+import com.ronecaplaytv.nativeapp.ui.movies.MovieDetailScreen
+import com.ronecaplaytv.nativeapp.ui.movies.MoviesScreen
 import com.ronecaplaytv.nativeapp.ui.navigation.MainNavigationBar
 import com.ronecaplaytv.nativeapp.ui.navigation.MainTab
 import com.ronecaplaytv.nativeapp.ui.playback.PlaybackScreen
 import com.ronecaplaytv.nativeapp.ui.player.NativePlayerScreen
+import com.ronecaplaytv.nativeapp.ui.series.SeriesDetailScreen
+import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
 import com.ronecaplaytv.nativeapp.ui.settings.PlayerSettingsState
 import com.ronecaplaytv.nativeapp.ui.settings.SettingsScreen
 import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
@@ -32,7 +37,9 @@ private enum class NativeDestination {
     Home,
     Channels,
     Movies,
+    MovieDetail,
     Series,
+    SeriesDetail,
     Playback,
     Settings,
     Player,
@@ -50,6 +57,8 @@ fun RonecaPlayTVApp(
     var playerReturnDestination by remember { mutableStateOf(NativeDestination.Home) }
     var selectedStreamUrls by remember { mutableStateOf(emptyList<String>()) }
     var selectedTitle by remember { mutableStateOf("") }
+    var selectedMovie by remember { mutableStateOf<NativeMovie?>(null) }
+    var selectedSeries by remember { mutableStateOf<NativeSeries?>(null) }
     var settingsState by remember { mutableStateOf(PlayerSettingsState()) }
 
     LaunchedEffect(isTelevision) {
@@ -71,53 +80,6 @@ fun RonecaPlayTVApp(
         }
     }
 
-    val channelItems = remember(catalogState.channels) {
-        catalogState.channels.map { channel ->
-            CatalogListItem(
-                id = channel.id,
-                title = channel.name,
-                subtitle = channel.groupTitle,
-                imageUrl = channel.logoUrl,
-                playbackUrls = channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
-            )
-        }
-    }
-
-    val movieItems = remember(catalogState.movies) {
-        catalogState.movies.map { movie ->
-            CatalogListItem(
-                id = movie.id,
-                title = movie.name,
-                subtitle = listOfNotNull(
-                    movie.category,
-                    movie.year?.toString(),
-                    movie.duration,
-                ).joinToString(" • "),
-                imageUrl = movie.coverUrl,
-                playbackUrls = movie.playbackUrls.ifEmpty { listOf(movie.primaryUrl) },
-            )
-        }
-    }
-
-    val seriesItems = remember(catalogState.series) {
-        catalogState.series.map { series ->
-            val episodes = series.seasons.sumOf { it.episodes.size }
-            val firstEpisode = series.seasons.firstOrNull()?.episodes?.firstOrNull()
-
-            CatalogListItem(
-                id = series.id,
-                title = series.name,
-                subtitle = if (episodes > 0) {
-                    "${series.category} • $episodes episódios"
-                } else {
-                    "${series.category} • detalhes indisponíveis"
-                },
-                imageUrl = series.coverUrl,
-                playbackUrls = firstEpisode?.playbackUrls.orEmpty(),
-            )
-        }
-    }
-
     fun openPlayer(title: String, playbackUrls: List<String>) {
         val validUrls = playbackUrls.map(String::trim).filter(String::isNotBlank).distinct()
         if (validUrls.isEmpty()) return
@@ -126,8 +88,6 @@ fun RonecaPlayTVApp(
         selectedTitle = title
         destination = NativeDestination.Player
     }
-
-    fun openPlayer(item: CatalogListItem) = openPlayer(item.title, item.playbackUrls)
 
     fun selectMainTab(tab: MainTab) {
         destination = when (tab) {
@@ -141,11 +101,20 @@ fun RonecaPlayTVApp(
 
     val selectedTab = when (destination) {
         NativeDestination.Channels -> MainTab.Channels
-        NativeDestination.Movies -> MainTab.Movies
-        NativeDestination.Series -> MainTab.Series
+        NativeDestination.Movies, NativeDestination.MovieDetail -> MainTab.Movies
+        NativeDestination.Series, NativeDestination.SeriesDetail -> MainTab.Series
         NativeDestination.Settings -> MainTab.Settings
         else -> MainTab.Home
     }
+
+    val showMainNavigation = destination in setOf(
+        NativeDestination.Home,
+        NativeDestination.Channels,
+        NativeDestination.Movies,
+        NativeDestination.Series,
+        NativeDestination.Playback,
+        NativeDestination.Settings,
+    )
 
     RonecaPlayTVTheme {
         if (!sessionState.isActive) {
@@ -189,29 +158,72 @@ fun RonecaPlayTVApp(
                         onOpenPlayback = { destination = NativeDestination.Playback },
                     )
 
-                    NativeDestination.Channels -> CatalogListScreen(
-                        title = "Canais",
-                        items = channelItems,
+                    NativeDestination.Channels -> ChannelsScreen(
+                        channels = catalogState.channels,
                         isTelevision = isTelevision,
-                        onBack = { destination = NativeDestination.Home },
-                        onPlay = ::openPlayer,
+                        onPlay = { channel ->
+                            openPlayer(
+                                channel.name,
+                                channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
+                            )
+                        },
                     )
 
-                    NativeDestination.Movies -> CatalogListScreen(
-                        title = "Filmes",
-                        items = movieItems,
+                    NativeDestination.Movies -> MoviesScreen(
+                        movies = catalogState.movies,
                         isTelevision = isTelevision,
-                        onBack = { destination = NativeDestination.Home },
-                        onPlay = ::openPlayer,
+                        onOpenDetails = { movie ->
+                            selectedMovie = movie
+                            destination = NativeDestination.MovieDetail
+                        },
                     )
 
-                    NativeDestination.Series -> CatalogListScreen(
-                        title = "Séries",
-                        items = seriesItems,
+                    NativeDestination.MovieDetail -> {
+                        val movie = selectedMovie
+                        if (movie == null) {
+                            destination = NativeDestination.Movies
+                        } else {
+                            MovieDetailScreen(
+                                movie = movie,
+                                isTelevision = isTelevision,
+                                onBack = { destination = NativeDestination.Movies },
+                                onPlay = { selected ->
+                                    openPlayer(
+                                        selected.name,
+                                        selected.playbackUrls.ifEmpty { listOf(selected.primaryUrl) },
+                                    )
+                                },
+                            )
+                        }
+                    }
+
+                    NativeDestination.Series -> SeriesScreen(
+                        series = catalogState.series,
                         isTelevision = isTelevision,
-                        onBack = { destination = NativeDestination.Home },
-                        onPlay = ::openPlayer,
+                        onOpenDetails = { series ->
+                            selectedSeries = series
+                            destination = NativeDestination.SeriesDetail
+                        },
                     )
+
+                    NativeDestination.SeriesDetail -> {
+                        val series = selectedSeries
+                        if (series == null) {
+                            destination = NativeDestination.Series
+                        } else {
+                            SeriesDetailScreen(
+                                series = series,
+                                isTelevision = isTelevision,
+                                onBack = { destination = NativeDestination.Series },
+                                onPlayEpisode = { episode, displayTitle ->
+                                    openPlayer(
+                                        displayTitle,
+                                        episode.playbackUrls.ifEmpty { listOf(episode.primaryUrl) },
+                                    )
+                                },
+                            )
+                        }
+                    }
 
                     NativeDestination.Playback -> PlaybackScreen(
                         isTelevision = isTelevision,
@@ -228,11 +240,13 @@ fun RonecaPlayTVApp(
                 }
             }
 
-            MainNavigationBar(
-                selectedTab = selectedTab,
-                isTelevision = isTelevision,
-                onSelect = ::selectMainTab,
-            )
+            if (showMainNavigation) {
+                MainNavigationBar(
+                    selectedTab = selectedTab,
+                    isTelevision = isTelevision,
+                    onSelect = ::selectMainTab,
+                )
+            }
         }
     }
 }
