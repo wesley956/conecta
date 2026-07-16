@@ -41,21 +41,22 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 
 object RonecaColors {
-    val Background = Color(0xFF05060A)
-    val BackgroundSoft = Color(0xFF090B12)
-    val Surface = Color(0xFF131620)
-    val SurfaceRaised = Color(0xFF1A1E2A)
-    val Primary = Color(0xFF8A6CFF)
-    val Cyan = Color(0xFF3BD5FF)
-    val Green = Color(0xFF45D99B)
-    val Orange = Color(0xFFFF9A62)
-    val Pink = Color(0xFFFF6FAE)
-    val TextPrimary = Color(0xFFF8F8FC)
-    val TextSecondary = Color(0xFFB7BAC8)
-    val TextMuted = Color(0xFF74798B)
+    val Background = Color(0xFF07080C)
+    val BackgroundSoft = Color(0xFF0D0F15)
+    val Surface = Color(0xFF151820)
+    val SurfaceRaised = Color(0xFF1B1F29)
+    val Primary = Color(0xFF8D74FF)
+    val Cyan = Color(0xFF65C7D0)
+    val Green = Color(0xFF72C69B)
+    val Orange = Color(0xFFDDA06E)
+    val Pink = Color(0xFFD786AD)
+    val TextPrimary = Color(0xFFF5F5F7)
+    val TextSecondary = Color(0xFFB7BBC5)
+    val TextMuted = Color(0xFF7D828E)
+    val Divider = Color(0xFF282C36)
 }
 
-private val CardShape = RoundedCornerShape(24.dp)
+private val CardShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun FocusableActionCard(
@@ -78,10 +79,10 @@ fun FocusableActionCard(
         Modifier
     }
 
-    val cardGradient = when {
-        !enabled -> listOf(Color(0xFF171920), Color(0xFF101116))
-        focused -> listOf(accentColor.copy(alpha = 0.52f), Color(0xFF161925))
-        else -> listOf(accentColor.copy(alpha = 0.22f), Color(0xFF12151E))
+    val cardColors = when {
+        !enabled -> listOf(Color(0xFF14161B), Color(0xFF111318))
+        focused -> listOf(Color(0xFF242733), Color(0xFF1A1D25))
+        else -> listOf(RonecaColors.SurfaceRaised, RonecaColors.Surface)
     }
 
     Box(
@@ -106,22 +107,22 @@ fun FocusableActionCard(
                 }
             }
             .graphicsLayer {
-                val scale = if (focused && isTelevision) 1.055f else 1f
+                val scale = if (focused && isTelevision) 1.025f else 1f
                 scaleX = scale
                 scaleY = scale
-                shadowElevation = if (focused) 24.dp.toPx() else 4.dp.toPx()
+                shadowElevation = if (focused) 10.dp.toPx() else 1.dp.toPx()
                 shape = CardShape
                 clip = false
-                alpha = if (enabled) 1f else 0.62f
+                alpha = if (enabled) 1f else 0.55f
             }
             .clip(CardShape)
-            .background(Brush.linearGradient(cardGradient))
+            .background(Brush.linearGradient(cardColors))
             .border(
-                width = if (focused) 3.dp else 1.dp,
+                width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    !enabled -> Color(0xFF2A2D37)
+                    !enabled -> Color(0xFF272A31)
                     focused -> Color.White
-                    else -> accentColor.copy(alpha = 0.46f)
+                    else -> RonecaColors.Divider
                 },
                 shape = CardShape,
             )
@@ -137,8 +138,8 @@ fun FocusableActionCard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    horizontal = if (isTelevision) 26.dp else 20.dp,
-                    vertical = if (isTelevision) 24.dp else 18.dp,
+                    horizontal = if (isTelevision) 22.dp else 18.dp,
+                    vertical = if (isTelevision) 20.dp else 16.dp,
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -147,36 +148,36 @@ fun FocusableActionCard(
                 Text(
                     text = title,
                     color = if (enabled) RonecaColors.TextPrimary else RonecaColors.TextMuted,
-                    fontSize = if (isTelevision) 25.sp else 19.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = if (isTelevision) 23.sp else 18.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 2,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = subtitle,
-                    color = if (enabled) RonecaColors.TextSecondary else Color(0xFF666A77),
-                    fontSize = if (isTelevision) 16.sp else 13.sp,
+                    color = if (enabled) RonecaColors.TextSecondary else Color(0xFF666A73),
+                    fontSize = if (isTelevision) 15.sp else 13.sp,
                     maxLines = 2,
                 )
             }
 
             if (!badge.isNullOrBlank()) {
-                Spacer(modifier = Modifier.width(18.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(
-                            if (focused) Color.White.copy(alpha = 0.18f)
-                            else Color.Black.copy(alpha = 0.25f),
+                            if (focused) accentColor.copy(alpha = 0.28f)
+                            else Color.Black.copy(alpha = 0.22f),
                         )
-                        .padding(horizontal = 13.dp, vertical = 8.dp),
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = badge,
                         color = if (enabled) Color.White else RonecaColors.TextMuted,
-                        fontSize = if (isTelevision) 16.sp else 13.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontSize = if (isTelevision) 14.sp else 12.sp,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
