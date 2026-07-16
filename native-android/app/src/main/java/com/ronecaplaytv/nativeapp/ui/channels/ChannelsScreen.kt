@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
@@ -53,13 +56,14 @@ import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 fun ChannelsScreen(
     channels: List<NativeChannel>,
     isTelevision: Boolean,
+    favoriteIds: Set<String>,
+    onToggleFavorite: (NativeChannel) -> Unit,
     onPlay: (NativeChannel) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var selectedCategory by rememberSaveable { mutableStateOf("Todos") }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var alphabetical by rememberSaveable { mutableStateOf(false) }
-    var favorites by remember { mutableStateOf(emptySet<String>()) }
 
     val categories = remember(channels) {
         listOf("Todos") + channels
@@ -74,22 +78,14 @@ fun ChannelsScreen(
         selectedCategory,
         favoritesOnly,
         alphabetical,
-        favorites,
+        favoriteIds,
     ) {
         channels
             .asSequence()
-            .filter { channel ->
-                selectedCategory == "Todos" || channel.groupTitle == selectedCategory
-            }
-            .filter { channel ->
-                !favoritesOnly || channel.id in favorites
-            }
-            .filter { channel ->
-                query.isBlank() || channel.name.contains(query, ignoreCase = true)
-            }
-            .let { sequence ->
-                if (alphabetical) sequence.sortedBy { it.name.lowercase() } else sequence
-            }
+            .filter { selectedCategory == "Todos" || it.groupTitle == selectedCategory }
+            .filter { !favoritesOnly || it.id in favoriteIds }
+            .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
+            .let { sequence -> if (alphabetical) sequence.sortedBy { it.name.lowercase() } else sequence }
             .toList()
     }
 
@@ -98,102 +94,182 @@ fun ChannelsScreen(
             .fillMaxSize()
             .background(RonecaColors.Background),
     ) {
+        val sidePadding = if (isTelevision) 24.dp else 18.dp
+
         Column(
             modifier = Modifier.padding(
-                start = if (isTelevision) 52.dp else 18.dp,
-                end = if (isTelevision) 52.dp else 18.dp,
-                top = if (isTelevision) 28.dp else 18.dp,
+                start = sidePadding,
+                end = sidePadding,
+                top = if (isTelevision) 16.dp else 18.dp,
             ),
         ) {
-            Text(
-                text = "Canais",
-                color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 30.sp else 24.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "${filteredChannels.size} canais disponíveis",
-                color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 14.sp else 12.sp,
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            SearchField(
-                value = query,
-                onValueChange = { query = it },
-                isTelevision = isTelevision,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(
-                        label = "Todos",
-                        selected = !favoritesOnly && !alphabetical,
-                        onClick = {
-                            favoritesOnly = false
-                            alphabetical = false
-                        },
+            if (isTelevision) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(0.34f)) {
+                        Text(
+                            text = "TV ao vivo",
+                            color = RonecaColors.TextPrimary,
+                            fontSize = 25.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "${filteredChannels.size} canais",
+                            color = RonecaColors.TextSecondary,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    SearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        isTelevision = true,
+                        modifier = Modifier.weight(0.66f),
                     )
                 }
-                item {
-                    FilterChip(
-                        label = "Favoritos",
-                        selected = favoritesOnly,
-                        onClick = { favoritesOnly = !favoritesOnly },
-                    )
+                Spacer(modifier = Modifier.height(10.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    item {
+                        FilterChip(
+                            label = "Todos",
+                            selected = !favoritesOnly && !alphabetical && selectedCategory == "Todos",
+                            onClick = {
+                                favoritesOnly = false
+                                alphabetical = false
+                                selectedCategory = "Todos"
+                            },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            label = "Favoritos",
+                            selected = favoritesOnly,
+                            onClick = { favoritesOnly = !favoritesOnly },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            label = "A-Z",
+                            selected = alphabetical,
+                            onClick = { alphabetical = !alphabetical },
+                        )
+                    }
+                    items(categories.drop(1)) { category ->
+                        FilterChip(
+                            label = category,
+                            selected = selectedCategory == category,
+                            onClick = {
+                                favoritesOnly = false
+                                selectedCategory = category
+                            },
+                        )
+                    }
                 }
-                item {
-                    FilterChip(
-                        label = "A-Z",
-                        selected = alphabetical,
-                        onClick = { alphabetical = !alphabetical },
-                    )
+                Spacer(modifier = Modifier.height(10.dp))
+            } else {
+                Text(
+                    text = "Canais",
+                    color = RonecaColors.TextPrimary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "${filteredChannels.size} canais disponíveis",
+                    color = RonecaColors.TextSecondary,
+                    fontSize = 12.sp,
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                SearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    isTelevision = false,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            label = "Todos",
+                            selected = !favoritesOnly && !alphabetical,
+                            onClick = {
+                                favoritesOnly = false
+                                alphabetical = false
+                            },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            label = "Favoritos",
+                            selected = favoritesOnly,
+                            onClick = { favoritesOnly = !favoritesOnly },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            label = "A-Z",
+                            selected = alphabetical,
+                            onClick = { alphabetical = !alphabetical },
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(categories) { category ->
+                        FilterChip(
+                            label = category,
+                            selected = selectedCategory == category,
+                            onClick = { selectedCategory = category },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(categories) { category ->
-                    FilterChip(
-                        label = category,
-                        selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = if (isTelevision) 52.dp else 18.dp,
-                end = if (isTelevision) 52.dp else 18.dp,
-                bottom = 28.dp,
-            ),
-        ) {
-            if (filteredChannels.isEmpty()) {
-                item {
-                    Text(
-                        text = "Nenhum canal encontrado.",
-                        color = RonecaColors.TextMuted,
-                        modifier = Modifier.padding(vertical = 28.dp),
+        if (isTelevision) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(filteredChannels, key = NativeChannel::id) { channel ->
+                    ChannelItem(
+                        channel = channel,
+                        favorite = channel.id in favoriteIds,
+                        isTelevision = true,
+                        compact = true,
+                        onToggleFavorite = { onToggleFavorite(channel) },
+                        onPlay = { onPlay(channel) },
                     )
                 }
             }
-
-            items(filteredChannels, key = NativeChannel::id) { channel ->
-                ChannelItem(
-                    channel = channel,
-                    favorite = channel.id in favorites,
-                    isTelevision = isTelevision,
-                    onToggleFavorite = {
-                        favorites = if (channel.id in favorites) {
-                            favorites - channel.id
-                        } else {
-                            favorites + channel.id
-                        }
-                    },
-                    onPlay = { onPlay(channel) },
-                )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp),
+            ) {
+                if (filteredChannels.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Nenhum canal encontrado.",
+                            color = RonecaColors.TextMuted,
+                            modifier = Modifier.padding(vertical = 28.dp),
+                        )
+                    }
+                }
+                items(filteredChannels, key = NativeChannel::id) { channel ->
+                    ChannelItem(
+                        channel = channel,
+                        favorite = channel.id in favoriteIds,
+                        isTelevision = false,
+                        compact = false,
+                        onToggleFavorite = { onToggleFavorite(channel) },
+                        onPlay = { onPlay(channel) },
+                    )
+                }
             }
         }
     }
@@ -204,20 +280,21 @@ private fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     isTelevision: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 14.dp, vertical = if (isTelevision) 12.dp else 10.dp),
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
+            .padding(horizontal = 16.dp, vertical = if (isTelevision) 10.dp else 10.dp),
     ) {
         if (value.isBlank()) {
             Text(
-                text = "Buscar canais...",
+                text = "⌕  Buscar canal",
                 color = RonecaColors.TextMuted,
-                fontSize = if (isTelevision) 15.sp else 14.sp,
+                fontSize = if (isTelevision) 13.sp else 14.sp,
             )
         }
         BasicTextField(
@@ -226,7 +303,7 @@ private fun SearchField(
             singleLine = true,
             textStyle = TextStyle(
                 color = RonecaColors.BodyText,
-                fontSize = if (isTelevision) 15.sp else 14.sp,
+                fontSize = if (isTelevision) 13.sp else 14.sp,
             ),
             cursorBrush = SolidColor(RonecaColors.Primary),
             modifier = Modifier.fillMaxWidth(),
@@ -235,28 +312,25 @@ private fun SearchField(
 }
 
 @Composable
-private fun FilterChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(999.dp))
             .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
             .border(
                 width = 1.dp,
                 color = if (selected) RonecaColors.Primary else RonecaColors.Border,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(999.dp),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = label,
             color = if (selected) RonecaColors.Primary else RonecaColors.TextSecondary,
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            maxLines = 1,
         )
     }
 }
@@ -266,6 +340,7 @@ private fun ChannelItem(
     channel: NativeChannel,
     favorite: Boolean,
     isTelevision: Boolean,
+    compact: Boolean,
     onToggleFavorite: () -> Unit,
     onPlay: () -> Unit,
 ) {
@@ -275,11 +350,12 @@ private fun ChannelItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (focused) RonecaColors.SurfaceRaised else Color.Transparent)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
-                width = if (focused) 1.dp else 0.dp,
-                color = if (focused) RonecaColors.Primary else Color.Transparent,
-                shape = RoundedCornerShape(8.dp),
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                shape = RoundedCornerShape(10.dp),
             )
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
@@ -293,20 +369,16 @@ private fun ChannelItem(
                     false
                 }
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onPlay,
-            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onPlay)
             .focusable()
-            .padding(horizontal = 12.dp, vertical = if (isTelevision) 12.dp else 10.dp),
+            .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 9.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(if (isTelevision) 54.dp else 48.dp)
+                .size(if (compact) 42.dp else if (isTelevision) 50.dp else 48.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(RonecaColors.Surface)
+                .background(RonecaColors.BackgroundSoft)
                 .border(1.dp, RonecaColors.Border, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center,
         ) {
@@ -318,23 +390,23 @@ private fun ChannelItem(
                     contentScale = ContentScale.Fit,
                 )
             } else {
-                Text(text = "TV", color = RonecaColors.TextMuted, fontSize = 12.sp)
+                Text(text = "TV", color = RonecaColors.TextMuted, fontSize = 10.sp)
             }
         }
 
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(if (compact) 10.dp else 14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = channel.name,
                 color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 16.sp else 15.sp,
+                fontSize = if (compact) 13.sp else 15.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
             )
             Text(
                 text = channel.groupTitle,
                 color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 13.sp else 12.sp,
+                fontSize = if (compact) 10.sp else 12.sp,
                 maxLines = 1,
             )
         }
@@ -343,12 +415,12 @@ private fun ChannelItem(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .clickable(onClick = onToggleFavorite)
-                .padding(10.dp),
+                .padding(if (compact) 7.dp else 10.dp),
         ) {
             Text(
                 text = if (favorite) "★" else "☆",
-                color = if (favorite) RonecaColors.Yellow else RonecaColors.TextMuted,
-                fontSize = if (isTelevision) 22.sp else 19.sp,
+                color = if (favorite) RonecaColors.Primary else RonecaColors.TextMuted,
+                fontSize = if (compact) 17.sp else 19.sp,
             )
         }
     }
