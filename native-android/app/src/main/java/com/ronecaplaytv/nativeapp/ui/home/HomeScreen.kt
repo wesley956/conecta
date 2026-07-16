@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.ui.home
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -32,8 +34,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -50,11 +57,17 @@ import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.delay
 
+private enum class QuickKind {
+    Live,
+    Movies,
+    Series,
+    MyList,
+}
+
 private data class QuickDestination(
     val title: String,
-    val subtitle: String,
     val count: Int?,
-    val symbol: String,
+    val kind: QuickKind,
     val action: () -> Unit,
 )
 
@@ -92,10 +105,10 @@ fun HomeScreen(
     }
 
     val destinations = listOf(
-        QuickDestination("TV ao vivo", "Programação agora", channelCount, "TV", onOpenChannels),
-        QuickDestination("Filmes", "Catálogo de cinema", movieCount, "F", onOpenMovies),
-        QuickDestination("Séries", "Temporadas e episódios", seriesCount, "S", onOpenSeries),
-        QuickDestination("Minha lista", "Favoritos e progresso", null, "♡", onOpenPlayback),
+        QuickDestination("TV ao vivo", channelCount, QuickKind.Live, onOpenChannels),
+        QuickDestination("Filmes", movieCount, QuickKind.Movies, onOpenMovies),
+        QuickDestination("Séries", seriesCount, QuickKind.Series, onOpenSeries),
+        QuickDestination("Minha lista", null, QuickKind.MyList, onOpenPlayback),
     )
 
     LazyColumn(
@@ -125,7 +138,7 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (isTelevision) 260.dp else 225.dp),
+                        .height(if (isTelevision) 258.dp else 224.dp),
                     horizontalArrangement = Arrangement.spacedBy(13.dp),
                 ) {
                     HomeHero(
@@ -140,47 +153,17 @@ fun HomeScreen(
                         },
                         onLive = onOpenChannels,
                         modifier = Modifier
-                            .weight(1.72f)
+                            .weight(1.78f)
                             .fillMaxHeight(),
                     )
 
-                    Column(
+                    WideQuickPanel(
+                        destinations = destinations,
+                        isTelevision = isTelevision,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
-                        verticalArrangement = Arrangement.spacedBy(9.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(9.dp),
-                        ) {
-                            destinations.take(2).forEach { destination ->
-                                QuickAccessCard(
-                                    destination = destination,
-                                    isTelevision = isTelevision,
-                                    compact = true,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(),
-                                )
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(9.dp),
-                        ) {
-                            destinations.drop(2).forEach { destination ->
-                                QuickAccessCard(
-                                    destination = destination,
-                                    isTelevision = isTelevision,
-                                    compact = true,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(),
-                                )
-                            }
-                        }
-                    }
+                    )
                 }
             }
         } else {
@@ -201,46 +184,27 @@ fun HomeScreen(
                         .height(238.dp),
                 )
             }
+
             item {
-                Text(
-                    text = "Explorar",
-                    color = RonecaColors.TextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    destinations.take(2).forEach { destination ->
-                        QuickAccessCard(
-                            destination = destination,
-                            isTelevision = false,
-                            compact = false,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(96.dp),
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Acesso rápido",
+                            color = RonecaColors.TextPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "Escolha uma área",
+                            color = RonecaColors.TextMuted,
+                            fontSize = 10.sp,
                         )
                     }
-                }
-            }
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    destinations.drop(2).forEach { destination ->
-                        QuickAccessCard(
-                            destination = destination,
-                            isTelevision = false,
-                            compact = false,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(96.dp),
-                        )
-                    }
+                    MobileQuickDock(destinations = destinations)
                 }
             }
         }
@@ -293,8 +257,7 @@ private fun HomeHeader(
                 ) {
                     Box(
                         modifier = Modifier
-                            .width(7.dp)
-                            .height(7.dp)
+                            .size(7.dp)
                             .clip(CircleShape)
                             .background(RonecaColors.RedStrong),
                     )
@@ -402,8 +365,8 @@ private fun HomeHero(
             Text(
                 text = movie?.synopsis?.takeIf { it.isNotBlank() } ?: statusText,
                 color = if (hasError) RonecaColors.Error else RonecaColors.TextSecondary,
-                fontSize = if (isWideLayout) 12.sp else 12.sp,
-                maxLines = if (isWideLayout) 2 else 2,
+                fontSize = 12.sp,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.height(15.dp))
@@ -472,16 +435,94 @@ private fun HeroButton(
 }
 
 @Composable
-private fun QuickAccessCard(
-    destination: QuickDestination,
+private fun MobileQuickDock(destinations: List<QuickDestination>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(RonecaColors.Surface.copy(alpha = 0.72f))
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(18.dp))
+            .padding(horizontal = 6.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        destinations.forEach { destination ->
+            QuickAction(
+                destination = destination,
+                compact = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WideQuickPanel(
+    destinations: List<QuickDestination>,
     isTelevision: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(RonecaColors.Surface.copy(alpha = 0.76f))
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(18.dp))
+            .padding(if (isTelevision) 14.dp else 11.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Acesso rápido",
+                color = RonecaColors.TextPrimary,
+                fontSize = if (isTelevision) 14.sp else 12.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Row {
+                Box(modifier = Modifier.width(24.dp).height(2.dp).background(RonecaColors.Primary))
+                Box(modifier = Modifier.width(8.dp).height(2.dp).background(RonecaColors.RedStrong))
+            }
+        }
+
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            destinations.take(2).forEach { destination ->
+                QuickAction(
+                    destination = destination,
+                    compact = false,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            destinations.drop(2).forEach { destination ->
+                QuickAction(
+                    destination = destination,
+                    compact = false,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickAction(
+    destination: QuickDestination,
     compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    Box(
+    Column(
         modifier = modifier
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
@@ -493,69 +534,134 @@ private fun QuickAccessCard(
                     true
                 } else false
             }
-            .clip(RoundedCornerShape(13.dp))
-            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+            .clip(RoundedCornerShape(if (compact) 13.dp else 14.dp))
+            .background(if (focused) RonecaColors.SurfaceRaised else Color.Transparent)
             .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
-                shape = RoundedCornerShape(13.dp),
+                width = if (focused) 1.dp else 0.dp,
+                color = if (focused) RonecaColors.Primary else Color.Transparent,
+                shape = RoundedCornerShape(if (compact) 13.dp else 14.dp),
             )
             .clickable(interactionSource = interactionSource, indication = null, onClick = destination.action)
-            .focusable(),
+            .focusable()
+            .padding(horizontal = if (compact) 4.dp else 8.dp, vertical = if (compact) 6.dp else 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Row(modifier = Modifier.align(Alignment.TopStart)) {
-            Box(modifier = Modifier.width(if (compact) 24.dp else 31.dp).height(3.dp).background(RonecaColors.Primary))
-            Box(modifier = Modifier.width(if (compact) 9.dp else 11.dp).height(3.dp).background(RonecaColors.RedStrong))
-        }
-
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(if (compact) 11.dp else 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 11.dp),
+                .size(if (compact) 42.dp else 38.dp)
+                .clip(CircleShape)
+                .background(
+                    if (focused) RonecaColors.Primary.copy(alpha = 0.17f)
+                    else RonecaColors.BackgroundSoft,
+                )
+                .border(
+                    width = 1.dp,
+                    color = if (focused) RonecaColors.RedStrong else RonecaColors.Border,
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
         ) {
+            QuickGlyph(
+                kind = destination.kind,
+                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary,
+                modifier = Modifier.size(if (compact) 21.dp else 19.dp),
+            )
             Box(
                 modifier = Modifier
-                    .width(if (compact) 30.dp else 36.dp)
-                    .height(if (compact) 30.dp else 36.dp)
+                    .align(Alignment.TopEnd)
+                    .size(if (focused) 6.dp else 4.dp)
                     .clip(CircleShape)
-                    .background(RonecaColors.Primary.copy(alpha = 0.10f))
-                    .border(1.dp, RonecaColors.Primary.copy(alpha = 0.46f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = destination.symbol,
-                    color = RonecaColors.Primary,
-                    fontSize = if (compact) 10.sp else 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    .background(RonecaColors.RedStrong),
+            )
+        }
+        Spacer(modifier = Modifier.height(if (compact) 6.dp else 5.dp))
+        Text(
+            text = destination.title,
+            color = if (focused) RonecaColors.TextPrimary else RonecaColors.BodyText,
+            fontSize = if (compact) 10.sp else 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        destination.count?.let { count ->
+            Text(
+                text = compactNumber(count),
+                color = if (focused) RonecaColors.RedStrong else RonecaColors.TextMuted,
+                fontSize = 8.sp,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private fun compactNumber(value: Int): String = when {
+    value >= 1_000_000 -> "${value / 1_000_000} mi"
+    value >= 1_000 -> "${value / 1_000} mil"
+    else -> value.toString()
+}
+
+@Composable
+private fun QuickGlyph(
+    kind: QuickKind,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        val stroke = Stroke(width = size.minDimension * 0.085f)
+        val w = size.width
+        val h = size.height
+
+        when (kind) {
+            QuickKind.Live -> {
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(w * 0.12f, h * 0.25f),
+                    size = Size(w * 0.76f, h * 0.58f),
+                    cornerRadius = CornerRadius(w * 0.10f),
+                    style = stroke,
                 )
+                drawLine(color, Offset(w * 0.36f, h * 0.10f), Offset(w * 0.50f, h * 0.25f), strokeWidth = stroke.width)
+                drawLine(color, Offset(w * 0.64f, h * 0.10f), Offset(w * 0.50f, h * 0.25f), strokeWidth = stroke.width)
             }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = destination.title,
-                    color = RonecaColors.TextPrimary,
-                    fontSize = if (compact) 11.sp else 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+            QuickKind.Movies -> {
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(w * 0.18f, h * 0.10f),
+                    size = Size(w * 0.64f, h * 0.80f),
+                    cornerRadius = CornerRadius(w * 0.08f),
+                    style = stroke,
                 )
-                Text(
-                    text = destination.subtitle,
-                    color = RonecaColors.TextSecondary,
-                    fontSize = if (compact) 8.sp else 9.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                listOf(0.28f, 0.50f, 0.72f).forEach { y ->
+                    drawCircle(color, radius = w * 0.035f, center = Offset(w * 0.27f, h * y))
+                    drawCircle(color, radius = w * 0.035f, center = Offset(w * 0.73f, h * y))
+                }
             }
 
-            destination.count?.let { count ->
-                Text(
-                    text = count.toString(),
-                    color = if (focused) RonecaColors.RedStrong else RonecaColors.TextMuted,
-                    fontSize = if (compact) 9.sp else 10.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+            QuickKind.Series -> {
+                repeat(3) { index ->
+                    val offset = index * w * 0.10f
+                    drawRoundRect(
+                        color = color.copy(alpha = 1f - index * 0.18f),
+                        topLeft = Offset(w * 0.16f + offset, h * 0.18f + offset * 0.35f),
+                        size = Size(w * 0.58f, h * 0.62f),
+                        cornerRadius = CornerRadius(w * 0.08f),
+                        style = stroke,
+                    )
+                }
+            }
+
+            QuickKind.MyList -> {
+                val path = Path().apply {
+                    moveTo(w * 0.25f, h * 0.13f)
+                    lineTo(w * 0.75f, h * 0.13f)
+                    lineTo(w * 0.75f, h * 0.88f)
+                    lineTo(w * 0.50f, h * 0.70f)
+                    lineTo(w * 0.25f, h * 0.88f)
+                    close()
+                }
+                drawPath(path, color = color, style = stroke)
             }
         }
     }
