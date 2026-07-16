@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -50,6 +51,8 @@ data class PlayerSettingsState(
 fun SettingsScreen(
     isTelevision: Boolean,
     state: PlayerSettingsState,
+    refreshInProgress: Boolean,
+    refreshMessage: String?,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
 ) {
@@ -61,9 +64,9 @@ fun SettingsScreen(
             start = if (isTelevision) 24.dp else 18.dp,
             end = if (isTelevision) 24.dp else 18.dp,
             top = if (isTelevision) 18.dp else 20.dp,
-            bottom = 32.dp,
+            bottom = 36.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             Text(
@@ -84,13 +87,22 @@ fun SettingsScreen(
                 color = RonecaColors.TextSecondary,
                 fontSize = if (isTelevision) 13.sp else 12.sp,
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         item {
             RefreshCard(
                 isTelevision = isTelevision,
+                refreshing = refreshInProgress,
+                message = refreshMessage,
                 onRefresh = onRefreshContent,
+            )
+        }
+
+        item {
+            CurrentProfileCard(
+                isTelevision = isTelevision,
+                state = state,
             )
         }
 
@@ -98,7 +110,7 @@ fun SettingsScreen(
         item {
             ChoiceSettingRow(
                 title = "Decodificação",
-                subtitle = "Prioridade do decodificador de vídeo",
+                subtitle = "Hardware usa o codec do aparelho; Software prioriza compatibilidade.",
                 options = listOf("Hardware", "Software"),
                 selected = state.decoderMode,
                 isTelevision = isTelevision,
@@ -107,8 +119,8 @@ fun SettingsScreen(
         }
         item {
             ChoiceSettingRow(
-                title = "Buffer",
-                subtitle = "Tempo inicial antes da reprodução",
+                title = "Buffer inicial",
+                subtitle = "Mais buffer pode ajudar conexões instáveis, mas demora mais para começar.",
                 options = listOf("2s", "5s", "10s"),
                 selected = "${state.bufferSeconds}s",
                 isTelevision = isTelevision,
@@ -117,22 +129,12 @@ fun SettingsScreen(
                 },
             )
         }
-        item {
-            ChoiceSettingRow(
-                title = "Idioma",
-                subtitle = "Idioma da interface",
-                options = listOf("Português", "English"),
-                selected = state.language,
-                isTelevision = isTelevision,
-                onSelect = { onStateChange(state.copy(language = it)) },
-            )
-        }
 
         item { SectionTitle("INTERFACE", isTelevision) }
         item {
             ToggleSettingRow(
                 title = "Modo TV",
-                subtitle = "Forçar interface para controle remoto",
+                subtitle = "Usar navegação lateral e foco ampliado neste aparelho.",
                 checked = state.forceTvMode,
                 isTelevision = isTelevision,
                 onToggle = { onStateChange(state.copy(forceTvMode = it)) },
@@ -143,33 +145,53 @@ fun SettingsScreen(
         item {
             ToggleSettingRow(
                 title = "Reconexão automática",
-                subtitle = "Tentar novamente quando um stream cair",
+                subtitle = "Tentar novamente e alternar a fonte quando uma transmissão cair.",
                 checked = state.automaticReconnect,
                 isTelevision = isTelevision,
                 onToggle = { onStateChange(state.copy(automaticReconnect = it)) },
+            )
+        }
+
+        item { SectionTitle("APLICATIVO", isTelevision) }
+        item {
+            InfoSettingRow(
+                title = "RonecaPlayTV Native",
+                subtitle = "Versão 0.6 • Android TV, TV Box, celular e tablet",
+                value = "NATIVO",
+                isTelevision = isTelevision,
             )
         }
     }
 }
 
 @Composable
-private fun RefreshCard(isTelevision: Boolean, onRefresh: () -> Unit) {
+private fun RefreshCard(
+    isTelevision: Boolean,
+    refreshing: Boolean,
+    message: String?,
+    onRefresh: () -> Unit,
+) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.RedStrong else RonecaColors.Primary,
-                shape = RoundedCornerShape(14.dp),
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    refreshing -> RonecaColors.Primary
+                    else -> RonecaColors.Primary.copy(alpha = 0.72f)
+                },
+                shape = RoundedCornerShape(16.dp),
             )
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
+                    !refreshing &&
                     event.type == KeyEventType.KeyUp &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
@@ -177,7 +199,12 @@ private fun RefreshCard(isTelevision: Boolean, onRefresh: () -> Unit) {
                     true
                 } else false
             }
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onRefresh)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = !refreshing,
+                onClick = onRefresh,
+            )
             .focusable()
             .padding(if (isTelevision) 18.dp else 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -185,26 +212,35 @@ private fun RefreshCard(isTelevision: Boolean, onRefresh: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Atualizar conteúdo",
+                text = if (refreshing) "Atualizando conteúdo..." else "Atualizar conteúdo",
                 color = RonecaColors.TextPrimary,
                 fontSize = if (isTelevision) 17.sp else 15.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Recarrega acesso, canais, filmes, séries e episódios.",
-                color = RonecaColors.TextSecondary,
+                text = message ?: "Recarrega acesso, canais, filmes, séries e episódios.",
+                color = if (message?.contains("conclu", ignoreCase = true) == true) {
+                    Color(0xFF42D982)
+                } else {
+                    RonecaColors.TextSecondary
+                },
                 fontSize = if (isTelevision) 13.sp else 12.sp,
             )
         }
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(999.dp))
-                .background(RonecaColors.Primary)
+                .background(if (refreshing) RonecaColors.SurfaceRaised else RonecaColors.Primary)
+                .border(
+                    1.dp,
+                    if (refreshing) RonecaColors.Primary else RonecaColors.RedStrong.copy(alpha = 0.75f),
+                    RoundedCornerShape(999.dp),
+                )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             Text(
-                text = "↻  ATUALIZAR",
-                color = Color(0xFF100E08),
+                text = if (refreshing) "AGUARDE" else "↻  ATUALIZAR",
+                color = if (refreshing) RonecaColors.Primary else Color(0xFF100E08),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -213,10 +249,34 @@ private fun RefreshCard(isTelevision: Boolean, onRefresh: () -> Unit) {
 }
 
 @Composable
+private fun CurrentProfileCard(isTelevision: Boolean, state: PlayerSettingsState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(RonecaColors.BackgroundSoft)
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(14.dp))
+            .padding(if (isTelevision) 16.dp else 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        ProfileMetric("DECODER", state.decoderMode.uppercase(), Modifier.weight(1f))
+        ProfileMetric("BUFFER", "${state.bufferSeconds}s", Modifier.weight(1f))
+        ProfileMetric("RECONEXÃO", if (state.automaticReconnect) "ATIVA" else "DESL.", Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ProfileMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(text = label, color = RonecaColors.TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text(text = value, color = RonecaColors.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
 private fun SectionTitle(title: String, isTelevision: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.height(3.dp).weight(0.07f).background(RonecaColors.RedStrong))
-        Spacer(modifier = Modifier.height(1.dp))
+        Box(modifier = Modifier.width(24.dp).height(3.dp).background(RonecaColors.RedStrong))
         Text(
             text = title,
             color = RonecaColors.Primary,
@@ -240,9 +300,9 @@ private fun ChoiceSettingRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(RonecaColors.Surface)
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(12.dp))
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(14.dp))
             .padding(if (isTelevision) 17.dp else 15.dp),
     ) {
         Text(
@@ -255,28 +315,59 @@ private fun ChoiceSettingRow(
         Spacer(modifier = Modifier.height(11.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
-                val active = option == selected
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (active) RonecaColors.Primary.copy(alpha = 0.14f) else Color.Transparent)
-                        .border(
-                            width = 1.dp,
-                            color = if (active) RonecaColors.Primary else RonecaColors.Border,
-                            shape = RoundedCornerShape(999.dp),
-                        )
-                        .clickable { onSelect(option) }
-                        .padding(horizontal = 13.dp, vertical = 8.dp),
-                ) {
-                    Text(
-                        text = option,
-                        color = if (active) RonecaColors.Primary else RonecaColors.TextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
-                    )
-                }
+                SettingChip(
+                    label = option,
+                    active = option == selected,
+                    onClick = { onSelect(option) },
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun SettingChip(label: String, active: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    active -> RonecaColors.Primary.copy(alpha = 0.14f)
+                    else -> Color.Transparent
+                },
+            )
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    active -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
+                shape = RoundedCornerShape(999.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = label,
+            color = if (active || focused) RonecaColors.Primary else RonecaColors.TextSecondary,
+            fontSize = 12.sp,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+        )
     }
 }
 
@@ -288,13 +379,30 @@ private fun ToggleSettingRow(
     isTelevision: Boolean,
     onToggle: (Boolean) -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(RonecaColors.Surface)
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(12.dp))
-            .clickable { onToggle(!checked) }
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+            .border(
+                if (focused) 2.dp else 1.dp,
+                if (focused) RonecaColors.RedStrong else RonecaColors.Border,
+                RoundedCornerShape(14.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onToggle(!checked)
+                    true
+                } else false
+            }
+            .clickable(interactionSource = interactionSource, indication = null) { onToggle(!checked) }
+            .focusable()
             .padding(if (isTelevision) 17.dp else 15.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -326,5 +434,30 @@ private fun ToggleSettingRow(
                 fontWeight = FontWeight.Bold,
             )
         }
+    }
+}
+
+@Composable
+private fun InfoSettingRow(
+    title: String,
+    subtitle: String,
+    value: String,
+    isTelevision: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(RonecaColors.Surface)
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(14.dp))
+            .padding(if (isTelevision) 17.dp else 15.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, color = RonecaColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(text = subtitle, color = RonecaColors.TextSecondary, fontSize = 12.sp)
+        }
+        Text(text = value, color = RonecaColors.Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
