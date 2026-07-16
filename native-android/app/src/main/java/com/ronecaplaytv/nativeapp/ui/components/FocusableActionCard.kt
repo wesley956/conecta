@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,6 +51,9 @@ object RonecaColors {
     val Primary = Color(0xFFE8C768)
     val PrimaryStrong = Color(0xFFFFDB73)
     val PrimarySoft = Color(0x33E8C768)
+    val Red = Color(0xFFC62828)
+    val RedStrong = Color(0xFFFF3B30)
+    val RedSoft = Color(0x33C62828)
     val Purple = Color(0xFFC9AE68)
     val Orange = Color(0xFFE9A44F)
     val Green = Color(0xFF73C98C)
@@ -57,7 +61,7 @@ object RonecaColors {
     val Error = Color(0xFFFF6868)
 
     val Cyan = Primary
-    val Pink = Primary
+    val Pink = Red
 
     val TextPrimary = Color(0xFFF7F4EC)
     val BodyText = Color(0xFFD8D2C5)
@@ -132,8 +136,8 @@ fun FocusableActionCard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
-                    horizontal = if (isTelevision) 22.dp else 18.dp,
-                    vertical = if (isTelevision) 20.dp else 16.dp,
+                    horizontal = if (isTelevision) 20.dp else 16.dp,
+                    vertical = if (isTelevision) 18.dp else 14.dp,
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -142,21 +146,21 @@ fun FocusableActionCard(
                 Text(
                     text = title,
                     color = if (enabled) RonecaColors.TextPrimary else RonecaColors.TextMuted,
-                    fontSize = if (isTelevision) 21.sp else 17.sp,
+                    fontSize = if (isTelevision) 19.sp else 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 Text(
                     text = subtitle,
                     color = if (enabled) RonecaColors.TextSecondary else RonecaColors.TextMuted,
-                    fontSize = if (isTelevision) 14.sp else 12.sp,
+                    fontSize = if (isTelevision) 13.sp else 11.sp,
                     maxLines = 2,
                 )
             }
 
             if (!badge.isNullOrBlank()) {
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(14.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
@@ -166,17 +170,47 @@ fun FocusableActionCard(
                             color = accentColor.copy(alpha = if (focused) 0.95f else 0.42f),
                             shape = RoundedCornerShape(999.dp),
                         )
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                        .padding(horizontal = 11.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = badge,
                         color = if (enabled) accentColor else RonecaColors.TextMuted,
-                        fontSize = if (isTelevision) 13.sp else 11.sp,
+                        fontSize = if (isTelevision) 12.sp else 10.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
+        }
+
+        // Gold line with a short red cut: the visual link between the app and the red admin panels.
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 15.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(34.dp)
+                    .height(3.dp)
+                    .background(if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary),
+            )
+            Box(
+                modifier = Modifier
+                    .width(12.dp)
+                    .height(3.dp)
+                    .background(RonecaColors.RedStrong),
+            )
+        }
+
+        if (focused) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(3.dp)
+                    .fillMaxHeight(0.42f)
+                    .background(RonecaColors.RedStrong),
+            )
         }
     }
 }
