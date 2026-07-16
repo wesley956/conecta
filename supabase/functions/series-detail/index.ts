@@ -2,6 +2,8 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
 
+const CACHE_BUCKET = 'playlist-cache';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-device-credential',
@@ -68,6 +70,20 @@ interface XtreamSource {
   password: string;
 }
 
+interface EpisodeResult {
+  id: string;
+  number: number;
+  name: string;
+  duration: string;
+  url: string;
+  playbackUrls: string[];
+}
+
+interface SeasonResult {
+  number: number;
+  episodes: EpisodeResult[];
+}
+
 function parseXtreamSource(rawUrl: string): XtreamSource | null {
   try {
     const url = new URL(rawUrl.trim());
@@ -118,6 +134,17 @@ function label(value: unknown, fallback: string) {
   return result || fallback;
 }
 
+function normalizeLabel(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\b(4k|uhd|fhd|hd|sd|dub|dublado|leg|legendado)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function normalizeEpisodeGroups(info: any): Array<[string, any[]]> {
   const rawEpisodes = info?.episodes ?? {};
 
@@ -137,8 +164,8 @@ function normalizeEpisodeGroups(info: any): Array<[string, any[]]> {
   return [];
 }
 
-function mapSeasons(info: any, source: XtreamSource, seriesId: string) {
-  const seasons: Array<{ number: number; episodes: any[] }> = [];
+function mapXtreamSeasons(info: any, source: XtreamSource, seriesId: string): SeasonResult[] {
+  const seasons: SeasonResult[] = [];
 
   for (const [seasonKey, rawEpisodes] of normalizeEpisodeGroups(info)) {
     const seasonMetadata = Array.isArray(info?.seasons) ? info.seasons : [];
@@ -196,6 +223,143 @@ function mapSeasons(info: any, source: XtreamSource, seriesId: string) {
   return seasons.sort((left, right) => left.number - right.number);
 }
 
+function readM3uName(line: string) {
+  const commaIndex = line.lastIndexOf(',');
+  if (commaIndex >= 0 && commaIndex < line.length - 1) {
+    return line.slice(commaIndex + 1).trim();
+  }
+  return '';
+}
+
+function readM3uDuration(line: string) {
+  const match = line.match(/^#EXTINF:\s*(-?\d+(?:\.\d+)?)/i);
+  const seconds = Number(match?.[1]);
+  if (!Number.isFinite(seconds) || seconds <= 0) return '—';
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remaining = total % 60;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(remaining)}`
+    : `${pad(minutes)}:${pad(remaining)}`;
+}
+
+function parseEpisodeName(name: string) {
+  const patterns = [
+    /\bS(\d{1,2})\s*E(\d{1,3})\b/i,
+    /\bT(\d{1,2})\s*E(\d{1,3})\b/i,
+    /\b(\d{1,2})x(\d{1,3})\b/i,
+    /\btemporada\s*(\d{1,2}).*epis[oó]dio\s*(\d{1,3})\b/i,
+    /\btemp\.?\s*(\d{1,2}).*ep\.?\s*(\d{1,3})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = name.match(pattern);
+    if (!match) continue;
+    const seriesName = name
+      .replace(pattern, '')
+      .replace(/\s*[-–|:]\s*$/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    return {
+      season: positiveNumber(match[1], 1),
+      episode: positiveNumber(match[2], 1),
+      seriesName: seriesName || name,
+    };
+  }
+
+  return null;
+}
+
+function namesMatch(candidate: string, expected: string) {
+  const left = normalizeLabel(candidate);
+  const right = normalizeLabel(expected);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (Math.min(left.length, right.length) < 5) return false;
+  return left.includes(right) || right.includes(left);
+}
+
+function mapM3uSeasons(raw: string, expectedSeriesName: string, seriesId: string): SeasonResult[] {
+  const seasonMap = new Map<number, EpisodeResult[]>();
+  const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  let episodeCounter = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line.startsWith('#EXTINF')) continue;
+
+    const displayName = readM3uName(line);
+    const parsed = parseEpisodeName(displayName);
+    if (!parsed || !namesMatch(parsed.seriesName, expectedSeriesName)) continue;
+
+    let url = '';
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const candidate = lines[cursor];
+      if (candidate.startsWith('#EXTINF')) break;
+      if (/^https?:\/\//i.test(candidate)) {
+        url = candidate;
+        index = cursor;
+        break;
+      }
+    }
+    if (!url) continue;
+
+    episodeCounter += 1;
+    const episodes = seasonMap.get(parsed.season) ?? [];
+    episodes.push({
+      id: `m3u-sr-${seriesId}-s${parsed.season}-e${parsed.episode}-${episodeCounter}`,
+      number: parsed.episode,
+      name: displayName || `Episódio ${parsed.episode}`,
+      duration: readM3uDuration(line),
+      url,
+      playbackUrls: [url],
+    });
+    seasonMap.set(parsed.season, episodes);
+  }
+
+  return [...seasonMap.entries()]
+    .map(([number, episodes]) => ({
+      number,
+      episodes: episodes.sort((left, right) => left.number - right.number),
+    }))
+    .sort((left, right) => left.number - right.number);
+}
+
+async function findSeriesNameFromCache(
+  supabase: any,
+  cachePath: string | null | undefined,
+  seriesId: string,
+) {
+  if (!cachePath) return null;
+
+  try {
+    const download = await supabase.storage.from(CACHE_BUCKET).download(cachePath);
+    if (download.error || !download.data) return null;
+    const raw = await download.data.text();
+    const parsed = JSON.parse(raw);
+    const items = Array.isArray(parsed?.series) ? parsed.series : [];
+    const targetId = `xtream-sr-${seriesId}`;
+    const item = items.find((candidate: any) => (
+      String(candidate?.id ?? '') === targetId ||
+      String(candidate?.xtreamSeriesId ?? '') === seriesId
+    ));
+    return textOrNull(item?.name);
+  } catch {
+    return null;
+  }
+}
+
+function safeReason(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/tempo limite/i.test(message)) return 'UPSTREAM_TIMEOUT';
+  if (/HTTP\s+4\d\d/i.test(message)) return 'UPSTREAM_REJECTED';
+  if (/JSON/i.test(message)) return 'UPSTREAM_INVALID_JSON';
+  if (/Host não permitido/i.test(message)) return 'UPSTREAM_HOST_BLOCKED';
+  return 'UPSTREAM_UNAVAILABLE';
+}
+
 serve(async request => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -246,6 +410,7 @@ serve(async request => {
       playlist:panel_playlists (
         id,
         playlist_url,
+        playlist_cache_series_path,
         active
       )
     `)
@@ -280,6 +445,7 @@ serve(async request => {
     return json({ message: 'Esta série não utiliza uma fonte Xtream sob demanda.' }, 422);
   }
 
+  let xtreamFailure: unknown = null;
   try {
     const raw = await safeFetchPlaylistText(buildXtreamApiUrl(source, seriesId), {
       label: 'Episódios da série',
@@ -292,20 +458,61 @@ serve(async request => {
     });
 
     const info = JSON.parse(raw);
-    const seasons = mapSeasons(info, source, seriesId);
-
-    return json({
-      seriesId,
-      seasons,
-      message: seasons.length > 0 ? null : 'O provedor não retornou episódios para esta série.',
-    });
-  } catch (fetchError) {
-    console.error('series-detail failed', {
-      deviceId: device.id,
-      playlistId: playlist.id,
-      seriesId,
-      error: fetchError instanceof Error ? fetchError.message : String(fetchError),
-    });
-    return json({ message: 'Não foi possível carregar os episódios desta série.' }, 502);
+    const seasons = mapXtreamSeasons(info, source, seriesId);
+    if (seasons.length > 0) {
+      return json({ seriesId, seasons, source: 'xtream', message: null });
+    }
+    xtreamFailure = new Error('A API Xtream respondeu sem episódios.');
+  } catch (error) {
+    xtreamFailure = error;
   }
+
+  const seriesName = await findSeriesNameFromCache(
+    supabase,
+    playlist.playlist_cache_series_path,
+    seriesId,
+  );
+
+  if (seriesName) {
+    try {
+      const rawM3u = await safeFetchPlaylistText(playlist.playlist_url, {
+        label: 'Lista M3U para episódios',
+        timeoutMs: 60_000,
+        maxBytes: 100 * 1024 * 1024,
+        headers: {
+          Accept: '*/*',
+          'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
+        },
+      });
+      const seasons = mapM3uSeasons(rawM3u, seriesName, seriesId);
+      if (seasons.length > 0) {
+        return json({
+          seriesId,
+          seasons,
+          source: 'm3u-fallback',
+          message: null,
+        });
+      }
+    } catch (fallbackError) {
+      console.error('series-detail m3u fallback failed', {
+        deviceId: device.id,
+        playlistId: playlist.id,
+        seriesId,
+        reasonCode: safeReason(fallbackError),
+      });
+    }
+  }
+
+  console.error('series-detail failed', {
+    deviceId: device.id,
+    playlistId: playlist.id,
+    seriesId,
+    reasonCode: safeReason(xtreamFailure),
+    cacheNameFound: Boolean(seriesName),
+  });
+
+  return json({
+    message: 'Não foi possível localizar os episódios desta série. Atualize o conteúdo e tente novamente.',
+    reasonCode: safeReason(xtreamFailure),
+  }, 502);
 });
