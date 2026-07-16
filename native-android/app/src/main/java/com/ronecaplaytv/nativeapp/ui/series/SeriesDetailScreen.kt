@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -55,6 +54,8 @@ fun SeriesDetailScreen(
     recommendations: List<NativeSeries>,
     isFavorite: Boolean,
     isTelevision: Boolean,
+    episodesLoading: Boolean,
+    episodesError: String?,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onRefreshEpisodes: () -> Unit,
@@ -130,6 +131,8 @@ fun SeriesDetailScreen(
             if (series.seasons.isEmpty()) {
                 EmptyEpisodesCard(
                     isTelevision = isTelevision,
+                    loading = episodesLoading,
+                    error = episodesError,
                     onRefresh = onRefreshEpisodes,
                 )
             } else {
@@ -326,31 +329,50 @@ private fun DetailActionButton(label: String, isTelevision: Boolean, onClick: ()
 }
 
 @Composable
-private fun EmptyEpisodesCard(isTelevision: Boolean, onRefresh: () -> Unit) {
+private fun EmptyEpisodesCard(
+    isTelevision: Boolean,
+    loading: Boolean,
+    error: String?,
+    onRefresh: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(RonecaColors.Surface, RoundedCornerShape(12.dp))
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(12.dp))
+            .border(
+                1.dp,
+                if (error == null) RonecaColors.Border else RonecaColors.Red.copy(alpha = 0.75f),
+                RoundedCornerShape(12.dp),
+            )
             .padding(if (isTelevision) 18.dp else 15.dp),
     ) {
         Text(
-            text = "Episódios ainda não carregados",
+            text = when {
+                loading -> "Carregando episódios..."
+                error != null -> "Não foi possível carregar agora"
+                else -> "Episódios ainda não carregados"
+            },
             color = RonecaColors.TextPrimary,
             fontSize = if (isTelevision) 16.sp else 14.sp,
             fontWeight = FontWeight.Medium,
         )
         Text(
-            text = "Atualize o catálogo para buscar temporadas e episódios novamente.",
-            color = RonecaColors.TextSecondary,
+            text = when {
+                loading -> "Consultando o provedor de forma segura."
+                error != null -> error
+                else -> "Atualize para buscar temporadas e episódios novamente."
+            },
+            color = if (error == null) RonecaColors.TextSecondary else RonecaColors.Error,
             fontSize = if (isTelevision) 13.sp else 12.sp,
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        DetailActionButton(
-            label = "↻  Atualizar episódios",
-            isTelevision = isTelevision,
-            onClick = onRefresh,
-        )
+        if (!loading) {
+            Spacer(modifier = Modifier.height(12.dp))
+            DetailActionButton(
+                label = "↻  Atualizar episódios",
+                isTelevision = isTelevision,
+                onClick = onRefresh,
+            )
+        }
     }
 }
 
@@ -434,7 +456,7 @@ private fun EpisodeRow(
             Text(
                 text = episode.duration ?: "Duração não informada",
                 color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 12.sp else 12.sp,
+                fontSize = 12.sp,
             )
         }
         Text(text = "▶", color = RonecaColors.Primary, fontSize = 18.sp)
