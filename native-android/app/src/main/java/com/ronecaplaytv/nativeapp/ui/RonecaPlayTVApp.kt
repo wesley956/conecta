@@ -27,6 +27,7 @@ import com.ronecaplaytv.nativeapp.ui.navigation.MainNavigationBar
 import com.ronecaplaytv.nativeapp.ui.navigation.MainTab
 import com.ronecaplaytv.nativeapp.ui.playback.PlaybackScreen
 import com.ronecaplaytv.nativeapp.ui.player.NativePlayerScreen
+import com.ronecaplaytv.nativeapp.ui.search.SearchScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesDetailScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
 import com.ronecaplaytv.nativeapp.ui.settings.PlayerSettingsState
@@ -35,6 +36,7 @@ import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
 
 private enum class NativeDestination {
     Home,
+    Search,
     Channels,
     Movies,
     MovieDetail,
@@ -156,6 +158,29 @@ fun RonecaPlayTVApp(
                         onOpenMovies = { destination = NativeDestination.Movies },
                         onOpenSeries = { destination = NativeDestination.Series },
                         onOpenPlayback = { destination = NativeDestination.Playback },
+                        onOpenSearch = { destination = NativeDestination.Search },
+                    )
+
+                    NativeDestination.Search -> SearchScreen(
+                        channels = catalogState.channels,
+                        movies = catalogState.movies,
+                        series = catalogState.series,
+                        isTelevision = isTelevision,
+                        onBack = { destination = NativeDestination.Home },
+                        onPlayChannel = { channel ->
+                            openPlayer(
+                                channel.name,
+                                channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
+                            )
+                        },
+                        onOpenMovie = { movie ->
+                            selectedMovie = movie
+                            destination = NativeDestination.MovieDetail
+                        },
+                        onOpenSeries = { series ->
+                            selectedSeries = series
+                            destination = NativeDestination.SeriesDetail
+                        },
                     )
 
                     NativeDestination.Channels -> ChannelsScreen(
