@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +49,14 @@ import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.persistence.SavedProgress
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 
+private data class PlaybackCardItem(
+    val key: String,
+    val title: String,
+    val imageUrl: String?,
+    val progress: Float,
+    val onClick: () -> Unit,
+)
+
 @Composable
 fun PlaybackScreen(
     isTelevision: Boolean,
@@ -68,9 +75,6 @@ fun PlaybackScreen(
     BackHandler(onBack = onBack)
 
     val progressByKey = remember(progress) { progress.associateBy(SavedProgress::contentKey) }
-    val startedMovies = remember(movies, progressByKey) {
-        movies.mapNotNull { movie -> progressByKey["movie:${movie.id}"]?.let { movie to it } }
-    }
     val startedSeriesIds = remember(progress) {
         progress.mapNotNull { entry ->
             entry.contentKey
@@ -79,12 +83,56 @@ fun PlaybackScreen(
                 ?.substringBefore(':')
         }.toSet()
     }
-    val startedSeries = remember(series, startedSeriesIds) { series.filter { it.id in startedSeriesIds } }
+
+    val startedMovieCards = remember(movies, progressByKey) {
+        movies.mapNotNull { movie ->
+            progressByKey["movie:${movie.id}"]?.let { saved ->
+                PlaybackCardItem(
+                    key = "started-movie-${movie.id}",
+                    title = movie.name,
+                    imageUrl = movie.coverUrl,
+                    progress = saved.fraction,
+                    onClick = { onOpenMovie(movie) },
+                )
+            }
+        }
+    }
+    val startedSeriesCards = remember(series, startedSeriesIds) {
+        series.filter { it.id in startedSeriesIds }.map { item ->
+            PlaybackCardItem(
+                key = "started-series-${item.id}",
+                title = item.name,
+                imageUrl = item.coverUrl,
+                progress = 0f,
+                onClick = { onOpenSeries(item) },
+            )
+        }
+    }
     val favoriteChannels = remember(channels, favoriteChannelIds) { channels.filter { it.id in favoriteChannelIds } }
-    val favoriteMovies = remember(movies, favoriteMovieIds) { movies.filter { it.id in favoriteMovieIds } }
-    val favoriteSeries = remember(series, favoriteSeriesIds) { series.filter { it.id in favoriteSeriesIds } }
-    val empty = favoriteChannels.isEmpty() && favoriteMovies.isEmpty() && favoriteSeries.isEmpty() &&
-        startedMovies.isEmpty() && startedSeries.isEmpty()
+    val favoriteMovieCards = remember(movies, favoriteMovieIds, progressByKey) {
+        movies.filter { it.id in favoriteMovieIds }.map { movie ->
+            PlaybackCardItem(
+                key = "favorite-movie-${movie.id}",
+                title = movie.name,
+                imageUrl = movie.coverUrl,
+                progress = progressByKey["movie:${movie.id}"]?.fraction ?: 0f,
+                onClick = { onOpenMovie(movie) },
+            )
+        }
+    }
+    val favoriteSeriesCards = remember(series, favoriteSeriesIds) {
+        series.filter { it.id in favoriteSeriesIds }.map { item ->
+            PlaybackCardItem(
+                key = "favorite-series-${item.id}",
+                title = item.name,
+                imageUrl = item.coverUrl,
+                progress = 0f,
+                onClick = { onOpenSeries(item) },
+            )
+        }
+    }
+    val empty = favoriteChannels.isEmpty() && favoriteMovieCards.isEmpty() && favoriteSeriesCards.isEmpty() &&
+        startedMovieCards.isEmpty() && startedSeriesCards.isEmpty()
 
     LazyColumn(
         modifier = Modifier
@@ -125,47 +173,27 @@ fun PlaybackScreen(
             )
         }
 
-        if (empty) {
-            item { EmptyState(isTelevision = isTelevision) }
-        }
+        if (empty) item { EmptyState(isTelevision = isTelevision) }
 
-        if (startedMovies.isNotEmpty()) {
+        if (startedMovieCards.isNotEmpty()) {
             item {
                 MediaSection(
                     title = "Continuar assistindo",
                     subtitle = "Retome exatamente de onde parou",
+                    items = startedMovieCards,
                     isTelevision = isTelevision,
-                ) {
-                    startedMovies.forEach { (movie, saved) ->
-                        MediaCard(
-                            title = movie.name,
-                            imageUrl = movie.coverUrl,
-                            progress = saved.fraction,
-                            isTelevision = isTelevision,
-                            onClick = { onOpenMovie(movie) },
-                        )
-                    }
-                }
+                )
             }
         }
 
-        if (startedSeries.isNotEmpty()) {
+        if (startedSeriesCards.isNotEmpty()) {
             item {
                 MediaSection(
                     title = "Séries em andamento",
                     subtitle = "Continue pelos episódios já iniciados",
+                    items = startedSeriesCards,
                     isTelevision = isTelevision,
-                ) {
-                    startedSeries.forEach { item ->
-                        MediaCard(
-                            title = item.name,
-                            imageUrl = item.coverUrl,
-                            progress = 0f,
-                            isTelevision = isTelevision,
-                            onClick = { onOpenSeries(item) },
-                        )
-                    }
-                }
+                )
             }
         }
 
@@ -179,43 +207,25 @@ fun PlaybackScreen(
             }
         }
 
-        if (favoriteMovies.isNotEmpty()) {
+        if (favoriteMovieCards.isNotEmpty()) {
             item {
                 MediaSection(
                     title = "Filmes favoritos",
                     subtitle = "Sua seleção de filmes",
+                    items = favoriteMovieCards,
                     isTelevision = isTelevision,
-                ) {
-                    favoriteMovies.forEach { movie ->
-                        MediaCard(
-                            title = movie.name,
-                            imageUrl = movie.coverUrl,
-                            progress = progressByKey["movie:${movie.id}"]?.fraction ?: 0f,
-                            isTelevision = isTelevision,
-                            onClick = { onOpenMovie(movie) },
-                        )
-                    }
-                }
+                )
             }
         }
 
-        if (favoriteSeries.isNotEmpty()) {
+        if (favoriteSeriesCards.isNotEmpty()) {
             item {
                 MediaSection(
                     title = "Séries favoritas",
                     subtitle = "Séries adicionadas à Minha Lista",
+                    items = favoriteSeriesCards,
                     isTelevision = isTelevision,
-                ) {
-                    favoriteSeries.forEach { item ->
-                        MediaCard(
-                            title = item.name,
-                            imageUrl = item.coverUrl,
-                            progress = 0f,
-                            isTelevision = isTelevision,
-                            onClick = { onOpenSeries(item) },
-                        )
-                    }
-                }
+                )
             }
         }
     }
@@ -225,8 +235,8 @@ fun PlaybackScreen(
 private fun MediaSection(
     title: String,
     subtitle: String,
+    items: List<PlaybackCardItem>,
     isTelevision: Boolean,
-    content: @Composable RowScopeBuilder.() -> Unit,
 ) {
     Column {
         Text(
@@ -235,25 +245,20 @@ private fun MediaSection(
             fontSize = if (isTelevision) 20.sp else 18.sp,
             fontWeight = FontWeight.Bold,
         )
-        Text(
-            text = subtitle,
-            color = RonecaColors.TextSecondary,
-            fontSize = 12.sp,
-        )
+        Text(text = subtitle, color = RonecaColors.TextSecondary, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(11.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                RowScopeBuilderImpl(content)
+            items(items, key = PlaybackCardItem::key) { item ->
+                MediaCard(
+                    title = item.title,
+                    imageUrl = item.imageUrl,
+                    progress = item.progress,
+                    isTelevision = isTelevision,
+                    onClick = item.onClick,
+                )
             }
         }
     }
-}
-
-private interface RowScopeBuilder
-
-@Composable
-private fun RowScopeBuilderImpl(content: @Composable RowScopeBuilder.() -> Unit) {
-    object : RowScopeBuilder {}.content()
 }
 
 @Composable
