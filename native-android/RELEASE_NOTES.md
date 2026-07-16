@@ -1,20 +1,37 @@
-# RonecaPlayTV Native 1.0.0
+# RonecaPlayTV Native 1.1.0
 
-Primeira versão consolidada do aplicativo Android nativo para celular, tablet, Android TV e TV Box.
+Atualização do aplicativo Android nativo para celular, tablet, Android TV e TV Box, acompanhada da modernização do acesso ao portal de vendedores.
 
-## Destaques
+## Player de séries
+
+- reprodução automática do próximo episódio;
+- avanço contínuo entre episódios e temporadas;
+- painel de temporadas e episódios dentro do próprio player;
+- troca de episódio sem voltar à tela de detalhes;
+- retomada da posição salva para cada episódio;
+- preservação das fontes alternativas e reconexão automática;
+- mensagem clara ao finalizar todos os episódios disponíveis.
+
+## Portal do vendedor
+
+- novos vendedores são cadastrados com e-mail e senha inicial pelo painel administrativo;
+- criação automática da conta no Supabase Auth;
+- vínculo automático ao papel `seller` e ao cadastro comercial;
+- senha nunca armazenada nas tabelas comerciais;
+- remoção do token privado antigo da interface;
+- gateway do portal protegido por JWT;
+- rollback automático quando alguma etapa do cadastro falha.
+
+## Recursos mantidos
 
 - interface escura premium com detalhes dourados e vermelhos;
 - layouts separados para retrato, paisagem e televisão;
-- navegação lateral para TV e paisagem;
 - canais, filmes, séries, busca, favoritos e Minha Lista;
-- temporadas e episódios Xtream carregados sob demanda;
 - reprodução nativa com Media3 ExoPlayer;
-- retomada de filmes e episódios do ponto salvo;
-- painel de canais da mesma categoria dentro do player;
+- retomada de filmes e episódios;
+- painel de canais da mesma categoria;
 - configurações persistentes de buffer, decodificação e reconexão;
-- atualização manual do catálogo;
-- logo oficial na abertura e no ícone do aplicativo.
+- catálogo seguro entregue pelo Supabase.
 
 ## Distribuição
 
