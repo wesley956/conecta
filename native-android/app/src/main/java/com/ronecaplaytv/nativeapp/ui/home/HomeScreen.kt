@@ -2,6 +2,7 @@ package com.ronecaplaytv.nativeapp.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ fun HomeScreen(
     onOpenMovies: () -> Unit,
     onOpenSeries: () -> Unit,
     onOpenPlayback: () -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val firstFocusRequester = remember { FocusRequester() }
 
@@ -105,18 +107,34 @@ fun HomeScreen(
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .background(RonecaColors.Primary.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
-                        .border(1.dp, RonecaColors.Primary.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Text(
-                        text = "ONLINE",
-                        color = RonecaColors.Primary,
-                        fontSize = if (isTelevision) 12.sp else 10.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .background(RonecaColors.Surface, RoundedCornerShape(8.dp))
+                            .border(1.dp, RonecaColors.Border, RoundedCornerShape(8.dp))
+                            .clickable(onClick = onOpenSearch)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            text = "⌕ Buscar",
+                            color = RonecaColors.TextSecondary,
+                            fontSize = if (isTelevision) 12.sp else 10.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(RonecaColors.Primary.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
+                            .border(1.dp, RonecaColors.Primary.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            text = "ONLINE",
+                            color = RonecaColors.Primary,
+                            fontSize = if (isTelevision) 12.sp else 10.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
                 }
             }
         }
