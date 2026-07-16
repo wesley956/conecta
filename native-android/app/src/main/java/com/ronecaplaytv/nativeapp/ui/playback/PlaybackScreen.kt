@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,6 +55,7 @@ private data class PlaybackCardItem(
     val title: String,
     val imageUrl: String?,
     val progress: Float,
+    val badge: String?,
     val onClick: () -> Unit,
 )
 
@@ -70,20 +72,13 @@ fun PlaybackScreen(
     onBack: () -> Unit,
     onPlayChannel: (NativeChannel) -> Unit,
     onOpenMovie: (NativeMovie) -> Unit,
+    onResumeMovie: (NativeMovie) -> Unit,
     onOpenSeries: (NativeSeries) -> Unit,
+    onResumeSeries: (NativeSeries, SavedProgress) -> Unit,
 ) {
     BackHandler(onBack = onBack)
 
     val progressByKey = remember(progress) { progress.associateBy(SavedProgress::contentKey) }
-    val startedSeriesIds = remember(progress) {
-        progress.mapNotNull { entry ->
-            entry.contentKey
-                .takeIf { it.startsWith("episode:") }
-                ?.removePrefix("episode:")
-                ?.substringBefore(':')
-        }.toSet()
-    }
-
     val startedMovieCards = remember(movies, progressByKey) {
         movies.mapNotNull { movie ->
             progressByKey["movie:${movie.id}"]?.let { saved ->
@@ -92,23 +87,30 @@ fun PlaybackScreen(
                     title = movie.name,
                     imageUrl = movie.coverUrl,
                     progress = saved.fraction,
-                    onClick = { onOpenMovie(movie) },
+                    badge = "CONTINUAR",
+                    onClick = { onResumeMovie(movie) },
                 )
             }
         }
     }
-    val startedSeriesCards = remember(series, startedSeriesIds) {
-        series.filter { it.id in startedSeriesIds }.map { item ->
-            PlaybackCardItem(
-                key = "started-series-${item.id}",
-                title = item.name,
-                imageUrl = item.coverUrl,
-                progress = 0f,
-                onClick = { onOpenSeries(item) },
-            )
+    val startedSeriesCards = remember(series, progress) {
+        series.mapNotNull { item ->
+            val prefix = "episode:${item.id}:"
+            progress.firstOrNull { it.contentKey.startsWith(prefix) }?.let { saved ->
+                PlaybackCardItem(
+                    key = "started-series-${item.id}",
+                    title = item.name,
+                    imageUrl = item.coverUrl,
+                    progress = saved.fraction,
+                    badge = "ÚLTIMO EPISÓDIO",
+                    onClick = { onResumeSeries(item, saved) },
+                )
+            }
         }
     }
-    val favoriteChannels = remember(channels, favoriteChannelIds) { channels.filter { it.id in favoriteChannelIds } }
+    val favoriteChannels = remember(channels, favoriteChannelIds) {
+        channels.filter { it.id in favoriteChannelIds }
+    }
     val favoriteMovieCards = remember(movies, favoriteMovieIds, progressByKey) {
         movies.filter { it.id in favoriteMovieIds }.map { movie ->
             PlaybackCardItem(
@@ -116,6 +118,7 @@ fun PlaybackScreen(
                 title = movie.name,
                 imageUrl = movie.coverUrl,
                 progress = progressByKey["movie:${movie.id}"]?.fraction ?: 0f,
+                badge = "FAVORITO",
                 onClick = { onOpenMovie(movie) },
             )
         }
@@ -127,12 +130,13 @@ fun PlaybackScreen(
                 title = item.name,
                 imageUrl = item.coverUrl,
                 progress = 0f,
+                badge = "FAVORITA",
                 onClick = { onOpenSeries(item) },
             )
         }
     }
-    val empty = favoriteChannels.isEmpty() && favoriteMovieCards.isEmpty() && favoriteSeriesCards.isEmpty() &&
-        startedMovieCards.isEmpty() && startedSeriesCards.isEmpty()
+    val empty = favoriteChannels.isEmpty() && favoriteMovieCards.isEmpty() &&
+        favoriteSeriesCards.isEmpty() && startedMovieCards.isEmpty() && startedSeriesCards.isEmpty()
 
     LazyColumn(
         modifier = Modifier
@@ -148,9 +152,9 @@ fun PlaybackScreen(
             start = if (isTelevision) 24.dp else 18.dp,
             end = if (isTelevision) 24.dp else 18.dp,
             top = if (isTelevision) 18.dp else 20.dp,
-            bottom = 30.dp,
+            bottom = 34.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         item {
             Text(
@@ -167,7 +171,7 @@ fun PlaybackScreen(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Favoritos e conteúdos em andamento reunidos em um só lugar.",
+                text = "Retome conteúdos iniciados ou abra seus favoritos.",
                 color = RonecaColors.TextSecondary,
                 fontSize = if (isTelevision) 13.sp else 12.sp,
             )
@@ -175,23 +179,11 @@ fun PlaybackScreen(
 
         if (empty) item { EmptyState(isTelevision = isTelevision) }
 
-        if (startedMovieCards.isNotEmpty()) {
+        if (startedMovieCards.isNotEmpty() || startedSeriesCards.isNotEmpty()) {
             item {
-                MediaSection(
-                    title = "Continuar assistindo",
-                    subtitle = "Retome exatamente de onde parou",
-                    items = startedMovieCards,
-                    isTelevision = isTelevision,
-                )
-            }
-        }
-
-        if (startedSeriesCards.isNotEmpty()) {
-            item {
-                MediaSection(
-                    title = "Séries em andamento",
-                    subtitle = "Continue pelos episódios já iniciados",
-                    items = startedSeriesCards,
+                ContinueSection(
+                    movies = startedMovieCards,
+                    series = startedSeriesCards,
                     isTelevision = isTelevision,
                 )
             }
@@ -232,6 +224,45 @@ fun PlaybackScreen(
 }
 
 @Composable
+private fun ContinueSection(
+    movies: List<PlaybackCardItem>,
+    series: List<PlaybackCardItem>,
+    isTelevision: Boolean,
+) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.width(26.dp).height(3.dp).background(RonecaColors.RedStrong))
+            Text(
+                text = "CONTINUAR ASSISTINDO",
+                color = RonecaColors.Primary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(start = 9.dp),
+            )
+        }
+        Text(
+            text = "Um clique retoma exatamente de onde você parou.",
+            color = RonecaColors.TextSecondary,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 11.dp),
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(movies + series, key = PlaybackCardItem::key) { item ->
+                MediaCard(
+                    title = item.title,
+                    imageUrl = item.imageUrl,
+                    progress = item.progress,
+                    badge = item.badge,
+                    isTelevision = isTelevision,
+                    onClick = item.onClick,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MediaSection(
     title: String,
     subtitle: String,
@@ -253,6 +284,7 @@ private fun MediaSection(
                     title = item.title,
                     imageUrl = item.imageUrl,
                     progress = item.progress,
+                    badge = item.badge,
                     isTelevision = isTelevision,
                     onClick = item.onClick,
                 )
@@ -274,6 +306,7 @@ private fun ChannelSection(
             fontSize = if (isTelevision) 20.sp else 18.sp,
             fontWeight = FontWeight.Bold,
         )
+        Text(text = "Acesso rápido aos seus canais", color = RonecaColors.TextSecondary, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(11.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(channels, key = NativeChannel::id) { channel ->
@@ -292,22 +325,23 @@ private fun MediaCard(
     title: String,
     imageUrl: String?,
     progress: Float,
+    badge: String?,
     isTelevision: Boolean,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
-    val width = if (isTelevision) 145.dp else 125.dp
+    val width = if (isTelevision) 150.dp else 126.dp
 
     Column(
         modifier = Modifier
             .width(width)
-            .clip(RoundedCornerShape(12.dp))
-            .background(RonecaColors.Surface)
+            .clip(RoundedCornerShape(13.dp))
+            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = if (focused) RonecaColors.Primary else RonecaColors.Border,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(13.dp),
             )
             .onFocusChanged { focused = it.isFocused }
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
@@ -329,18 +363,33 @@ private fun MediaCard(
                     contentScale = ContentScale.Crop,
                 )
             }
+            badge?.let {
+                Text(
+                    text = it,
+                    color = RonecaColors.TextPrimary,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color(0xD9100D0B))
+                        .border(1.dp, RonecaColors.RedStrong.copy(alpha = 0.75f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 7.dp, vertical = 4.dp),
+                )
+            }
             if (progress > 0f) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .fillMaxWidth()
-                        .height(4.dp)
-                        .background(Color(0x99000000)),
+                        .height(5.dp)
+                        .background(Color(0xB0000000)),
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth(progress.coerceIn(0f, 1f))
-                            .height(4.dp)
+                            .height(5.dp)
                             .background(RonecaColors.RedStrong),
                     )
                 }
@@ -354,6 +403,14 @@ private fun MediaCard(
             fontWeight = FontWeight.Medium,
             maxLines = 2,
         )
+        if (progress > 0f) {
+            Text(
+                text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}% assistido",
+                color = RonecaColors.Primary,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
     }
 }
 
@@ -365,9 +422,9 @@ private fun CompactChannelCard(
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
-    Column(
+    Row(
         modifier = Modifier
-            .width(if (isTelevision) 180.dp else 155.dp)
+            .width(if (isTelevision) 190.dp else 160.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
@@ -379,20 +436,31 @@ private fun CompactChannelCard(
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .focusable()
             .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = channel.name,
-            color = RonecaColors.TextPrimary,
-            fontSize = if (isTelevision) 14.sp else 13.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(34.dp)
+                .background(if (focused) RonecaColors.RedStrong else RonecaColors.Primary),
         )
-        Text(
-            text = channel.groupTitle,
-            color = RonecaColors.TextSecondary,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = channel.name,
+                color = RonecaColors.TextPrimary,
+                fontSize = if (isTelevision) 14.sp else 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+            )
+            Text(
+                text = channel.groupTitle,
+                color = RonecaColors.TextSecondary,
+                fontSize = 10.sp,
+                maxLines = 1,
+            )
+        }
+        Text(text = "▶", color = RonecaColors.Primary, fontSize = 12.sp)
     }
 }
 
