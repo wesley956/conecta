@@ -11,8 +11,8 @@ android {
         applicationId = "com.ronecaplaytv.nativeapp"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         buildConfigField(
             "String",
@@ -60,6 +60,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.10.1")
     implementation("androidx.media3:media3-ui:1.10.1")
+
+    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
