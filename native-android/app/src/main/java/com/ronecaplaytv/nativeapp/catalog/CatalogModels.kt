@@ -42,6 +42,7 @@ data class NativeSeries(
     val category: String,
     val synopsis: String?,
     val seasons: List<NativeSeason>,
+    val xtreamSeriesId: String? = null,
 )
 
 data class NativeCatalogState(
