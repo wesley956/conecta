@@ -28,7 +28,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -40,30 +39,33 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 
 object RonecaColors {
-    val Background = Color(0xFF050B0F)
-    val BackgroundSoft = Color(0xFF08131A)
-    val Surface = Color(0xFF0D1B24)
-    val SurfaceRaised = Color(0xFF122230)
-    val Border = Color(0xFF1E3345)
-    val Divider = Border
+    val Background = Color(0xFF050505)
+    val BackgroundSoft = Color(0xFF090806)
+    val Surface = Color(0xFF11100E)
+    val SurfaceRaised = Color(0xFF191713)
+    val SurfaceOverlay = Color(0xE611100E)
+    val Border = Color(0xFF302A1E)
+    val Divider = Color(0xFF211E18)
 
-    val Primary = Color(0xFF00E5FF)
-    val Purple = Color(0xFF7C3AED)
-    val Orange = Color(0xFFFF6B00)
-    val Green = Color(0xFF00E676)
-    val Yellow = Color(0xFFFFD600)
-    val Error = Color(0xFFFF1744)
+    val Primary = Color(0xFFE8C768)
+    val PrimaryStrong = Color(0xFFFFDB73)
+    val PrimarySoft = Color(0x33E8C768)
+    val Purple = Color(0xFFC9AE68)
+    val Orange = Color(0xFFE9A44F)
+    val Green = Color(0xFF73C98C)
+    val Yellow = Color(0xFFE8C768)
+    val Error = Color(0xFFFF6868)
 
     val Cyan = Primary
-    val Pink = Purple
+    val Pink = Primary
 
-    val TextPrimary = Color(0xFFFFFFFF)
-    val BodyText = Color(0xFFE0ECF4)
-    val TextSecondary = Color(0xFF8BA4B8)
-    val TextMuted = Color(0xFF3D5A72)
+    val TextPrimary = Color(0xFFF7F4EC)
+    val BodyText = Color(0xFFD8D2C5)
+    val TextSecondary = Color(0xFFA39D91)
+    val TextMuted = Color(0xFF69645B)
 }
 
-private val CardShape = RoundedCornerShape(12.dp)
+private val CardShape = RoundedCornerShape(14.dp)
 
 @Composable
 fun FocusableActionCard(
@@ -107,21 +109,12 @@ fun FocusableActionCard(
                     false
                 }
             }
-            .graphicsLayer {
-                val scale = if (focused && isTelevision) 1.018f else 1f
-                scaleX = scale
-                scaleY = scale
-                shadowElevation = 0f
-                shape = CardShape
-                clip = false
-                alpha = if (enabled) 1f else 0.46f
-            }
             .clip(CardShape)
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    !enabled -> RonecaColors.Border.copy(alpha = 0.45f)
+                    !enabled -> RonecaColors.Border.copy(alpha = 0.42f)
                     focused -> accentColor
                     else -> RonecaColors.Border
                 },
@@ -149,7 +142,7 @@ fun FocusableActionCard(
                 Text(
                     text = title,
                     color = if (enabled) RonecaColors.TextPrimary else RonecaColors.TextMuted,
-                    fontSize = if (isTelevision) 22.sp else 17.sp,
+                    fontSize = if (isTelevision) 21.sp else 17.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                 )
@@ -166,21 +159,21 @@ fun FocusableActionCard(
                 Spacer(modifier = Modifier.width(16.dp))
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(accentColor.copy(alpha = if (focused) 0.22f else 0.12f))
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accentColor.copy(alpha = if (focused) 0.18f else 0.10f))
                         .border(
                             width = 1.dp,
-                            color = accentColor.copy(alpha = if (focused) 0.85f else 0.45f),
-                            shape = RoundedCornerShape(8.dp),
+                            color = accentColor.copy(alpha = if (focused) 0.95f else 0.42f),
+                            shape = RoundedCornerShape(999.dp),
                         )
-                        .padding(horizontal = 11.dp, vertical = 7.dp),
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = badge,
                         color = if (enabled) accentColor else RonecaColors.TextMuted,
-                        fontSize = if (isTelevision) 14.sp else 12.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = if (isTelevision) 13.sp else 11.sp,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
