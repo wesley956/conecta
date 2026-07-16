@@ -47,10 +47,14 @@ jobs:
           node scripts/generate-panel-config.mjs
           test -s admin-panel/panel-config.js
           node --check admin-panel/panel-auth-session.js
+          node --check admin-panel/seller-provisioning.js
+          node --check admin-panel/panel-config.js
+          grep -F "seller-provisioning.js" admin-panel/panel-config.js
 
       - name: Prepare static files
         run: |
           test -f admin-panel/index.html
+          test -f admin-panel/seller-provisioning.js
           touch admin-panel/.nojekyll
 
       - name: Setup Pages

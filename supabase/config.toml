@@ -56,7 +56,7 @@ enabled = true
 file_size_limit = "50MiB"
 
 # Funções chamadas diretamente pelo APK/site. A proteção delas é feita pelo próprio código
-# usando deviceCode, deviceUuid ou x-admin-token, então elas não devem exigir JWT do Supabase.
+# usando deviceCode, deviceUuid ou credenciais específicas do aparelho.
 [functions.device-config]
 verify_jwt = false
 
@@ -69,10 +69,12 @@ verify_jwt = false
 [functions.playlist-cache]
 verify_jwt = false
 
-# A função administrativa já usa Supabase Auth e papel individual.
+# Funções de painel usam Supabase Auth e papéis individuais.
 [functions.admin-panel]
 verify_jwt = true
 
-# O portal de vendedores permanece compatível até cada vendedor possuir conta Auth vinculada.
+[functions.seller-provision]
+verify_jwt = true
+
 [functions.seller-panel]
-verify_jwt = false
+verify_jwt = true

@@ -29,7 +29,14 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `window.RONECA_PANEL_CONFIG = Object.freeze(${JSON.stringify({
     supabaseUrl: parsedUrl.origin,
     anonKey,
-  }, null, 2)});\n`;
+  }, null, 2)});\n` +
+  `(function loadSellerProvisioning(){\n` +
+  `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './seller-provisioning.js';\n` +
+  `  script.defer = true;\n` +
+  `  document.head.appendChild(script);\n` +
+  `})();\n`;
 
 const outputs = [
   path.resolve('admin-panel/panel-config.js'),
