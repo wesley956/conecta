@@ -23,6 +23,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.persistence.PlaybackPreferences
+import com.ronecaplaytv.nativeapp.series.SeriesEpisodesViewModel
 import com.ronecaplaytv.nativeapp.ui.activation.ActivationScreen
 import com.ronecaplaytv.nativeapp.ui.channels.ChannelsScreen
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
@@ -59,12 +60,14 @@ fun RonecaPlayTVApp(
     isTelevision: Boolean,
     activationViewModel: ActivationViewModel = viewModel(),
     catalogViewModel: CatalogViewModel = viewModel(),
+    seriesEpisodesViewModel: SeriesEpisodesViewModel = viewModel(),
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isWideLayout = isTelevision || configuration.screenWidthDp > configuration.screenHeightDp
     val sessionState by activationViewModel.state.collectAsStateWithLifecycle()
     val catalogState by catalogViewModel.state.collectAsStateWithLifecycle()
+    val episodesState by seriesEpisodesViewModel.state.collectAsStateWithLifecycle()
     val playbackPreferences = remember { PlaybackPreferences(context) }
 
     var destination by remember { mutableStateOf(NativeDestination.Home) }
@@ -101,12 +104,30 @@ fun RonecaPlayTVApp(
         }
     }
 
+    LaunchedEffect(
+        destination,
+        selectedSeries?.id,
+        selectedSeries?.xtreamSeriesId,
+        selectedSeries?.seasons?.size,
+    ) {
+        val series = selectedSeries
+        if (
+            destination == NativeDestination.SeriesDetail &&
+            series != null &&
+            series.seasons.isEmpty() &&
+            !series.xtreamSeriesId.isNullOrBlank()
+        ) {
+            seriesEpisodesViewModel.load(series.xtreamSeriesId)
+        }
+    }
+
     fun refreshCatalog() {
         activationViewModel.refresh()
         catalogViewModel.load(
             channelsUrl = sessionState.channelsUrl,
             moviesUrl = sessionState.moviesUrl,
             seriesUrl = sessionState.seriesUrl,
+            force = true,
         )
     }
 
@@ -332,40 +353,63 @@ fun RonecaPlayTVApp(
                     startedSeriesIds = startedSeriesIds,
                     onOpenDetails = { series ->
                         selectedSeries = series
+                        seriesEpisodesViewModel.clear()
                         destination = NativeDestination.SeriesDetail
                     },
                 )
 
                 NativeDestination.SeriesDetail -> {
-                    val series = selectedSeries
-                    if (series == null) {
+                    val baseSeries = selectedSeries
+                    if (baseSeries == null) {
                         destination = NativeDestination.Series
                     } else {
+                        val resolvedSeries = if (
+                            baseSeries.seasons.isEmpty() &&
+                            !baseSeries.xtreamSeriesId.isNullOrBlank() &&
+                            episodesState.seriesId == baseSeries.xtreamSeriesId &&
+                            episodesState.seasons.isNotEmpty()
+                        ) {
+                            baseSeries.copy(seasons = episodesState.seasons)
+                        } else {
+                            baseSeries
+                        }
                         val recommendations = catalogState.series
                             .asSequence()
-                            .filter { it.id != series.id && it.category.equals(series.category, ignoreCase = true) }
+                            .filter { it.id != baseSeries.id && it.category.equals(baseSeries.category, ignoreCase = true) }
                             .take(14)
                             .toList()
 
                         SeriesDetailScreen(
-                            series = series,
+                            series = resolvedSeries,
                             recommendations = recommendations,
-                            isFavorite = series.id in favoriteSeriesIds,
+                            isFavorite = baseSeries.id in favoriteSeriesIds,
                             isTelevision = isWideLayout,
+                            episodesLoading = episodesState.seriesId == baseSeries.xtreamSeriesId && episodesState.loading,
+                            episodesError = episodesState
+                                .takeIf { it.seriesId == baseSeries.xtreamSeriesId }
+                                ?.error,
                             onBack = { destination = NativeDestination.Series },
                             onToggleFavorite = {
-                                favoriteSeriesIds = playbackPreferences.toggleFavoriteSeries(series.id)
+                                favoriteSeriesIds = playbackPreferences.toggleFavoriteSeries(baseSeries.id)
                             },
-                            onRefreshEpisodes = ::refreshCatalog,
+                            onRefreshEpisodes = {
+                                val xtreamId = baseSeries.xtreamSeriesId
+                                if (!xtreamId.isNullOrBlank()) {
+                                    seriesEpisodesViewModel.load(xtreamId, force = true)
+                                } else {
+                                    refreshCatalog()
+                                }
+                            },
                             onPlayEpisode = { episode, displayTitle ->
                                 openPlayer(
                                     title = displayTitle,
                                     playbackUrls = episode.playbackUrls.ifEmpty { listOf(episode.primaryUrl) },
-                                    contentKey = "episode:${series.id}:${episode.id}",
+                                    contentKey = "episode:${baseSeries.id}:${episode.id}",
                                 )
                             },
                             onOpenRecommendation = { recommendation ->
                                 selectedSeries = recommendation
+                                seriesEpisodesViewModel.clear()
                             },
                         )
                     }
@@ -388,6 +432,7 @@ fun RonecaPlayTVApp(
                     },
                     onOpenSeries = { series ->
                         selectedSeries = series
+                        seriesEpisodesViewModel.clear()
                         destination = NativeDestination.SeriesDetail
                     },
                 )
