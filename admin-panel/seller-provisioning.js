@@ -123,6 +123,48 @@
     if (oldDescription) oldDescription.textContent = 'Crie o vendedor comercial e o acesso individual ao portal.';
   }
 
+  function removeLegacyTokenControls(sellerId) {
+    var tokenInput = byId('seller-token-' + sellerId);
+    if (!tokenInput) return;
+
+    var section = tokenInput.closest('.seller-detail-section');
+    var label = tokenInput.previousElementSibling;
+    if (label && label.tagName === 'LABEL') label.remove();
+    tokenInput.remove();
+
+    if (section) {
+      section.querySelectorAll('button').forEach(function removeLegacyButton(button) {
+        var action = button.getAttribute('onclick') || '';
+        if (action.includes('saveSellerToken') || action.includes('seller-token-')) button.remove();
+      });
+
+      if (!section.querySelector('.seller-auth-access-note')) {
+        var seller = Array.isArray(global.sellers)
+          ? global.sellers.find(function findSeller(item) { return item.id === sellerId; })
+          : null;
+        var note = global.document.createElement('div');
+        note.className = 'seller-auth-access-note detail-box wide';
+        note.style.marginTop = '14px';
+        note.innerHTML = '<small>Acesso ao portal</small>' +
+          '<strong>' + String(seller?.email || 'E-mail não informado') + '</strong>' +
+          '<div class="muted small" style="margin-top:7px;">Login individual por e-mail e senha. O token privado antigo não é mais utilizado.</div>';
+        section.appendChild(note);
+      }
+    }
+  }
+
+  function installSellerDetailsOverride() {
+    var original = global.showSellerDetails;
+    if (typeof original !== 'function') return;
+
+    global.showSellerDetails = function showSellerAuthDetails(id) {
+      original(id);
+      global.setTimeout(function polishSellerDetails() {
+        removeLegacyTokenControls(id);
+      }, 0);
+    };
+  }
+
   function installOverrides() {
     global.createSeller = async function createSellerWithAuth() {
       try {
@@ -180,6 +222,7 @@
     if (!byId('commercialActionModal')) return;
     installFormFields();
     installOverrides();
+    installSellerDetailsOverride();
   }
 
   if (global.document.readyState === 'loading') {
