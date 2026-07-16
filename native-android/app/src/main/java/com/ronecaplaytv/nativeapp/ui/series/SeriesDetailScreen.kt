@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -51,12 +52,17 @@ import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 @Composable
 fun SeriesDetailScreen(
     series: NativeSeries,
+    recommendations: List<NativeSeries>,
+    isFavorite: Boolean,
     isTelevision: Boolean,
     onBack: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onRefreshEpisodes: () -> Unit,
     onPlayEpisode: (NativeEpisode, String) -> Unit,
+    onOpenRecommendation: (NativeSeries) -> Unit,
 ) {
     BackHandler(onBack = onBack)
-    var selectedSeasonNumber by remember(series.id) {
+    var selectedSeasonNumber by remember(series.id, series.seasons) {
         mutableIntStateOf(series.seasons.firstOrNull()?.number ?: 1)
     }
     val selectedSeason = series.seasons.firstOrNull { it.number == selectedSeasonNumber }
@@ -64,39 +70,37 @@ fun SeriesDetailScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(RonecaColors.Background),
+            .background(RonecaColors.Background)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
+                    onBack()
+                    true
+                } else false
+            },
         contentPadding = PaddingValues(
-            start = if (isTelevision) 52.dp else 18.dp,
-            end = if (isTelevision) 52.dp else 18.dp,
-            top = if (isTelevision) 30.dp else 20.dp,
+            start = if (isTelevision) 28.dp else 18.dp,
+            end = if (isTelevision) 28.dp else 18.dp,
+            top = if (isTelevision) 20.dp else 18.dp,
             bottom = 30.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Text(
-                text = "← Voltar",
-                color = RonecaColors.Primary,
-                fontSize = if (isTelevision) 15.sp else 13.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
+        item { BackControl(isTelevision = isTelevision, onBack = onBack) }
 
         item {
             if (isTelevision) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
+                    horizontalArrangement = Arrangement.spacedBy(26.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    SeriesCover(
-                        series = series,
-                        modifier = Modifier.width(210.dp).height(315.dp),
-                    )
+                    SeriesCover(series = series, modifier = Modifier.width(210.dp).height(315.dp))
                     SeriesHeader(
                         series = series,
+                        isFavorite = isFavorite,
                         isTelevision = true,
                         modifier = Modifier.weight(1f),
+                        onToggleFavorite = onToggleFavorite,
                     )
                 }
             } else {
@@ -104,11 +108,13 @@ fun SeriesDetailScreen(
                     series = series,
                     modifier = Modifier.fillMaxWidth().height(400.dp),
                 )
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 SeriesHeader(
                     series = series,
+                    isFavorite = isFavorite,
                     isTelevision = false,
                     modifier = Modifier.fillMaxWidth(),
+                    onToggleFavorite = onToggleFavorite,
                 )
             }
         }
@@ -120,12 +126,11 @@ fun SeriesDetailScreen(
                 fontSize = if (isTelevision) 20.sp else 17.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(9.dp))
             if (series.seasons.isEmpty()) {
-                Text(
-                    text = "Os episódios desta série ainda não foram sincronizados.",
-                    color = RonecaColors.TextSecondary,
-                    fontSize = if (isTelevision) 15.sp else 13.sp,
+                EmptyEpisodesCard(
+                    isTelevision = isTelevision,
+                    onRefresh = onRefreshEpisodes,
                 )
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -140,20 +145,16 @@ fun SeriesDetailScreen(
             }
         }
 
-        item {
-            Text(
-                text = if (selectedSeason != null) {
-                    "Episódios • Temporada ${selectedSeason.number}"
-                } else {
-                    "Episódios"
-                },
-                color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 20.sp else 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-
         if (selectedSeason != null) {
+            item {
+                Text(
+                    text = "Episódios • Temporada ${selectedSeason.number}",
+                    color = RonecaColors.TextPrimary,
+                    fontSize = if (isTelevision) 20.sp else 17.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
             items(selectedSeason.episodes, key = NativeEpisode::id) { episode ->
                 EpisodeRow(
                     episode = episode,
@@ -167,6 +168,52 @@ fun SeriesDetailScreen(
                 )
             }
         }
+
+        if (recommendations.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Você também pode gostar",
+                    color = RonecaColors.TextPrimary,
+                    fontSize = if (isTelevision) 21.sp else 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "Séries da mesma categoria",
+                    color = RonecaColors.TextSecondary,
+                    fontSize = if (isTelevision) 13.sp else 12.sp,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(recommendations, key = NativeSeries::id) { item ->
+                        RecommendationCard(
+                            series = item,
+                            isTelevision = isTelevision,
+                            onClick = { onOpenRecommendation(item) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(RonecaColors.Surface)
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
+            .clickable(onClick = onBack)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = "←  Voltar",
+            color = RonecaColors.Primary,
+            fontSize = if (isTelevision) 13.sp else 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
@@ -174,9 +221,9 @@ fun SeriesDetailScreen(
 private fun SeriesCover(series: NativeSeries, modifier: Modifier) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(RonecaColors.Surface)
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(12.dp)),
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center,
     ) {
         if (!series.coverUrl.isNullOrBlank()) {
@@ -189,64 +236,137 @@ private fun SeriesCover(series: NativeSeries, modifier: Modifier) {
         } else {
             Text(text = "SÉRIE", color = RonecaColors.TextMuted)
         }
+        Row(modifier = Modifier.align(Alignment.TopStart)) {
+            Box(modifier = Modifier.width(34.dp).height(3.dp).background(RonecaColors.Primary))
+            Box(modifier = Modifier.width(12.dp).height(3.dp).background(RonecaColors.RedStrong))
+        }
     }
 }
 
 @Composable
 private fun SeriesHeader(
     series: NativeSeries,
+    isFavorite: Boolean,
     isTelevision: Boolean,
     modifier: Modifier,
+    onToggleFavorite: () -> Unit,
 ) {
     Column(modifier = modifier) {
         Text(
             text = series.category.ifBlank { "Série" }.uppercase(),
-            color = RonecaColors.Orange,
-            fontSize = if (isTelevision) 13.sp else 11.sp,
+            color = RonecaColors.Primary,
+            fontSize = if (isTelevision) 12.sp else 11.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.1.sp,
+            letterSpacing = 1.2.sp,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = series.name,
             color = RonecaColors.TextPrimary,
-            fontSize = if (isTelevision) 34.sp else 27.sp,
+            fontSize = if (isTelevision) 32.sp else 27.sp,
             fontWeight = FontWeight.Bold,
         )
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(9.dp))
         Text(
             text = "${series.seasons.size} temporada(s) • ${series.seasons.sumOf { it.episodes.size }} episódio(s)",
             color = RonecaColors.TextSecondary,
-            fontSize = if (isTelevision) 15.sp else 13.sp,
+            fontSize = if (isTelevision) 14.sp else 13.sp,
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(15.dp))
         Text(
             text = series.synopsis?.takeIf(String::isNotBlank)
                 ?: "Sinopse não informada para esta série.",
             color = RonecaColors.BodyText,
-            fontSize = if (isTelevision) 16.sp else 14.sp,
-            lineHeight = if (isTelevision) 24.sp else 21.sp,
+            fontSize = if (isTelevision) 15.sp else 14.sp,
+            lineHeight = if (isTelevision) 22.sp else 21.sp,
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        DetailActionButton(
+            label = if (isFavorite) "★  Na Minha Lista" else "☆  Adicionar à Minha Lista",
+            isTelevision = isTelevision,
+            onClick = onToggleFavorite,
         )
     }
 }
 
 @Composable
-private fun SeasonChip(
-    seasonNumber: Int,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
+private fun DetailActionButton(label: String, isTelevision: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) RonecaColors.RedStrong else RonecaColors.Primary,
+                shape = RoundedCornerShape(999.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
+            .padding(horizontal = if (isTelevision) 20.dp else 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = label,
+            color = RonecaColors.TextPrimary,
+            fontSize = if (isTelevision) 14.sp else 13.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun EmptyEpisodesCard(isTelevision: Boolean, onRefresh: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(RonecaColors.Surface, RoundedCornerShape(12.dp))
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(12.dp))
+            .padding(if (isTelevision) 18.dp else 15.dp),
+    ) {
+        Text(
+            text = "Episódios ainda não carregados",
+            color = RonecaColors.TextPrimary,
+            fontSize = if (isTelevision) 16.sp else 14.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = "Atualize o catálogo para buscar temporadas e episódios novamente.",
+            color = RonecaColors.TextSecondary,
+            fontSize = if (isTelevision) 13.sp else 12.sp,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        DetailActionButton(
+            label = "↻  Atualizar episódios",
+            isTelevision = isTelevision,
+            onClick = onRefresh,
+        )
+    }
+}
+
+@Composable
+private fun SeasonChip(seasonNumber: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
             .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
             .border(
                 width = 1.dp,
                 color = if (selected) RonecaColors.Primary else RonecaColors.Border,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(999.dp),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Text(
             text = "Temporada $seasonNumber",
@@ -283,22 +403,16 @@ private fun EpisodeRow(
                 ) {
                     onClick()
                     true
-                } else {
-                    false
-                }
+                } else false
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .focusable()
-            .padding(if (isTelevision) 18.dp else 14.dp),
+            .padding(if (isTelevision) 16.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(if (isTelevision) 46.dp else 40.dp)
+                .size(if (isTelevision) 44.dp else 40.dp)
                 .background(RonecaColors.Primary.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
                 .border(1.dp, RonecaColors.Primary.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center,
@@ -309,24 +423,81 @@ private fun EpisodeRow(
                 fontWeight = FontWeight.Bold,
             )
         }
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(13.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = episode.name,
                 color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 16.sp else 14.sp,
+                fontSize = if (isTelevision) 15.sp else 14.sp,
                 fontWeight = FontWeight.Medium,
             )
             Text(
                 text = episode.duration ?: "Duração não informada",
                 color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 13.sp else 12.sp,
+                fontSize = if (isTelevision) 12.sp else 12.sp,
             )
         }
+        Text(text = "▶", color = RonecaColors.Primary, fontSize = 18.sp)
+    }
+}
+
+@Composable
+private fun RecommendationCard(
+    series: NativeSeries,
+    isTelevision: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val width = if (isTelevision) 135.dp else 118.dp
+
+    Column(
+        modifier = Modifier
+            .width(width)
+            .clip(RoundedCornerShape(12.dp))
+            .background(RonecaColors.Surface)
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                shape = RoundedCornerShape(12.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
+            .padding(7.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f)
+                .clip(RoundedCornerShape(9.dp))
+                .background(RonecaColors.BackgroundSoft),
+        ) {
+            if (!series.coverUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = series.coverUrl,
+                    contentDescription = series.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(7.dp))
         Text(
-            text = "▶",
-            color = RonecaColors.Primary,
-            fontSize = if (isTelevision) 20.sp else 17.sp,
+            text = series.name,
+            color = RonecaColors.TextPrimary,
+            fontSize = if (isTelevision) 11.sp else 10.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
         )
     }
 }
