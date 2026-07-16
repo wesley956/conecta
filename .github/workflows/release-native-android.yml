@@ -1,0 +1,94 @@
+name: Publish Native Android Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "native-android/**"
+      - ".github/workflows/release-native-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish native APK
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
+
+      - name: Read application version
+        id: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' native-android/app/build.gradle.kts | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "Unable to resolve versionName" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble installable APK
+        working-directory: native-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp native-android/app/build/outputs/apk/debug/app-debug.apk "release/RonecaPlayTV-Native-v${{ steps.app.outputs.version }}.apk"
+          cd release
+          sha256sum "RonecaPlayTV-Native-v${{ steps.app.outputs.version }}.apk" > "RonecaPlayTV-Native-v${{ steps.app.outputs.version }}.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.app.outputs.tag }}
+          VERSION: ${{ steps.app.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="release/RonecaPlayTV-Native-v${VERSION}.apk"
+          CHECKSUM="release/RonecaPlayTV-Native-v${VERSION}.sha256"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber
+          else
+            gh release create "$TAG" "$APK" "$CHECKSUM" \
+              --target "$GITHUB_SHA" \
+              --title "RonecaPlayTV Native ${VERSION}" \
+              --notes-file native-android/RELEASE_NOTES.md
+          fi
