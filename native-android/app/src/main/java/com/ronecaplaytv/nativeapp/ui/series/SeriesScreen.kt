@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,22 +50,34 @@ import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 
+private const val FILTER_ALL = "Todas"
+private const val FILTER_FAVORITES = "Minha Lista"
+private const val FILTER_CONTINUE = "Continuar"
+
 @Composable
 fun SeriesScreen(
     series: List<NativeSeries>,
     isTelevision: Boolean,
+    favoriteIds: Set<String>,
+    startedSeriesIds: Set<String>,
     onOpenDetails: (NativeSeries) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var selectedCategory by rememberSaveable { mutableStateOf("Todos") }
+    var selectedCategory by rememberSaveable { mutableStateOf(FILTER_ALL) }
 
     val categories = remember(series) {
-        listOf("Todos") + series.map { it.category.ifBlank { "Outros" } }.distinct().sorted()
+        listOf(FILTER_ALL, FILTER_FAVORITES, FILTER_CONTINUE) +
+            series.map { it.category.ifBlank { "Outros" } }.distinct().sorted()
     }
-    val filtered = remember(series, query, selectedCategory) {
+    val filtered = remember(series, query, selectedCategory, favoriteIds, startedSeriesIds) {
         series.filter { item ->
-            (selectedCategory == "Todos" || item.category == selectedCategory) &&
-                (query.isBlank() || item.name.contains(query, ignoreCase = true))
+            val categoryMatches = when (selectedCategory) {
+                FILTER_ALL -> true
+                FILTER_FAVORITES -> item.id in favoriteIds
+                FILTER_CONTINUE -> item.id in startedSeriesIds
+                else -> item.category == selectedCategory
+            }
+            categoryMatches && (query.isBlank() || item.name.contains(query, ignoreCase = true))
         }
     }
 
@@ -73,32 +86,61 @@ fun SeriesScreen(
             .fillMaxSize()
             .background(RonecaColors.Background),
     ) {
+        val sidePadding = if (isTelevision) 24.dp else 18.dp
         Column(
             modifier = Modifier.padding(
-                start = if (isTelevision) 52.dp else 18.dp,
-                end = if (isTelevision) 52.dp else 18.dp,
-                top = if (isTelevision) 28.dp else 18.dp,
+                start = sidePadding,
+                end = sidePadding,
+                top = if (isTelevision) 16.dp else 18.dp,
             ),
         ) {
-            Text(
-                text = "Séries",
-                color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 30.sp else 24.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "${filtered.size} séries disponíveis",
-                color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 14.sp else 12.sp,
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            SeriesSearchField(
-                value = query,
-                onValueChange = { query = it },
-                isTelevision = isTelevision,
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (isTelevision) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(0.34f)) {
+                        Text(
+                            text = "Séries",
+                            color = RonecaColors.TextPrimary,
+                            fontSize = 25.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            text = "${filtered.size} séries",
+                            color = RonecaColors.TextSecondary,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    SeriesSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        isTelevision = true,
+                        modifier = Modifier.weight(0.66f),
+                    )
+                }
+            } else {
+                Text(
+                    text = "Séries",
+                    color = RonecaColors.TextPrimary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = "${filtered.size} séries disponíveis",
+                    color = RonecaColors.TextSecondary,
+                    fontSize = 12.sp,
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                SeriesSearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    isTelevision = false,
+                )
+            }
+            Spacer(modifier = Modifier.height(if (isTelevision) 9.dp else 10.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 items(categories.size) { index ->
                     val category = categories[index]
                     SeriesCategoryChip(
@@ -108,24 +150,22 @@ fun SeriesScreen(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(if (isTelevision) 10.dp else 14.dp))
         }
 
         LazyVerticalGrid(
-            columns = GridCells.Fixed(if (isTelevision) 5 else 2),
+            columns = GridCells.Fixed(if (isTelevision) 6 else 2),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = if (isTelevision) 52.dp else 18.dp,
-                end = if (isTelevision) 52.dp else 18.dp,
-                bottom = 28.dp,
-            ),
-            horizontalArrangement = Arrangement.spacedBy(if (isTelevision) 14.dp else 10.dp),
-            verticalArrangement = Arrangement.spacedBy(if (isTelevision) 18.dp else 14.dp),
+            contentPadding = PaddingValues(start = sidePadding, end = sidePadding, bottom = 28.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (isTelevision) 11.dp else 10.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isTelevision) 12.dp else 14.dp),
         ) {
             items(filtered, key = NativeSeries::id) { item ->
                 SeriesPosterCard(
                     series = item,
                     isTelevision = isTelevision,
+                    favorite = item.id in favoriteIds,
+                    started = item.id in startedSeriesIds,
                     onClick = { onOpenDetails(item) },
                 )
             }
@@ -138,20 +178,21 @@ private fun SeriesSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     isTelevision: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 14.dp, vertical = if (isTelevision) 12.dp else 10.dp),
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
+            .padding(horizontal = 16.dp, vertical = if (isTelevision) 10.dp else 10.dp),
     ) {
         if (value.isBlank()) {
             Text(
-                text = "Buscar séries...",
+                text = "⌕  Buscar série",
                 color = RonecaColors.TextMuted,
-                fontSize = if (isTelevision) 15.sp else 14.sp,
+                fontSize = if (isTelevision) 13.sp else 14.sp,
             )
         }
         BasicTextField(
@@ -160,7 +201,7 @@ private fun SeriesSearchField(
             singleLine = true,
             textStyle = TextStyle(
                 color = RonecaColors.BodyText,
-                fontSize = if (isTelevision) 15.sp else 14.sp,
+                fontSize = if (isTelevision) 13.sp else 14.sp,
             ),
             cursorBrush = SolidColor(RonecaColors.Primary),
             modifier = Modifier.fillMaxWidth(),
@@ -169,27 +210,24 @@ private fun SeriesSearchField(
 }
 
 @Composable
-private fun SeriesCategoryChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
+private fun SeriesCategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) RonecaColors.Orange.copy(alpha = 0.13f) else RonecaColors.Surface)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
             .border(
                 width = 1.dp,
-                color = if (selected) RonecaColors.Orange else RonecaColors.Border,
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected) RonecaColors.Primary else RonecaColors.Border,
+                shape = RoundedCornerShape(999.dp),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = label,
-            color = if (selected) RonecaColors.Orange else RonecaColors.TextSecondary,
-            fontSize = 12.sp,
+            color = if (selected) RonecaColors.Primary else RonecaColors.TextSecondary,
+            fontSize = 11.sp,
+            maxLines = 1,
         )
     }
 }
@@ -198,6 +236,8 @@ private fun SeriesCategoryChip(
 private fun SeriesPosterCard(
     series: NativeSeries,
     isTelevision: Boolean,
+    favorite: Boolean,
+    started: Boolean,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -227,11 +267,7 @@ private fun SeriesPosterCard(
                     false
                 }
             }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .focusable(),
     ) {
         if (!series.coverUrl.isNullOrBlank()) {
@@ -253,18 +289,28 @@ private fun SeriesPosterCard(
                 ),
         )
 
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            if (favorite) Badge("★", RonecaColors.Primary)
+            if (started) Badge("CONTINUAR", RonecaColors.RedStrong)
+        }
+
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .background(RonecaColors.Primary.copy(alpha = 0.14f), RoundedCornerShape(999.dp))
-                .border(1.dp, RonecaColors.Primary.copy(alpha = 0.65f), RoundedCornerShape(999.dp))
-                .padding(horizontal = 9.dp, vertical = 6.dp),
+                .padding(7.dp)
+                .background(Color(0xD9080808), RoundedCornerShape(999.dp))
+                .border(1.dp, RonecaColors.Primary.copy(alpha = 0.70f), RoundedCornerShape(999.dp))
+                .padding(horizontal = 8.dp, vertical = 5.dp),
         ) {
             Text(
                 text = if (seasonCount > 0) "$seasonCount T" else "SÉRIE",
                 color = RonecaColors.Primary,
-                fontSize = if (isTelevision) 10.sp else 9.sp,
+                fontSize = if (isTelevision) 9.sp else 9.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -273,21 +319,33 @@ private fun SeriesPosterCard(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(10.dp),
+                .padding(if (isTelevision) 8.dp else 10.dp),
         ) {
             Text(
                 text = series.name,
                 color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 14.sp else 13.sp,
+                fontSize = if (isTelevision) 12.sp else 13.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
             )
             Text(
                 text = series.category,
                 color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 11.sp else 10.sp,
+                fontSize = if (isTelevision) 9.sp else 10.sp,
                 maxLines = 1,
             )
         }
+    }
+}
+
+@Composable
+private fun Badge(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .background(Color(0xD9080808), RoundedCornerShape(999.dp))
+            .border(1.dp, color.copy(alpha = 0.70f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 7.dp, vertical = 4.dp),
+    ) {
+        Text(text = text, color = color, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
