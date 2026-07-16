@@ -74,6 +74,10 @@ fun NativePlayerScreen(
     streamUrls: List<String>,
     initialPositionMs: Long = 0L,
     relatedChannels: List<NativeChannel> = emptyList(),
+    currentChannelId: String? = null,
+    decoderMode: String = "Hardware",
+    bufferSeconds: Int = 5,
+    automaticReconnect: Boolean = true,
     onProgress: (positionMs: Long, durationMs: Long) -> Unit = { _, _ -> },
     onSelectChannel: (NativeChannel) -> Unit = {},
     onBack: () -> Unit,
@@ -86,6 +90,7 @@ fun NativePlayerScreen(
             .filter { it.startsWith("https://") || it.startsWith("http://") }
             .distinct()
     }
+    val safeBufferSeconds = bufferSeconds.coerceIn(2, 10)
     var sourceIndex by remember(sources) { mutableIntStateOf(0) }
     var sameSourceRetries by remember(sources) { mutableIntStateOf(0) }
     var channelDrawerVisible by remember { mutableStateOf(false) }
@@ -95,13 +100,16 @@ fun NativePlayerScreen(
         )
     }
 
-    val loadControl = remember(isTelevision) {
+    val loadControl = remember(isTelevision, safeBufferSeconds) {
+        val playbackBufferMs = safeBufferSeconds * 1_000
+        val minimumBufferMs = maxOf(playbackBufferMs, if (isTelevision) 5_000 else 8_000)
+        val maximumBufferMs = maxOf(minimumBufferMs * 4, if (isTelevision) 20_000 else 35_000)
         DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                if (isTelevision) 5_000 else 8_000,
-                if (isTelevision) 20_000 else 35_000,
-                1_000,
-                if (isTelevision) 1_500 else 2_500,
+                minimumBufferMs,
+                maximumBufferMs,
+                playbackBufferMs,
+                playbackBufferMs,
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -124,9 +132,16 @@ fun NativePlayerScreen(
         DefaultMediaSourceFactory(dataSourceFactory)
     }
 
-    val player = remember(sources, loadControl, mediaSourceFactory, initialPositionMs) {
+    val player = remember(
+        sources,
+        loadControl,
+        mediaSourceFactory,
+        initialPositionMs,
+        decoderMode,
+    ) {
+        val compatibilityMode = decoderMode.equals("Software", ignoreCase = true)
         val renderersFactory = DefaultRenderersFactory(context)
-            .setEnableDecoderFallback(true)
+            .setEnableDecoderFallback(compatibilityMode)
 
         ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
@@ -153,11 +168,13 @@ fun NativePlayerScreen(
         }
     }
 
-    DisposableEffect(player, sources) {
+    DisposableEffect(player, sources, automaticReconnect) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
-                    Player.STATE_BUFFERING -> if (playerMessage == null) playerMessage = "Carregando transmissão..."
+                    Player.STATE_BUFFERING -> if (playerMessage == null) {
+                        playerMessage = "Carregando transmissão..."
+                    }
                     Player.STATE_READY -> {
                         sameSourceRetries = 0
                         playerMessage = null
@@ -170,6 +187,11 @@ fun NativePlayerScreen(
             override fun onPlayerError(error: PlaybackException) {
                 val currentPosition = sourceIndex + 1
                 val diagnostic = error.errorCodeName
+
+                if (!automaticReconnect) {
+                    playerMessage = "Transmissão interrompida. Reconexão automática desativada."
+                    return
+                }
 
                 if (sameSourceRetries < SAME_SOURCE_RETRY_LIMIT) {
                     sameSourceRetries += 1
@@ -248,6 +270,7 @@ fun NativePlayerScreen(
         PlayerHeader(
             title = title,
             isTelevision = isTelevision,
+            live = currentChannelId != null,
             hasChannelDrawer = relatedChannels.isNotEmpty(),
             onBack = onBack,
             onOpenChannels = { channelDrawerVisible = true },
@@ -271,6 +294,7 @@ fun NativePlayerScreen(
         if (channelDrawerVisible) {
             ChannelDrawer(
                 channels = relatedChannels,
+                currentChannelId = currentChannelId,
                 isTelevision = isTelevision,
                 onDismiss = { channelDrawerVisible = false },
                 onSelect = { channel ->
@@ -287,6 +311,7 @@ fun NativePlayerScreen(
 private fun PlayerHeader(
     title: String,
     isTelevision: Boolean,
+    live: Boolean,
     hasChannelDrawer: Boolean,
     onBack: () -> Unit,
     onOpenChannels: () -> Unit,
@@ -294,8 +319,8 @@ private fun PlayerHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xB3050505))
-            .padding(horizontal = if (isTelevision) 26.dp else 14.dp, vertical = 12.dp),
+            .background(Color(0xC4050505))
+            .padding(horizontal = if (isTelevision) 24.dp else 14.dp, vertical = 11.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -305,14 +330,31 @@ private fun PlayerHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             PlayerAction(label = "←", onClick = onBack)
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(if (isTelevision) 34.dp else 30.dp)
+                    .background(RonecaColors.RedStrong),
+            )
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "RONECAPLAYTV",
-                    color = RonecaColors.Primary,
-                    fontSize = if (isTelevision) 10.sp else 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.8.sp,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "RONECAPLAYTV",
+                        color = RonecaColors.Primary,
+                        fontSize = if (isTelevision) 10.sp else 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.8.sp,
+                    )
+                    if (live) {
+                        Spacer(modifier = Modifier.width(9.dp))
+                        Text(
+                            text = "● AO VIVO",
+                            color = RonecaColors.RedStrong,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 Text(
                     text = title,
                     color = RonecaColors.TextPrimary,
@@ -353,18 +395,23 @@ private fun PlayerAction(label: String, onClick: () -> Unit) {
 @Composable
 private fun ChannelDrawer(
     channels: List<NativeChannel>,
+    currentChannelId: String?,
     isTelevision: Boolean,
     onDismiss: () -> Unit,
     onSelect: (NativeChannel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val orderedChannels = remember(channels, currentChannelId) {
+        channels.sortedByDescending { it.id == currentChannelId }
+    }
+
     Column(
         modifier = modifier
-            .width(if (isTelevision) 360.dp else 300.dp)
+            .width(if (isTelevision) 330.dp else 290.dp)
             .fillMaxHeight()
             .background(Color(0xF20A0908))
             .border(1.dp, RonecaColors.Border)
-            .padding(16.dp),
+            .padding(15.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -373,49 +420,60 @@ private fun ChannelDrawer(
         ) {
             Column {
                 Text(
-                    text = "Mais canais",
+                    text = "Canais da categoria",
                     color = RonecaColors.TextPrimary,
-                    fontSize = if (isTelevision) 20.sp else 17.sp,
+                    fontSize = if (isTelevision) 19.sp else 17.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "Da mesma categoria",
+                    text = "${channels.size} disponíveis • o atual aparece primeiro",
                     color = RonecaColors.TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                 )
             }
             PlayerAction(label = "×", onClick = onDismiss)
         }
-        Spacer(modifier = Modifier.height(14.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            items(channels, key = NativeChannel::id) { channel ->
+        Spacer(modifier = Modifier.height(13.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(orderedChannels, key = NativeChannel::id) { channel ->
+                val active = channel.id == currentChannelId
                 var focused by remember { mutableStateOf(false) }
                 val interactionSource = remember { MutableInteractionSource() }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+                        .background(
+                            when {
+                                focused -> RonecaColors.SurfaceRaised
+                                active -> RonecaColors.Primary.copy(alpha = 0.12f)
+                                else -> RonecaColors.Surface
+                            },
+                        )
                         .border(
-                            width = if (focused) 2.dp else 1.dp,
-                            color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                            width = if (focused || active) 2.dp else 1.dp,
+                            color = when {
+                                focused -> RonecaColors.RedStrong
+                                active -> RonecaColors.Primary
+                                else -> RonecaColors.Border
+                            },
                             shape = RoundedCornerShape(10.dp),
                         )
                         .onFocusChanged { focused = it.isFocused }
                         .clickable(
                             interactionSource = interactionSource,
                             indication = null,
-                            onClick = { onSelect(channel) },
+                            onClick = { if (!active) onSelect(channel) },
                         )
                         .focusable()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 11.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
                         modifier = Modifier
                             .width(3.dp)
                             .height(28.dp)
-                            .background(if (focused) RonecaColors.RedStrong else RonecaColors.Primary),
+                            .background(if (active) RonecaColors.RedStrong else RonecaColors.Primary),
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -423,16 +481,22 @@ private fun ChannelDrawer(
                             text = channel.name,
                             color = RonecaColors.TextPrimary,
                             fontSize = if (isTelevision) 14.sp else 13.sp,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
                         )
                         Text(
-                            text = channel.groupTitle,
-                            color = RonecaColors.TextSecondary,
-                            fontSize = 10.sp,
+                            text = if (active) "REPRODUZINDO AGORA" else channel.groupTitle,
+                            color = if (active) RonecaColors.RedStrong else RonecaColors.TextSecondary,
+                            fontSize = 9.sp,
                             maxLines = 1,
                         )
                     }
-                    Text(text = "▶", color = RonecaColors.Primary, fontSize = 13.sp)
+                    Text(
+                        text = if (active) "NO AR" else "▶",
+                        color = if (active) RonecaColors.RedStrong else RonecaColors.Primary,
+                        fontSize = if (active) 9.sp else 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
             }
         }
