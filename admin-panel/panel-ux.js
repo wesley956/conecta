@@ -82,6 +82,8 @@
         `;
       }).join('');
 
+      const needsLogin = seller.hasPortalLogin === false || !seller.email;
+
       openDetails(
         'Vendedor',
         `<span class="mono">${esc(seller.name)}</span> · ${badge(seller.status || 'active')}`,
@@ -113,26 +115,27 @@
               <div class="seller-detail-metric"><small>Créditos consumidos</small><strong>${reportNumber(creditsConsumed)}</strong></div>
             </div>
 
-            <div class="seller-detail-section">
-              <h3>Códigos de acesso</h3>
-              <label for="seller-public-code-${esc(seller.id)}">Código público do vendedor para o APK</label>
-              <input class="table-input" id="seller-public-code-${esc(seller.id)}" value="${esc(seller.publicCode || '')}" placeholder="Ex: ronaldo-123456">
-              <p class="muted" style="margin-top:6px;">Esse é o código que o cliente digita no APK. Não é a senha do portal.</p>
-
-              <label for="seller-token-${esc(seller.id)}" style="margin-top:14px;">Token privado do vendedor para o portal</label>
-              <input class="table-input" id="seller-token-${esc(seller.id)}" value="${esc(seller.accessToken || '')}" placeholder="Defina um token de acesso">
-            </div>
+            ${needsLogin ? `
+              <div class="seller-detail-section">
+                <h3>Liberar login do vendedor antigo</h3>
+                <p class="muted">Defina o e-mail e a senha inicial. O saldo, aparelhos, clientes e movimentações serão preservados.</p>
+                <label for="seller-login-email-${esc(seller.id)}">E-mail de acesso</label>
+                <input class="table-input" id="seller-login-email-${esc(seller.id)}" type="email" value="${esc(seller.email || '')}" placeholder="vendedor@exemplo.com">
+                <label for="seller-login-password-${esc(seller.id)}" style="margin-top:12px;">Senha inicial</label>
+                <input class="table-input" id="seller-login-password-${esc(seller.id)}" type="password" minlength="8" placeholder="Mínimo de 8 caracteres">
+                <div class="actions" style="margin-top:12px;">
+                  <button class="btn green" onclick="provisionExistingSellerLogin('${esc(seller.id)}')">Liberar acesso por login</button>
+                </div>
+              </div>
+            ` : ''}
 
             <div class="seller-detail-section">
               <h3>Ações</h3>
               <div class="actions">
+                <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Portal do vendedor</a>
                 <button class="btn" onclick="openSellerDeviceFilter('${esc(seller.id)}'); closeDetails();">Ver aparelhos</button>
-                <button class="btn green" onclick="saveSellerPublicCode('${esc(seller.id)}')">Salvar código público</button>
-                <button class="btn" onclick="copyText($('seller-public-code-${esc(seller.id)}').value)">Copiar código público</button>
-                <button class="btn green" onclick="saveSellerToken('${esc(seller.id)}')">Salvar token</button>
-                <button class="btn" onclick="copyText($('seller-token-${esc(seller.id)}').value)">Copiar token</button>
-                <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Portal vendedor</a>
                 <button class="btn green" onclick="closeDetails(); openCommercialActionModal('credits', '${esc(seller.id)}')">Adicionar créditos</button>
+                <button class="btn red" onclick="deleteSellerAccount('${esc(seller.id)}')">Excluir vendedor</button>
               </div>
             </div>
 
