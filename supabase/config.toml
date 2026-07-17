@@ -76,5 +76,8 @@ verify_jwt = true
 [functions.seller-provision]
 verify_jwt = true
 
+[functions.seller-delete]
+verify_jwt = true
+
 [functions.seller-panel]
 verify_jwt = true
