@@ -93,42 +93,21 @@
       .forEach(function (id) { var field = byId(id); if (field) field.checked = false; });
   }
 
-  function removeLegacyTokenControls(root) {
-    (root || global.document).querySelectorAll('[id^="seller-token-"]').forEach(function (tokenInput) {
-      var container = tokenInput.parentElement;
-      var label = tokenInput.previousElementSibling;
-      if (label && label.tagName === 'LABEL') label.remove();
-      tokenInput.remove();
-      if (container) {
-        container.querySelectorAll('button').forEach(function (button) {
-          var action = button.getAttribute('onclick') || '';
-          var caption = button.textContent || '';
-          if (action.includes('saveSellerToken') || action.includes('seller-token-') || /token/i.test(caption)) button.remove();
-        });
-      }
-    });
-  }
-
-  function addDeleteButtons(root) {
+  function removeLegacyAccessControls(root) {
     var scope = root || global.document;
-    scope.querySelectorAll('[id^="seller-public-code-"]').forEach(function (input) {
-      var sellerId = input.id.replace('seller-public-code-', '');
-      var card = input.closest('.seller-report-card, .seller-detail-report, .seller-detail-section') || input.parentElement;
-      if (!card || card.querySelector('[data-delete-seller="' + sellerId + '"]')) return;
-      var actions = card.querySelector('.actions, .detail-actions') || card;
-      var button = global.document.createElement('button');
-      button.type = 'button';
-      button.className = 'btn red';
-      button.dataset.deleteSeller = sellerId;
-      button.textContent = 'Excluir vendedor';
-      button.addEventListener('click', function () { global.deleteSellerAccount(sellerId); });
-      actions.appendChild(button);
+    scope.querySelectorAll('[id^="seller-token-"], [id^="seller-public-code-"]').forEach(function (input) {
+      var container = input.closest('.seller-detail-section') || input.parentElement;
+      if (container && /Códigos de acesso/i.test(container.textContent || '')) container.remove();
+    });
+    scope.querySelectorAll('button').forEach(function (button) {
+      var action = button.getAttribute('onclick') || '';
+      var caption = button.textContent || '';
+      if (/saveSellerToken|saveSellerPublicCode|seller-token-|seller-public-code-/i.test(action) || /copiar token|salvar token|código público/i.test(caption)) button.remove();
     });
   }
 
   function polishSellerUi(root) {
-    removeLegacyTokenControls(root);
-    addDeleteButtons(root);
+    removeLegacyAccessControls(root);
   }
 
   function installRenderHooks() {
@@ -184,12 +163,36 @@
     }
   };
 
+  global.provisionExistingSellerLogin = async function provisionExistingSellerLogin(sellerId) {
+    try {
+      var seller = Array.isArray(global.sellers) ? global.sellers.find(function (item) { return item.id === sellerId; }) : null;
+      if (!seller) throw new Error('Vendedor não encontrado.');
+      var email = normalizeEmail(byId('seller-login-email-' + sellerId)?.value || seller.email);
+      var password = validatePassword(byId('seller-login-password-' + sellerId)?.value);
+      if (typeof global.show === 'function') global.show('Liberando login do vendedor antigo...');
+      var result = await callProtectedFunction('seller-provision', {
+        existingSellerId: sellerId,
+        name: seller.name,
+        whatsapp: seller.whatsapp,
+        email: email,
+        password: password,
+      });
+      if (typeof global.closeDetails === 'function') global.closeDetails();
+      if (typeof global.loadAll === 'function') await global.loadAll();
+      if (typeof global.show === 'function') global.show(result.message || 'Acesso do vendedor liberado.');
+      return true;
+    } catch (error) {
+      var passwordField = byId('seller-login-password-' + sellerId);
+      if (passwordField) passwordField.value = '';
+      if (typeof global.show === 'function') global.show(error?.message || 'Falha ao liberar o acesso.', true);
+      return false;
+    }
+  };
+
   global.submitCommercialSeller = async function submitCommercialSellerWithAuth() {
     var pairs = [
-      ['newSellerName','uxNewSellerName'],
-      ['newSellerWhatsapp','uxNewSellerWhatsapp'],
-      ['newSellerEmail','uxNewSellerEmail'],
-      ['newSellerPassword','uxNewSellerPassword'],
+      ['newSellerName','uxNewSellerName'], ['newSellerWhatsapp','uxNewSellerWhatsapp'],
+      ['newSellerEmail','uxNewSellerEmail'], ['newSellerPassword','uxNewSellerPassword'],
       ['newSellerInitialCredits','uxNewSellerInitialCredits'],
     ];
     pairs.forEach(function (pair) {
