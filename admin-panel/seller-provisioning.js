@@ -1,20 +1,18 @@
-(function installSellerProvisioning(global) {
+(function installSellerManagement(global) {
   'use strict';
 
-  function byId(id) {
-    return global.document.getElementById(id);
-  }
+  function byId(id) { return global.document.getElementById(id); }
+  function text(value) { return String(value == null ? '' : value).trim(); }
 
-  function setLabelFor(input, text) {
+  function setLabelFor(input, labelText) {
     if (!input) return;
     var previous = input.previousElementSibling;
-    if (previous && previous.tagName === 'LABEL') previous.textContent = text;
+    if (previous && previous.tagName === 'LABEL') previous.textContent = labelText;
   }
 
   function ensurePasswordField(emailId, passwordId) {
     var emailInput = byId(emailId);
     if (!emailInput) return null;
-
     emailInput.type = 'email';
     emailInput.required = true;
     emailInput.autocomplete = 'email';
@@ -24,35 +22,33 @@
     var existing = byId(passwordId);
     if (existing) return existing;
 
-    var passwordLabel = global.document.createElement('label');
-    passwordLabel.htmlFor = passwordId;
-    passwordLabel.textContent = 'Senha inicial';
+    var label = global.document.createElement('label');
+    label.htmlFor = passwordId;
+    label.textContent = 'Senha inicial';
 
-    var passwordInput = global.document.createElement('input');
-    passwordInput.id = passwordId;
-    passwordInput.type = 'password';
-    passwordInput.required = true;
-    passwordInput.minLength = 8;
-    passwordInput.maxLength = 128;
-    passwordInput.autocomplete = 'new-password';
-    passwordInput.placeholder = 'Mínimo de 8 caracteres';
+    var input = global.document.createElement('input');
+    input.id = passwordId;
+    input.type = 'password';
+    input.required = true;
+    input.minLength = 8;
+    input.maxLength = 128;
+    input.autocomplete = 'new-password';
+    input.placeholder = 'Mínimo de 8 caracteres';
 
     var help = global.document.createElement('p');
     help.className = 'muted small';
-    help.textContent = 'O vendedor usará este e-mail e esta senha para entrar no portal. A senha não será armazenada no cadastro comercial.';
     help.style.margin = '7px 0 0';
+    help.textContent = 'O vendedor usará este e-mail e esta senha para entrar no portal.';
 
-    emailInput.insertAdjacentElement('afterend', passwordLabel);
-    passwordLabel.insertAdjacentElement('afterend', passwordInput);
-    passwordInput.insertAdjacentElement('afterend', help);
-    return passwordInput;
+    emailInput.insertAdjacentElement('afterend', label);
+    label.insertAdjacentElement('afterend', input);
+    input.insertAdjacentElement('afterend', help);
+    return input;
   }
 
   function normalizeEmail(value) {
-    var email = String(value || '').trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error('Informe um e-mail válido para o vendedor.');
-    }
+    var email = text(value).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Informe um e-mail válido para o vendedor.');
     return email;
   }
 
@@ -63,171 +59,175 @@
     return password;
   }
 
-  async function provisionSeller(payload) {
+  async function callProtectedFunction(functionName, payload) {
     var config = global.RONECA_PANEL_CONFIG || {};
-    var supabaseUrl = String(config.supabaseUrl || '').trim();
-    var anonKey = String(config.anonKey || '').trim();
+    var supabaseUrl = text(config.supabaseUrl);
+    var anonKey = text(config.anonKey);
     if (!supabaseUrl || !anonKey) throw new Error('Configuração pública do Supabase não encontrada.');
+    if (!global.RonecaPanelAuth) throw new Error('Sessão do painel não foi carregada. Entre novamente.');
 
     var accessToken = await global.RonecaPanelAuth.getAccessToken();
-    var response = await global.fetch(supabaseUrl + '/functions/v1/seller-provision', {
+    var response = await global.fetch(supabaseUrl + '/functions/v1/' + functionName, {
       method: 'POST',
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer ' + accessToken,
-        'apikey': anonKey,
+        Accept: 'application/json',
+        Authorization: 'Bearer ' + accessToken,
+        apikey: anonKey,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payload || {}),
     });
 
-    var data = await response.json().catch(function emptyPayload() { return {}; });
-    if (!response.ok) {
-      throw new Error(data.error || data.message || 'Não foi possível cadastrar o vendedor.');
-    }
+    var data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.error || data.message || 'A operação não pôde ser concluída.');
     return data;
   }
 
   function clearSellerFields() {
-    [
-      'newSellerName',
-      'newSellerWhatsapp',
-      'newSellerEmail',
-      'newSellerPassword',
-      'uxNewSellerName',
-      'uxNewSellerWhatsapp',
-      'uxNewSellerEmail',
-      'uxNewSellerPassword',
-    ].forEach(function clearTextField(id) {
-      var field = byId(id);
-      if (field) field.value = '';
-    });
+    ['newSellerName','newSellerWhatsapp','newSellerEmail','newSellerPassword','uxNewSellerName','uxNewSellerWhatsapp','uxNewSellerEmail','uxNewSellerPassword']
+      .forEach(function (id) { var field = byId(id); if (field) field.value = ''; });
+    ['newSellerInitialCredits','uxNewSellerInitialCredits']
+      .forEach(function (id) { var field = byId(id); if (field) field.value = '0'; });
+    ['newSellerCanGoNegative','uxNewSellerCanGoNegative']
+      .forEach(function (id) { var field = byId(id); if (field) field.checked = false; });
+  }
 
-    ['newSellerInitialCredits', 'uxNewSellerInitialCredits'].forEach(function resetCredits(id) {
-      var field = byId(id);
-      if (field) field.value = '0';
-    });
-
-    ['newSellerCanGoNegative', 'uxNewSellerCanGoNegative'].forEach(function resetCheck(id) {
-      var field = byId(id);
-      if (field) field.checked = false;
+  function removeLegacyTokenControls(root) {
+    (root || global.document).querySelectorAll('[id^="seller-token-"]').forEach(function (tokenInput) {
+      var container = tokenInput.parentElement;
+      var label = tokenInput.previousElementSibling;
+      if (label && label.tagName === 'LABEL') label.remove();
+      tokenInput.remove();
+      if (container) {
+        container.querySelectorAll('button').forEach(function (button) {
+          var action = button.getAttribute('onclick') || '';
+          var caption = button.textContent || '';
+          if (action.includes('saveSellerToken') || action.includes('seller-token-') || /token/i.test(caption)) button.remove();
+        });
+      }
     });
   }
 
-  function installFormFields() {
+  function addDeleteButtons(root) {
+    var scope = root || global.document;
+    scope.querySelectorAll('[id^="seller-public-code-"]').forEach(function (input) {
+      var sellerId = input.id.replace('seller-public-code-', '');
+      var card = input.closest('.seller-report-card, .seller-detail-report, .seller-detail-section') || input.parentElement;
+      if (!card || card.querySelector('[data-delete-seller="' + sellerId + '"]')) return;
+      var actions = card.querySelector('.actions, .detail-actions') || card;
+      var button = global.document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn red';
+      button.dataset.deleteSeller = sellerId;
+      button.textContent = 'Excluir vendedor';
+      button.addEventListener('click', function () { global.deleteSellerAccount(sellerId); });
+      actions.appendChild(button);
+    });
+  }
+
+  function polishSellerUi(root) {
+    removeLegacyTokenControls(root);
+    addDeleteButtons(root);
+  }
+
+  function installRenderHooks() {
+    ['renderSellerReports', 'renderCommercial', 'showSellerDetails'].forEach(function (name) {
+      var original = global[name];
+      if (typeof original !== 'function' || original.__sellerManagementWrapped) return;
+      var wrapped = function () {
+        var result = original.apply(this, arguments);
+        global.setTimeout(function () { polishSellerUi(global.document); }, 0);
+        return result;
+      };
+      wrapped.__sellerManagementWrapped = true;
+      global[name] = wrapped;
+    });
+
+    var observer = new MutationObserver(function () { polishSellerUi(global.document); });
+    observer.observe(global.document.body, { childList: true, subtree: true });
+  }
+
+  function installForms() {
     ensurePasswordField('newSellerEmail', 'newSellerPassword');
     ensurePasswordField('uxNewSellerEmail', 'uxNewSellerPassword');
-
-    var oldDescription = byId('newSellerName')?.closest('.card')?.querySelector('.sub');
-    if (oldDescription) oldDescription.textContent = 'Crie o vendedor comercial e o acesso individual ao portal.';
+    var description = byId('newSellerName') && byId('newSellerName').closest('.card')?.querySelector('.sub');
+    if (description) description.textContent = 'Crie o vendedor comercial e o acesso individual ao portal.';
   }
 
-  function removeLegacyTokenControls(sellerId) {
-    var tokenInput = byId('seller-token-' + sellerId);
-    if (!tokenInput) return;
+  global.createSeller = async function createSellerWithAuth() {
+    try {
+      var name = text(byId('newSellerName')?.value);
+      var whatsapp = text(byId('newSellerWhatsapp')?.value);
+      var email = normalizeEmail(byId('newSellerEmail')?.value);
+      var password = validatePassword(byId('newSellerPassword')?.value);
+      if (!name) throw new Error('Nome do vendedor é obrigatório.');
+      if (!whatsapp) throw new Error('WhatsApp do vendedor é obrigatório.');
 
-    var section = tokenInput.closest('.seller-detail-section');
-    var label = tokenInput.previousElementSibling;
-    if (label && label.tagName === 'LABEL') label.remove();
-    tokenInput.remove();
-
-    if (section) {
-      section.querySelectorAll('button').forEach(function removeLegacyButton(button) {
-        var action = button.getAttribute('onclick') || '';
-        if (action.includes('saveSellerToken') || action.includes('seller-token-')) button.remove();
+      if (typeof global.show === 'function') global.show('Criando vendedor e acesso ao portal...');
+      var result = await callProtectedFunction('seller-provision', {
+        name: name,
+        whatsapp: whatsapp,
+        email: email,
+        password: password,
+        initialCredits: Number(byId('newSellerInitialCredits')?.value || 0),
+        canGoNegative: Boolean(byId('newSellerCanGoNegative')?.checked),
       });
-
-      if (!section.querySelector('.seller-auth-access-note')) {
-        var seller = Array.isArray(global.sellers)
-          ? global.sellers.find(function findSeller(item) { return item.id === sellerId; })
-          : null;
-        var note = global.document.createElement('div');
-        note.className = 'seller-auth-access-note detail-box wide';
-        note.style.marginTop = '14px';
-        note.innerHTML = '<small>Acesso ao portal</small>' +
-          '<strong>' + String(seller?.email || 'E-mail não informado') + '</strong>' +
-          '<div class="muted small" style="margin-top:7px;">Login individual por e-mail e senha. O token privado antigo não é mais utilizado.</div>';
-        section.appendChild(note);
-      }
+      clearSellerFields();
+      if (typeof global.loadAll === 'function') await global.loadAll();
+      if (typeof global.show === 'function') global.show(result.message || 'Vendedor cadastrado e acesso liberado.');
+      return true;
+    } catch (error) {
+      ['newSellerPassword', 'uxNewSellerPassword'].forEach(function (id) { var field = byId(id); if (field) field.value = ''; });
+      if (typeof global.show === 'function') global.show(error?.message || 'Falha ao cadastrar vendedor.', true);
+      return false;
     }
-  }
+  };
 
-  function installSellerDetailsOverride() {
-    var original = global.showSellerDetails;
-    if (typeof original !== 'function') return;
+  global.submitCommercialSeller = async function submitCommercialSellerWithAuth() {
+    var pairs = [
+      ['newSellerName','uxNewSellerName'],
+      ['newSellerWhatsapp','uxNewSellerWhatsapp'],
+      ['newSellerEmail','uxNewSellerEmail'],
+      ['newSellerPassword','uxNewSellerPassword'],
+      ['newSellerInitialCredits','uxNewSellerInitialCredits'],
+    ];
+    pairs.forEach(function (pair) {
+      var target = byId(pair[0]); var source = byId(pair[1]);
+      if (target && source) target.value = source.value;
+    });
+    var targetCheck = byId('newSellerCanGoNegative');
+    var sourceCheck = byId('uxNewSellerCanGoNegative');
+    if (targetCheck && sourceCheck) targetCheck.checked = sourceCheck.checked;
+    var created = await global.createSeller();
+    if (created && typeof global.closeCommercialActionModal === 'function') global.closeCommercialActionModal();
+    return created;
+  };
 
-    global.showSellerDetails = function showSellerAuthDetails(id) {
-      original(id);
-      global.setTimeout(function polishSellerDetails() {
-        removeLegacyTokenControls(id);
-      }, 0);
-    };
-  }
-
-  function installOverrides() {
-    global.createSeller = async function createSellerWithAuth() {
-      try {
-        var name = String(byId('newSellerName')?.value || '').trim();
-        var whatsapp = String(byId('newSellerWhatsapp')?.value || '').trim();
-        var email = normalizeEmail(byId('newSellerEmail')?.value);
-        var password = validatePassword(byId('newSellerPassword')?.value);
-        if (!name) throw new Error('Nome do vendedor é obrigatório.');
-        if (!whatsapp) throw new Error('WhatsApp do vendedor é obrigatório.');
-
-        if (typeof global.show === 'function') global.show('Criando vendedor e acesso ao portal...');
-        var result = await provisionSeller({
-          name: name,
-          whatsapp: whatsapp,
-          email: email,
-          password: password,
-          initialCredits: Number(byId('newSellerInitialCredits')?.value || 0),
-          canGoNegative: Boolean(byId('newSellerCanGoNegative')?.checked),
-        });
-
-        clearSellerFields();
-        if (typeof global.loadAll === 'function') await global.loadAll();
-        if (typeof global.show === 'function') {
-          global.show(result.message || 'Vendedor cadastrado e acesso ao portal liberado.');
-        }
-        return true;
-      } catch (error) {
-        var hiddenPassword = byId('newSellerPassword');
-        if (hiddenPassword) hiddenPassword.value = '';
-        if (typeof global.show === 'function') {
-          global.show(error?.message || 'Falha ao cadastrar vendedor.', true);
-        }
-        return false;
-      }
-    };
-
-    global.submitCommercialSeller = async function submitCommercialSellerWithAuth() {
-      byId('newSellerName').value = byId('uxNewSellerName').value;
-      byId('newSellerWhatsapp').value = byId('uxNewSellerWhatsapp').value;
-      byId('newSellerEmail').value = byId('uxNewSellerEmail').value;
-      byId('newSellerPassword').value = byId('uxNewSellerPassword').value;
-      byId('newSellerInitialCredits').value = byId('uxNewSellerInitialCredits').value || '0';
-      byId('newSellerCanGoNegative').checked = byId('uxNewSellerCanGoNegative').checked;
-
-      var created = await global.createSeller();
-      var modalPassword = byId('uxNewSellerPassword');
-      if (modalPassword) modalPassword.value = '';
-      if (created && typeof global.closeCommercialActionModal === 'function') {
-        global.closeCommercialActionModal();
-      }
-    };
-  }
+  global.deleteSellerAccount = async function deleteSellerAccount(sellerId) {
+    var seller = Array.isArray(global.sellers) ? global.sellers.find(function (item) { return item.id === sellerId; }) : null;
+    var sellerName = seller?.name || 'este vendedor';
+    if (!global.confirm('Excluir ' + sellerName + '? O acesso por e-mail e senha também será removido.')) return false;
+    if (!global.confirm('Confirma a exclusão definitiva? A operação será bloqueada se ainda existirem aparelhos vinculados.')) return false;
+    try {
+      if (typeof global.show === 'function') global.show('Excluindo vendedor e acesso...');
+      var result = await callProtectedFunction('seller-delete', { sellerId: sellerId });
+      if (typeof global.closeDetails === 'function') global.closeDetails();
+      if (typeof global.loadAll === 'function') await global.loadAll();
+      if (typeof global.show === 'function') global.show(result.message || 'Vendedor excluído.');
+      return true;
+    } catch (error) {
+      if (typeof global.show === 'function') global.show(error?.message || 'Falha ao excluir vendedor.', true);
+      return false;
+    }
+  };
 
   function install() {
-    if (!byId('commercialActionModal')) return;
-    installFormFields();
-    installOverrides();
-    installSellerDetailsOverride();
+    installForms();
+    installRenderHooks();
+    polishSellerUi(global.document);
   }
 
-  if (global.document.readyState === 'loading') {
-    global.document.addEventListener('DOMContentLoaded', install, { once: true });
-  } else {
-    install();
-  }
+  if (global.document.readyState === 'loading') global.document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
 })(window);
