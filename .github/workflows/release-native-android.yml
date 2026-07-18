@@ -1,4 +1,4 @@
-name: Publish Native Android Release
+name: Publish Player Release
 
 on:
   push:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   release:
-    name: Build and publish native APK
+    name: Build and publish Player APK
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -73,9 +73,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          cp native-android/app/build/outputs/apk/debug/app-debug.apk "release/RonecaPlayTV-Native-v${{ steps.app.outputs.version }}.apk"
+          cp native-android/app/build/outputs/apk/debug/app-debug.apk "release/Player-v${{ steps.app.outputs.version }}.apk"
           cd release
-          sha256sum "RonecaPlayTV-Native-v${{ steps.app.outputs.version }}.apk" > "RonecaPlayTV-Native-v${{ steps.app.outputs.version }}.sha256"
+          sha256sum "Player-v${{ steps.app.outputs.version }}.apk" > "Player-v${{ steps.app.outputs.version }}.sha256"
 
       - name: Publish GitHub Release
         env:
@@ -85,14 +85,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="release/RonecaPlayTV-Native-v${VERSION}.apk"
-          CHECKSUM="release/RonecaPlayTV-Native-v${VERSION}.sha256"
+          APK="release/Player-v${VERSION}.apk"
+          CHECKSUM="release/Player-v${VERSION}.sha256"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber
           else
             gh release create "$TAG" "$APK" "$CHECKSUM" \
               --target "$GITHUB_SHA" \
-              --title "RonecaPlayTV Native ${VERSION}" \
+              --title "Player v${VERSION}" \
               --notes-file native-android/RELEASE_NOTES.md
           fi
