@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -137,7 +136,7 @@ fun RonecaLaunchScreen(isTelevision: Boolean) {
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Canvas(modifier = Modifier.matchParentSize()) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(
@@ -158,7 +157,7 @@ fun RonecaLaunchScreen(isTelevision: Boolean) {
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                Canvas(modifier = Modifier.matchParentSize()) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
                     val centerX = size.width * 0.515f
                     val centerY = size.height * 0.565f
                     val halfHeight = size.height * 0.061f
