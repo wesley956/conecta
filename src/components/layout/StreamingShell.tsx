@@ -65,7 +65,7 @@ export function StreamingShell({ children }: { children: ReactNode }) {
     >
       <aside className="stream-sidebar" aria-label="Navegação principal">
         <div className="stream-brand">
-          <span className="stream-brand-mark">RP</span>
+          <span className="stream-brand-mark" aria-hidden="true" />
           <span className="stream-brand-copy">
             <span className="stream-brand-name">RonecaPlayTV</span>
             <span className="stream-brand-subtitle">Streaming</span>

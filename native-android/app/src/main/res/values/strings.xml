@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Player v1.4</string>
-    <string name="native_demo_title">Player v1.4</string>
+    <string name="app_name">ronecaPlayerTV</string>
+    <string name="native_demo_title">ronecaPlayerTV</string>
     <string name="native_demo_subtitle">Base adaptativa para celular e Android TV</string>
     <string name="play_test_stream">Testar player nativo</string>
     <string name="back">Voltar</string>

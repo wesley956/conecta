@@ -13,7 +13,7 @@ export function SystemFrame({ children, className = '' }: SystemFrameProps) {
       <div className="system-frame-grid" aria-hidden="true" />
 
       <header className="system-brandbar">
-        <div className="system-brandmark">RP</div>
+        <div className="system-brandmark" aria-hidden="true" />
         <div className="system-brandcopy">
           <strong>RonecaPlayTV</strong>
           <span>Streaming autorizado</span>

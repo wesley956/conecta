@@ -3,8 +3,11 @@ package com.ronecaplaytv.nativeapp
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeOut
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -42,13 +45,16 @@ class MainActivity : ComponentActivity() {
             var showLaunch by rememberSaveable { mutableStateOf(true) }
 
             LaunchedEffect(Unit) {
-                delay(1_650)
+                delay(2_250)
                 showLaunch = false
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
                 RonecaPlayTVApp(isTelevision = isTelevision)
-                if (showLaunch) {
+                AnimatedVisibility(
+                    visible = showLaunch,
+                    exit = fadeOut(animationSpec = tween(durationMillis = 350)),
+                ) {
                     RonecaLaunchScreen(isTelevision = isTelevision)
                 }
             }
