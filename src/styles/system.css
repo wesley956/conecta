@@ -84,12 +84,8 @@
   place-items: center;
   border: 1px solid rgba(216, 177, 91, 0.42);
   border-radius: 13px;
-  color: #171108;
-  background: linear-gradient(145deg, var(--system-gold-strong), var(--system-gold));
+  background: #050505 url("../../assets/icon.png") center / cover no-repeat;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.34);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
 }
 
 .system-brandcopy {
@@ -221,11 +217,8 @@
   place-items: center;
   border: 1px solid rgba(216, 177, 91, 0.36);
   border-radius: 23px;
-  color: #171108;
-  background: linear-gradient(145deg, var(--system-gold-strong), var(--system-gold));
+  background: #050505 url("../../assets/icon.png") center / cover no-repeat;
   box-shadow: 0 20px 54px rgba(0, 0, 0, 0.42);
-  font-size: 1.2rem;
-  font-weight: 900;
 }
 
 .system-splash h1 {

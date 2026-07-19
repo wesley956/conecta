@@ -141,8 +141,8 @@ jobs:
             npx cap add android
           fi
 
-      - name: Preparar ícone do aplicativo
-        run: node scripts/prepare-roneca-icon.cjs
+      - name: Validar ícone oficial do aplicativo
+        run: node scripts/validate-roneca-icon.cjs
 
       - name: Gerar assets Android
         run: npx -y @capacitor/assets generate --android

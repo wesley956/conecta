@@ -71,7 +71,7 @@ export function SplashScreen() {
       <section className="system-splash" aria-live="polite">
         <div className="system-splash-emblem" aria-hidden="true">
           <div className="system-splash-ring" />
-          <div className="system-splash-logo">RP</div>
+          <div className="system-splash-logo" />
         </div>
 
         <p className="system-kicker">Experiência de streaming</p>

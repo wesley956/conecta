@@ -74,14 +74,8 @@
   flex: 0 0 42px;
   place-items: center;
   border: 1px solid rgba(216, 177, 91, 0.34);
-  border-radius: 50%;
-  color: var(--stream-gold-strong);
-  background:
-    radial-gradient(circle at 32% 28%, rgba(240, 202, 114, 0.22), transparent 44%),
-    #101010;
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  border-radius: 13px;
+  background: #050505 url("../../assets/icon.png") center / cover no-repeat;
   box-shadow: inset 0 0 0 4px rgba(216, 177, 91, 0.04);
 }
 

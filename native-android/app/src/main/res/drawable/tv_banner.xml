@@ -1,43 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="320dp"
-    android:height="180dp"
-    android:viewportWidth="320"
-    android:viewportHeight="180">
-
-    <path
-        android:fillColor="#050505"
-        android:pathData="M0,0h320v180h-320z" />
-    <path
-        android:fillColor="#11100E"
-        android:pathData="M16,16h288a18,18 0,0 1,18 18v112a18,18 0,0 1,-18 18h-288a18,18 0,0 1,-18 -18v-112a18,18 0,0 1,18 -18z" />
-
-    <path
-        android:fillColor="#E8C768"
-        android:pathData="M92,38a52,52 0,1 0,0 104a52,52 0,1 0,0 -104" />
-    <path
-        android:fillColor="#080806"
-        android:pathData="M92,46a44,44 0,1 0,0 88a44,44 0,1 0,0 -88" />
-    <path
-        android:fillColor="#E8C768"
-        android:pathData="M77,66l38,24 -38,24z" />
-    <path
-        android:fillColor="#C51E2A"
-        android:pathData="M118,46l18,10 -8,12 -18,-10z" />
-
-    <path
-        android:fillColor="#F7F4EC"
-        android:pathData="M164,61h118v10h-118z" />
-    <path
-        android:fillColor="#E8C768"
-        android:pathData="M164,82h78v6h-78z" />
-    <path
-        android:fillColor="#C51E2A"
-        android:pathData="M242,82h24v6h-24z" />
-    <path
-        android:fillColor="#8F887B"
-        android:pathData="M164,104h96v5h-96z" />
-    <path
-        android:fillColor="#4B463D"
-        android:pathData="M164,119h72v5h-72z" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#050505" />
+        </shape>
+    </item>
+    <item
+        android:width="118dp"
+        android:height="122dp"
+        android:gravity="start|center_vertical"
+        android:left="20dp"
+        android:drawable="@drawable/roneca_player_tv_emblem" />
+    <item
+        android:width="158dp"
+        android:height="34dp"
+        android:gravity="end|center_vertical"
+        android:right="18dp"
+        android:drawable="@drawable/roneca_player_tv_wordmark" />
+</layer-list>
