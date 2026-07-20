@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -272,13 +273,18 @@ class AppUpdateManager(private val context: Context) {
 
     @Suppress("DEPRECATION")
     private fun PackageInfo.signingCertificateDigests(): Set<String> {
-        val certificateSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val currentSigners = signingInfo?.apkContentsSigners.orEmpty()
-            val signingHistory = signingInfo?.signingCertificateHistory.orEmpty()
-            val modernSigners = (currentSigners + signingHistory).distinctBy { it.toCharsString() }
-            modernSigners.ifEmpty { signatures.orEmpty().toList() }
+        val certificateSignatures: List<Signature> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val modernSigners = mutableListOf<Signature>()
+            signingInfo?.apkContentsSigners?.let { modernSigners.addAll(it.asList()) }
+            signingInfo?.signingCertificateHistory?.let { modernSigners.addAll(it.asList()) }
+
+            if (modernSigners.isNotEmpty()) {
+                modernSigners.distinctBy { signature -> signature.toCharsString() }
+            } else {
+                signatures?.asList().orEmpty()
+            }
         } else {
-            signatures.orEmpty().toList()
+            signatures?.asList().orEmpty()
         }
 
         return certificateSignatures.mapTo(mutableSetOf()) { signature ->
