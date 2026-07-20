@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -217,39 +218,54 @@ class AppUpdateManager(private val context: Context) {
             throw AppUpdateException("A versão do APK não corresponde à atualização anunciada.")
         }
 
-        val installedInfo = installedPackageInfo(packageManager)
-        val installedCertificates = installedInfo.signingCertificateDigests()
+        val installedCertificates = installedPackageInfo(packageManager).signingCertificateDigests()
         val archiveCertificates = archiveInfo.signingCertificateDigests()
-        if (installedCertificates.isEmpty() || archiveCertificates.isEmpty() || installedCertificates.intersect(archiveCertificates).isEmpty()) {
+
+        // Alguns firmwares de Android TV não expõem os certificados de APKs ainda não
+        // instalados pelo PackageManager. Quando ambos os lados puderem ser lidos,
+        // fazemos a comparação antecipada. Caso contrário, checksum, pacote e versão
+        // continuam validados aqui e o instalador do próprio Android faz a verificação
+        // criptográfica obrigatória antes de substituir o aplicativo instalado.
+        if (
+            installedCertificates.isNotEmpty() &&
+            archiveCertificates.isNotEmpty() &&
+            installedCertificates.intersect(archiveCertificates).isEmpty()
+        ) {
             throw AppUpdateException("A assinatura do APK não corresponde à assinatura do aplicativo instalado.")
         }
     }
 
     @Suppress("DEPRECATION")
-    private fun packageInfoFromArchive(packageManager: PackageManager, apk: File): PackageInfo? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    private fun packageInfoFromArchive(packageManager: PackageManager, apk: File): PackageInfo? {
+        val flags = PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             packageManager.getPackageArchiveInfo(
                 apk.absolutePath,
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
             )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageManager.getPackageArchiveInfo(apk.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
         } else {
-            packageManager.getPackageArchiveInfo(apk.absolutePath, PackageManager.GET_SIGNATURES)
+            packageManager.getPackageArchiveInfo(apk.absolutePath, flags)
         }
 
+        packageInfo?.applicationInfo?.apply {
+            sourceDir = apk.absolutePath
+            publicSourceDir = apk.absolutePath
+        }
+        return packageInfo
+    }
+
     @Suppress("DEPRECATION")
-    private fun installedPackageInfo(packageManager: PackageManager): PackageInfo =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    private fun installedPackageInfo(packageManager: PackageManager): PackageInfo {
+        val flags = PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             packageManager.getPackageInfo(
                 context.packageName,
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
             )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
         } else {
-            packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+            packageManager.getPackageInfo(context.packageName, flags)
         }
+    }
 
     @Suppress("DEPRECATION")
     private fun PackageInfo.versionCodeCompat(): Long =
@@ -257,11 +273,20 @@ class AppUpdateManager(private val context: Context) {
 
     @Suppress("DEPRECATION")
     private fun PackageInfo.signingCertificateDigests(): Set<String> {
-        val certificateSignatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            signingInfo?.apkContentsSigners.orEmpty()
+        val certificateSignatures: List<Signature> = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val modernSigners = mutableListOf<Signature>()
+            signingInfo?.apkContentsSigners?.let { modernSigners.addAll(it.asList()) }
+            signingInfo?.signingCertificateHistory?.let { modernSigners.addAll(it.asList()) }
+
+            if (modernSigners.isNotEmpty()) {
+                modernSigners.distinctBy { signature -> signature.toCharsString() }
+            } else {
+                signatures?.asList().orEmpty()
+            }
         } else {
-            this.signatures.orEmpty()
+            signatures?.asList().orEmpty()
         }
+
         return certificateSignatures.mapTo(mutableSetOf()) { signature ->
             MessageDigest.getInstance("SHA-256")
                 .digest(signature.toByteArray())

@@ -126,6 +126,7 @@ jobs:
 
           APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
           printf '%s  %s\n' "$APK_SHA256" "$(basename "$APK")" > "release/ronecaPlayerTV-v${{ steps.app.outputs.version }}.sha256"
+          printf '%s\n' "$ACTUAL_SIGNER_SHA256" > "release/ronecaPlayerTV-signing-cert.sha256"
 
           jq -n \
             --argjson schemaVersion 1 \
@@ -133,14 +134,16 @@ jobs:
             --arg versionName "${{ steps.app.outputs.version }}" \
             --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/${{ steps.app.outputs.tag }}/ronecaPlayerTV-v${{ steps.app.outputs.version }}.apk" \
             --arg sha256 "$APK_SHA256" \
+            --arg signerSha256 "$ACTUAL_SIGNER_SHA256" \
             --argjson mandatory false \
-            --arg notes "Atualização segura com melhorias de estabilidade e compatibilidade." \
+            --arg notes "Correção de compatibilidade do atualizador e melhorias de estabilidade." \
             '{
               schemaVersion: $schemaVersion,
               versionCode: $versionCode,
               versionName: $versionName,
               apkUrl: $apkUrl,
               sha256: $sha256,
+              signerSha256: $signerSha256,
               mandatory: $mandatory,
               notes: $notes
             }' > release/ronecaPlayerTV-update.json
@@ -156,11 +159,12 @@ jobs:
           APK="release/ronecaPlayerTV-v${VERSION}.apk"
           CHECKSUM="release/ronecaPlayerTV-v${VERSION}.sha256"
           UPDATE_MANIFEST="release/ronecaPlayerTV-update.json"
+          SIGNING_CERT="release/ronecaPlayerTV-signing-cert.sha256"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" --clobber
+            gh release upload "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" "$SIGNING_CERT" --clobber
           else
-            gh release create "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" \
+            gh release create "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" "$SIGNING_CERT" \
               --target "$GITHUB_SHA" \
               --title "ronecaPlayerTV v${VERSION}" \
               --notes-file native-android/RELEASE_NOTES.md \
