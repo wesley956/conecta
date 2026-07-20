@@ -172,6 +172,35 @@ serve(async request => {
         playlist_cache_item_count,
         playlist_cache_size_bytes,
         playlist_cache_error
+      ),
+      device_playlists:panel_device_playlists (
+        playlist_id,
+        priority,
+        active,
+        consecutive_failures,
+        last_success_at,
+        last_failure_at,
+        cooldown_until,
+        last_error,
+        playlist:panel_playlists (
+          id,
+          name,
+          playlist_url,
+          playlist_type,
+          active,
+          playlist_updated_at,
+          playlist_cache_status,
+          playlist_cache_path,
+          playlist_cache_manifest_path,
+          playlist_cache_channels_path,
+          playlist_cache_movies_path,
+          playlist_cache_series_path,
+          playlist_cache_version,
+          playlist_cache_updated_at,
+          playlist_cache_item_count,
+          playlist_cache_size_bytes,
+          playlist_cache_error
+        )
       )
     `)
     .eq('device_code', code)
@@ -241,9 +270,57 @@ serve(async request => {
     }, 409);
   }
 
+  const playlistHealth = payload.playlistHealth && typeof payload.playlistHealth === 'object'
+    ? payload.playlistHealth as Record<string, unknown>
+    : null;
+
+  if (playlistHealth) {
+    const playlistId = textOrNull(playlistHealth.playlistId);
+    const healthStatus = textOrNull(playlistHealth.status);
+
+    if (playlistId && ['success', 'failure'].includes(healthStatus || '')) {
+      const { data: assignment } = await supabase
+        .from('panel_device_playlists')
+        .select('id, consecutive_failures')
+        .eq('device_id', device.id)
+        .eq('playlist_id', playlistId)
+        .maybeSingle();
+
+      if (assignment) {
+        const now = new Date();
+        const isSuccess = healthStatus === 'success';
+        const failures = isSuccess ? 0 : Number(assignment.consecutive_failures || 0) + 1;
+        const cooldownUntil = isSuccess
+          ? null
+          : new Date(now.getTime() + 15 * 60 * 1000).toISOString();
+
+        const healthUpdate = isSuccess
+          ? {
+              consecutive_failures: 0,
+              last_success_at: now.toISOString(),
+              cooldown_until: null,
+              last_error: null,
+              updated_at: now.toISOString(),
+            }
+          : {
+              consecutive_failures: failures,
+              last_failure_at: now.toISOString(),
+              cooldown_until: cooldownUntil,
+              last_error: textOrNull(playlistHealth.error)?.slice(0, 500) || 'Falha ao carregar a lista.',
+              updated_at: now.toISOString(),
+            };
+
+        await supabase
+          .from('panel_device_playlists')
+          .update(healthUpdate)
+          .eq('id', assignment.id);
+      }
+    }
+  }
+
   const expiresAt = device.subscription_expires_at;
   const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
-  const playlist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
+  const legacyPlaylist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
 
   if (device.status !== 'active' || expired) {
     return json({
@@ -256,7 +333,25 @@ serve(async request => {
     });
   }
 
-  if (!playlist || !playlist.active) {
+  const assignments = (device.device_playlists ?? [])
+    .filter((assignment: any) => assignment.active !== false && assignment.playlist?.active !== false)
+    .sort((left: any, right: any) => Number(left.priority) - Number(right.priority));
+
+  if (!assignments.length && legacyPlaylist?.active) {
+    assignments.push({
+      playlist_id: legacyPlaylist.id,
+      priority: 1,
+      active: true,
+      consecutive_failures: 0,
+      last_success_at: null,
+      last_failure_at: null,
+      cooldown_until: null,
+      last_error: null,
+      playlist: legacyPlaylist,
+    });
+  }
+
+  if (!assignments.length) {
     return json({
       active: true,
       status: 'active',
@@ -278,35 +373,57 @@ serve(async request => {
     return data?.signedUrl ?? null;
   }
 
-  let playlistCacheSnapshotUrl: string | null = null;
-  let playlistCacheParts: Record<string, string | null> | null = null;
-
-  if (playlist.playlist_cache_status === 'ready' && playlist.playlist_cache_path) {
-    const [
-      snapshotUrl,
-      manifestUrl,
-      channelsUrl,
-      moviesUrl,
-      seriesUrl,
-    ] = await Promise.all([
-      signedCacheUrl(playlist.playlist_cache_path),
-      signedCacheUrl(playlist.playlist_cache_manifest_path),
-      signedCacheUrl(playlist.playlist_cache_channels_path),
-      signedCacheUrl(playlist.playlist_cache_movies_path),
-      signedCacheUrl(playlist.playlist_cache_series_path),
-    ]);
-
-    playlistCacheSnapshotUrl = snapshotUrl;
-    playlistCacheParts = {
-      manifestUrl,
-      channelsUrl,
-      moviesUrl,
-      seriesUrl,
-    };
-  }
-
   const directFallbackAllowed = allowDirectPlaylistFallback();
-  const cacheReady = Boolean(playlistCacheSnapshotUrl || playlistCacheParts?.channelsUrl);
+
+  const playlistConfigs = await Promise.all(assignments.map(async (assignment: any) => {
+    const playlist = assignment.playlist;
+    let cacheSnapshotUrl: string | null = null;
+    let cacheParts: Record<string, string | null> | null = null;
+
+    if (playlist.playlist_cache_status === 'ready') {
+      const [snapshotUrl, manifestUrl, channelsUrl, moviesUrl, seriesUrl] = await Promise.all([
+        signedCacheUrl(playlist.playlist_cache_path),
+        signedCacheUrl(playlist.playlist_cache_manifest_path),
+        signedCacheUrl(playlist.playlist_cache_channels_path),
+        signedCacheUrl(playlist.playlist_cache_movies_path),
+        signedCacheUrl(playlist.playlist_cache_series_path),
+      ]);
+      cacheSnapshotUrl = snapshotUrl;
+      cacheParts = { manifestUrl, channelsUrl, moviesUrl, seriesUrl };
+    }
+
+    const cacheReady = Boolean(cacheSnapshotUrl || cacheParts?.channelsUrl);
+
+    return {
+      id: playlist.id,
+      priority: Number(assignment.priority || 1),
+      role: Number(assignment.priority || 1) === 1 ? 'primary' : 'backup',
+      name: playlist.name,
+      url: directFallbackAllowed ? playlist.playlist_url : null,
+      type: playlist.playlist_type,
+      updatedAt: playlist.playlist_updated_at,
+      cacheStatus: playlist.playlist_cache_status,
+      cacheVersion: playlist.playlist_cache_version,
+      cacheUpdatedAt: playlist.playlist_cache_updated_at,
+      cacheItemCount: playlist.playlist_cache_item_count,
+      cacheSizeBytes: playlist.playlist_cache_size_bytes,
+      cacheError: playlist.playlist_cache_error,
+      cacheSnapshotUrl,
+      cacheParts,
+      cacheReady,
+      consecutiveFailures: Number(assignment.consecutive_failures || 0),
+      lastSuccessAt: assignment.last_success_at,
+      lastFailureAt: assignment.last_failure_at,
+      cooldownUntil: assignment.cooldown_until,
+      lastError: assignment.last_error,
+    };
+  }));
+
+  const now = Date.now();
+  const selected = playlistConfigs.find(config => {
+    const cooldown = config.cooldownUntil ? new Date(config.cooldownUntil).getTime() : 0;
+    return cooldown <= now && (config.cacheReady || Boolean(config.url));
+  }) || playlistConfigs.find(config => config.cacheReady || Boolean(config.url)) || playlistConfigs[0];
 
   return json({
     active: true,
@@ -314,21 +431,23 @@ serve(async request => {
     deviceCode: device.device_code,
     clientName: device.client_name,
     expiresAt,
-    playlistName: playlist.name,
-    playlistUrl: directFallbackAllowed ? playlist.playlist_url : null,
-    playlistType: playlist.playlist_type,
-    playlistUpdatedAt: playlist.playlist_updated_at,
-    cacheStatus: playlist.playlist_cache_status,
-    cacheVersion: playlist.playlist_cache_version,
-    cacheUpdatedAt: playlist.playlist_cache_updated_at,
-    cacheItemCount: playlist.playlist_cache_item_count,
-    cacheSizeBytes: playlist.playlist_cache_size_bytes,
-    cacheError: playlist.playlist_cache_error,
-    cacheSnapshotUrl: playlistCacheSnapshotUrl,
-    cacheParts: playlistCacheParts,
+    selectedPlaylistId: selected.id,
+    playlistName: selected.name,
+    playlistUrl: selected.url,
+    playlistType: selected.type,
+    playlistUpdatedAt: selected.updatedAt,
+    cacheStatus: selected.cacheStatus,
+    cacheVersion: selected.cacheVersion,
+    cacheUpdatedAt: selected.cacheUpdatedAt,
+    cacheItemCount: selected.cacheItemCount,
+    cacheSizeBytes: selected.cacheSizeBytes,
+    cacheError: selected.cacheError,
+    cacheSnapshotUrl: selected.cacheSnapshotUrl,
+    cacheParts: selected.cacheParts,
+    playlists: playlistConfigs,
     directPlaylistFallbackAllowed: directFallbackAllowed,
-    message: !cacheReady && !directFallbackAllowed
-      ? 'A lista está vinculada, mas o cache seguro ainda não está pronto.'
+    message: !playlistConfigs.some(config => config.cacheReady || Boolean(config.url))
+      ? 'As listas estão vinculadas, mas nenhum cache seguro está pronto.'
       : null,
   });
 });

@@ -211,7 +211,7 @@
     var seller = Array.isArray(global.sellers) ? global.sellers.find(function (item) { return item.id === sellerId; }) : null;
     var sellerName = seller?.name || 'este vendedor';
     if (!global.confirm('Excluir ' + sellerName + '? O acesso por e-mail e senha também será removido.')) return false;
-    if (!global.confirm('Confirma a exclusão definitiva? A operação será bloqueada se ainda existirem aparelhos vinculados.')) return false;
+    if (!global.confirm('Confirma a exclusão definitiva? Aparelhos e clientes serão preservados, mas ficarão sem vendedor. O histórico financeiro também será mantido.')) return false;
     try {
       if (typeof global.show === 'function') global.show('Excluindo vendedor e acesso...');
       var result = await callProtectedFunction('seller-delete', { sellerId: sellerId });
