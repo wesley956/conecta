@@ -1,23 +1,25 @@
-# ronecaPlayerTV Native 1.6
+# ronecaPlayerTV Native 1.8
 
-Versão-base com assinatura permanente e atualização integrada para celular, tablet, Android TV e TV Box.
+Correção visual do player nativo para celular, tablet, Android TV e TV Box.
+
+## Cabeçalho do player
+
+- a seta de voltar, a marca RONECAPLAYTV e o título agora acompanham a visibilidade dos controles do ExoPlayer;
+- o cabeçalho desaparece automaticamente junto com o botão de pause e a barra de progresso;
+- ao tocar na tela ou usar o controle remoto, os controles e o cabeçalho reaparecem juntos;
+- a correção foi aplicada aos players de canais, filmes e séries;
+- os seletores de canais e episódios continuam mantendo o cabeçalho disponível enquanto estiverem abertos.
 
 ## Atualizações do aplicativo
 
-- consulta automática de novas versões ao iniciar;
-- verificação manual disponível em Configurações;
-- download do APK com progresso e confirmação adequada para controle remoto;
-- validação de checksum SHA-256, pacote, versão e certificado antes da instalação;
-- assinatura de produção permanente protegida pelos Secrets do GitHub.
+- publicação assinada com a mesma chave permanente usada desde a versão 1.6;
+- manifesto de atualização com checksum SHA-256, versão e URL do APK;
+- instalação sobre a versão anterior sem necessidade de desinstalar o aplicativo.
 
-## Migração da versão 1.5
+## Recursos mantidos
 
-A versão 1.5 foi assinada por uma chave temporária do GitHub Actions. Por isso, ela precisa ser desinstalada uma única vez antes da instalação da 1.6. Da versão 1.6 em diante, as atualizações poderão ser instaladas sobre a versão existente sem repetir essa migração.
-
-## Identidade e recursos mantidos
-
-- ícone dourado e vermelho, splash animado e banner Android TV;
-- canais, filmes, séries, busca, favoritos e Minha Lista;
-- reprodução nativa com Media3 ExoPlayer e retomada de conteúdo;
+- reprodução nativa com Media3 ExoPlayer;
+- retomada de filmes e episódios;
 - navegação por controle remoto e toque;
+- canais, filmes, séries, busca, favoritos e Minha Lista;
 - ativação, catálogo e configurações persistentes.
