@@ -91,7 +91,8 @@
 
   function badge(status) {
     const safe = esc(status || '—');
-    return `<span class="badge ${safe}">${safe}</span>`;
+    const labels = { active: 'Ativo', pending: 'Pendente', expired: 'Vencido', blocked: 'Bloqueado', inactive: 'Inativo' };
+    return `<span class="badge ${safe}">${esc(labels[status] || status || '—')}</span>`;
   }
 
   function whatsappUrl(value) {
@@ -184,7 +185,7 @@
       <div id="sellerUxMsg" class="seller-msg"></div>
     `;
 
-    statsCard.insertAdjacentElement('afterend', card);
+    statsCard.insertAdjacentElement('beforebegin', card);
 
     $('sellerDeviceCodeLookup')?.addEventListener('keydown', event => {
       if (event.key === 'Enter') window.sellerUxLookupDevice();
@@ -277,21 +278,8 @@
     return `${days} dia(s)`;
   }
 
-  function ensureActionsHeader() {
-    const table = $('devicesBody')?.closest('table');
-    const headRow = table?.querySelector('thead tr');
-    if (!headRow || headRow.querySelector('[data-seller-actions-head]')) return;
-
-    const th = document.createElement('th');
-    th.dataset.sellerActionsHead = 'true';
-    th.textContent = 'Ações';
-    headRow.appendChild(th);
-  }
-
   function renderSellerUxDevicesTable() {
     if (!sellerUxData || !$('devicesBody')) return;
-
-    ensureActionsHeader();
 
     const devices = filteredDevices();
     const total = (sellerUxData.devices || []).length;
@@ -301,25 +289,33 @@
       ? devices.map(device => {
         const wa = whatsappUrl(device.customerWhatsapp);
         return `
-          <tr>
-            <td><span class="mono">${esc(device.deviceCode)}</span><br><span class="muted">${esc(device.deviceUuid || '')}</span></td>
-            <td>${esc(device.customerName || 'Sem cliente')}${wa ? `<br><a class="btn" href="${esc(wa)}" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>` : ''}</td>
-            <td>${badge(device.status)}</td>
-            <td>${esc(device.planName || 'Sem plano')}<br><span class="muted">${esc(device.planCreditCost ? String(device.planCreditCost) + ' crédito(s)' : '')}</span></td>
-            <td>${fmtDate(device.expiresAt)}<br>${validityText(device)}</td>
-            <td>${fmtDate(device.lastSeenAt)}</td>
-            <td class="seller-actions-cell">
-              <div class="seller-row-actions">
-                <button class="btn seller-icon-btn" title="Detalhes" onclick="sellerUxShowDeviceDetails('${esc(device.id)}')">👁️</button>
-                <button class="btn seller-icon-btn" title="Renovar" onclick="sellerUxOpenRenewModal('${esc(device.id)}')">🔄</button>
-                <button class="btn seller-icon-btn red" title="Bloquear" onclick="sellerUxBlockDevice('${esc(device.id)}')">🚫</button>
-                ${device.status !== 'active' ? `<button class="btn seller-icon-btn primary" title="Ativar" onclick="sellerUxPrepareActivation('${esc(device.deviceCode)}')">✅</button>` : ''}
+          <article class="seller-device-card" data-status="${esc(device.status)}">
+            <div class="seller-device-head">
+              <div>
+                <div class="mono seller-device-code">${esc(device.deviceCode)}</div>
+                <strong>${esc(device.customerName || 'Sem cliente')}</strong>
+                <div class="small muted">${esc(device.customerWhatsapp || device.deviceUuid || 'Contato não informado')}</div>
               </div>
-            </td>
-          </tr>
+              ${badge(device.status)}
+            </div>
+            <div class="seller-device-meta">
+              <div><small>Plano</small><span>${esc(device.planName || 'Sem plano')}</span></div>
+              <div><small>Validade</small><span>${fmtDate(device.expiresAt)}</span>${validityText(device)}</div>
+              <div><small>Lista</small><span>${esc(device.playlistName || 'Sem lista')}</span></div>
+              <div><small>Último acesso</small><span>${fmtDate(device.lastSeenAt)}</span></div>
+            </div>
+            <div class="seller-device-actions">
+              <button class="btn primary" onclick="sellerUxShowDeviceDetails('${esc(device.id)}')">Abrir</button>
+              ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
+              <button class="btn" onclick="sellerUxOpenRenewModal('${esc(device.id)}')">Renovar</button>
+              ${device.status !== 'active' ? `<button class="btn primary" onclick="sellerUxPrepareActivation('${esc(device.deviceCode)}')">Ativar</button>` : ''}
+              <button class="btn red" onclick="sellerUxBlockDevice('${esc(device.id)}')">Bloquear</button>
+              <button class="btn red" onclick="sellerUxDeleteDevice('${esc(device.id)}')">Excluir</button>
+            </div>
+          </article>
         `;
       }).join('')
-      : '<tr><td colspan="7" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
+      : '<div class="seller-device-empty muted">Nenhum aparelho encontrado com esses filtros.</div>';
   }
 
   window.sellerUxLookupDevice = async function sellerUxLookupDevice() {
@@ -537,6 +533,23 @@
       await refreshSellerUxData();
     } catch (err) {
       alert(err.message || 'Erro ao bloquear aparelho.');
+    }
+  };
+
+  window.sellerUxDeleteDevice = async function sellerUxDeleteDevice(deviceId) {
+    try {
+      const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
+      const code = device?.deviceCode || deviceId;
+      const customer = device?.customerName || 'Sem cliente';
+
+      if (!confirm(`Excluir o aparelho ${code}, vinculado a ${customer}?`)) return;
+      if (!confirm('Confirma a exclusão definitiva? Esta ação remove o aparelho do painel e não pode ser desfeita.')) return;
+
+      await api('deleteDevice', { deviceId });
+      await window.loadPortal?.();
+      await refreshSellerUxData();
+    } catch (err) {
+      alert(err.message || 'Erro ao excluir aparelho.');
     }
   };
 

@@ -230,15 +230,16 @@
   <link rel="stylesheet" href="./pro-panel.css" />
   <link rel="stylesheet" href="./seller-portal-ux.css" />
   <link rel="stylesheet" href="./seller-lists-ux.css" />
+  <link rel="stylesheet" href="./panel-redesign.css" />
 </head>
-<body>
+<body class="seller-v2">
   <main class="wrap">
     <section id="loginView" class="card login">
       <div class="brand" style="margin-bottom:18px;">
-        <div class="logo">R</div>
+        <div class="logo"><img src="./assets/cruz-stars-logo.png" alt="Cruz Stars"></div>
         <div>
           <h1>Portal do Vendedor</h1>
-          <p class="muted">RonecaPlayTV · acesso comercial</p>
+          <p class="muted">Cruz Stars · acesso comercial</p>
         </div>
       </div>
 
@@ -258,7 +259,7 @@
     <section id="dashboardView" class="hide">
       <div class="hero">
         <div class="brand">
-          <div class="logo">R</div>
+          <div class="logo"><img src="./assets/cruz-stars-logo.png" alt="Cruz Stars"></div>
           <div>
             <h1 id="sellerName">Portal do Vendedor</h1>
             <p class="muted" id="sellerSub">Resumo comercial</p>
@@ -270,11 +271,19 @@
         </div>
       </div>
 
-      <div class="card">
+      <nav class="seller-v2-nav" aria-label="Navegação do vendedor">
+        <button class="active" type="button" onclick="sellerPortalNavigate('home', this)">Início</button>
+        <button type="button" onclick="sellerPortalNavigate('activation', this)">Ativar aparelho</button>
+        <button type="button" onclick="sellerPortalNavigate('devices', this)">Meus aparelhos</button>
+        <button type="button" onclick="sellerPortalNavigate('lists', this)">Minhas listas</button>
+        <button type="button" onclick="sellerPortalNavigate('credits', this)">Créditos</button>
+      </nav>
+
+      <div id="sellerOverviewCard" class="card seller-v2-overview">
         <div class="grid" id="statsGrid"></div>
       </div>
 
-      <div class="card">
+      <div id="sellerDevicesCard" class="card seller-v2-devices">
         <div class="section-title">
           <div>
             <h2>Meus aparelhos</h2>
@@ -316,24 +325,10 @@
 
         <div id="resultCount" class="result-count"></div>
 
-        <div class="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Cliente</th>
-                <th>Status</th>
-                <th>Plano</th>
-                <th>Validade</th>
-                <th>Último acesso</th>
-              </tr>
-            </thead>
-            <tbody id="devicesBody"></tbody>
-          </table>
-        </div>
+        <div id="devicesBody" class="seller-device-card-grid"></div>
       </div>
 
-      <div class="card">
+      <div id="sellerCreditsCard" class="card seller-v2-credits">
         <div class="section-title">
           <div>
             <h2>Extrato de créditos</h2>
@@ -355,6 +350,19 @@
       return document.getElementById(id);
     }
 
+    function sellerPortalNavigate(section, button) {
+      const targets = {
+        home: 'dashboardView',
+        activation: 'sellerActivationCard',
+        devices: 'sellerDevicesCard',
+        lists: 'sellerListsCard',
+        credits: 'sellerCreditsCard'
+      };
+      const target = $(targets[section]);
+      document.querySelectorAll('.seller-v2-nav button').forEach(item => item.classList.toggle('active', item === button));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     function esc(value) {
       return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -372,7 +380,8 @@
 
     function badge(status) {
       const safe = esc(status || '—');
-      return '<span class="badge ' + safe + '">' + safe + '</span>';
+      const labels = { active: 'Ativo', pending: 'Pendente', expired: 'Vencido', blocked: 'Bloqueado', inactive: 'Inativo' };
+      return '<span class="badge ' + safe + '">' + esc(labels[status] || status || '—') + '</span>';
     }
 
     function number(value) {
@@ -510,16 +519,13 @@
                 : days + ' dia(s)';
 
           return ''
-            + '<tr>'
-            + '<td><span class="mono">' + esc(device.deviceCode) + '</span><br><span class="muted">' + esc(device.deviceUuid || '') + '</span></td>'
-            + '<td>' + esc(device.customerName || 'Sem cliente') + (wa ? '<br><a class="btn" href="' + esc(wa) + '" target="_blank" rel="noreferrer" style="margin-top:8px;">WhatsApp</a>' : '') + '</td>'
-            + '<td>' + badge(device.status) + '</td>'
-            + '<td>' + esc(device.planName || 'Sem plano') + '<br><span class="muted">' + esc(device.planCreditCost ? String(device.planCreditCost) + ' crédito(s)' : '') + '</span></td>'
-            + '<td>' + fmtDate(device.expiresAt) + '<br>' + validity + '</td>'
-            + '<td>' + fmtDate(device.lastSeenAt) + '</td>'
-            + '</tr>';
+            + '<article class="seller-device-card" data-status="' + esc(device.status) + '">'
+            + '<div class="seller-device-head"><div><div class="mono seller-device-code">' + esc(device.deviceCode) + '</div><strong>' + esc(device.customerName || 'Sem cliente') + '</strong><div class="small muted">' + esc(device.customerWhatsapp || device.deviceUuid || 'Contato não informado') + '</div></div>' + badge(device.status) + '</div>'
+            + '<div class="seller-device-meta"><div><small>Plano</small><span>' + esc(device.planName || 'Sem plano') + '</span></div><div><small>Validade</small><span>' + fmtDate(device.expiresAt) + '</span>' + validity + '</div><div><small>Último acesso</small><span>' + fmtDate(device.lastSeenAt) + '</span></div><div><small>Créditos</small><span>' + esc(device.planCreditCost ? String(device.planCreditCost) : '—') + '</span></div></div>'
+            + '<div class="seller-device-actions">' + (wa ? '<a class="btn" href="' + esc(wa) + '" target="_blank" rel="noreferrer">WhatsApp</a>' : '') + '</div>'
+            + '</article>';
         }).join('')
-        : '<tr><td colspan="6" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
+        : '<div class="seller-device-empty muted">Nenhum aparelho encontrado com esses filtros.</div>';
     }
 
     function renderPortal(data) {

@@ -928,16 +928,17 @@ tbody tr:hover td {
   <link rel="stylesheet" href="./pro-panel.css" />
   <link rel="stylesheet" href="./panel-ux.css" />
   <link rel="stylesheet" href="./panel-next-ux.css" />
+  <link rel="stylesheet" href="./panel-redesign.css" />
 </head>
 
-<body>
+<body class="admin-v2">
   <main class="app">
     <header class="topbar">
       <div class="brand">
         <img class="brand-logo" src="./assets/cruz-stars-logo.png" alt="Cruz Stars" />
         <div>
           <h1>Cruz Stars</h1>
-          <p>Gestão de clientes, aparelhos, listas, liberações e vencimentos.</p>
+          <p>Central de operações</p>
         </div>
       </div>
 
@@ -947,41 +948,91 @@ tbody tr:hover td {
       </div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="dashboard" onclick="setTab('dashboard')">Dashboard</button>
-      <button class="tab" data-tab="commercial" onclick="setTab('commercial')">Comercial</button>
-      <button class="tab" data-tab="customers" onclick="setTab('customers')">Clientes</button>
-      <button class="tab" data-tab="playlists" onclick="setTab('playlists')">Listas</button>
-      <button class="tab" data-tab="devices" onclick="setTab('devices')">Aparelhos</button>
-      <button class="tab" data-tab="pending" onclick="setTab('pending')">Pendentes</button>
-      <button class="tab" data-tab="audit" onclick="setTab('audit')">Histórico</button>
+    <nav class="tabs" aria-label="Navegação principal">
+      <div class="admin-nav-brand" title="Cruz Stars">
+        <img src="./assets/cruz-stars-logo.png" alt="" />
+      </div>
+      <button class="tab active" data-tab="dashboard" onclick="setTab('dashboard')" title="Visão geral" aria-label="Visão geral">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/></svg><span>Visão geral</span>
+      </button>
+      <button class="tab" data-tab="pending" onclick="setTab('pending')" title="Pendências" aria-label="Pendências">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3zM12 9v4M12 17h.01"/></svg><span>Pendências</span>
+      </button>
+      <button class="tab" data-tab="devices" onclick="setTab('devices')" title="Aparelhos" aria-label="Aparelhos">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Aparelhos</span>
+      </button>
+      <button class="tab" data-tab="customers" onclick="setTab('customers')" title="Clientes" aria-label="Clientes">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 7h5M18.5 4.5v5"/></svg><span>Clientes</span>
+      </button>
+      <div class="admin-nav-separator"></div>
+      <button class="tab" data-tab="commercial" onclick="setTab('commercial')" title="Comercial" aria-label="Comercial">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg><span>Comercial</span>
+      </button>
+      <button class="tab" data-tab="playlists" onclick="setTab('playlists')" title="Listas" aria-label="Listas">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Listas</span>
+      </button>
+      <button class="tab" data-tab="audit" onclick="setTab('audit')" title="Histórico" aria-label="Histórico">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg><span>Histórico</span>
+      </button>
+      <div class="admin-nav-status" title="Sistema operacional"><span></span></div>
     </nav>
 
+    <div class="admin-page-heading">
+      <div>
+        <p id="adminPageEyebrow">Hoje · operação</p>
+        <h2 id="adminPageTitle">Bom dia. Vamos resolver o que importa.</h2>
+        <p id="adminPageDescription">Uma visão direta das decisões que precisam ser tomadas agora.</p>
+      </div>
+      <span class="admin-page-badge">Cruz Stars Admin</span>
+    </div>
+
     <section id="section-dashboard" class="section active">
-      <div class="grid">
-        <div class="card">
-          <h2>Visão geral da operação</h2>
-          <p class="sub">Acompanhe ativações, pendências, vencimentos e listas vinculadas.</p>
-          <div class="stats">
-            <div class="stat"><small>Clientes</small><strong id="stCustomers">0</strong></div>
-            <div class="stat"><small>Aparelhos</small><strong id="stDevices">0</strong></div>
-            <div class="stat"><small>Ativos</small><strong id="stActive">0</strong></div>
-            <div class="stat"><small>Pendentes</small><strong id="stPending">0</strong></div>
-            <div class="stat"><small>Vencendo 7d</small><strong id="stExpiring">0</strong></div>
-            <div class="stat"><small>Listas</small><strong id="stPlaylists">0</strong></div>
+      <div class="admin-daily-briefing">
+        <div>
+          <span class="admin-kicker">Resumo do dia</span>
+          <h2>A operação mostra primeiro o que exige uma decisão.</h2>
+          <p>Comece pelas pendências novas e pelos clientes próximos do vencimento.</p>
+          <div class="admin-briefing-numbers">
+            <span><strong id="stPending">0</strong> pendências</span>
+            <span><strong id="stExpiring">0</strong> vencendo em 7 dias</span>
+            <span><strong id="stActive">0</strong> ativos</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn primary" onclick="setTab('pending')">Abrir fila de trabalho</button>
+          <button class="btn" onclick="openCustomerActionModal()">Novo cliente</button>
+        </div>
+      </div>
+
+      <div class="admin-overview-grid">
+        <div class="card admin-agenda-card">
+          <div class="admin-card-head">
+            <div>
+              <h2>Agenda operacional</h2>
+              <p class="sub">Itens ordenados pelo impacto na rotina.</p>
+            </div>
+            <button class="btn" onclick="setTab('pending')">Ver pendências</button>
+          </div>
+          <div class="admin-agenda-group">
+            <h3>Pendentes recentes</h3>
+            <div id="pendingQuick" class="quick-list"></div>
+          </div>
+          <div class="admin-agenda-group">
+            <h3>Vencendo em 7 dias</h3>
+            <div id="expiringQuick" class="quick-list"></div>
           </div>
         </div>
 
-        <div class="card col7">
-          <h2>Pendentes recentes</h2>
-          <p class="sub">Aparelhos que instalaram o APK e aguardam liberação.</p>
-          <div id="pendingQuick" class="quick-list"></div>
-        </div>
-
-        <div class="card col5">
-          <h2>Vencendo em 7 dias</h2>
-          <p class="sub">Aparelhos ativos com vencimento próximo.</p>
-          <div id="expiringQuick" class="quick-list"></div>
+        <div class="card admin-pulse-card">
+          <h2>Pulso da operação</h2>
+          <p class="sub"><strong id="stDevices">0</strong> aparelhos cadastrados</p>
+          <div class="admin-pulse-total"><strong id="stCustomers">0</strong><span>clientes</span></div>
+          <div class="admin-pulse-list">
+            <div><span><i class="active"></i>Aparelhos ativos</span><strong id="stActiveMirror">0</strong></div>
+            <div><span><i class="pending"></i>Pendentes</span><strong id="stPendingMirror">0</strong></div>
+            <div><span><i></i>Listas disponíveis</span><strong id="stPlaylists">0</strong></div>
+          </div>
+          <button class="btn" onclick="setTab('devices')">Explorar aparelhos</button>
         </div>
       </div>
     </section>
@@ -1264,45 +1315,43 @@ tbody tr:hover td {
     </section>
 
     <section id="section-devices" class="section">
-      <div class="card">
-        <h2>Aparelhos</h2>
-        <p class="sub">Vincule cliente e lista. O APK só recebe a lista escolhida aqui.</p>
-
-        <div class="filterbar">
-          <input id="deviceSearch" class="wide" placeholder="Buscar por código, cliente, WhatsApp ou lista..." oninput="renderDevices()" />
-          <select id="deviceStatusFilter" onchange="renderDevices()">
-            <option value="">Todos os status</option>
-            <option value="pending">Pendentes</option>
-            <option value="active">Ativos</option>
-            <option value="blocked">Bloqueados</option>
-            <option value="expired">Vencidos</option>
-            <option value="inactive">Inativos</option>
-          </select>
-          <button class="btn" onclick="clearDeviceFilters()">Limpar filtros</button>
-          <select id="deviceCustomerFilter" onchange="renderDevices()"></select>
-          <select id="deviceSellerFilter" onchange="renderDevices()"></select>
-          <select id="devicePlanFilter" onchange="renderDevices()"></select>
-          <select id="devicePlaylistFilter" onchange="renderDevices()"></select>
+      <div class="card admin-devices-card">
+        <div class="admin-card-head">
+          <div>
+            <h2>Aparelhos</h2>
+            <p class="sub">Cards compactos, com cada informação sempre no mesmo lugar.</p>
+          </div>
         </div>
 
-        <div class="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Cliente</th>
-                <th>Vendedor</th>
-                <th>Plano</th>
-                <th>Status</th>
-                <th>Lista</th>
-                <th>Validade</th>
-                <th>Último acesso</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="devicesBody"></tbody>
-          </table>
+        <div class="admin-device-toolbar">
+          <div class="admin-device-primary-filters">
+            <label>Buscar em qualquer informação
+              <input id="deviceSearch" class="wide" placeholder="Código, cliente, WhatsApp, vendedor, plano ou lista" oninput="renderDevices()" />
+            </label>
+            <label>Status
+              <select id="deviceStatusFilter" onchange="renderDevices()">
+                <option value="">Todos os status</option>
+                <option value="pending">Pendentes</option>
+                <option value="active">Ativos</option>
+                <option value="blocked">Bloqueados</option>
+                <option value="expired">Vencidos</option>
+                <option value="inactive">Inativos</option>
+              </select>
+            </label>
+            <button class="btn" onclick="clearDeviceFilters()">Limpar</button>
+          </div>
+          <details class="admin-advanced-filters">
+            <summary class="btn">Mais filtros</summary>
+            <div>
+              <select id="deviceCustomerFilter" aria-label="Filtrar por cliente" onchange="renderDevices()"></select>
+              <select id="deviceSellerFilter" aria-label="Filtrar por vendedor" onchange="renderDevices()"></select>
+              <select id="devicePlanFilter" aria-label="Filtrar por plano" onchange="renderDevices()"></select>
+              <select id="devicePlaylistFilter" aria-label="Filtrar por lista" onchange="renderDevices()"></select>
+            </div>
+          </details>
         </div>
+
+        <div id="devicesBody" class="admin-device-grid"></div>
       </div>
     </section>
 
@@ -1607,9 +1656,29 @@ function show(text, error = false) {
 }
 
 function setTab(tab) {
-  document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+  const pages = {
+    dashboard: ['Hoje · operação', 'Bom dia. Vamos resolver o que importa.', 'Uma visão direta das decisões que precisam ser tomadas agora.'],
+    pending: ['Operação', 'Pendências', 'Libere novos aparelhos com o mínimo de passos possível.'],
+    devices: ['Operação', 'Aparelhos', 'Encontre rapidamente qualquer informação sem abrir uma tabela extensa.'],
+    customers: ['Operação', 'Clientes', 'Encontre clientes e acompanhe todos os seus vínculos.'],
+    commercial: ['Negócio', 'Comercial', 'Vendedores, planos e créditos em uma área dedicada.'],
+    playlists: ['Negócio', 'Listas', 'Organize as listas e entenda onde cada uma está em uso.'],
+    audit: ['Controle', 'Histórico', 'Consulte alterações importantes sem misturar auditoria com a rotina.'],
+  };
+
+  document.querySelectorAll('.tab').forEach(btn => {
+    const active = btn.dataset.tab === tab;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-current', active ? 'page' : 'false');
+  });
   document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
   $('section-' + tab).classList.add('active');
+
+  const page = pages[tab] || pages.dashboard;
+  if ($('adminPageEyebrow')) $('adminPageEyebrow').textContent = page[0];
+  if ($('adminPageTitle')) $('adminPageTitle').textContent = page[1];
+  if ($('adminPageDescription')) $('adminPageDescription').textContent = page[2];
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function normalize(value) {
@@ -1828,6 +1897,8 @@ function renderStats() {
   $('stPending').textContent = devices.filter(d => d.status === 'pending').length;
   $('stExpiring').textContent = devices.filter(isExpiringSoon).length;
   $('stPlaylists').textContent = playlists.length;
+  if ($('stActiveMirror')) $('stActiveMirror').textContent = devices.filter(d => d.status === 'active').length;
+  if ($('stPendingMirror')) $('stPendingMirror').textContent = devices.filter(d => d.status === 'pending').length;
 }
 
 function customerOptions(selectedId) {
@@ -1903,13 +1974,15 @@ function confirmCreditConsumption(deviceId, sellerId, planId, actionLabel) {
 }
 
 function statusOptions(selectedStatus) {
+  const labels = { pending: 'Pendente', active: 'Ativo', blocked: 'Bloqueado', expired: 'Vencido', inactive: 'Inativo' };
   return ['pending','active','blocked','expired','inactive']
-    .map(s => `<option value="${s}" ${s === selectedStatus ? 'selected' : ''}>${s}</option>`)
+    .map(s => `<option value="${s}" ${s === selectedStatus ? 'selected' : ''}>${labels[s]}</option>`)
     .join('');
 }
 
 function badge(status) {
-  return `<span class="badge ${esc(status)}">${esc(status)}</span>`;
+  const labels = { pending: 'Pendente', active: 'Ativo', blocked: 'Bloqueado', expired: 'Vencido', inactive: 'Inativo' };
+  return `<span class="badge ${esc(status)}">${esc(labels[status] || status)}</span>`;
 }
 
 function dateInput(value) {
@@ -2027,7 +2100,7 @@ function renderDevices() {
 
   $('devicesBody').innerHTML = list.length
     ? list.map(d => deviceRow(d, false)).join('')
-    : '<tr><td colspan="9" class="muted">Nenhum aparelho encontrado com esses filtros.</td></tr>';
+    : '<div class="admin-device-empty muted">Nenhum aparelho encontrado com esses filtros.</div>';
 }
 
 function renderPending() {
@@ -2042,48 +2115,48 @@ function deviceRow(d) {
   const wa = whatsappUrl(d.customerWhatsapp);
 
   return `
-    <tr>
-      <td>
-        <span class="mono">${esc(d.deviceCode)}</span><br>
-        <span class="small muted">${esc(d.deviceUuid || '')}</span>
-      </td>
-      <td>
-        <select class="table-select" id="dev-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select>
-        <div class="small muted">${esc(d.customerName || 'Sem cliente')}</div>
-        ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
-      </td>
-      <td>
-        <select class="table-select" id="dev-seller-${esc(d.id)}">${sellerOptions(d.sellerId)}</select>
-        <div class="small muted">${esc(d.sellerName || 'Sem vendedor')}</div>
-        <div class="small muted">${d.sellerCreditBalance === null || d.sellerCreditBalance === undefined ? '' : esc(d.sellerCreditBalance + ' crédito(s)')}</div>
-      </td>
-      <td>
-        <select class="table-select" id="dev-plan-${esc(d.id)}">${planOptions(d.planId)}</select>
-        <div class="small muted">${esc(d.planName || 'Sem plano')}</div>
-      </td>
-      <td>
-        <select class="table-select" id="dev-status-${esc(d.id)}">${statusOptions(d.status)}</select>
-        <div style="margin-top:7px">${badge(d.status)}</div>
-      </td>
-      <td>
-        <select class="table-select" id="dev-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select>
-        <div class="small muted">${esc(d.playlistName || 'Sem lista')}</div>
-      </td>
-      <td>
-        <input class="table-input" id="dev-exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}">
-        ${validityLabel(d.expiresAt)}
-      </td>
-      <td class="muted">${fmtDate(d.lastSeenAt)}</td>
-      <td>
-        <div class="icon-actions">
-          <button class="btn icon-btn" title="Detalhes" aria-label="Detalhes" onclick="showDeviceDetails('${esc(d.id)}')">👁️</button>
-          <button class="btn green icon-btn" title="Salvar" aria-label="Salvar" onclick="saveDevice('${esc(d.id)}')">💾</button>
-          <button class="btn orange icon-btn icon-wide" title="Renovar 30 dias" aria-label="Renovar 30 dias" onclick="renewDevice('${esc(d.id)}')">🔄 30d</button>
-          <button class="btn red icon-btn danger-zone" title="Bloquear" aria-label="Bloquear" onclick="blockDevice('${esc(d.id)}')">🚫</button>
-          <button class="btn red icon-btn" title="Excluir" aria-label="Excluir" onclick="deleteDevice('${esc(d.id)}')">🗑️</button>
+    <article class="admin-device-card" data-status="${esc(d.status)}">
+      <div class="admin-device-head">
+        <div>
+          <div class="mono admin-device-code">${esc(d.deviceCode)}</div>
+          <strong>${esc(d.customerName || 'Sem cliente')}</strong>
+          <div class="small muted">${esc(d.customerWhatsapp || d.deviceUuid || 'Contato não informado')}</div>
         </div>
-      </td>
-    </tr>
+        ${badge(d.status)}
+      </div>
+
+      <div class="admin-device-meta">
+        <div><small>Vendedor</small><span>${esc(d.sellerName || 'Sem vendedor')}</span></div>
+        <div><small>Plano</small><span>${esc(d.planName || 'Sem plano')}</span></div>
+        <div><small>Lista</small><span>${esc(d.playlistName || 'Sem lista')}</span></div>
+        <div><small>Validade</small><span>${fmtDate(d.expiresAt)}</span>${validityLabel(d.expiresAt)}</div>
+        <div><small>Último acesso</small><span>${fmtDate(d.lastSeenAt)}</span></div>
+        <div><small>Identificador</small><span class="mono">${esc(d.deviceUuid || '—')}</span></div>
+      </div>
+
+      <div class="admin-device-actions">
+        <button class="btn primary" onclick="showDeviceDetails('${esc(d.id)}')">Abrir aparelho</button>
+        ${wa ? `<a class="btn" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
+        <button class="btn orange" onclick="renewDevice('${esc(d.id)}')">Renovar 30 dias</button>
+      </div>
+
+      <details class="admin-device-editor">
+        <summary>Editar dados e ações administrativas</summary>
+        <div class="admin-device-editor-grid">
+          <label>Cliente<select class="table-select" id="dev-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select></label>
+          <label>Vendedor<select class="table-select" id="dev-seller-${esc(d.id)}">${sellerOptions(d.sellerId)}</select></label>
+          <label>Plano<select class="table-select" id="dev-plan-${esc(d.id)}">${planOptions(d.planId)}</select></label>
+          <label>Status<select class="table-select" id="dev-status-${esc(d.id)}">${statusOptions(d.status)}</select></label>
+          <label>Lista<select class="table-select" id="dev-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></label>
+          <label>Validade<input class="table-input" id="dev-exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}"></label>
+        </div>
+        <div class="admin-device-danger-actions">
+          <button class="btn green" onclick="saveDevice('${esc(d.id)}')">Salvar alterações</button>
+          <button class="btn red" onclick="blockDevice('${esc(d.id)}')">Bloquear</button>
+          <button class="btn red" onclick="deleteDevice('${esc(d.id)}')">Excluir</button>
+        </div>
+      </details>
+    </article>
   `;
 }
 
@@ -2475,9 +2548,9 @@ function deviceMiniRows(list) {
               <td>${fmtDate(d.expiresAt)} ${validityLabel(d.expiresAt)}</td>
               <td>
                 <div class="actions">
-                  <button class="btn icon-btn" title="Copiar código" aria-label="Copiar código" onclick="copyText('${esc(d.deviceCode)}')">📋</button>
-                  <button class="btn orange icon-btn" title="Renovar" aria-label="Renovar" onclick="renewDevice('${esc(d.id)}')">🔄</button>
-                  <button class="btn icon-btn" title="Abrir aparelho" aria-label="Abrir aparelho" onclick="showDeviceDetails('${esc(d.id)}')">👁️</button>
+                  <button class="btn" onclick="copyText('${esc(d.deviceCode)}')">Copiar</button>
+                  <button class="btn orange" onclick="renewDevice('${esc(d.id)}')">Renovar</button>
+                  <button class="btn" onclick="showDeviceDetails('${esc(d.id)}')">Abrir</button>
                 </div>
               </td>
             </tr>
@@ -2669,7 +2742,7 @@ function showDeviceDetails(id) {
         <button class="btn red" onclick="setDeviceStatus('${esc(device.id)}', 'blocked')">Bloquear</button>
         <button class="btn red" onclick="deleteDevice('${esc(device.id)}')">Excluir aparelho</button>
         <button class="btn orange" onclick="setDeviceStatus('${esc(device.id)}', 'expired')">Marcar vencido</button>
-        <button class="btn" onclick="setTab('devices'); closeDetails()">Editar na tabela</button>
+        <button class="btn" onclick="setTab('devices'); closeDetails()">Voltar aos aparelhos</button>
       </div>
     `
   );

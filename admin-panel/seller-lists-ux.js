@@ -62,9 +62,10 @@
     const dashboard = $('dashboardView');
     if (!dashboard) return;
 
+    const devicesCard = $('sellerDevicesCard');
     const activation = $('sellerActivationCard');
     const statsCard = dashboard.querySelector('.card');
-    const anchor = activation || statsCard;
+    const anchor = devicesCard || activation || statsCard;
     if (!anchor) return;
 
     const card = document.createElement('div');

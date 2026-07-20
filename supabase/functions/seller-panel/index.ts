@@ -556,6 +556,28 @@ async function getOwnedDevice(supabase: any, seller: any, deviceId: string) {
   return device;
 }
 
+async function writeSellerAudit(
+  supabase: any,
+  payload: {
+    action: string;
+    entityId: string;
+    description: string;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  const { error } = await supabase
+    .from('panel_audit_logs')
+    .insert({
+      action: payload.action,
+      entity_type: 'device',
+      entity_id: payload.entityId,
+      description: payload.description,
+      metadata: payload.metadata ?? {},
+    });
+
+  if (error) throw new Error(`Falha ao registrar auditoria: ${error.message}`);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -796,6 +818,32 @@ serve(async (req) => {
 
       if (updateError) return json({ error: updateError.message }, 500);
       return json({ ok: true, deviceId, status: nextStatus, message: 'Status do aparelho atualizado.' });
+    }
+
+    if (action === 'deleteDevice') {
+      const deviceId = requiredText(body.deviceId, 'ID do aparelho');
+      const device = await getOwnedDevice(supabase, seller, deviceId);
+
+      const { error: deleteError } = await supabase
+        .from('panel_devices')
+        .delete()
+        .eq('id', device.id)
+        .eq('seller_id', seller.id);
+
+      if (deleteError) return json({ error: deleteError.message }, 500);
+
+      await writeSellerAudit(supabase, {
+        action: 'device.deleted_by_seller',
+        entityId: device.id,
+        description: `Aparelho ${device.device_code} excluído pelo vendedor`,
+        metadata: {
+          sellerId: seller.id,
+          sellerName: seller.name || null,
+          deviceCode: device.device_code,
+        },
+      });
+
+      return json({ ok: true, deviceId, message: 'Aparelho excluído com sucesso.' });
     }
 
     return json({ error: 'Ação inválida.' }, 400);
