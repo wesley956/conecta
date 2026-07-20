@@ -1372,8 +1372,9 @@ export function PlayerV2Screen() {
         ) : null}
 
         <div
+          aria-hidden={!showControls}
           className={`roneca-exoplayer-top absolute inset-x-0 top-0 bg-gradient-to-b from-black/78 via-black/28 to-transparent px-10 py-7 transition-opacity ${
-            showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+            showControls ? 'opacity-100' : 'player-controls-hidden pointer-events-none opacity-0'
           }`}
         >
           <div className="flex items-start justify-between">
@@ -1381,6 +1382,7 @@ export function PlayerV2Screen() {
               <button
                 type="button"
                 onClick={goBack}
+                tabIndex={showControls ? 0 : -1}
                 className="roneca-exoplayer-back player-back-button rounded-full p-3 text-white/76"
                 aria-label="Voltar"
               >
@@ -1397,6 +1399,7 @@ export function PlayerV2Screen() {
               <button
                 type="button"
                 onClick={() => setShowList(current => !current)}
+                tabIndex={showControls ? 0 : -1}
                 className="rounded-full border border-white/10 bg-black/28 px-6 py-2.5 text-xl font-light text-white/78 backdrop-blur"
               >
                 Lista
