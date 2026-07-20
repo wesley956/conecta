@@ -1,25 +1,23 @@
-# ronecaPlayerTV Native 1.5
+# ronecaPlayerTV Native 1.6
 
-Versão final do aplicativo Android nativo para celular, tablet, Android TV e TV Box.
+Versão-base com assinatura permanente e atualização integrada para celular, tablet, Android TV e TV Box.
 
-## Identidade visual
+## Atualizações do aplicativo
 
-- novo ícone oficial dourado e vermelho;
-- splash animado com emblema, wordmark, brilho e barra de progresso;
-- banner da Android TV alinhado à nova marca;
-- remoção dos logos antigos e duplicados do projeto.
+- consulta automática de novas versões ao iniciar;
+- verificação manual disponível em Configurações;
+- download do APK com progresso e confirmação adequada para controle remoto;
+- validação de checksum SHA-256, pacote, versão e certificado antes da instalação;
+- assinatura de produção permanente protegida pelos Secrets do GitHub.
 
-## Recursos mantidos
+## Migração da versão 1.5
 
+A versão 1.5 foi assinada por uma chave temporária do GitHub Actions. Por isso, ela precisa ser desinstalada uma única vez antes da instalação da 1.6. Da versão 1.6 em diante, as atualizações poderão ser instaladas sobre a versão existente sem repetir essa migração.
+
+## Identidade e recursos mantidos
+
+- ícone dourado e vermelho, splash animado e banner Android TV;
 - canais, filmes, séries, busca, favoritos e Minha Lista;
-- reprodução nativa com Media3 ExoPlayer;
-- retomada de filmes e episódios;
+- reprodução nativa com Media3 ExoPlayer e retomada de conteúdo;
 - navegação por controle remoto e toque;
-- ativação e catálogo integrado ao Supabase;
-- configurações persistentes de reprodução e reconexão.
-
-## Validação
-
-- compilação nativa confirmada pelo GitHub Actions;
-- APK instalável para distribuição direta;
-- checksum SHA-256 publicado junto ao APK.
+- ativação, catálogo e configurações persistentes.

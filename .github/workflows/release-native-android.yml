@@ -54,28 +54,96 @@ jobs:
         run: |
           set -euo pipefail
           VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' native-android/app/build.gradle.kts | head -n1)
+          VERSION_CODE=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\)/\1/p' native-android/app/build.gradle.kts | head -n1)
           if [ -z "$VERSION" ]; then
             echo "Unable to resolve versionName" >&2
             exit 1
           fi
+          if [ -z "$VERSION_CODE" ]; then
+            echo "Unable to resolve versionCode" >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Assemble installable APK
+      - name: Restore permanent release key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.NATIVE_ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.NATIVE_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.NATIVE_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.NATIVE_ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
+
+          KEYSTORE_FILE="$RUNNER_TEMP/ronecaplaytv-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+          chmod 600 "$KEYSTORE_FILE"
+
+          echo "ANDROID_KEYSTORE_FILE=$KEYSTORE_FILE" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Assemble signed release APK
         working-directory: native-android
         shell: bash
         run: |
           set -euo pipefail
-          gradle --no-daemon :app:assembleDebug
+          gradle --no-daemon :app:assembleRelease
 
-      - name: Prepare release files
+      - name: Verify signature and prepare release files
+        env:
+          EXPECTED_SIGNER_SHA256: ${{ secrets.NATIVE_ANDROID_SIGNING_CERT_SHA256 }}
         shell: bash
         run: |
           set -euo pipefail
+          : "${EXPECTED_SIGNER_SHA256:?Missing NATIVE_ANDROID_SIGNING_CERT_SHA256 secret}"
+
           mkdir -p release
-          cp native-android/app/build/outputs/apk/debug/app-debug.apk "release/ronecaPlayerTV-v${{ steps.app.outputs.version }}.apk"
-          cd release
-          sha256sum "ronecaPlayerTV-v${{ steps.app.outputs.version }}.apk" > "ronecaPlayerTV-v${{ steps.app.outputs.version }}.sha256"
+          APK="release/ronecaPlayerTV-v${{ steps.app.outputs.version }}.apk"
+          cp native-android/app/build/outputs/apk/release/app-release.apk "$APK"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$APKSIGNER" verify --verbose "$APK"
+          ACTUAL_SIGNER_SHA256=$(
+            "$APKSIGNER" verify --print-certs "$APK" |
+              sed -n 's/^Signer #1 certificate SHA-256 digest: //p' |
+              head -n1 |
+              tr '[:upper:]' '[:lower:]' |
+              tr -d ':'
+          )
+          NORMALIZED_EXPECTED=$(printf '%s' "$EXPECTED_SIGNER_SHA256" | tr '[:upper:]' '[:lower:]' | tr -d ':')
+          if [ "$ACTUAL_SIGNER_SHA256" != "$NORMALIZED_EXPECTED" ]; then
+            echo "Release signer does not match the permanent certificate" >&2
+            exit 1
+          fi
+
+          APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
+          printf '%s  %s\n' "$APK_SHA256" "$(basename "$APK")" > "release/ronecaPlayerTV-v${{ steps.app.outputs.version }}.sha256"
+
+          jq -n \
+            --argjson schemaVersion 1 \
+            --argjson versionCode "${{ steps.app.outputs.version_code }}" \
+            --arg versionName "${{ steps.app.outputs.version }}" \
+            --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/${{ steps.app.outputs.tag }}/ronecaPlayerTV-v${{ steps.app.outputs.version }}.apk" \
+            --arg sha256 "$APK_SHA256" \
+            --argjson mandatory false \
+            --arg notes "Atualização segura com melhorias de estabilidade e compatibilidade." \
+            '{
+              schemaVersion: $schemaVersion,
+              versionCode: $versionCode,
+              versionName: $versionName,
+              apkUrl: $apkUrl,
+              sha256: $sha256,
+              mandatory: $mandatory,
+              notes: $notes
+            }' > release/ronecaPlayerTV-update.json
 
       - name: Publish GitHub Release
         env:
@@ -87,12 +155,14 @@ jobs:
           set -euo pipefail
           APK="release/ronecaPlayerTV-v${VERSION}.apk"
           CHECKSUM="release/ronecaPlayerTV-v${VERSION}.sha256"
+          UPDATE_MANIFEST="release/ronecaPlayerTV-update.json"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$CHECKSUM" --clobber
+            gh release upload "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" --clobber
           else
-            gh release create "$TAG" "$APK" "$CHECKSUM" \
+            gh release create "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" \
               --target "$GITHUB_SHA" \
               --title "ronecaPlayerTV v${VERSION}" \
-              --notes-file native-android/RELEASE_NOTES.md
+              --notes-file native-android/RELEASE_NOTES.md \
+              --latest
           fi
