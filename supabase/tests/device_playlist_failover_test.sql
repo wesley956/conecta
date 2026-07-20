@@ -62,6 +62,7 @@ select throws_ok(
       2
     )$$,
   '23505',
+  'duplicate key value violates unique constraint "panel_device_playlists_device_id_priority_key"',
   'Não aceita duas listas na mesma prioridade'
 );
 
