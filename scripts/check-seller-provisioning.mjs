@@ -21,7 +21,8 @@ const generator = fs.readFileSync(generatorPath, 'utf8');
 const requiredFrontendSnippets = [
   "type = 'password'",
   "autocomplete = 'new-password'",
-  "/functions/v1/seller-provision",
+  "supabaseUrl + '/functions/v1/' + functionName",
+  "callProtectedFunction('seller-provision'",
   "RonecaPanelAuth.getAccessToken()",
   'password: password',
   'global.createSeller =',
@@ -34,7 +35,8 @@ const requiredBackendSnippets = [
   "p_role: 'seller'",
   'p_seller_id: createdSellerId',
   'supabase.auth.admin.deleteUser(createdUserId)',
-  "action: 'seller.provisioned'",
+  "const auditAction = existingSellerId ? 'seller.login_migrated' : 'seller.provisioned'",
+  'action: auditAction',
 ];
 
 for (const snippet of requiredFrontendSnippets) {
