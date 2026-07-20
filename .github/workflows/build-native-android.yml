@@ -7,10 +7,12 @@ on:
       - feature/ronecaplaytv-native-v1
     paths:
       - "native-android/**"
+      - "scripts/patch-native-player-tv-controls.cjs"
       - ".github/workflows/build-native-android.yml"
   pull_request:
     paths:
       - "native-android/**"
+      - "scripts/patch-native-player-tv-controls.cjs"
       - ".github/workflows/build-native-android.yml"
 
 permissions:
@@ -46,6 +48,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.4.1"
+
+      - name: Apply TV navigation fixes
+        run: node scripts/patch-native-player-tv-controls.cjs
 
       - name: Assemble debug APK
         working-directory: native-android
