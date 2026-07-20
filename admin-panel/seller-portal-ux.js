@@ -134,7 +134,9 @@
 
     const card = document.createElement('div');
     card.id = 'sellerActivationCard';
-    card.className = 'card seller-activation-card';
+    card.className = 'card seller-activation-card seller-portal-section';
+    card.dataset.sellerSection = 'activation';
+    card.hidden = true;
     card.innerHTML = `
       <div class="seller-activation-head">
         <div>
@@ -186,6 +188,7 @@
     `;
 
     statsCard.insertAdjacentElement('beforebegin', card);
+    window.sellerPortalRefreshNavigation?.();
 
     $('sellerDeviceCodeLookup')?.addEventListener('keydown', event => {
       if (event.key === 'Enter') window.sellerUxLookupDevice();
@@ -575,6 +578,7 @@
         originalRenderPortal(data);
         sellerUxData = data;
         ensureActivationCard();
+        window.sellerPortalRefreshNavigation?.();
         patchFilters();
         const planSelect = $('sellerActivationPlan');
         const playlistSelect = $('sellerActivationPlaylist');

@@ -272,18 +272,18 @@
       </div>
 
       <nav class="seller-v2-nav" aria-label="Navegação do vendedor">
-        <button class="active" type="button" onclick="sellerPortalNavigate('home', this)">Início</button>
-        <button type="button" onclick="sellerPortalNavigate('activation', this)">Ativar aparelho</button>
-        <button type="button" onclick="sellerPortalNavigate('devices', this)">Meus aparelhos</button>
-        <button type="button" onclick="sellerPortalNavigate('lists', this)">Minhas listas</button>
-        <button type="button" onclick="sellerPortalNavigate('credits', this)">Créditos</button>
+        <button class="active" data-seller-nav="home" type="button" aria-current="page" onclick="sellerPortalNavigate('home')">Início</button>
+        <button data-seller-nav="activation" type="button" onclick="sellerPortalNavigate('activation')">Ativar aparelho</button>
+        <button data-seller-nav="devices" type="button" onclick="sellerPortalNavigate('devices')">Meus aparelhos</button>
+        <button data-seller-nav="lists" type="button" onclick="sellerPortalNavigate('lists')">Minhas listas</button>
+        <button data-seller-nav="credits" type="button" onclick="sellerPortalNavigate('credits')">Créditos</button>
       </nav>
 
-      <div id="sellerOverviewCard" class="card seller-v2-overview">
+      <div id="sellerOverviewCard" class="card seller-v2-overview seller-portal-section" data-seller-section="home">
         <div class="grid" id="statsGrid"></div>
       </div>
 
-      <div id="sellerDevicesCard" class="card seller-v2-devices">
+      <div id="sellerDevicesCard" class="card seller-v2-devices seller-portal-section" data-seller-section="devices" hidden>
         <div class="section-title">
           <div>
             <h2>Meus aparelhos</h2>
@@ -328,7 +328,7 @@
         <div id="devicesBody" class="seller-device-card-grid"></div>
       </div>
 
-      <div id="sellerCreditsCard" class="card seller-v2-credits">
+      <div id="sellerCreditsCard" class="card seller-v2-credits seller-portal-section" data-seller-section="credits" hidden>
         <div class="section-title">
           <div>
             <h2>Extrato de créditos</h2>
@@ -350,18 +350,36 @@
       return document.getElementById(id);
     }
 
-    function sellerPortalNavigate(section, button) {
-      const targets = {
-        home: 'dashboardView',
-        activation: 'sellerActivationCard',
-        devices: 'sellerDevicesCard',
-        lists: 'sellerListsCard',
-        credits: 'sellerCreditsCard'
-      };
-      const target = $(targets[section]);
-      document.querySelectorAll('.seller-v2-nav button').forEach(item => item.classList.toggle('active', item === button));
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    function applySellerPortalSection(section) {
+      const dashboard = $('dashboardView');
+      if (!dashboard) return;
+
+      const allowedSections = new Set(['home', 'activation', 'devices', 'lists', 'credits']);
+      const activeSection = allowedSections.has(section) ? section : 'home';
+      dashboard.dataset.activeSection = activeSection;
+
+      document.querySelectorAll('.seller-portal-section').forEach(panel => {
+        const active = panel.dataset.sellerSection === activeSection;
+        panel.hidden = !active;
+        panel.setAttribute('aria-hidden', String(!active));
+      });
+
+      document.querySelectorAll('.seller-v2-nav button').forEach(item => {
+        const active = item.dataset.sellerNav === activeSection;
+        item.classList.toggle('active', active);
+        if (active) item.setAttribute('aria-current', 'page');
+        else item.removeAttribute('aria-current');
+      });
     }
+
+    function sellerPortalNavigate(section) {
+      applySellerPortalSection(section);
+      $('dashboardView')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    window.sellerPortalRefreshNavigation = function sellerPortalRefreshNavigation() {
+      applySellerPortalSection($('dashboardView')?.dataset.activeSection || 'home');
+    };
 
     function esc(value) {
       return String(value ?? '')
@@ -566,6 +584,7 @@
 
       $('loginView').classList.add('hide');
       $('dashboardView').classList.remove('hide');
+      window.sellerPortalRefreshNavigation();
     }
 
     async function logout() {

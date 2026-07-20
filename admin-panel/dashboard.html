@@ -1566,7 +1566,7 @@ tbody tr:hover td {
       </div>
     </div>
 
-    <div id="msg" class="msg">Painel carregado.</div>
+    <div id="msg" class="msg" role="status" aria-live="polite">Painel carregado.</div>
   </main>
 
 <script src="./panel-config.js"></script>
@@ -1651,8 +1651,11 @@ function esc(value) {
 
 function show(text, error = false) {
   const el = $('msg');
+  clearTimeout(show.hideTimer);
   el.textContent = text;
-  el.className = error ? 'msg err' : 'msg';
+  el.className = error ? 'msg err visible' : 'msg visible';
+  el.setAttribute('role', error ? 'alert' : 'status');
+  show.hideTimer = setTimeout(() => el.classList.remove('visible'), error ? 7000 : 3200);
 }
 
 function setTab(tab) {
@@ -1853,41 +1856,78 @@ async function loadAll() {
     return;
   }
 
+  document.body.classList.add('panel-loading');
+
   try {
-    const [customersRes, playlistsRes, devicesRes, commercialRes, auditRes] = await Promise.all([
+    const results = await Promise.allSettled([
       api('listCustomers'),
       api('listPlaylists'),
       api('listDevices'),
-      api('listCommercialData').catch(() => ({ sellers: [], plans: [], creditLedger: [] })),
-      api('listAuditLogs', { limit: 200 }).catch(() => ({ logs: [] }))
+      api('listCommercialData'),
+      api('listAuditLogs', { limit: 200 })
     ]);
 
-    customers = customersRes.customers || [];
-    playlists = playlistsRes.playlists || [];
-    devices = devicesRes.devices || [];
-    sellers = commercialRes.sellers || [];
-    plans = commercialRes.plans || [];
-    creditLedger = commercialRes.creditLedger || [];
-    auditLogs = auditRes.logs || [];
+    const [customersRes, playlistsRes, devicesRes, commercialRes, auditRes] = results;
+    const failures = [];
 
-    renderAll();
-    show('Painel atualizado.');
+    if (customersRes.status === 'fulfilled') customers = customersRes.value?.customers || [];
+    else failures.push('clientes');
+
+    if (playlistsRes.status === 'fulfilled') playlists = playlistsRes.value?.playlists || [];
+    else failures.push('listas');
+
+    if (devicesRes.status === 'fulfilled') devices = devicesRes.value?.devices || [];
+    else failures.push('aparelhos');
+
+    if (commercialRes.status === 'fulfilled') {
+      sellers = commercialRes.value?.sellers || [];
+      plans = commercialRes.value?.plans || [];
+      creditLedger = commercialRes.value?.creditLedger || [];
+    } else {
+      failures.push('comercial');
+    }
+
+    if (auditRes.status === 'fulfilled') auditLogs = auditRes.value?.logs || [];
+    else failures.push('histórico');
+
+    failures.push(...renderAll());
+
+    if (failures.length) {
+      show(`Painel carregado parcialmente. Não foi possível atualizar: ${failures.join(', ')}.`, true);
+    } else {
+      show('Painel atualizado.');
+    }
   } catch (err) {
     show(err.message || 'Erro ao carregar painel.', true);
+  } finally {
+    document.body.classList.remove('panel-loading');
   }
 }
 
 function renderAll() {
-  renderStats();
-  renderFilters();
-  renderDashboard();
-  renderCommercial();
-  renderSellerReports();
-  renderCustomers();
-  renderPlaylists();
-  renderDevices();
-  renderPending();
-  renderAuditLogs();
+  const renderers = [
+    ['resumo', renderStats],
+    ['filtros', renderFilters],
+    ['visão geral', renderDashboard],
+    ['comercial', renderCommercial],
+    ['clientes', renderCustomers],
+    ['listas', renderPlaylists],
+    ['aparelhos', renderDevices],
+    ['pendências', renderPending],
+    ['histórico', renderAuditLogs],
+  ];
+  const failures = [];
+
+  renderers.forEach(([label, renderer]) => {
+    try {
+      renderer();
+    } catch (error) {
+      failures.push(label);
+      console.error(`Falha ao renderizar ${label}:`, error);
+    }
+  });
+
+  return failures;
 }
 
 function renderStats() {
