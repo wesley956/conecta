@@ -28,7 +28,11 @@
     transform var(--cinema-motion-normal) var(--cinema-ease-out) !important;
 }
 
-.roneca-exoplayer-top.opacity-0 {
+.roneca-exoplayer-top.opacity-0,
+.roneca-exoplayer-top.player-controls-hidden {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none !important;
   transform: translateY(-0.5rem);
 }
 
