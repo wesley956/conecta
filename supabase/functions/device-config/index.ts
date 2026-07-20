@@ -333,7 +333,11 @@ serve(async request => {
     });
   }
 
-  const assignments = (device.device_playlists ?? [])
+  const assignments: any[] = (device.device_playlists ?? [])
+    .map((assignment: any) => ({
+      ...assignment,
+      playlist: Array.isArray(assignment.playlist) ? assignment.playlist[0] : assignment.playlist,
+    }))
     .filter((assignment: any) => assignment.active !== false && assignment.playlist?.active !== false)
     .sort((left: any, right: any) => Number(left.priority) - Number(right.priority));
 
