@@ -1,37 +1,130 @@
 const fs = require('fs');
 
-const files = [
+const playerFiles = [
   'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/NativePlayerScreen.kt',
   'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/SeriesNativePlayerScreen.kt',
 ];
 
-function wrapHeader(source, path) {
-  if (path.includes('SeriesNative')) {
-    const original = `        SeriesPlayerHeader(
+const categoryFiles = {
+  movies: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/movies/MoviesScreen.kt',
+  series: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/series/SeriesScreen.kt',
+  channels: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/channels/ChannelsScreen.kt',
+};
+
+function replaceRequired(source, original, replacement, description, path) {
+  if (source.includes(replacement)) return source;
+  if (!source.includes(original)) {
+    throw new Error(`${description} não encontrado em ${path}`);
+  }
+  return source.replace(original, replacement);
+}
+
+function addPlayerImports(source) {
+  if (!source.includes('import android.view.View')) {
+    source = source.replace(
+      'import androidx.activity.compose.BackHandler',
+      'import android.view.View\nimport androidx.activity.compose.BackHandler',
+    );
+  }
+  if (!source.includes('import androidx.compose.ui.focus.FocusRequester')) {
+    source = source.replace(
+      'import androidx.compose.ui.focus.onFocusChanged',
+      'import androidx.compose.ui.focus.FocusRequester\nimport androidx.compose.ui.focus.focusRequester\nimport androidx.compose.ui.focus.onFocusChanged',
+    );
+  }
+  return source;
+}
+
+function patchPlayer(path) {
+  let source = fs.readFileSync(path, 'utf8');
+  const isSeries = path.includes('SeriesNative');
+  const drawerVar = isSeries ? 'episodeDrawerVisible' : 'channelDrawerVisible';
+  const headerName = isSeries ? 'SeriesPlayerHeader' : 'PlayerHeader';
+  const actionName = isSeries ? 'SeriesPlayerAction' : 'PlayerAction';
+
+  source = addPlayerImports(source);
+
+  const marker = '    BackHandler {';
+  const playerState = [
+    '    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }',
+    '    var playerControlsVisible by remember { mutableStateOf(true) }',
+    '    val headerFocusRequester = remember { FocusRequester() }',
+    '',
+  ].join('\n');
+  if (!source.includes('val headerFocusRequester = remember { FocusRequester() }')) {
+    if (!source.includes(marker)) throw new Error(`BackHandler não encontrado em ${path}`);
+    source = source.replace(marker, playerState + marker);
+  }
+
+  const oldHandler = `            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
+                    if (${drawerVar}) ${drawerVar} = false else onBack()
+                    true
+                } else false
+            },`;
+  const newHandler = `            .onPreviewKeyEvent { event ->
+                when {
+                    event.type == KeyEventType.KeyUp && event.key == Key.Back -> {
+                        if (${drawerVar}) ${drawerVar} = false else onBack()
+                        true
+                    }
+                    isTelevision &&
+                        event.type == KeyEventType.KeyDown &&
+                        event.key == Key.DirectionUp &&
+                        !${drawerVar} -> {
+                        playerViewRef?.showController()
+                        headerFocusRequester.requestFocus()
+                        true
+                    }
+                    else -> false
+                }
+            },`;
+  source = replaceRequired(source, oldHandler, newHandler, 'Tratamento principal do controle remoto', path);
+
+  const oldPlayerView = `                    isFocusable = true
+                    isFocusableInTouchMode = true
+                    requestFocus()
+                }
+            },
+            update = { playerView -> playerView.player = player },`;
+  const newPlayerView = `                    isFocusable = true
+                    isFocusableInTouchMode = true
+                    setControllerVisibilityListener(
+                        PlayerView.ControllerVisibilityListener { visibility ->
+                            playerControlsVisible = visibility == View.VISIBLE
+                        },
+                    )
+                    requestFocus()
+                    playerViewRef = this
+                }
+            },
+            update = { playerView ->
+                playerView.player = player
+                playerViewRef = playerView
+            },`;
+  source = replaceRequired(source, oldPlayerView, newPlayerView, 'Configuração do PlayerView', path);
+
+  if (isSeries) {
+    const oldHeader = `        SeriesPlayerHeader(
             seriesTitle = seriesTitle,
             currentEntry = currentEntry,
             isTelevision = isTelevision,
             onBack = onBack,
             onOpenEpisodes = { episodeDrawerVisible = true },
         )`;
-    const replacement = `        if (playerControlsVisible || episodeDrawerVisible) {
+    const newHeader = `        if (playerControlsVisible || episodeDrawerVisible) {
             SeriesPlayerHeader(
                 seriesTitle = seriesTitle,
                 currentEntry = currentEntry,
                 isTelevision = isTelevision,
+                backFocusRequester = headerFocusRequester,
                 onBack = onBack,
                 onOpenEpisodes = { episodeDrawerVisible = true },
             )
         }`;
-
-    if (!source.includes(replacement)) {
-      if (!source.includes(original)) throw new Error('Cabeçalho de séries não encontrado em ' + path);
-      source = source.replace(original, replacement);
-    }
-    return source;
-  }
-
-  const original = `        PlayerHeader(
+    source = replaceRequired(source, oldHeader, newHeader, 'Cabeçalho do player de séries', path);
+  } else {
+    const oldHeader = `        PlayerHeader(
             title = title,
             isTelevision = isTelevision,
             live = currentChannelId != null,
@@ -39,130 +132,221 @@ function wrapHeader(source, path) {
             onBack = onBack,
             onOpenChannels = { channelDrawerVisible = true },
         )`;
-  const replacement = `        if (playerControlsVisible || channelDrawerVisible) {
+    const newHeader = `        if (playerControlsVisible || channelDrawerVisible) {
             PlayerHeader(
                 title = title,
                 isTelevision = isTelevision,
                 live = currentChannelId != null,
                 hasChannelDrawer = relatedChannels.isNotEmpty(),
+                backFocusRequester = headerFocusRequester,
                 onBack = onBack,
                 onOpenChannels = { channelDrawerVisible = true },
             )
         }`;
-
-  if (!source.includes(replacement)) {
-    if (!source.includes(original)) throw new Error('Cabeçalho principal não encontrado em ' + path);
-    source = source.replace(original, replacement);
-  }
-  return source;
-}
-
-function patch(path) {
-  let source = fs.readFileSync(path, 'utf8');
-
-  if (!source.includes('import android.view.View')) {
-    source = source.replace(
-      'import androidx.activity.compose.BackHandler',
-      'import android.view.View\nimport androidx.activity.compose.BackHandler',
-    );
+    source = replaceRequired(source, oldHeader, newHeader, 'Cabeçalho do player principal', path);
   }
 
-  const marker = '    BackHandler {';
-  const playerViewState = '    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }';
-  const controlsState = '    var playerControlsVisible by remember { mutableStateOf(true) }';
+  const oldHeaderSignature = isSeries
+    ? `    isTelevision: Boolean,
+    onBack: () -> Unit,`
+    : `    hasChannelDrawer: Boolean,
+    onBack: () -> Unit,`;
+  const newHeaderSignature = isSeries
+    ? `    isTelevision: Boolean,
+    backFocusRequester: FocusRequester,
+    onBack: () -> Unit,`
+    : `    hasChannelDrawer: Boolean,
+    backFocusRequester: FocusRequester,
+    onBack: () -> Unit,`;
+  source = replaceRequired(source, oldHeaderSignature, newHeaderSignature, `Assinatura de ${headerName}`, path);
 
-  if (!source.includes(playerViewState)) {
-    source = source.replace(marker, `${playerViewState}\n${controlsState}\n\n${marker}`);
-  } else if (!source.includes(controlsState)) {
-    source = source.replace(playerViewState, `${playerViewState}\n${controlsState}`);
+  const oldBackAction = isSeries
+    ? '            SeriesPlayerAction(label = "←", onClick = onBack)'
+    : '            PlayerAction(label = "←", onClick = onBack)';
+  const newBackAction = isSeries
+    ? `            SeriesPlayerAction(
+                label = "←",
+                onClick = onBack,
+                modifier = Modifier.focusRequester(backFocusRequester),
+            )`
+    : `            PlayerAction(
+                label = "←",
+                onClick = onBack,
+                modifier = Modifier.focusRequester(backFocusRequester),
+            )`;
+  source = replaceRequired(source, oldBackAction, newBackAction, 'Botão voltar focável do cabeçalho', path);
+
+  const oldActionSignature = `private fun ${actionName}(label: String, onClick: () -> Unit) {`;
+  const newActionSignature = `private fun ${actionName}(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {`;
+  source = replaceRequired(source, oldActionSignature, newActionSignature, `Assinatura de ${actionName}`, path);
+
+  const oldActionModifier = `        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))`;
+  const newActionModifier = `        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))`;
+  const actionStart = source.indexOf(`private fun ${actionName}(`);
+  if (actionStart < 0) throw new Error(`${actionName} não encontrado em ${path}`);
+  const actionEnd = source.indexOf('\n}\n', actionStart) + 3;
+  const actionBlock = source.slice(actionStart, actionEnd);
+  if (!actionBlock.includes(newActionModifier)) {
+    if (!actionBlock.includes(oldActionModifier)) throw new Error(`Modifier de ${actionName} não encontrado em ${path}`);
+    source = source.slice(0, actionStart) + actionBlock.replace(oldActionModifier, newActionModifier) + source.slice(actionEnd);
   }
-
-  const oldHandler = `.onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
-                    if (`;
-  const handlerIndex = source.indexOf(oldHandler);
-  if (handlerIndex < 0) throw new Error('Handler principal não encontrado em ' + path);
-
-  const handlerEnd = source.indexOf('            },\n    ) {', handlerIndex);
-  if (handlerEnd < 0) throw new Error('Fim do handler não encontrado em ' + path);
-
-  const drawerVar = path.includes('SeriesNative') ? 'episodeDrawerVisible' : 'channelDrawerVisible';
-  const newHandler = `.onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
-                    if (${drawerVar}) ${drawerVar} = false else onBack()
-                    true
-                } else if (event.type == KeyEventType.KeyDown) {
-                    when (event.key) {
-                        Key.MediaPlayPause, Key.DirectionCenter, Key.Enter -> {
-                            if (player.isPlaying) player.pause() else player.play()
-                            playerViewRef?.showController()
-                            true
-                        }
-                        Key.MediaPlay -> {
-                            player.play()
-                            playerViewRef?.showController()
-                            true
-                        }
-                        Key.MediaPause -> {
-                            player.pause()
-                            playerViewRef?.showController()
-                            true
-                        }
-                        Key.DirectionLeft -> {
-                            playerViewRef?.showController()
-                            if (player.isCurrentMediaItemSeekable) {
-                                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
-                                true
-                            } else false
-                        }
-                        Key.DirectionRight -> {
-                            playerViewRef?.showController()
-                            if (player.isCurrentMediaItemSeekable) {
-                                val duration = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                                player.seekTo((player.currentPosition + 10_000L).coerceAtMost(duration))
-                                true
-                            } else false
-                        }
-                        else -> {
-                            playerViewRef?.showController()
-                            false
-                        }
-                    }
-                } else false
-`;
-
-  source = source.slice(0, handlerIndex) + newHandler + source.slice(handlerEnd);
-
-  const focusBlock = `                    isFocusable = true
-                    isFocusableInTouchMode = true
-                    requestFocus()`;
-  const visibilityBlock = `                    isFocusable = true
-                    isFocusableInTouchMode = true
-                    setControllerVisibilityListener(
-                        PlayerView.ControllerVisibilityListener { visibility ->
-                            playerControlsVisible = visibility == View.VISIBLE
-                        },
-                    )
-                    requestFocus()`;
-
-  if (!source.includes('PlayerView.ControllerVisibilityListener')) {
-    if (!source.includes(focusBlock)) throw new Error('Configuração de foco do PlayerView não encontrada em ' + path);
-    source = source.replace(focusBlock, visibilityBlock);
-  }
-
-  source = source.replace(
-    '                    requestFocus()\n                }',
-    '                    requestFocus()\n                    playerViewRef = this\n                }',
-  );
-  source = source.replace(
-    '            update = { playerView -> playerView.player = player },',
-    '            update = { playerView ->\n                playerView.player = player\n                playerViewRef = playerView\n            },',
-  );
-
-  source = wrapHeader(source, path);
 
   fs.writeFileSync(path, source);
 }
 
-files.forEach(patch);
-console.log('Controles de TV e cabeçalhos sincronizados nos dois players.');
+function replaceComposableFunction(source, functionName, nextFunctionName, replacement, path) {
+  if (source.includes(replacement)) return source;
+  const pattern = new RegExp(`@Composable\\nprivate fun ${functionName}\\([\\s\\S]*?\\n}\\n\\n@Composable\\nprivate fun ${nextFunctionName}\\(`);
+  if (!pattern.test(source)) throw new Error(`${functionName} não encontrado em ${path}`);
+  return source.replace(pattern, `${replacement}\n\n@Composable\nprivate fun ${nextFunctionName}(`);
+}
+
+function patchCategoryChips() {
+  const moviePath = categoryFiles.movies;
+  let movies = fs.readFileSync(moviePath, 'utf8');
+  const movieReplacement = `@Composable
+private fun MovieCategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    else -> RonecaColors.Surface
+                },
+            )
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    selected -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
+                shape = RoundedCornerShape(999.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = label,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                selected -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
+            fontSize = 11.sp,
+            fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
+            maxLines = 1,
+        )
+    }
+}`;
+  movies = replaceComposableFunction(movies, 'MovieCategoryChip', 'MoviePosterCard', movieReplacement, moviePath);
+  fs.writeFileSync(moviePath, movies);
+
+  const seriesPath = categoryFiles.series;
+  let series = fs.readFileSync(seriesPath, 'utf8');
+  const seriesReplacement = `@Composable
+private fun SeriesCategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    else -> RonecaColors.Surface
+                },
+            )
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    selected -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
+                shape = RoundedCornerShape(999.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = label,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                selected -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
+            fontSize = 11.sp,
+            fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
+            maxLines = 1,
+        )
+    }
+}`;
+  series = replaceComposableFunction(series, 'SeriesCategoryChip', 'SeriesPosterCard', seriesReplacement, seriesPath);
+  fs.writeFileSync(seriesPath, series);
+
+  const channelPath = categoryFiles.channels;
+  let channels = fs.readFileSync(channelPath, 'utf8');
+  const channelReplacement = `@Composable
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    else -> RonecaColors.Surface
+                },
+            )
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    selected -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
+                shape = RoundedCornerShape(999.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = label,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                selected -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
+            fontSize = 11.sp,
+            fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
+            maxLines = 1,
+        )
+    }
+}`;
+  channels = replaceComposableFunction(channels, 'FilterChip', 'ChannelItem', channelReplacement, channelPath);
+  fs.writeFileSync(channelPath, channels);
+}
+
+playerFiles.forEach(patchPlayer);
+patchCategoryChips();
+console.log('Navegação da TV e indicação visual de foco aplicadas ao aplicativo nativo.');
