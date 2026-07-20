@@ -70,7 +70,9 @@
 
     const card = document.createElement('div');
     card.id = 'sellerListsCard';
-    card.className = 'card seller-playlists-card';
+    card.className = 'card seller-playlists-card seller-portal-section';
+    card.dataset.sellerSection = 'lists';
+    card.hidden = true;
     card.innerHTML = `
       <div class="seller-playlist-head">
         <div>
@@ -113,6 +115,7 @@
     `;
 
     anchor.insertAdjacentElement('afterend', card);
+    window.sellerPortalRefreshNavigation?.();
   }
 
   function renderPlaylists() {
@@ -212,6 +215,7 @@
         originalRenderPortal(data);
         listsData = data;
         ensureListsCard();
+        window.sellerPortalRefreshNavigation?.();
         renderPlaylists();
       };
     }

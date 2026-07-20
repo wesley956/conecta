@@ -387,6 +387,7 @@ body.admin-v2 .admin-page-badge {
 }
 
 body.admin-v2 .section {
+  display: none !important;
   grid-column: 2;
   grid-row: 3;
   width: 100%;
@@ -397,6 +398,16 @@ body.admin-v2 .section {
 
 body.admin-v2 .section.active {
   display: block !important;
+}
+
+body.admin-v2 .section > .grid {
+  width: 100%;
+  min-width: 0;
+  align-items: start;
+}
+
+body.admin-v2 .section .card {
+  min-width: 0;
 }
 
 body.admin-v2 .card,
@@ -792,11 +803,31 @@ body.admin-v2 .modal {
   background: rgba(0, 0, 0, .76) !important;
 }
 
-body.admin-v2 .msg {
+body.admin-v2 #msg {
+  position: fixed !important;
+  right: 18px;
+  bottom: 18px;
   z-index: 10001;
+  width: min(430px, calc(100vw - 36px));
+  margin: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
   border-color: var(--panel-line) !important;
   background: #18181b !important;
   color: var(--panel-text) !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .38) !important;
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+body.admin-v2 #msg.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body.admin-v2.panel-loading .topbar .actions button:first-child {
+  cursor: wait;
+  opacity: .65;
 }
 
 body.admin-v2.admin-login-v2 .screen {
@@ -916,6 +947,19 @@ body.seller-v2 #loginView {
 body.seller-v2 #dashboardView > .card,
 body.seller-v2 #dashboardView > [id$="Card"] {
   scroll-margin-top: 76px;
+}
+
+body.seller-v2 .seller-portal-section[hidden] {
+  display: none !important;
+}
+
+body.seller-v2 .seller-portal-section:not([hidden]) {
+  animation: seller-section-enter .18s ease-out;
+}
+
+@keyframes seller-section-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 body.seller-v2 .seller-v2-overview {
