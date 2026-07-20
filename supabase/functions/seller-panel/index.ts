@@ -206,6 +206,37 @@ async function getAllowedSellerPlaylist(supabase: any, sellerId: string, playlis
   return playlist;
 }
 
+async function setSellerDeviceBackupPlaylist(
+  supabase: any,
+  sellerId: string,
+  deviceId: string,
+  primaryPlaylistId: string,
+  backupPlaylistId: string | null,
+) {
+  if (backupPlaylistId === primaryPlaylistId) {
+    throw new Error('A lista reserva deve ser diferente da lista principal.');
+  }
+
+  if (backupPlaylistId) {
+    await getAllowedSellerPlaylist(supabase, sellerId, backupPlaylistId);
+  }
+
+  const { error: deleteError } = await supabase
+    .from('panel_device_playlists')
+    .delete()
+    .eq('device_id', deviceId)
+    .eq('priority', 2);
+
+  if (deleteError) throw new Error(`Falha ao atualizar lista reserva: ${deleteError.message}`);
+  if (!backupPlaylistId) return;
+
+  const { error: insertError } = await supabase
+    .from('panel_device_playlists')
+    .insert({ device_id: deviceId, playlist_id: backupPlaylistId, priority: 2, active: true });
+
+  if (insertError) throw new Error(`Falha ao salvar lista reserva: ${insertError.message}`);
+}
+
 async function triggerPlaylistCache(playlistId: string) {
   const adminToken = Deno.env.get('ADMIN_PANEL_TOKEN') || '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -346,6 +377,12 @@ async function upsertSellerCustomer(
 }
 
 function normalizeDevice(device: any) {
+  const assignments = (device.device_playlists ?? [])
+    .filter((assignment: any) => assignment.active !== false)
+    .sort((a: any, b: any) => Number(a.priority) - Number(b.priority));
+  const primary = assignments.find((assignment: any) => Number(assignment.priority) === 1)?.playlist;
+  const backup = assignments.find((assignment: any) => Number(assignment.priority) === 2)?.playlist;
+
   return {
     id: device.id,
     deviceCode: device.device_code,
@@ -365,8 +402,10 @@ function normalizeDevice(device: any) {
     planName: device.plan?.name || null,
     planDurationDays: device.plan?.duration_days ?? null,
     planCreditCost: device.plan?.credit_cost ?? null,
-    playlistId: device.playlist?.id || device.playlist_id || null,
-    playlistName: device.playlist?.name || null,
+    playlistId: primary?.id || device.playlist?.id || device.playlist_id || null,
+    playlistName: primary?.name || device.playlist?.name || null,
+    backupPlaylistId: backup?.id || null,
+    backupPlaylistName: backup?.name || null,
   };
 }
 
@@ -405,6 +444,16 @@ async function getDashboard(supabase: any, seller: any) {
         id,
         name,
         active
+      ),
+      device_playlists:panel_device_playlists (
+        priority,
+        active,
+        playlist:panel_playlists (
+          id,
+          name,
+          active,
+          playlist_cache_status
+        )
       )
     `)
     .eq('seller_id', seller.id)
@@ -514,6 +563,11 @@ async function getSellerDeviceByCode(supabase: any, seller: any, deviceCode: str
         id,
         name,
         active
+      ),
+      device_playlists:panel_device_playlists (
+        priority,
+        active,
+        playlist:panel_playlists (id, name, active, playlist_cache_status)
       )
     `)
     .eq('device_code', deviceCode)
@@ -545,6 +599,11 @@ async function getOwnedDevice(supabase: any, seller: any, deviceId: string) {
         name,
         duration_days,
         credit_cost
+      ),
+      device_playlists:panel_device_playlists (
+        priority,
+        active,
+        playlist:panel_playlists (id, name, active, playlist_cache_status)
       )
     `)
     .eq('id', deviceId)
@@ -731,6 +790,9 @@ serve(async (req) => {
 
       const plan = await getActivePlanForCharge(supabase, textOrNull(body.planId));
       const playlist = await getAllowedSellerPlaylist(supabase, seller.id, textOrNull(body.playlistId));
+      const backupPlaylistId = textOrNull(body.backupPlaylistId);
+      if (backupPlaylistId === playlist.id) return json({ error: 'A lista reserva deve ser diferente da lista principal.' }, 400);
+      if (backupPlaylistId) await getAllowedSellerPlaylist(supabase, seller.id, backupPlaylistId);
       const device = await getSellerDeviceByCode(supabase, seller, deviceCode);
 
       if (!device) return json({ error: 'Aparelho não encontrado. Confira o código enviado pelo cliente.' }, 404);
@@ -751,6 +813,7 @@ serve(async (req) => {
         type: 'activation',
         idempotencyKey,
       });
+      await setSellerDeviceBackupPlaylist(supabase, seller.id, device.id, playlist.id, backupPlaylistId);
 
       return json({
         ok: true,
@@ -761,6 +824,7 @@ serve(async (req) => {
         planName: plan.name,
         playlistId: playlist.id,
         playlistName: playlist.name,
+        backupPlaylistId,
         expiresAt,
         creditConsumption,
         message: creditConsumption.applied
@@ -775,6 +839,14 @@ serve(async (req) => {
       const plan = await getActivePlanForCharge(supabase, textOrNull(body.planId) || device.plan_id || null);
       const playlistId = textOrNull(body.playlistId) || device.playlist_id || null;
       const playlist = await getAllowedSellerPlaylist(supabase, seller.id, playlistId);
+      const currentBackup = (device.device_playlists ?? []).find(
+        (assignment: any) => Number(assignment.priority) === 2 && assignment.active !== false,
+      );
+      const backupPlaylistId = 'backupPlaylistId' in body
+        ? textOrNull(body.backupPlaylistId)
+        : (currentBackup?.playlist?.id || null);
+      if (backupPlaylistId === playlist.id) return json({ error: 'A lista reserva deve ser diferente da lista principal.' }, 400);
+      if (backupPlaylistId) await getAllowedSellerPlaylist(supabase, seller.id, backupPlaylistId);
       const customer = Array.isArray(device.customer) ? device.customer[0] ?? null : device.customer;
       const customerName = customer?.name || null;
       const expiresAt = requiredText(body.expiresAt, 'Data de expiração');
@@ -792,6 +864,7 @@ serve(async (req) => {
         type: 'renewal',
         idempotencyKey,
       });
+      await setSellerDeviceBackupPlaylist(supabase, seller.id, device.id, playlist.id, backupPlaylistId);
 
       return json({
         ok: true,

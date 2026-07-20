@@ -170,8 +170,12 @@
             <select id="sellerActivationPlan"></select>
           </div>
           <div>
-            <label for="sellerActivationPlaylist">Lista liberada</label>
+            <label for="sellerActivationPlaylist">Lista principal</label>
             <select id="sellerActivationPlaylist"></select>
+          </div>
+          <div>
+            <label for="sellerActivationBackupPlaylist">Lista reserva (opcional)</label>
+            <select id="sellerActivationBackupPlaylist"></select>
           </div>
           <div class="wide">
             <label for="sellerActivationExpiresAt">Validade opcional</label>
@@ -238,8 +242,10 @@
 
     const planSelect = $('sellerActivationPlan');
     const playlistSelect = $('sellerActivationPlaylist');
+    const backupPlaylistSelect = $('sellerActivationBackupPlaylist');
     if (planSelect) planSelect.innerHTML = planOptions(planSelect.value);
     if (playlistSelect) playlistSelect.innerHTML = playlistOptions(playlistSelect.value);
+    if (backupPlaylistSelect) backupPlaylistSelect.innerHTML = playlistOptions(backupPlaylistSelect.value).replace('Escolha uma lista liberada', 'Sem lista reserva');
 
     if (renderTable) renderSellerUxDevicesTable();
     return data;
@@ -304,7 +310,7 @@
             <div class="seller-device-meta">
               <div><small>Plano</small><span>${esc(device.planName || 'Sem plano')}</span></div>
               <div><small>Validade</small><span>${fmtDate(device.expiresAt)}</span>${validityText(device)}</div>
-              <div><small>Lista</small><span>${esc(device.playlistName || 'Sem lista')}</span></div>
+              <div><small>Listas</small><span>${esc(device.playlistName || 'Sem lista')}</span><span class="small muted">Reserva: ${esc(device.backupPlaylistName || 'Não configurada')}</span></div>
               <div><small>Último acesso</small><span>${fmtDate(device.lastSeenAt)}</span></div>
             </div>
             <div class="seller-device-actions">
@@ -378,6 +384,7 @@
     $('sellerActivationCustomerWhatsapp').value = lookupDevice.customerWhatsapp || '';
     $('sellerActivationPlan').innerHTML = planOptions(lookupDevice.planId || '');
     $('sellerActivationPlaylist').innerHTML = playlistOptions(lookupDevice.playlistId || '');
+    $('sellerActivationBackupPlaylist').innerHTML = playlistOptions(lookupDevice.backupPlaylistId || '').replace('Escolha uma lista liberada', 'Sem lista reserva');
   };
 
   window.sellerUxCloseActivationForm = function sellerUxCloseActivationForm() {
@@ -402,8 +409,10 @@
         customerWhatsapp: $('sellerActivationCustomerWhatsapp').value.trim(),
         planId: $('sellerActivationPlan').value,
         playlistId: $('sellerActivationPlaylist').value,
+        backupPlaylistId: $('sellerActivationBackupPlaylist').value,
         expiresAtInput: $('sellerActivationExpiresAt').value || '',
       };
+      if (input.playlistId && input.playlistId === input.backupPlaylistId) throw new Error('Escolha listas principal e reserva diferentes.');
 
       activationAttempt = ensureAttempt(
         activationAttempt,
@@ -418,6 +427,7 @@
         customerWhatsapp: input.customerWhatsapp,
         planId: input.planId,
         playlistId: input.playlistId,
+        backupPlaylistId: input.backupPlaylistId,
         expiresAt: activationAttempt.expiresAt,
         idempotencyKey: activationAttempt.key,
       });
@@ -448,7 +458,8 @@
           <div class="seller-detail-box"><small>Status</small>${badge(device.status)}</div>
           <div class="seller-detail-box"><small>Cliente</small><strong>${esc(device.customerName || 'Sem cliente')}</strong><br><span class="muted">${esc(device.customerWhatsapp || '')}</span></div>
           <div class="seller-detail-box"><small>Plano</small><strong>${esc(device.planName || 'Sem plano')}</strong><br><span class="muted">${esc(device.planCreditCost ? device.planCreditCost + ' crédito(s)' : '')}</span></div>
-          <div class="seller-detail-box"><small>Lista</small><strong>${esc(device.playlistName || 'Sem lista')}</strong></div>
+          <div class="seller-detail-box"><small>Lista principal</small><strong>${esc(device.playlistName || 'Sem lista')}</strong></div>
+          <div class="seller-detail-box"><small>Lista reserva</small><strong>${esc(device.backupPlaylistName || 'Não configurada')}</strong></div>
           <div class="seller-detail-box"><small>Validade</small><strong>${fmtDate(device.expiresAt)}</strong><br>${validityText(device)}</div>
           <div class="seller-detail-box"><small>UUID</small><strong class="mono">${esc(device.deviceUuid || '—')}</strong></div>
           <div class="seller-detail-box"><small>Último acesso</small><strong>${fmtDate(device.lastSeenAt)}</strong></div>
@@ -473,8 +484,12 @@
             <select id="sellerRenewPlan">${planOptions(device.planId || '')}</select>
           </div>
           <div>
-            <label for="sellerRenewPlaylist">Lista</label>
+            <label for="sellerRenewPlaylist">Lista principal</label>
             <select id="sellerRenewPlaylist">${playlistOptions(device.playlistId || '')}</select>
+          </div>
+          <div>
+            <label for="sellerRenewBackupPlaylist">Lista reserva (opcional)</label>
+            <select id="sellerRenewBackupPlaylist">${playlistOptions(device.backupPlaylistId || '').replace('Escolha uma lista liberada', 'Sem lista reserva')}</select>
           </div>
           <div class="wide">
             <label for="sellerRenewExpiresAt">Validade opcional</label>
@@ -497,8 +512,10 @@
         deviceId: renewDeviceTarget.id,
         planId: $('sellerRenewPlan').value,
         playlistId: $('sellerRenewPlaylist').value,
+        backupPlaylistId: $('sellerRenewBackupPlaylist').value,
         expiresAtInput: $('sellerRenewExpiresAt').value || '',
       };
+      if (input.playlistId && input.playlistId === input.backupPlaylistId) throw new Error('Escolha listas principal e reserva diferentes.');
 
       renewalAttempt = ensureAttempt(
         renewalAttempt,
@@ -511,6 +528,7 @@
         deviceId: input.deviceId,
         planId: input.planId,
         playlistId: input.playlistId,
+        backupPlaylistId: input.backupPlaylistId,
         expiresAt: renewalAttempt.expiresAt,
         idempotencyKey: renewalAttempt.key,
       });
@@ -582,8 +600,10 @@
         patchFilters();
         const planSelect = $('sellerActivationPlan');
         const playlistSelect = $('sellerActivationPlaylist');
+        const backupPlaylistSelect = $('sellerActivationBackupPlaylist');
         if (planSelect) planSelect.innerHTML = planOptions(planSelect.value);
         if (playlistSelect) playlistSelect.innerHTML = playlistOptions(playlistSelect.value);
+        if (backupPlaylistSelect) backupPlaylistSelect.innerHTML = playlistOptions(backupPlaylistSelect.value).replace('Escolha uma lista liberada', 'Sem lista reserva');
         setTimeout(renderSellerUxDevicesTable, 0);
       };
     }

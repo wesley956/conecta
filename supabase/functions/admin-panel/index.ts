@@ -109,6 +109,73 @@ function createSellerAccessToken() {
   return crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
 }
 
+async function triggerPlaylistCache(playlistId: string) {
+  const adminToken = Deno.env.get('ADMIN_PANEL_TOKEN') || '';
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+
+  if (!adminToken || !supabaseUrl) {
+    return { ok: false, skipped: true, error: 'Geração automática de cache não configurada.' };
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/playlist-cache`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-admin-token': adminToken,
+    },
+    body: JSON.stringify({ action: 'refresh', playlistId }),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    return { ok: false, error: data.error || data.message || `Falha HTTP ${response.status} ao gerar cache.` };
+  }
+
+  return data;
+}
+
+async function setDeviceBackupPlaylist(
+  supabase: any,
+  deviceId: string,
+  primaryPlaylistId: string | null,
+  backupPlaylistId: string | null,
+) {
+  if (primaryPlaylistId && backupPlaylistId && primaryPlaylistId === backupPlaylistId) {
+    throw new Error('A lista reserva precisa ser diferente da lista principal.');
+  }
+
+  const { error: clearError } = await supabase
+    .from('panel_device_playlists')
+    .delete()
+    .eq('device_id', deviceId)
+    .eq('priority', 2);
+  if (clearError) throw new Error(`Falha ao atualizar a lista reserva: ${clearError.message}`);
+
+  if (!backupPlaylistId) return;
+
+  const { data: backup, error: playlistError } = await supabase
+    .from('panel_playlists')
+    .select('id, active')
+    .eq('id', backupPlaylistId)
+    .maybeSingle();
+  if (playlistError || !backup) throw new Error(`Lista reserva não encontrada: ${playlistError?.message || 'não encontrada'}`);
+  if (!backup.active) throw new Error('A lista reserva está inativa.');
+
+  const { error: insertError } = await supabase
+    .from('panel_device_playlists')
+    .insert({
+      device_id: deviceId,
+      playlist_id: backupPlaylistId,
+      priority: 2,
+      active: true,
+      consecutive_failures: 0,
+      cooldown_until: null,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    });
+  if (insertError) throw new Error(`Falha ao vincular a lista reserva: ${insertError.message}`);
+}
+
 
 function timestampOrZero(value: unknown) {
   if (!value) return 0;
@@ -267,6 +334,7 @@ serve(async (req) => {
           reference_id,
           description,
           balance_after,
+          seller_name_snapshot,
           performed_by,
           created_at,
           seller:panel_sellers (
@@ -306,7 +374,7 @@ serve(async (req) => {
         creditLedger: (ledger ?? []).map((entry: any) => ({
           id: entry.id,
           sellerId: entry.seller_id,
-          sellerName: entry.seller?.name || null,
+          sellerName: entry.seller?.name || entry.seller_name_snapshot || 'Vendedor excluído',
           amount: entry.amount,
           type: entry.type,
           referenceId: entry.reference_id,
@@ -413,6 +481,23 @@ serve(async (req) => {
       });
 
       return json({ ok: true });
+    }
+
+    if (action === 'refreshPlaylistCache') {
+      const id = requiredText(body.id || body.playlistId, 'ID da lista');
+      const { error: stateError } = await supabase
+        .from('panel_playlists')
+        .update({ playlist_cache_status: 'processing', playlist_cache_error: null })
+        .eq('id', id)
+        .eq('active', true);
+      if (stateError) return json({ error: stateError.message }, 500);
+
+      const cache = await triggerPlaylistCache(id);
+      return json({
+        ok: cache.ok === true,
+        cache,
+        message: cache.ok ? 'Cache atualizado com sucesso.' : (cache.error || 'Não foi possível gerar o cache.'),
+      }, cache.ok ? 200 : 502);
     }
 
     if (action === 'addSellerCredits') {
@@ -755,6 +840,23 @@ serve(async (req) => {
             playlist_type,
             active,
             playlist_updated_at
+          ),
+          device_playlists:panel_device_playlists (
+            priority,
+            active,
+            consecutive_failures,
+            last_success_at,
+            last_failure_at,
+            cooldown_until,
+            last_error,
+            playlist:panel_playlists (
+              id,
+              name,
+              active,
+              playlist_cache_status,
+              playlist_cache_updated_at,
+              playlist_cache_error
+            )
           )
         `)
         .order('created_at', { ascending: false });
@@ -762,7 +864,14 @@ serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
 
       return json({
-        devices: (data ?? []).map((device: any) => ({
+        devices: (data ?? []).map((device: any) => {
+          const assignments = (device.device_playlists ?? [])
+            .filter((assignment: any) => assignment.active !== false && assignment.playlist)
+            .sort((left: any, right: any) => Number(left.priority) - Number(right.priority));
+          const primary = assignments.find((assignment: any) => Number(assignment.priority) === 1);
+          const backup = assignments.find((assignment: any) => Number(assignment.priority) === 2);
+
+          return ({
           id: device.id,
           deviceCode: device.device_code,
           deviceUuid: device.device_uuid,
@@ -778,7 +887,8 @@ serve(async (req) => {
           planDurationDays: device.plan?.duration_days ?? null,
           planCreditCost: device.plan?.credit_cost ?? null,
           status: device.status,
-          playlistId: device.playlist_id,
+          playlistId: primary?.playlist?.id || device.playlist_id,
+          backupPlaylistId: backup?.playlist?.id || null,
           expiresAt: device.subscription_expires_at,
           lastSeenAt: device.last_seen_at,
           createdAt: device.created_at,
@@ -786,29 +896,49 @@ serve(async (req) => {
           deviceType: device.device_type || 'androidtv',
           appVersion: device.app_version || '',
           ip: device.last_ip || '',
-          playlistName: device.playlist?.name || null,
-        })),
+          playlistName: primary?.playlist?.name || device.playlist?.name || null,
+          playlistCacheStatus: primary?.playlist?.playlist_cache_status || null,
+          backupPlaylistName: backup?.playlist?.name || null,
+          backupPlaylistCacheStatus: backup?.playlist?.playlist_cache_status || null,
+          backupPlaylistCooldownUntil: backup?.cooldown_until || null,
+          backupPlaylistLastError: backup?.last_error || null,
+        });
+        }),
       });
     }
 
     if (action === 'listPlaylists') {
       const { data: playlists, error } = await supabase
         .from('panel_playlists')
-        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, created_at')
+        .select(`
+          id,
+          name,
+          playlist_url,
+          playlist_type,
+          active,
+          playlist_updated_at,
+          playlist_cache_status,
+          playlist_cache_updated_at,
+          playlist_cache_item_count,
+          playlist_cache_size_bytes,
+          playlist_cache_error,
+          created_at
+        `)
         .order('created_at', { ascending: false });
 
       if (error) return json({ error: error.message }, 500);
 
-      const { data: devices, error: devicesError } = await supabase
-        .from('panel_devices')
-        .select('id, playlist_id');
+      const { data: assignments, error: devicesError } = await supabase
+        .from('panel_device_playlists')
+        .select('device_id, playlist_id')
+        .eq('active', true);
 
       if (devicesError) return json({ error: devicesError.message }, 500);
 
       const counts = new Map<string, number>();
-      for (const device of devices ?? []) {
-        if (!device.playlist_id) continue;
-        counts.set(device.playlist_id, (counts.get(device.playlist_id) ?? 0) + 1);
+      for (const assignment of assignments ?? []) {
+        if (!assignment.playlist_id) continue;
+        counts.set(assignment.playlist_id, (counts.get(assignment.playlist_id) ?? 0) + 1);
       }
 
       return json({
@@ -819,6 +949,11 @@ serve(async (req) => {
           playlistType: playlist.playlist_type,
           active: playlist.active,
           playlistUpdatedAt: playlist.playlist_updated_at,
+          cacheStatus: playlist.playlist_cache_status || 'missing',
+          cacheUpdatedAt: playlist.playlist_cache_updated_at,
+          cacheItemCount: playlist.playlist_cache_item_count || 0,
+          cacheSizeBytes: playlist.playlist_cache_size_bytes || 0,
+          cacheError: playlist.playlist_cache_error || null,
           createdAt: playlist.created_at,
           devicesCount: counts.get(playlist.id) ?? 0,
         })),
@@ -840,6 +975,11 @@ serve(async (req) => {
           plan_id,
           playlist_id,
           subscription_expires_at,
+          device_playlists:panel_device_playlists (
+            playlist_id,
+            priority,
+            active
+          ),
           customer:panel_customers (
             id,
             name
@@ -869,6 +1009,12 @@ serve(async (req) => {
       const nextSellerId = 'sellerId' in body ? textOrNull(body.sellerId) : (currentDevice.seller_id || null);
       const nextPlanId = 'planId' in body ? textOrNull(body.planId) : (currentDevice.plan_id || null);
       const nextPlaylistId = 'playlistId' in body ? textOrNull(body.playlistId) : (currentDevice.playlist_id || null);
+      const currentBackup = (currentDevice.device_playlists ?? []).find(
+        (assignment: any) => Number(assignment.priority) === 2 && assignment.active !== false,
+      );
+      const nextBackupPlaylistId = 'backupPlaylistId' in body
+        ? textOrNull(body.backupPlaylistId)
+        : (currentBackup?.playlist_id || null);
       const nextCustomerId = 'customerId' in body ? textOrNull(body.customerId) : (currentDevice.customer_id || null);
       const previousExpiresAt = currentDevice.subscription_expires_at || null;
       const nextExpiresAt = 'expiresAt' in body ? textOrNull(body.expiresAt) : previousExpiresAt;
@@ -876,6 +1022,22 @@ serve(async (req) => {
 
       if (requestedOperation && !['activation', 'renewal'].includes(requestedOperation)) {
         return json({ error: 'Tipo de operação comercial inválido.' }, 400);
+      }
+
+      if (nextPlaylistId && nextBackupPlaylistId && nextPlaylistId === nextBackupPlaylistId) {
+        return json({ error: 'A lista reserva precisa ser diferente da lista principal.' }, 400);
+      }
+
+      if (nextBackupPlaylistId) {
+        const { data: backupPlaylist, error: backupError } = await supabase
+          .from('panel_playlists')
+          .select('id, active')
+          .eq('id', nextBackupPlaylistId)
+          .maybeSingle();
+        if (backupError || !backupPlaylist) {
+          return json({ error: `Lista reserva não encontrada: ${backupError?.message || 'não encontrada'}` }, 400);
+        }
+        if (!backupPlaylist.active) return json({ error: 'A lista reserva está inativa.' }, 400);
       }
 
       if (
@@ -938,6 +1100,10 @@ serve(async (req) => {
         if (error) return json({ error: error.message }, 500);
       }
 
+      if ('backupPlaylistId' in body || 'playlistId' in body) {
+        await setDeviceBackupPlaylist(supabase, id, nextPlaylistId, nextBackupPlaylistId);
+      }
+
       const auditAction = operationType === 'activation'
         ? 'device.activated'
         : (operationType === 'renewal' ? 'device.renewed' : 'device.updated');
@@ -952,7 +1118,7 @@ serve(async (req) => {
         entityType: 'device',
         entityId: id,
         description: auditDescription,
-        metadata: { updates, operationType, creditConsumption },
+        metadata: { updates, backupPlaylistId: nextBackupPlaylistId, operationType, creditConsumption },
       });
 
       return json({
@@ -1005,6 +1171,10 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      const cache = body.active === false
+        ? { ok: false, skipped: true, error: 'Lista inativa.' }
+        : await triggerPlaylistCache(data.id);
+
       await writeAudit(supabase, {
         action: 'playlist.created',
         entityType: 'playlist',
@@ -1013,7 +1183,14 @@ serve(async (req) => {
         metadata: { name, playlistUrl, playlistType },
       });
 
-      return json({ ok: true, id: data?.id });
+      return json({
+        ok: true,
+        id: data?.id,
+        cache,
+        message: cache.ok
+          ? 'Lista criada e cache gerado.'
+          : `Lista criada, mas o cache ainda não ficou pronto. ${cache.error || ''}`.trim(),
+      });
     }
 
     if (action === 'updatePlaylist') {
@@ -1035,6 +1212,10 @@ serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
 
+      const cache = updates.active === false
+        ? { ok: false, skipped: true, error: 'Lista inativa.' }
+        : await triggerPlaylistCache(id);
+
       await writeAudit(supabase, {
         action: 'playlist.updated',
         entityType: 'playlist',
@@ -1043,16 +1224,43 @@ serve(async (req) => {
         metadata: { updates },
       });
 
-      return json({ ok: true });
+      return json({
+        ok: true,
+        cache,
+        message: cache.ok
+          ? 'Lista atualizada e cache renovado.'
+          : `Lista atualizada, mas o cache ainda não ficou pronto. ${cache.error || ''}`.trim(),
+      });
     }
 
     if (action === 'deletePlaylist') {
       const id = requiredText(body.id, 'ID da lista');
 
-      await supabase
-        .from('panel_devices')
-        .update({ playlist_id: null, updated_at: new Date().toISOString() })
-        .eq('playlist_id', id);
+      const { data: primaryAssignments, error: assignmentError } = await supabase
+        .from('panel_device_playlists')
+        .select('device_id')
+        .eq('playlist_id', id)
+        .eq('priority', 1);
+      if (assignmentError) return json({ error: assignmentError.message }, 500);
+
+      for (const assignment of primaryAssignments ?? []) {
+        const { data: backup } = await supabase
+          .from('panel_device_playlists')
+          .select('playlist_id')
+          .eq('device_id', assignment.device_id)
+          .eq('priority', 2)
+          .eq('active', true)
+          .maybeSingle();
+
+        const { error: promoteError } = await supabase
+          .from('panel_devices')
+          .update({
+            playlist_id: backup?.playlist_id || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', assignment.device_id);
+        if (promoteError) return json({ error: promoteError.message }, 500);
+      }
 
       const { error } = await supabase
         .from('panel_playlists')

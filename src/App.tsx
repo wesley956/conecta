@@ -8,7 +8,7 @@ import {
 import { useAppStore } from '@/stores/appStore';
 import { useTvRemoteNavigation } from '@/hooks/useTvRemoteNavigation';
 import { fetchM3UContent } from '@/utils/fetchM3U';
-import { fetchDevicePanelConfig, isDevicePanelEnabled } from '@/utils/devicePanel';
+import { fetchDevicePanelConfig, isDevicePanelEnabled, reportDevicePlaylistHealth } from '@/utils/devicePanel';
 import { loadContentCache, saveContentCache } from '@/utils/contentCache';
 import { canUsePanelCacheParts, fetchPanelPlaylistCache, fetchPanelPlaylistCacheParts, type PanelPlaylistCacheSnapshot } from '@/utils/panelPlaylistCache';
 import { scheduleXtreamSeriesPrewarm } from '@/utils/deferredXtreamPrewarm';
@@ -324,6 +324,9 @@ function DevicePanelSync() {
     async function syncFromPanel() {
       syncingRef.current = true;
       const { setScreen, setDeviceActivated, setSubscription, setActiveNotice } = useAppStore.getState();
+      let attemptedPlaylistId = '';
+      let attemptedPlaylistPriority = 1;
+      let hasAlternativePlaylist = false;
 
       try {
         const activeDeviceCode = String(deviceCode || '').trim();
@@ -353,6 +356,11 @@ function DevicePanelSync() {
           return;
         }
 
+        attemptedPlaylistId = String(config.selectedPlaylistId || '').trim();
+        const attemptedPlaylist = config.playlists?.find(item => item.id === attemptedPlaylistId);
+        attemptedPlaylistPriority = Number(attemptedPlaylist?.priority || 1);
+        hasAlternativePlaylist = Boolean(config.playlists?.some(item => item.id !== attemptedPlaylistId));
+
         setDeviceActivated(true);
 
         if (config.expiresAt) {
@@ -375,6 +383,7 @@ function DevicePanelSync() {
         const panelMarkerKey = `ronecaplaytv-panel-sync-${activeDeviceCode}`;
         const cacheMarkerValue = [
           RONECA_CACHE_SYNC_VERSION,
+          attemptedPlaylistId,
           String(config.cacheVersion || ''),
           String(config.cacheUpdatedAt || ''),
           String(config.cacheItemCount || ''),
@@ -382,6 +391,7 @@ function DevicePanelSync() {
         ].join('|');
         const directMarkerValue = [
           RONECA_DIRECT_SYNC_VERSION,
+          attemptedPlaylistId,
           playlistUpdatedAt,
           playlistUrl,
         ].join('|');
@@ -486,6 +496,10 @@ function DevicePanelSync() {
 
             await saveAndMarkPanelCache(panelCache, playlistName, playlistUrl, panelMarkerKey, cacheMarkerValue);
 
+            if (attemptedPlaylistId) {
+              await reportDevicePlaylistHealth(attemptedPlaylistId, 'success');
+            }
+
             setActiveNotice(
               `✅ Cache Supabase pronto: ${panelCache.channels.length} canal(is), ` +
               `${panelCache.movies.length} filme(s) e ${panelCache.series.length} série(s).`
@@ -508,6 +522,10 @@ function DevicePanelSync() {
 
             await saveAndMarkPanelCache(panelCache, playlistName, playlistUrl, panelMarkerKey, cacheMarkerValue);
 
+            if (attemptedPlaylistId) {
+              await reportDevicePlaylistHealth(attemptedPlaylistId, 'success');
+            }
+
             setActiveNotice(
               `✅ Snapshot Supabase pronto: ${panelCache.channels.length} canal(is), ` +
               `${panelCache.movies.length} filme(s) e ${panelCache.series.length} série(s).`
@@ -529,11 +547,13 @@ function DevicePanelSync() {
                 : 'Aparelho ativo, mas nenhuma lista segura está disponível no momento.'
           );
 
-          setActiveNotice(
-            cacheErrorMessage
-              ? `Atenção: cache do painel falhou e o fallback direto está desabilitado. ${cacheErrorMessage}`
-              : secureCacheMessage
-          );
+          if (hasAlternativePlaylist && attemptedPlaylistPriority === 1) {
+            throw new Error(cacheErrorMessage || secureCacheMessage);
+          }
+
+          setActiveNotice(cacheErrorMessage
+            ? `Atenção: cache do painel falhou e o fallback direto está desabilitado. ${cacheErrorMessage}`
+            : secureCacheMessage);
           return;
         }
 
@@ -571,6 +591,9 @@ function DevicePanelSync() {
 
         localStorage.setItem(panelMarkerKey, directMarkerValue);
         clearForcedPanelSync();
+        if (attemptedPlaylistId) {
+          await reportDevicePlaylistHealth(attemptedPlaylistId, 'success');
+        }
         scheduleXtreamSeriesPrewarm(
           playlistUrl,
         );
@@ -582,7 +605,17 @@ function DevicePanelSync() {
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'Falha ao consultar painel.';
-          setActiveNotice(`Atenção: ${message}`);
+          if (attemptedPlaylistId) {
+            await reportDevicePlaylistHealth(attemptedPlaylistId, 'failure', message);
+          }
+
+          if (hasAlternativePlaylist && attemptedPlaylistPriority === 1) {
+            setActiveNotice(`⚠️ Lista principal indisponível. Ativando a lista reserva... ${message}`);
+            lastPanelSyncAtRef.current = 0;
+            setSyncPulse(value => value + 1);
+          } else {
+            setActiveNotice(`Atenção: ${message}`);
+          }
         }
       } finally {
         syncingRef.current = false;

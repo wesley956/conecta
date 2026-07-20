@@ -250,6 +250,11 @@ body.admin-v2 .tabs {
   box-shadow: none !important;
 }
 
+body.admin-v2 .tabs::before {
+  content: none !important;
+  display: none !important;
+}
+
 body.admin-v2 .admin-nav-brand {
   display: grid;
   width: 44px;

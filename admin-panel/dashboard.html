@@ -1303,6 +1303,7 @@ tbody tr:hover td {
                   <th>URL</th>
                   <th>Tipo</th>
                   <th>Ativa</th>
+                  <th>Saúde do cache</th>
                   <th>Aparelhos</th>
                   <th>Ações</th>
                 </tr>
@@ -2025,6 +2026,26 @@ function badge(status) {
   return `<span class="badge ${esc(status)}">${esc(labels[status] || status)}</span>`;
 }
 
+function playlistCacheBadge(playlist) {
+  const status = String(playlist?.cacheStatus || 'missing');
+  const labels = {
+    ready: 'Cache pronto',
+    building: 'Gerando cache',
+    processing: 'Processando',
+    error: 'Erro no cache',
+    missing: 'Sem cache'
+  };
+  const tone = status === 'ready' ? 'active' : (status === 'error' ? 'blocked' : 'pending');
+  return `<span class="badge ${tone}">${esc(labels[status] || status)}</span>`;
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (!bytes) return '0 B';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function dateInput(value) {
   if (!value) return '';
   const d = new Date(value);
@@ -2122,17 +2143,23 @@ function renderPlaylists() {
             <option value="false" ${!p.active ? 'selected' : ''}>Inativa</option>
           </select>
         </td>
+        <td>
+          ${playlistCacheBadge(p)}
+          <div class="small muted" style="margin-top:6px;">${Number(p.cacheItemCount || 0).toLocaleString('pt-BR')} itens · ${formatBytes(p.cacheSizeBytes)}</div>
+          ${p.cacheError ? `<div class="small danger-text" style="margin-top:5px;">${esc(p.cacheError)}</div>` : ''}
+        </td>
         <td>${esc(p.devicesCount || 0)}</td>
         <td>
           <div class="actions">
             <button class="btn" onclick="showPlaylistDetails('${esc(p.id)}')">Detalhes</button>
+            <button class="btn orange" onclick="refreshPlaylistCache('${esc(p.id)}')">Gerar cache</button>
             <button class="btn green" onclick="updatePlaylist('${esc(p.id)}')">Salvar</button>
             <button class="btn red" onclick="deletePlaylist('${esc(p.id)}')">Excluir</button>
           </div>
         </td>
       </tr>
     `).join('')
-    : '<tr><td colspan="6" class="muted">Nenhuma lista encontrada.</td></tr>';
+    : '<tr><td colspan="7" class="muted">Nenhuma lista encontrada.</td></tr>';
 }
 
 function renderDevices() {
@@ -2168,7 +2195,8 @@ function deviceRow(d) {
       <div class="admin-device-meta">
         <div><small>Vendedor</small><span>${esc(d.sellerName || 'Sem vendedor')}</span></div>
         <div><small>Plano</small><span>${esc(d.planName || 'Sem plano')}</span></div>
-        <div><small>Lista</small><span>${esc(d.playlistName || 'Sem lista')}</span></div>
+        <div><small>Lista principal</small><span>${esc(d.playlistName || 'Sem lista')}</span></div>
+        <div><small>Lista reserva</small><span>${esc(d.backupPlaylistName || 'Sem reserva')}</span></div>
         <div><small>Validade</small><span>${fmtDate(d.expiresAt)}</span>${validityLabel(d.expiresAt)}</div>
         <div><small>Último acesso</small><span>${fmtDate(d.lastSeenAt)}</span></div>
         <div><small>Identificador</small><span class="mono">${esc(d.deviceUuid || '—')}</span></div>
@@ -2187,7 +2215,8 @@ function deviceRow(d) {
           <label>Vendedor<select class="table-select" id="dev-seller-${esc(d.id)}">${sellerOptions(d.sellerId)}</select></label>
           <label>Plano<select class="table-select" id="dev-plan-${esc(d.id)}">${planOptions(d.planId)}</select></label>
           <label>Status<select class="table-select" id="dev-status-${esc(d.id)}">${statusOptions(d.status)}</select></label>
-          <label>Lista<select class="table-select" id="dev-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></label>
+          <label>Lista principal<select class="table-select" id="dev-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></label>
+          <label>Lista reserva<select class="table-select" id="dev-backup-playlist-${esc(d.id)}">${playlistOptions(d.backupPlaylistId)}</select></label>
           <label>Validade<input class="table-input" id="dev-exp-${esc(d.id)}" type="date" value="${dateInput(d.expiresAt)}"></label>
         </div>
         <div class="admin-device-danger-actions">
@@ -2210,7 +2239,10 @@ function pendingRow(d) {
       <td><select class="table-select" id="pend-customer-${esc(d.id)}">${customerOptions(d.customerId)}</select></td>
       <td><select class="table-select" id="pend-seller-${esc(d.id)}">${sellerOptions(d.sellerId)}</select></td>
       <td><select class="table-select" id="pend-plan-${esc(d.id)}">${planOptions(d.planId)}</select></td>
-      <td><select class="table-select" id="pend-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></td>
+      <td>
+        <label class="small">Principal<select class="table-select" id="pend-playlist-${esc(d.id)}">${playlistOptions(d.playlistId)}</select></label>
+        <label class="small">Reserva<select class="table-select" id="pend-backup-playlist-${esc(d.id)}">${playlistOptions(d.backupPlaylistId)}</select></label>
+      </td>
       <td><input class="table-input" id="pend-exp-${esc(d.id)}" type="date" value="${thirtyDaysDate()}"></td>
       <td>
         <button class="btn primary icon-btn icon-wide" title="Liberar aparelho" aria-label="Liberar aparelho" onclick="activatePending('${esc(d.id)}')">✅ Liberar</button>
@@ -2265,7 +2297,7 @@ async function deleteCustomer(id) {
 
 async function createPlaylist() {
   try {
-    await api('createPlaylist', {
+    const result = await api('createPlaylist', {
       name: $('newPlaylistName').value.trim(),
       playlistUrl: $('newPlaylistUrl').value.trim(),
       playlistType: $('newPlaylistType').value,
@@ -2277,7 +2309,7 @@ async function createPlaylist() {
     $('newPlaylistType').value = 'm3u';
 
     await loadAll();
-    show('Lista salva na biblioteca.');
+    show(result.message || 'Lista salva na biblioteca e cache solicitado.');
   } catch (err) {
     show(err.message, true);
   }
@@ -2285,7 +2317,7 @@ async function createPlaylist() {
 
 async function updatePlaylist(id) {
   try {
-    await api('updatePlaylist', {
+    const result = await api('updatePlaylist', {
       id,
       name: $('pl-name-' + id).value.trim(),
       playlistUrl: $('pl-url-' + id).value.trim(),
@@ -2294,14 +2326,26 @@ async function updatePlaylist(id) {
     });
 
     await loadAll();
-    show('Lista atualizada.');
+    show(result.message || 'Lista atualizada e cache solicitado.');
   } catch (err) {
     show(err.message, true);
   }
 }
 
+async function refreshPlaylistCache(id) {
+  try {
+    show('Gerando cache da lista...');
+    const result = await api('refreshPlaylistCache', { id });
+    await loadAll();
+    show(result.message || 'Cache atualizado.');
+  } catch (err) {
+    await loadAll();
+    show(err.message || 'Não foi possível gerar o cache.', true);
+  }
+}
+
 async function deletePlaylist(id) {
-  if (!confirm('Excluir esta lista? Aparelhos que usam essa lista ficarão sem playlist.')) return;
+  if (!confirm('Excluir esta lista? Nos aparelhos em que ela for principal, a reserva será promovida automaticamente.')) return;
 
   try {
     await api('deletePlaylist', { id });
@@ -2352,6 +2396,10 @@ async function saveDevice(id) {
     const nextPlanId = $('dev-plan-' + id).value || null;
     const nextStatus = $('dev-status-' + id).value;
     const nextPlaylistId = $('dev-playlist-' + id).value || null;
+    const nextBackupPlaylistId = $('dev-backup-playlist-' + id).value || null;
+    if (nextPlaylistId && nextBackupPlaylistId && nextPlaylistId === nextBackupPlaylistId) {
+      throw new Error('Escolha uma lista reserva diferente da principal.');
+    }
     const expiresAtInput = $('dev-exp-' + id).value || '';
     const currentExpiryInput = dateInput(device.expiresAt);
     const normalizedExpiresAt = explicitExpiry(expiresAtInput);
@@ -2380,7 +2428,8 @@ async function saveDevice(id) {
         sellerId: nextSellerId,
         planId: nextPlanId,
         status: nextStatus,
-        playlistId: nextPlaylistId
+        playlistId: nextPlaylistId,
+        backupPlaylistId: nextBackupPlaylistId
       };
 
       if (expiryChanged) {
@@ -2394,6 +2443,7 @@ async function saveDevice(id) {
           planId: nextPlanId,
           status: nextStatus,
           playlistId: nextPlaylistId,
+          backupPlaylistId: nextBackupPlaylistId,
           expiresAtInput
         };
         const attempt = ensureDeviceCommercialAttempt(
@@ -2477,6 +2527,10 @@ async function activatePending(id) {
     const sellerId = $('pend-seller-' + id).value || null;
     const planId = $('pend-plan-' + id).value || null;
     const playlistId = $('pend-playlist-' + id).value || null;
+    const backupPlaylistId = $('pend-backup-playlist-' + id).value || null;
+    if (playlistId && backupPlaylistId && playlistId === backupPlaylistId) {
+      throw new Error('Escolha uma lista reserva diferente da principal.');
+    }
     const customerId = $('pend-customer-' + id).value || null;
     const expiresAtInput = $('pend-exp-' + id).value || '';
 
@@ -2485,7 +2539,7 @@ async function activatePending(id) {
     }
 
     await withDeviceActionLock(id, 'activatePending', async () => {
-      const input = { customerId, sellerId, planId, playlistId, expiresAtInput };
+      const input = { customerId, sellerId, planId, playlistId, backupPlaylistId, expiresAtInput };
       const attempt = ensureDeviceCommercialAttempt(
         id,
         'activation',
@@ -2499,6 +2553,7 @@ async function activatePending(id) {
         sellerId,
         planId,
         playlistId,
+        backupPlaylistId,
         status: 'active',
         expiresAt: attempt.expiresAt,
         operationType: 'activation',
@@ -2663,7 +2718,7 @@ function showPlaylistDetails(id) {
     return;
   }
 
-  const linkedDevices = devices.filter(d => d.playlistId === id);
+  const linkedDevices = devices.filter(d => d.playlistId === id || d.backupPlaylistId === id);
 
   openDetails(
     'Lista',
@@ -2686,6 +2741,11 @@ function showPlaylistDetails(id) {
           <small>Aparelhos usando</small>
           <strong>${linkedDevices.length}</strong>
         </div>
+        <div class="detail-box">
+          <small>Saúde do cache</small>
+          <strong>${playlistCacheBadge(playlist)}</strong>
+          <div class="small muted">${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')} itens · ${formatBytes(playlist.cacheSizeBytes)}</div>
+        </div>
         <div class="detail-box half">
           <small>Atualizada em</small>
           <strong>${fmtDate(playlist.playlistUpdatedAt)}</strong>
@@ -2706,6 +2766,7 @@ function showPlaylistDetails(id) {
 
       <div class="detail-actions">
         <button class="btn" onclick="copyText('${esc(playlist.playlistUrl)}')">Copiar URL</button>
+        <button class="btn orange" onclick="closeDetails(); refreshPlaylistCache('${esc(playlist.id)}')">Gerar cache</button>
         <button class="btn" onclick="setTab('playlists'); closeDetails()">Editar na tabela</button>
         <button class="btn" onclick="setTab('devices'); closeDetails()">Ver aparelhos</button>
       </div>
@@ -2748,8 +2809,12 @@ function showDeviceDetails(id) {
           ${wa ? `<a class="whats-link" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
         </div>
         <div class="detail-box">
-          <small>Lista vinculada</small>
+          <small>Lista principal</small>
           <strong>${esc(device.playlistName || 'Sem lista')}</strong>
+        </div>
+        <div class="detail-box">
+          <small>Lista reserva</small>
+          <strong>${esc(device.backupPlaylistName || 'Sem reserva')}</strong>
         </div>
         <div class="detail-box">
           <small>Tipo / App</small>
@@ -2986,6 +3051,7 @@ function renderCommercial() {
             <div class="seller-inline-actions">
               <button class="btn" onclick="showSellerDetails('${esc(seller.id)}')">Detalhes</button>
               <button class="btn green" onclick="updateSeller('${esc(seller.id)}')">Salvar</button>
+              <button class="btn red" onclick="deleteSellerAccount('${esc(seller.id)}')">Excluir</button>
             </div>
           </td>
         </tr>
@@ -3453,6 +3519,7 @@ function showSellerDetails(id) {
             <button class="btn" onclick="copyText($('seller-token-${esc(seller.id)}').value)">Copiar token</button>
             <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Portal vendedor</a>
             <button class="btn green" onclick="closeDetails(); openCommercialActionModal('credits', '${esc(seller.id)}')">Adicionar créditos</button>
+            <button class="btn red" onclick="deleteSellerAccount('${esc(seller.id)}')">Excluir vendedor</button>
           </div>
         </div>
 

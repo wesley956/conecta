@@ -42,17 +42,6 @@ serve(async request => {
     if (sellerError) throw new Error(`Não foi possível localizar o vendedor: ${sellerError.message}.`);
     if (!seller) return json({ error: 'Vendedor não encontrado.' }, 404);
 
-    const { count: linkedDevices, error: devicesError } = await supabase
-      .from('panel_devices')
-      .select('id', { count: 'exact', head: true })
-      .eq('seller_id', sellerId);
-    if (devicesError) throw new Error(`Não foi possível verificar os aparelhos: ${devicesError.message}.`);
-    if ((linkedDevices || 0) > 0) {
-      return json({
-        error: `Este vendedor possui ${linkedDevices} aparelho(s) vinculado(s). Reatribua ou exclua esses aparelhos antes de remover o vendedor.`,
-      }, 409);
-    }
-
     const { data: role, error: roleError } = await supabase
       .from('panel_user_roles')
       .select('user_id')
@@ -60,11 +49,17 @@ serve(async request => {
       .maybeSingle();
     if (roleError) throw new Error(`Não foi possível localizar o acesso do vendedor: ${roleError.message}.`);
 
-    const { error: ledgerError } = await supabase
-      .from('panel_credit_ledger')
-      .delete()
+    const { count: linkedDevices, error: unlinkDevicesError } = await supabase
+      .from('panel_devices')
+      .update({ seller_id: null, updated_at: new Date().toISOString() }, { count: 'exact' })
       .eq('seller_id', sellerId);
-    if (ledgerError) throw new Error(`Não foi possível remover o histórico de créditos: ${ledgerError.message}.`);
+    if (unlinkDevicesError) throw new Error(`Não foi possível liberar os aparelhos do vendedor: ${unlinkDevicesError.message}.`);
+
+    const { count: linkedCustomers, error: unlinkCustomersError } = await supabase
+      .from('panel_customers')
+      .update({ seller_id: null }, { count: 'exact' })
+      .eq('seller_id', sellerId);
+    if (unlinkCustomersError) throw new Error(`Não foi possível liberar os clientes do vendedor: ${unlinkCustomersError.message}.`);
 
     const { error: deleteSellerError } = await supabase
       .from('panel_sellers')
@@ -87,11 +82,18 @@ serve(async request => {
       metadata: {
         email: seller.email || null,
         authUserId: role?.user_id || null,
+        unlinkedDevices: linkedDevices || 0,
+        unlinkedCustomers: linkedCustomers || 0,
         performedByUserId: principal.userId,
       },
     });
 
-    return json({ ok: true, message: 'Vendedor e acesso excluídos.' });
+    return json({
+      ok: true,
+      unlinkedDevices: linkedDevices || 0,
+      unlinkedCustomers: linkedCustomers || 0,
+      message: 'Vendedor e acesso excluídos. Aparelhos, clientes e histórico foram preservados.',
+    });
   } catch (error) {
     if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, corsHeaders);
     console.error('Falha ao excluir vendedor.', error);

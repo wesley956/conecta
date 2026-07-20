@@ -7,11 +7,36 @@ export interface DevicePanelCacheParts {
   seriesUrl?: string | null;
 }
 
+export interface DevicePanelPlaylistConfig {
+  id: string;
+  priority: 1 | 2 | number;
+  role: 'primary' | 'backup' | string;
+  name: string;
+  url?: string | null;
+  type?: 'm3u' | 'xtream' | string;
+  updatedAt?: string | null;
+  cacheStatus?: 'missing' | 'building' | 'processing' | 'ready' | 'error' | string | null;
+  cacheVersion?: string | null;
+  cacheUpdatedAt?: string | null;
+  cacheItemCount?: number | null;
+  cacheSizeBytes?: number | null;
+  cacheError?: string | null;
+  cacheSnapshotUrl?: string | null;
+  cacheParts?: DevicePanelCacheParts | null;
+  cacheReady?: boolean;
+  consecutiveFailures?: number;
+  lastSuccessAt?: string | null;
+  lastFailureAt?: string | null;
+  cooldownUntil?: string | null;
+  lastError?: string | null;
+}
+
 export interface DevicePanelConfig {
   active: boolean;
   status?: 'pending' | 'active' | 'blocked' | 'expired' | 'inactive';
   deviceCode: string;
   clientName?: string | null;
+  selectedPlaylistId?: string | null;
   playlistName?: string | null;
   playlistUrl?: string | null;
   playlistType?: 'm3u' | 'xtream' | string;
@@ -24,6 +49,7 @@ export interface DevicePanelConfig {
   cacheError?: string | null;
   cacheSnapshotUrl?: string | null;
   cacheParts?: DevicePanelCacheParts | null;
+  playlists?: DevicePanelPlaylistConfig[];
   expiresAt?: string | null;
   credentialRequired?: boolean;
   directPlaylistFallbackAllowed?: boolean;
@@ -273,4 +299,37 @@ export async function fetchDevicePanelConfig(
     response,
     'Falha ao validar este aparelho no painel.',
   );
+}
+
+export async function reportDevicePlaylistHealth(
+  playlistId: string,
+  status: 'success' | 'failure',
+  error?: string,
+) {
+  const configUrl = getDevicePanelUrl();
+  const code = String(getStoredDeviceCode()).trim();
+  const deviceUuid = String(getOrCreateDeviceUuid()).trim();
+  const deviceCredential = await getStoredDeviceCredential();
+
+  if (!configUrl || !code || !deviceUuid || !deviceCredential || !playlistId) return;
+
+  await fetch(configUrl, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-Device-Credential': deviceCredential,
+    },
+    body: JSON.stringify({
+      code,
+      deviceCode: code,
+      deviceUuid,
+      playlistHealth: {
+        playlistId,
+        status,
+        error: error ? error.slice(0, 500) : undefined,
+      },
+    }),
+  }).catch(() => undefined);
 }
