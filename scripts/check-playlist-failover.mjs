@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const files = {
-  migration: 'supabase/migrations/20260720042745_device_playlist_failover.sql',
+  migration: 'supabase/migrations/20260720050541_device_playlist_failover.sql',
   adminBackend: 'supabase/functions/admin-panel/index.ts',
   sellerBackend: 'supabase/functions/seller-panel/index.ts',
   deviceBackend: 'supabase/functions/device-config/index.ts',
