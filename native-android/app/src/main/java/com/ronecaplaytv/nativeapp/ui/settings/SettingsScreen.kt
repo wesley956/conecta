@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.BuildConfig
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.update.AppUpdateState
 
 data class PlayerSettingsState(
     val decoderMode: String = "Hardware",
@@ -54,8 +55,10 @@ fun SettingsScreen(
     state: PlayerSettingsState,
     refreshInProgress: Boolean,
     refreshMessage: String?,
+    appUpdateState: AppUpdateState,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
+    onCheckForAppUpdate: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier
@@ -128,6 +131,13 @@ fun SettingsScreen(
 
         item { SectionTitle("APLICATIVO", isTelevision) }
         item {
+            AppUpdateCard(
+                isTelevision = isTelevision,
+                state = appUpdateState,
+                onCheck = onCheckForAppUpdate,
+            )
+        }
+        item {
             InfoSettingRow(
                 title = "RonecaPlayTV Native",
                 subtitle = "Versão ${BuildConfig.VERSION_NAME} • Android TV, TV Box, celular e tablet",
@@ -135,6 +145,68 @@ fun SettingsScreen(
                 isTelevision = isTelevision,
             )
         }
+    }
+}
+
+@Composable
+private fun AppUpdateCard(
+    isTelevision: Boolean,
+    state: AppUpdateState,
+    onCheck: () -> Unit,
+) {
+    val checking = state is AppUpdateState.Checking || state is AppUpdateState.Downloading
+    val subtitle = when (state) {
+        is AppUpdateState.Checking -> "Consultando a versão mais recente..."
+        is AppUpdateState.UpToDate -> "Você já está usando a versão mais recente."
+        is AppUpdateState.Available -> "Versão ${state.manifest.versionName} disponível para download."
+        is AppUpdateState.Downloading -> "Baixando versão ${state.manifest.versionName}..."
+        is AppUpdateState.ReadyToInstall -> "Versão ${state.manifest.versionName} pronta para instalar."
+        is AppUpdateState.Error -> state.message
+        AppUpdateState.Idle -> "Verifique manualmente se há uma nova versão."
+    }
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) RonecaColors.RedStrong else RonecaColors.Border,
+                shape = RoundedCornerShape(14.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .activateOnRemote(enabled = !checking, onActivate = onCheck)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = !checking,
+                onClick = onCheck,
+            )
+            .focusable()
+            .padding(if (isTelevision) 17.dp else 15.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Atualizações do aplicativo",
+                color = RonecaColors.TextPrimary,
+                fontSize = if (isTelevision) 16.sp else 15.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = subtitle,
+                color = if (state is AppUpdateState.Error) RonecaColors.RedStrong else RonecaColors.TextSecondary,
+                fontSize = 12.sp,
+            )
+        }
+        StatusPill(
+            label = if (checking) "AGUARDE" else "VERIFICAR",
+            active = state is AppUpdateState.Available || state is AppUpdateState.ReadyToInstall,
+        )
     }
 }
 

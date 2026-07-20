@@ -45,6 +45,7 @@ import com.ronecaplaytv.nativeapp.ui.series.SeriesDetailScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
 import com.ronecaplaytv.nativeapp.ui.settings.SettingsScreen
 import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
+import com.ronecaplaytv.nativeapp.update.AppUpdateState
 
 private enum class NativeDestination {
     Home,
@@ -69,6 +70,8 @@ private data class ActiveSeriesPlayback(
 @Composable
 fun RonecaPlayTVApp(
     isTelevision: Boolean,
+    appUpdateState: AppUpdateState,
+    onCheckForAppUpdate: () -> Unit,
     activationViewModel: ActivationViewModel = viewModel(),
     catalogViewModel: CatalogViewModel = viewModel(),
     seriesEpisodesViewModel: SeriesEpisodesViewModel = viewModel(),
@@ -597,11 +600,13 @@ fun RonecaPlayTVApp(
                 NativeDestination.Settings -> SettingsScreen(
                     isTelevision = isWideLayout,
                     state = settingsState,
+                    appUpdateState = appUpdateState,
                     onStateChange = { updated ->
                         settingsState = updated
                         playerSettingsPreferences.save(updated)
                     },
                     onRefreshContent = ::refreshCatalog,
+                    onCheckForAppUpdate = onCheckForAppUpdate,
                 )
 
                 NativeDestination.Player -> Unit

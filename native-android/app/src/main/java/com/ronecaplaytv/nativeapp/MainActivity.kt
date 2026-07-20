@@ -18,9 +18,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.ui.RonecaPlayTVApp
 import com.ronecaplaytv.nativeapp.ui.splash.RonecaLaunchScreen
+import com.ronecaplaytv.nativeapp.ui.update.AppUpdateOverlay
+import com.ronecaplaytv.nativeapp.update.AppUpdateViewModel
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -43,19 +47,40 @@ class MainActivity : ComponentActivity() {
         setContent {
             val isTelevision = remember { isTelevisionDevice }
             var showLaunch by rememberSaveable { mutableStateOf(true) }
+            val appUpdateViewModel: AppUpdateViewModel = viewModel()
+            val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
 
             LaunchedEffect(Unit) {
                 delay(2_250)
                 showLaunch = false
+                appUpdateViewModel.checkForUpdates(userInitiated = false)
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                RonecaPlayTVApp(isTelevision = isTelevision)
+                RonecaPlayTVApp(
+                    isTelevision = isTelevision,
+                    appUpdateState = appUpdateState,
+                    onCheckForAppUpdate = {
+                        appUpdateViewModel.checkForUpdates(userInitiated = true)
+                    },
+                )
                 AnimatedVisibility(
                     visible = showLaunch,
                     exit = fadeOut(animationSpec = tween(durationMillis = 350)),
                 ) {
                     RonecaLaunchScreen(isTelevision = isTelevision)
+                }
+                if (!showLaunch) {
+                    AppUpdateOverlay(
+                        state = appUpdateState,
+                        isTelevision = isTelevision,
+                        onDownload = appUpdateViewModel::downloadUpdate,
+                        onInstall = appUpdateViewModel::installUpdate,
+                        onRetry = {
+                            appUpdateViewModel.checkForUpdates(userInitiated = true)
+                        },
+                        onDismiss = appUpdateViewModel::dismiss,
+                    )
                 }
             }
         }
