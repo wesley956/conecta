@@ -1,5 +1,7 @@
 # Plano mestre — Plataforma nativa RonecaPlayTV
 
+> Execução iniciada no PR #91. As fases 1 e 2 são validadas por compilação real do APK nativo antes da mesclagem.
+
 ## Objetivo
 
 Consolidar o produto em um único aplicativo Android nativo, compatível com celular, tablet, Android TV e TV Box, removendo o player e a compilação WebView/Capacitor. Em paralelo, evoluir o painel para assinaturas por cliente, listas exclusivas, múltiplos aparelhos, ferramentas de laboratório e segurança operacional.
