@@ -58,7 +58,19 @@ jobs:
 
       - name: Compile debug APK
         working-directory: native-android
-        run: gradle --no-daemon :app:assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon :app:assembleDebug 2>&1 | tee native-gradle-build.log
+
+      - name: Upload Gradle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ronecaPlayerTV-native-gradle-log
+          path: native-android/native-gradle-build.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload native APK
         uses: actions/upload-artifact@v4
