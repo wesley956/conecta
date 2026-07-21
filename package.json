@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run check:m3u-parser && npm run check:panel-auth && npm run check:seller-provisioning && npm run check:playlist-failover && npm run check:inline-playlist-activation && npm run typecheck && npm run build",
+    "verify": "npm run check:m3u-parser && npm run check:panel-auth && npm run check:seller-provisioning && npm run check:playlist-failover && npm run check:inline-playlist-activation && npm run check:finance-module && npm run typecheck && npm run build",
     "preview": "vite preview",
     "audit:ui": "node scripts/audit-ui-crud.cjs",
     "panel:design": "node scripts/apply-panel-redesign-links.cjs",
@@ -19,7 +19,8 @@
     "check:panel-auth": "node scripts/check-panel-auth-session.mjs",
     "check:seller-provisioning": "node scripts/check-seller-provisioning.mjs",
     "check:playlist-failover": "node scripts/check-playlist-failover.mjs",
-    "check:inline-playlist-activation": "node --check admin-panel/inline-playlist-activation.js && node scripts/check-inline-playlist-activation.mjs"
+    "check:inline-playlist-activation": "node --check admin-panel/inline-playlist-activation.js && node scripts/check-inline-playlist-activation.mjs",
+    "check:finance-module": "node --check admin-panel/finance-module.js && node scripts/check-finance-module.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
