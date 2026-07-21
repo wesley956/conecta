@@ -301,7 +301,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
-    await requirePanelPrincipal(req, supabase, ['admin']);
+    await requirePanelPrincipal(req, supabase, ['owner', 'admin']);
 
     const url = new URL(req.url);
     const body = await readBody(req);

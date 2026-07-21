@@ -37,7 +37,7 @@ const required = {
     '.seller-finance-record',
   ],
   edge: [
-    "requirePanelPrincipal(request, supabase, ['admin', 'seller'])",
+    "requirePanelPrincipal(request, supabase, ['owner', 'admin', 'seller'])",
     "from('panel_financial_records')",
     "rpc('apply_device_subscription_with_finance'",
     "principal.role === 'seller'",

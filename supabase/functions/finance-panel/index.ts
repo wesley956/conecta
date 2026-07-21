@@ -12,7 +12,7 @@ type JsonBody = Record<string, unknown>;
 type Principal = {
   userId: string;
   email: string | null;
-  role: 'admin' | 'seller';
+  role: 'owner' | 'admin' | 'seller';
   sellerId: string | null;
 };
 
@@ -458,7 +458,7 @@ async function updateRecord(supabase: any, principal: Principal, body: JsonBody)
 }
 
 async function deleteRecord(supabase: any, principal: Principal, body: JsonBody) {
-  if (principal.role !== 'admin') throw new PanelAuthError('Somente administradores podem excluir movimentações.', 403);
+  if (!['owner', 'admin'].includes(principal.role)) throw new PanelAuthError('Somente administradores podem excluir movimentações.', 403);
   const id = requiredText(body.id, 'ID da movimentação', 80);
   await getScopedRecord(supabase, principal, id);
 
@@ -661,7 +661,7 @@ serve(async request => {
     const supabase = createClient(getEnv('SUPABASE_URL'), getEnv('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const principal = await requirePanelPrincipal(request, supabase, ['admin', 'seller']) as Principal;
+    const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin', 'seller']) as Principal;
     const body = await readBody(request);
     const action = String(body.action || 'dashboard').trim();
 
@@ -671,7 +671,7 @@ serve(async request => {
         ok: true,
         ...result,
         summary: summarize(result.records),
-        sellerSummary: principal.role === 'admin' ? sellerSummary(result.records) : [],
+        sellerSummary: principal.role !== 'seller' ? sellerSummary(result.records) : [],
       });
     }
 

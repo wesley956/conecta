@@ -29,7 +29,7 @@ serve(async request => {
     const supabase = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const principal = await requirePanelPrincipal(request, supabase, ['admin']);
+    const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
     const body = await request.json().catch(() => ({}));
     const sellerId = String(body?.sellerId || '').trim();
     if (!sellerId) return json({ error: 'ID do vendedor é obrigatório.' }, 400);
