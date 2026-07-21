@@ -368,7 +368,7 @@ fun SeriesNativePlayerScreen(
     DisposableEffect(player) {
         val registration = NativePlaybackKeyRouter.register { event ->
             val supported = event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
-                event.keyCode == AndroidKeyEvent.KEYCODE_HEADSETPHOOK ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_HEADSETHOOK ||
                 event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY ||
                 event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PAUSE ||
                 event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD ||
@@ -380,7 +380,7 @@ fun SeriesNativePlayerScreen(
                 if (event.action == AndroidKeyEvent.ACTION_UP) {
                     when (event.keyCode) {
                         AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                        AndroidKeyEvent.KEYCODE_HEADSETPHOOK,
+                        AndroidKeyEvent.KEYCODE_HEADSETHOOK,
                         -> togglePlayPause()
                         AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
                             player.play()
