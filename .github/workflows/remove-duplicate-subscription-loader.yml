@@ -1,0 +1,51 @@
+name: Remove duplicate subscription loader
+
+on:
+  push:
+    branches:
+      - feature/subscriptions-lab-security
+    paths:
+      - '.github/workflows/remove-duplicate-subscription-loader.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/subscriptions-lab-security
+          fetch-depth: 0
+
+      - name: Keep panel-config as the single loader
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for name in ['admin-panel/dashboard.html', 'admin-panel/seller.html']:
+              path = Path(name)
+              text = path.read_text()
+              lines = [
+                  line for line in text.splitlines()
+                  if 'subscription-module.css' not in line and 'subscription-module.js' not in line
+              ]
+              path.write_text('\n'.join(lines) + '\n')
+          PY
+          ! grep -R 'subscription-module' admin-panel/dashboard.html admin-panel/seller.html
+          grep -q 'subscription-module.js' scripts/generate-panel-config.mjs
+
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/remove-duplicate-subscription-loader.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin-panel/dashboard.html admin-panel/seller.html
+          git commit -m 'Evitar carregamento duplicado do módulo de assinaturas'
+          git push origin HEAD:feature/subscriptions-lab-security
