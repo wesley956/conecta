@@ -43,6 +43,13 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  script.src = './inline-playlist-activation.js?v=1.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
+  `})();\n` +
+  `(function loadFinanceModule(){\n` +
+  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './finance-module.js?v=1.0';\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
   `})();\n`;
 
 const outputs = [
