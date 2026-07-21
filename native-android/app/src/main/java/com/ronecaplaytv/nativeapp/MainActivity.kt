@@ -3,11 +3,12 @@ package com.ronecaplaytv.nativeapp
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Bundle
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeOut
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.ui.RonecaPlayTVApp
+import com.ronecaplaytv.nativeapp.ui.player.NativePlaybackKeyRouter
 import com.ronecaplaytv.nativeapp.ui.splash.RonecaLaunchScreen
 import com.ronecaplaytv.nativeapp.ui.update.AppUpdateOverlay
 import com.ronecaplaytv.nativeapp.update.AppUpdateViewModel
@@ -84,5 +86,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (NativePlaybackKeyRouter.dispatch(event)) return true
+        return super.dispatchKeyEvent(event)
     }
 }

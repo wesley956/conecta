@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.ui.player
 
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -65,6 +69,8 @@ import kotlinx.coroutines.launch
 
 private const val IPTV_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
 private const val SAME_SOURCE_RETRY_LIMIT = 1
+private const val PLAYER_CONTROLS_TIMEOUT_MS = 5_000L
+private const val PLAYER_SEEK_STEP_MS = 10_000L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -84,6 +90,11 @@ fun NativePlayerScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val rootFocusRequester = remember { FocusRequester() }
+    val playPauseFocusRequester = remember { FocusRequester() }
+    val drawerFirstItemFocusRequester = remember { FocusRequester() }
+    val touchInteraction = remember { MutableInteractionSource() }
+
     val sources = remember(streamUrls) {
         streamUrls
             .map(String::trim)
@@ -94,6 +105,11 @@ fun NativePlayerScreen(
     var sourceIndex by remember(sources) { mutableIntStateOf(0) }
     var sameSourceRetries by remember(sources) { mutableIntStateOf(0) }
     var channelDrawerVisible by remember { mutableStateOf(false) }
+    var controlsVisible by remember { mutableStateOf(true) }
+    var interactionVersion by remember { mutableLongStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var positionMs by remember { mutableLongStateOf(initialPositionMs.coerceAtLeast(0L)) }
+    var durationMs by remember { mutableLongStateOf(0L) }
     var playerMessage by remember(sources) {
         mutableStateOf(
             if (sources.isEmpty()) "Este conteúdo não possui uma fonte de reprodução válida." else null,
@@ -128,8 +144,7 @@ fun NativePlayerScreen(
                     "Icy-MetaData" to "1",
                 ),
             )
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
-        DefaultMediaSourceFactory(dataSourceFactory)
+        DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
     }
 
     val player = remember(
@@ -159,17 +174,77 @@ fun NativePlayerScreen(
             }
     }
 
+    fun markInteraction(showControls: Boolean = true) {
+        interactionVersion += 1L
+        if (showControls) controlsVisible = true
+    }
+
+    fun requestPlayPauseFocus() {
+        coroutineScope.launch {
+            delay(60)
+            runCatching { playPauseFocusRequester.requestFocus() }
+        }
+    }
+
+    fun togglePlayPause() {
+        if (player.isPlaying) player.pause() else player.play()
+        markInteraction()
+        requestPlayPauseFocus()
+    }
+
+    fun seekBy(deltaMs: Long) {
+        val duration = player.duration
+        if (duration <= 0L) return
+        player.seekTo((player.currentPosition + deltaMs).coerceIn(0L, duration))
+        markInteraction()
+        requestPlayPauseFocus()
+    }
+
+    fun closeDrawer() {
+        channelDrawerVisible = false
+        markInteraction()
+        requestPlayPauseFocus()
+    }
+
+    LaunchedEffect(Unit) {
+        delay(80)
+        runCatching { rootFocusRequester.requestFocus() }
+        requestPlayPauseFocus()
+    }
+
+    LaunchedEffect(controlsVisible, isPlaying, channelDrawerVisible, interactionVersion) {
+        if (controlsVisible && isPlaying && !channelDrawerVisible) {
+            delay(PLAYER_CONTROLS_TIMEOUT_MS)
+            controlsVisible = false
+            runCatching { rootFocusRequester.requestFocus() }
+        }
+    }
+
+    LaunchedEffect(channelDrawerVisible, relatedChannels, currentChannelId) {
+        if (channelDrawerVisible && relatedChannels.isNotEmpty()) {
+            delay(80)
+            runCatching { drawerFirstItemFocusRequester.requestFocus() }
+        }
+    }
+
     LaunchedEffect(player) {
         while (true) {
-            delay(2_000)
+            delay(500)
             val duration = player.duration
             val position = player.currentPosition
+            positionMs = position.coerceAtLeast(0L)
+            durationMs = duration.takeIf { it > 0L } ?: 0L
             if (duration > 0L && position > 0L) onProgress(position, duration)
         }
     }
 
     DisposableEffect(player, sources, automaticReconnect) {
         val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(value: Boolean) {
+                isPlaying = value
+                if (!value) controlsVisible = true
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_BUFFERING -> if (playerMessage == null) {
@@ -178,6 +253,7 @@ fun NativePlayerScreen(
                     Player.STATE_READY -> {
                         sameSourceRetries = 0
                         playerMessage = null
+                        isPlaying = player.isPlaying
                     }
                     Player.STATE_ENDED -> playerMessage = "Reprodução finalizada."
                     else -> Unit
@@ -233,19 +309,86 @@ fun NativePlayerScreen(
         }
     }
 
+    DisposableEffect(player) {
+        val registration = NativePlaybackKeyRouter.register { event ->
+            val supported = event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_HEADSETHOOK ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PAUSE ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_REWIND
+
+            if (!supported) {
+                false
+            } else {
+                if (event.action == AndroidKeyEvent.ACTION_UP) {
+                    when (event.keyCode) {
+                        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        AndroidKeyEvent.KEYCODE_HEADSETHOOK,
+                        -> togglePlayPause()
+                        AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
+                            player.play()
+                            markInteraction()
+                            requestPlayPauseFocus()
+                        }
+                        AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                            player.pause()
+                            markInteraction()
+                            requestPlayPauseFocus()
+                        }
+                        AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seekBy(PLAYER_SEEK_STEP_MS)
+                        AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> seekBy(-PLAYER_SEEK_STEP_MS)
+                    }
+                }
+                true
+            }
+        }
+        onDispose { NativePlaybackKeyRouter.unregister(registration) }
+    }
+
     BackHandler {
-        if (channelDrawerVisible) channelDrawerVisible = false else onBack()
+        if (channelDrawerVisible) closeDrawer() else onBack()
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .focusRequester(rootFocusRequester)
+            .focusable()
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
-                    if (channelDrawerVisible) channelDrawerVisible = false else onBack()
-                    true
-                } else false
+                when {
+                    event.type == KeyEventType.KeyUp && event.key == Key.Back -> {
+                        if (channelDrawerVisible) closeDrawer() else onBack()
+                        true
+                    }
+                    channelDrawerVisible -> false
+                    event.type == KeyEventType.KeyUp &&
+                        (event.key == Key.DirectionCenter ||
+                            event.key == Key.Enter ||
+                            event.key == Key.NumPadEnter ||
+                            event.key == Key.Spacebar) &&
+                        !controlsVisible -> {
+                        togglePlayPause()
+                        true
+                    }
+                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft && !controlsVisible -> {
+                        seekBy(-PLAYER_SEEK_STEP_MS)
+                        true
+                    }
+                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && !controlsVisible -> {
+                        seekBy(PLAYER_SEEK_STEP_MS)
+                        true
+                    }
+                    event.type == KeyEventType.KeyDown &&
+                        (event.key == Key.DirectionUp || event.key == Key.DirectionDown) &&
+                        !controlsVisible -> {
+                        markInteraction()
+                        requestPlayPauseFocus()
+                        true
+                    }
+                    else -> false
+                }
             },
     ) {
         AndroidView(
@@ -254,26 +397,55 @@ fun NativePlayerScreen(
                 PlayerView(viewContext).apply {
                     this.player = player
                     keepScreenOn = true
-                    useController = true
-                    controllerAutoShow = true
-                    setControllerShowTimeoutMs(if (isTelevision) 5_000 else 3_000)
+                    useController = false
                     setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    isFocusable = true
-                    isFocusableInTouchMode = true
-                    requestFocus()
+                    isFocusable = false
+                    isFocusableInTouchMode = false
                 }
             },
             update = { playerView -> playerView.player = player },
         )
 
-        PlayerHeader(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = touchInteraction,
+                    indication = null,
+                    onClick = {
+                        controlsVisible = !controlsVisible
+                        markInteraction(showControls = controlsVisible)
+                        if (controlsVisible) requestPlayPauseFocus()
+                    },
+                ),
+        )
+
+        NativePlayerChrome(
             title = title,
-            isTelevision = isTelevision,
+            eyebrow = "RONECAPLAYTV",
             live = currentChannelId != null,
-            hasChannelDrawer = relatedChannels.isNotEmpty(),
+            isTelevision = isTelevision,
+            controlsVisible = controlsVisible,
+            drawerVisible = channelDrawerVisible,
+            drawerLabel = relatedChannels.takeIf { it.isNotEmpty() }?.let { "Canais" },
+            isPlaying = isPlaying,
+            positionMs = positionMs,
+            durationMs = durationMs,
+            playPauseFocusRequester = playPauseFocusRequester,
             onBack = onBack,
-            onOpenChannels = { channelDrawerVisible = true },
+            onOpenDrawer = if (relatedChannels.isNotEmpty()) {
+                {
+                    channelDrawerVisible = true
+                    controlsVisible = true
+                    interactionVersion += 1L
+                }
+            } else {
+                null
+            },
+            onSeekBack = { seekBy(-PLAYER_SEEK_STEP_MS) },
+            onTogglePlayPause = ::togglePlayPause,
+            onSeekForward = { seekBy(PLAYER_SEEK_STEP_MS) },
         )
 
         playerMessage?.let { message ->
@@ -283,7 +455,7 @@ fun NativePlayerScreen(
                 fontSize = if (isTelevision) 17.sp else 14.sp,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = if (controlsVisible) 150.dp else 24.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(RonecaColors.SurfaceOverlay)
                     .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
@@ -296,9 +468,10 @@ fun NativePlayerScreen(
                 channels = relatedChannels,
                 currentChannelId = currentChannelId,
                 isTelevision = isTelevision,
-                onDismiss = { channelDrawerVisible = false },
+                firstItemFocusRequester = drawerFirstItemFocusRequester,
+                onDismiss = ::closeDrawer,
                 onSelect = { channel ->
-                    channelDrawerVisible = false
+                    closeDrawer()
                     onSelectChannel(channel)
                 },
                 modifier = Modifier.align(Alignment.CenterEnd),
@@ -308,95 +481,11 @@ fun NativePlayerScreen(
 }
 
 @Composable
-private fun PlayerHeader(
-    title: String,
-    isTelevision: Boolean,
-    live: Boolean,
-    hasChannelDrawer: Boolean,
-    onBack: () -> Unit,
-    onOpenChannels: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xC4050505))
-            .padding(horizontal = if (isTelevision) 24.dp else 14.dp, vertical = 11.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            PlayerAction(label = "←", onClick = onBack)
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(if (isTelevision) 34.dp else 30.dp)
-                    .background(RonecaColors.RedStrong),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "RONECAPLAYTV",
-                        color = RonecaColors.Primary,
-                        fontSize = if (isTelevision) 10.sp else 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.8.sp,
-                    )
-                    if (live) {
-                        Spacer(modifier = Modifier.width(9.dp))
-                        Text(
-                            text = "● AO VIVO",
-                            color = RonecaColors.RedStrong,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
-                Text(
-                    text = title,
-                    color = RonecaColors.TextPrimary,
-                    fontSize = if (isTelevision) 17.sp else 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-        }
-        if (hasChannelDrawer) {
-            PlayerAction(label = "☰  Canais", onClick = onOpenChannels)
-        }
-    }
-}
-
-@Composable
-private fun PlayerAction(label: String, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.SurfaceOverlay)
-            .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.RedStrong else RonecaColors.Primary.copy(alpha = 0.60f),
-                shape = RoundedCornerShape(999.dp),
-            )
-            .onFocusChanged { focused = it.isFocused }
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .focusable()
-            .padding(horizontal = 13.dp, vertical = 8.dp),
-    ) {
-        Text(text = label, color = RonecaColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
 private fun ChannelDrawer(
     channels: List<NativeChannel>,
     currentChannelId: String?,
     isTelevision: Boolean,
+    firstItemFocusRequester: FocusRequester,
     onDismiss: () -> Unit,
     onSelect: (NativeChannel) -> Unit,
     modifier: Modifier = Modifier,
@@ -407,7 +496,7 @@ private fun ChannelDrawer(
 
     Column(
         modifier = modifier
-            .width(if (isTelevision) 330.dp else 290.dp)
+            .width(if (isTelevision) 360.dp else 300.dp)
             .fillMaxHeight()
             .background(Color(0xF20A0908))
             .border(1.dp, RonecaColors.Border)
@@ -418,7 +507,7 @@ private fun ChannelDrawer(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Canais da categoria",
                     color = RonecaColors.TextPrimary,
@@ -426,21 +515,26 @@ private fun ChannelDrawer(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "${channels.size} disponíveis • o atual aparece primeiro",
+                    text = "${channels.size} disponíveis • atual primeiro",
                     color = RonecaColors.TextSecondary,
                     fontSize = 11.sp,
                 )
             }
-            PlayerAction(label = "×", onClick = onDismiss)
+            NativePlayerAction(label = "×", contentDescription = "Fechar canais", onClick = onDismiss)
         }
         Spacer(modifier = Modifier.height(13.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(orderedChannels, key = NativeChannel::id) { channel ->
                 val active = channel.id == currentChannelId
-                var focused by remember { mutableStateOf(false) }
-                val interactionSource = remember { MutableInteractionSource() }
+                var focused by remember(channel.id) { mutableStateOf(false) }
+                val interactionSource = remember(channel.id) { MutableInteractionSource() }
+                val focusModifier = if (channel == orderedChannels.firstOrNull()) {
+                    Modifier.focusRequester(firstItemFocusRequester)
+                } else {
+                    Modifier
+                }
                 Row(
-                    modifier = Modifier
+                    modifier = focusModifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
                         .background(
