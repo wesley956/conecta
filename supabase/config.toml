@@ -73,6 +73,9 @@ verify_jwt = false
 [functions.admin-panel]
 verify_jwt = true
 
+[functions.admin-inline-playlist]
+verify_jwt = true
+
 [functions.seller-provision]
 verify_jwt = true
 

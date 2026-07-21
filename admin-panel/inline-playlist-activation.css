@@ -1,0 +1,81 @@
+.inline-playlist-cell {
+  min-width: min(460px, 42vw);
+}
+
+.inline-playlist-fields[hidden] {
+  display: none !important;
+}
+
+.inline-playlist-fields.open {
+  display: grid;
+}
+
+.inline-playlist-fields {
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, .55fr);
+  gap: 10px;
+  width: 100%;
+  margin: 10px 0 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 81, 77, .28);
+  border-radius: 12px;
+  background: rgba(229, 57, 53, .065);
+}
+
+.inline-playlist-fields label {
+  display: grid;
+  gap: 6px;
+  margin: 0 !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inline-playlist-fields input,
+.inline-playlist-fields select {
+  width: 100%;
+  min-width: 0;
+}
+
+.inline-playlist-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.inline-playlist-title {
+  display: grid;
+  gap: 3px;
+}
+
+.inline-playlist-title strong {
+  color: #fff;
+}
+
+.inline-playlist-title span,
+.inline-playlist-help {
+  margin: 0;
+  color: #a5a5ad;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.inline-playlist-fields-admin {
+  min-width: 390px;
+}
+
+.inline-playlist-fields-seller {
+  margin-top: 2px;
+}
+
+@media (max-width: 920px) {
+  .inline-playlist-cell {
+    min-width: 340px;
+  }
+
+  .inline-playlist-fields,
+  .inline-playlist-fields-admin {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .inline-playlist-fields .wide {
+    grid-column: auto;
+  }
+}
