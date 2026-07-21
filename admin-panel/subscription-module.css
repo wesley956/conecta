@@ -1,0 +1,280 @@
+.subscription-module-root {
+  display: grid;
+  gap: 16px;
+}
+
+.subscription-module-toolbar,
+.subscription-module-head,
+.subscription-module-actions,
+.subscription-module-inline {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.subscription-module-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.subscription-module-toolbar input,
+.subscription-module-toolbar select {
+  min-width: 180px;
+  flex: 1 1 180px;
+}
+
+.subscription-module-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.subscription-module-metric {
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  background: rgba(255,255,255,.045);
+}
+
+.subscription-module-metric small {
+  display: block;
+  color: var(--muted, #94a3b8);
+  margin-bottom: 7px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.subscription-module-metric strong {
+  font-size: 23px;
+}
+
+.subscription-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 13px;
+}
+
+.subscription-card,
+.subscription-lab-card,
+.subscription-conflict-card {
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 18px;
+  padding: 15px;
+  background: rgba(0,0,0,.18);
+  display: grid;
+  gap: 12px;
+}
+
+.subscription-card[data-status="active"] { border-color: rgba(74,222,128,.3); }
+.subscription-card[data-status="needs_review"] { border-color: rgba(251,146,60,.45); }
+.subscription-card[data-status="expired"],
+.subscription-card[data-status="cancelled"] { border-color: rgba(251,113,133,.35); }
+
+.subscription-card-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.subscription-card-title h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.subscription-card-subtitle {
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.subscription-status {
+  display: inline-flex;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.subscription-status.active { color: #bbf7d0; border-color: rgba(74,222,128,.36); }
+.subscription-status.needs_review { color: #fed7aa; border-color: rgba(251,146,60,.42); }
+.subscription-status.expired,
+.subscription-status.cancelled,
+.subscription-status.suspended { color: #fecdd3; border-color: rgba(251,113,133,.4); }
+
+.subscription-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.subscription-card-meta > div {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.045);
+  min-width: 0;
+}
+
+.subscription-card-meta small {
+  display: block;
+  color: var(--muted, #94a3b8);
+  font-size: 10px;
+  margin-bottom: 5px;
+}
+
+.subscription-card-meta span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.subscription-device-list,
+.subscription-playlist-list {
+  display: grid;
+  gap: 7px;
+}
+
+.subscription-device-row,
+.subscription-playlist-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 11px;
+  background: rgba(255,255,255,.035);
+}
+
+.subscription-device-row code {
+  color: inherit;
+  font-weight: 800;
+}
+
+.subscription-module-empty {
+  padding: 28px 18px;
+  text-align: center;
+  color: var(--muted, #94a3b8);
+  border: 1px dashed rgba(255,255,255,.15);
+  border-radius: 16px;
+}
+
+.subscription-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(12px);
+}
+
+.subscription-modal.open { display: flex; }
+
+.subscription-modal-card {
+  width: min(760px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  border: 1px solid rgba(110,231,255,.25);
+  border-radius: 23px;
+  padding: 20px;
+  color: var(--text, #f8fafc);
+  background: linear-gradient(180deg, rgba(7,15,39,.98), rgba(3,8,24,.99));
+  box-shadow: 0 30px 120px rgba(0,0,0,.65);
+}
+
+.seller-v2 .subscription-modal-card {
+  border-color: rgba(124,58,237,.35);
+  background: linear-gradient(180deg, rgba(17,24,39,.99), rgba(2,6,23,.99));
+}
+
+.subscription-modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.subscription-modal-head h2 { margin: 0 0 5px; }
+.subscription-modal-head p { margin: 0; color: var(--muted, #94a3b8); }
+
+.subscription-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.subscription-form-grid .wide { grid-column: 1 / -1; }
+.subscription-form-grid label { margin: 0; }
+.subscription-form-grid label span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.subscription-form-note {
+  padding: 11px;
+  border-radius: 12px;
+  color: var(--muted, #94a3b8);
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+}
+
+.subscription-lab-banner {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(251,191,36,.35);
+  background: rgba(251,191,36,.08);
+  color: #fde68a;
+}
+
+.subscription-cache-result {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.subscription-cache-item {
+  padding: 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(0,0,0,.18);
+}
+
+.subscription-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 10000;
+  max-width: min(430px, calc(100% - 36px));
+  padding: 12px 15px;
+  border-radius: 14px;
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 20px 60px rgba(0,0,0,.45);
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: .2s ease;
+}
+
+.subscription-toast.show { opacity: 1; transform: translateY(0); }
+.subscription-toast.error { border-color: rgba(251,113,133,.55); color: #fecdd3; }
+
+@media (max-width: 720px) {
+  .subscription-form-grid,
+  .subscription-card-meta { grid-template-columns: 1fr; }
+  .subscription-modal { align-items: flex-start; padding: 9px; }
+  .subscription-modal-card { max-height: 96vh; }
+}
