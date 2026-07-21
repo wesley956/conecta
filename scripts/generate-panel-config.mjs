@@ -34,7 +34,14 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
   `  var script = document.createElement('script');\n` +
   `  script.src = './seller-provisioning.js?v=1.2';\n` +
-  `  script.defer = true;\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
+  `})();\n` +
+  `(function loadInlinePlaylistActivation(){\n` +
+  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './inline-playlist-activation.js?v=1.0';\n` +
+  `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
   `})();\n`;
 
