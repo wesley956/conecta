@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -84,9 +85,11 @@ fun RonecaPlayTVApp(
     val episodesState by seriesEpisodesViewModel.state.collectAsStateWithLifecycle()
     val playbackPreferences = remember { PlaybackPreferences(context) }
     val playerSettingsPreferences = remember { PlayerSettingsPreferences(context) }
+    val destinationStateHolder = rememberSaveableStateHolder()
 
     var destination by remember { mutableStateOf(NativeDestination.Home) }
     var playerReturnDestination by remember { mutableStateOf(NativeDestination.Home) }
+    var detailReturnDestination by remember { mutableStateOf(NativeDestination.Home) }
     var selectedStreamUrls by remember { mutableStateOf(emptyList<String>()) }
     var selectedTitle by remember { mutableStateOf("") }
     var selectedContentKey by remember { mutableStateOf("") }
@@ -220,7 +223,22 @@ fun RonecaPlayTVApp(
         )
     }
 
+    fun openMovieDetails(movie: NativeMovie, returnDestination: NativeDestination = destination) {
+        selectedMovie = movie
+        detailReturnDestination = returnDestination
+        destination = NativeDestination.MovieDetail
+    }
+
+    fun openSeriesDetails(series: NativeSeries, returnDestination: NativeDestination = destination) {
+        selectedSeries = series
+        detailReturnDestination = returnDestination
+        pendingSeriesResume = null
+        seriesEpisodesViewModel.clear()
+        destination = NativeDestination.SeriesDetail
+    }
+
     fun resumeSeries(series: NativeSeries, saved: SavedProgress) {
+        detailReturnDestination = destination
         selectedSeries = series
         pendingSeriesResume = series to saved
         seriesEpisodesViewModel.clear()
@@ -299,7 +317,13 @@ fun RonecaPlayTVApp(
         }.toSet()
     }
 
-    val selectedTab = when (destination) {
+    val baseDestination = if (destination == NativeDestination.Player) {
+        playerReturnDestination
+    } else {
+        destination
+    }
+
+    val selectedTab = when (baseDestination) {
         NativeDestination.Channels -> MainTab.Channels
         NativeDestination.Movies, NativeDestination.MovieDetail -> MainTab.Movies
         NativeDestination.Series, NativeDestination.SeriesDetail -> MainTab.Series
@@ -308,7 +332,7 @@ fun RonecaPlayTVApp(
         else -> MainTab.Home
     }
 
-    val showMainNavigation = destination in setOf(
+    val showMainNavigation = baseDestination in setOf(
         NativeDestination.Home,
         NativeDestination.Channels,
         NativeDestination.Movies,
@@ -328,325 +352,301 @@ fun RonecaPlayTVApp(
             return@RonecaPlayTVTheme
         }
 
-        if (destination == NativeDestination.Player) {
-            val seriesPlayback = activeSeriesPlayback
-            if (seriesPlayback != null) {
-                SeriesNativePlayerScreen(
-                    isTelevision = isTelevision || settingsState.forceTvMode,
-                    seriesTitle = seriesPlayback.series.name,
-                    seasons = seriesPlayback.seasons,
-                    initialEpisodeId = seriesPlayback.episodeId,
-                    initialPositionMs = selectedInitialPositionMs,
-                    decoderMode = settingsState.decoderMode,
-                    bufferSeconds = settingsState.bufferSeconds,
-                    automaticReconnect = settingsState.automaticReconnect,
-                    positionForEpisode = { episode ->
-                        playbackPreferences
-                            .progressFor("episode:${seriesPlayback.series.id}:${episode.id}")
-                            ?.positionMs
-                            ?: 0L
-                    },
-                    onEpisodeChanged = { season, episode ->
-                        activeSeriesPlayback = seriesPlayback.copy(
-                            seasonNumber = season.number,
-                            episodeId = episode.id,
-                        )
-                        selectedTitle = "${seriesPlayback.series.name} • T${season.number} E${episode.number}"
-                        selectedContentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
-                        selectedInitialPositionMs = 0L
-                    },
-                    onProgress = { _, episode, positionMs, durationMs ->
-                        val contentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
-                        playbackPreferences.saveProgress(contentKey, positionMs, durationMs)
-                        savedProgress = playbackPreferences.startedProgress()
-                    },
-                    onBack = {
-                        destination = playerReturnDestination
-                        activeSeriesPlayback = null
-                    },
-                )
-            } else {
-                val relatedChannels = selectedChannelGroup
-                    ?.let { group ->
-                        catalogState.channels
-                            .filter { it.groupTitle.equals(group, ignoreCase = true) }
-                            .take(100)
-                    }
-                    .orEmpty()
-                val currentChannelId = selectedContentKey
-                    .takeIf { it.startsWith("channel:") }
-                    ?.removePrefix("channel:")
-
-                NativePlayerScreen(
-                    isTelevision = isTelevision || settingsState.forceTvMode,
-                    title = selectedTitle,
-                    streamUrls = selectedStreamUrls,
-                    initialPositionMs = selectedInitialPositionMs,
-                    relatedChannels = relatedChannels,
-                    currentChannelId = currentChannelId,
-                    decoderMode = settingsState.decoderMode,
-                    bufferSeconds = settingsState.bufferSeconds,
-                    automaticReconnect = settingsState.automaticReconnect,
-                    onProgress = { positionMs, durationMs ->
-                        if (selectedContentKey.startsWith("movie:") || selectedContentKey.startsWith("episode:")) {
-                            playbackPreferences.saveProgress(selectedContentKey, positionMs, durationMs)
-                            savedProgress = playbackPreferences.startedProgress()
-                        }
-                    },
-                    onSelectChannel = ::selectChannelInsidePlayer,
-                    onBack = { destination = playerReturnDestination },
-                )
-            }
-            return@RonecaPlayTVTheme
-        }
-
         val screenContent: @Composable () -> Unit = {
-            when (destination) {
-                NativeDestination.Home -> HomeScreen(
-                    isTelevision = isTelevision,
-                    isWideLayout = isWideLayout,
-                    deviceCode = sessionState.deviceCode,
-                    expiresAt = sessionState.expiresAt,
-                    loadingSection = catalogState.loadingSection,
-                    catalogError = catalogState.error,
-                    channelCount = catalogState.channels.size,
-                    movieCount = catalogState.movies.size,
-                    seriesCount = catalogState.series.size,
-                    featuredMovie = catalogState.movies.firstOrNull { !it.coverUrl.isNullOrBlank() }
-                        ?: catalogState.movies.firstOrNull(),
-                    onOpenChannels = { destination = NativeDestination.Channels },
-                    onOpenMovies = { destination = NativeDestination.Movies },
-                    onOpenSeries = { destination = NativeDestination.Series },
-                    onOpenPlayback = { destination = NativeDestination.Playback },
-                    onOpenSearch = { destination = NativeDestination.Search },
-                    onOpenFeatured = { movie ->
-                        selectedMovie = movie
-                        destination = NativeDestination.MovieDetail
-                    },
-                )
+            destinationStateHolder.SaveableStateProvider(baseDestination.name) {
+                when (baseDestination) {
+                    NativeDestination.Home -> HomeScreen(
+                        isTelevision = isTelevision,
+                        isWideLayout = isWideLayout,
+                        deviceCode = sessionState.deviceCode,
+                        expiresAt = sessionState.expiresAt,
+                        loadingSection = catalogState.loadingSection,
+                        catalogError = catalogState.error,
+                        channelCount = catalogState.channels.size,
+                        movieCount = catalogState.movies.size,
+                        seriesCount = catalogState.series.size,
+                        featuredMovie = catalogState.movies.firstOrNull { !it.coverUrl.isNullOrBlank() }
+                            ?: catalogState.movies.firstOrNull(),
+                        onOpenChannels = { destination = NativeDestination.Channels },
+                        onOpenMovies = { destination = NativeDestination.Movies },
+                        onOpenSeries = { destination = NativeDestination.Series },
+                        onOpenPlayback = { destination = NativeDestination.Playback },
+                        onOpenSearch = { destination = NativeDestination.Search },
+                        onOpenFeatured = { movie -> openMovieDetails(movie) },
+                    )
 
-                NativeDestination.Search -> SearchScreen(
-                    channels = catalogState.channels,
-                    movies = catalogState.movies,
-                    series = catalogState.series,
-                    isTelevision = isWideLayout,
-                    onBack = { destination = NativeDestination.Home },
-                    onPlayChannel = ::openChannel,
-                    onOpenMovie = { movie ->
-                        selectedMovie = movie
-                        destination = NativeDestination.MovieDetail
-                    },
-                    onOpenSeries = { series ->
-                        selectedSeries = series
-                        destination = NativeDestination.SeriesDetail
-                    },
-                )
+                    NativeDestination.Search -> SearchScreen(
+                        channels = catalogState.channels,
+                        movies = catalogState.movies,
+                        series = catalogState.series,
+                        isTelevision = isWideLayout,
+                        onBack = { destination = NativeDestination.Home },
+                        onPlayChannel = ::openChannel,
+                        onOpenMovie = { movie -> openMovieDetails(movie) },
+                        onOpenSeries = { series -> openSeriesDetails(series) },
+                    )
 
-                NativeDestination.Channels -> ChannelsScreen(
-                    channels = catalogState.channels,
-                    isTelevision = isWideLayout,
-                    favoriteIds = favoriteChannelIds,
-                    onToggleFavorite = { channel ->
-                        favoriteChannelIds = playbackPreferences.toggleFavoriteChannel(channel.id)
-                    },
-                    onPlay = ::openChannel,
-                )
+                    NativeDestination.Channels -> ChannelsScreen(
+                        channels = catalogState.channels,
+                        isTelevision = isWideLayout,
+                        favoriteIds = favoriteChannelIds,
+                        onToggleFavorite = { channel ->
+                            favoriteChannelIds = playbackPreferences.toggleFavoriteChannel(channel.id)
+                        },
+                        onPlay = ::openChannel,
+                    )
 
-                NativeDestination.Movies -> MoviesScreen(
-                    movies = catalogState.movies,
-                    isTelevision = isWideLayout,
-                    favoriteIds = favoriteMovieIds,
-                    startedIds = startedMovieIds,
-                    onOpenDetails = { movie ->
-                        selectedMovie = movie
-                        destination = NativeDestination.MovieDetail
-                    },
-                )
+                    NativeDestination.Movies -> MoviesScreen(
+                        movies = catalogState.movies,
+                        isTelevision = isWideLayout,
+                        favoriteIds = favoriteMovieIds,
+                        startedIds = startedMovieIds,
+                        onOpenDetails = { movie -> openMovieDetails(movie, NativeDestination.Movies) },
+                    )
 
-                NativeDestination.MovieDetail -> {
-                    val movie = selectedMovie
-                    if (movie == null) {
-                        destination = NativeDestination.Movies
-                    } else {
-                        val recommendations = catalogState.movies
-                            .asSequence()
-                            .filter { it.id != movie.id && it.category.equals(movie.category, ignoreCase = true) }
-                            .take(14)
-                            .toList()
-
-                        MovieDetailScreen(
-                            movie = movie,
-                            recommendations = recommendations,
-                            isFavorite = movie.id in favoriteMovieIds,
-                            isTelevision = isWideLayout,
-                            onBack = { destination = NativeDestination.Movies },
-                            onToggleFavorite = {
-                                favoriteMovieIds = playbackPreferences.toggleFavoriteMovie(movie.id)
-                            },
-                            onPlay = ::openMovie,
-                            onOpenRecommendation = { recommendation ->
-                                selectedMovie = recommendation
-                            },
-                        )
-                    }
-                }
-
-                NativeDestination.Series -> SeriesScreen(
-                    series = catalogState.series,
-                    isTelevision = isWideLayout,
-                    favoriteIds = favoriteSeriesIds,
-                    startedSeriesIds = startedSeriesIds,
-                    onOpenDetails = { series ->
-                        selectedSeries = series
-                        pendingSeriesResume = null
-                        seriesEpisodesViewModel.clear()
-                        destination = NativeDestination.SeriesDetail
-                    },
-                )
-
-                NativeDestination.SeriesDetail -> {
-                    val baseSeries = selectedSeries
-                    if (baseSeries == null) {
-                        destination = NativeDestination.Series
-                    } else {
-                        val resolvedSeries = if (
-                            baseSeries.seasons.isEmpty() &&
-                            !baseSeries.xtreamSeriesId.isNullOrBlank() &&
-                            episodesState.seriesId == baseSeries.xtreamSeriesId &&
-                            episodesState.seasons.isNotEmpty()
-                        ) {
-                            baseSeries.copy(seasons = episodesState.seasons)
+                    NativeDestination.MovieDetail -> {
+                        val movie = selectedMovie
+                        if (movie == null) {
+                            destination = detailReturnDestination
                         } else {
-                            baseSeries
+                            val recommendations = catalogState.movies
+                                .asSequence()
+                                .filter { it.id != movie.id && it.category.equals(movie.category, ignoreCase = true) }
+                                .take(14)
+                                .toList()
+
+                            MovieDetailScreen(
+                                movie = movie,
+                                recommendations = recommendations,
+                                isFavorite = movie.id in favoriteMovieIds,
+                                isTelevision = isWideLayout,
+                                onBack = { destination = detailReturnDestination },
+                                onToggleFavorite = {
+                                    favoriteMovieIds = playbackPreferences.toggleFavoriteMovie(movie.id)
+                                },
+                                onPlay = ::openMovie,
+                                onOpenRecommendation = { recommendation ->
+                                    selectedMovie = recommendation
+                                },
+                            )
                         }
-                        val recommendations = catalogState.series
-                            .asSequence()
-                            .filter { it.id != baseSeries.id && it.category.equals(baseSeries.category, ignoreCase = true) }
-                            .take(14)
-                            .toList()
-
-                        SeriesDetailScreen(
-                            series = resolvedSeries,
-                            recommendations = recommendations,
-                            isFavorite = baseSeries.id in favoriteSeriesIds,
-                            isTelevision = isWideLayout,
-                            episodesLoading = episodesState.seriesId == baseSeries.xtreamSeriesId && episodesState.loading,
-                            episodesError = episodesState
-                                .takeIf { it.seriesId == baseSeries.xtreamSeriesId }
-                                ?.error,
-                            onBack = {
-                                pendingSeriesResume = null
-                                destination = NativeDestination.Series
-                            },
-                            onToggleFavorite = {
-                                favoriteSeriesIds = playbackPreferences.toggleFavoriteSeries(baseSeries.id)
-                            },
-                            onRefreshEpisodes = {
-                                val xtreamId = baseSeries.xtreamSeriesId
-                                if (!xtreamId.isNullOrBlank()) {
-                                    seriesEpisodesViewModel.load(xtreamId, force = true)
-                                } else {
-                                    refreshCatalog()
-                                }
-                            },
-                            onPlayEpisode = { episode, _ ->
-                                pendingSeriesResume = null
-                                val season = resolvedSeries.seasons.firstOrNull { candidate ->
-                                    candidate.episodes.any { it.id == episode.id }
-                                }
-                                if (season != null) {
-                                    openSeriesEpisode(
-                                        series = resolvedSeries,
-                                        seasons = resolvedSeries.seasons,
-                                        season = season,
-                                        episode = episode,
-                                    )
-                                }
-                            },
-                            onOpenRecommendation = { recommendation ->
-                                selectedSeries = recommendation
-                                pendingSeriesResume = null
-                                seriesEpisodesViewModel.clear()
-                            },
-                        )
                     }
+
+                    NativeDestination.Series -> SeriesScreen(
+                        series = catalogState.series,
+                        isTelevision = isWideLayout,
+                        favoriteIds = favoriteSeriesIds,
+                        startedSeriesIds = startedSeriesIds,
+                        onOpenDetails = { series -> openSeriesDetails(series, NativeDestination.Series) },
+                    )
+
+                    NativeDestination.SeriesDetail -> {
+                        val baseSeries = selectedSeries
+                        if (baseSeries == null) {
+                            destination = detailReturnDestination
+                        } else {
+                            val resolvedSeries = if (
+                                baseSeries.seasons.isEmpty() &&
+                                !baseSeries.xtreamSeriesId.isNullOrBlank() &&
+                                episodesState.seriesId == baseSeries.xtreamSeriesId &&
+                                episodesState.seasons.isNotEmpty()
+                            ) {
+                                baseSeries.copy(seasons = episodesState.seasons)
+                            } else {
+                                baseSeries
+                            }
+                            val recommendations = catalogState.series
+                                .asSequence()
+                                .filter { it.id != baseSeries.id && it.category.equals(baseSeries.category, ignoreCase = true) }
+                                .take(14)
+                                .toList()
+
+                            SeriesDetailScreen(
+                                series = resolvedSeries,
+                                recommendations = recommendations,
+                                isFavorite = baseSeries.id in favoriteSeriesIds,
+                                isTelevision = isWideLayout,
+                                episodesLoading = episodesState.seriesId == baseSeries.xtreamSeriesId && episodesState.loading,
+                                episodesError = episodesState
+                                    .takeIf { it.seriesId == baseSeries.xtreamSeriesId }
+                                    ?.error,
+                                onBack = {
+                                    pendingSeriesResume = null
+                                    destination = detailReturnDestination
+                                },
+                                onToggleFavorite = {
+                                    favoriteSeriesIds = playbackPreferences.toggleFavoriteSeries(baseSeries.id)
+                                },
+                                onRefreshEpisodes = {
+                                    val xtreamId = baseSeries.xtreamSeriesId
+                                    if (!xtreamId.isNullOrBlank()) {
+                                        seriesEpisodesViewModel.load(xtreamId, force = true)
+                                    } else {
+                                        refreshCatalog()
+                                    }
+                                },
+                                onPlayEpisode = { episode, _ ->
+                                    pendingSeriesResume = null
+                                    val season = resolvedSeries.seasons.firstOrNull { candidate ->
+                                        candidate.episodes.any { it.id == episode.id }
+                                    }
+                                    if (season != null) {
+                                        openSeriesEpisode(
+                                            series = resolvedSeries,
+                                            seasons = resolvedSeries.seasons,
+                                            season = season,
+                                            episode = episode,
+                                        )
+                                    }
+                                },
+                                onOpenRecommendation = { recommendation ->
+                                    selectedSeries = recommendation
+                                    pendingSeriesResume = null
+                                    seriesEpisodesViewModel.clear()
+                                },
+                            )
+                        }
+                    }
+
+                    NativeDestination.Playback -> PlaybackScreen(
+                        isTelevision = isWideLayout,
+                        channels = catalogState.channels,
+                        movies = catalogState.movies,
+                        series = catalogState.series,
+                        favoriteChannelIds = favoriteChannelIds,
+                        favoriteMovieIds = favoriteMovieIds,
+                        favoriteSeriesIds = favoriteSeriesIds,
+                        progress = savedProgress,
+                        onBack = { destination = NativeDestination.Home },
+                        onPlayChannel = ::openChannel,
+                        onOpenMovie = { movie -> openMovieDetails(movie) },
+                        onResumeMovie = ::openMovie,
+                        onOpenSeries = { series -> openSeriesDetails(series) },
+                        onResumeSeries = ::resumeSeries,
+                    )
+
+                    NativeDestination.Settings -> SettingsScreen(
+                        isTelevision = isWideLayout,
+                        state = settingsState,
+                        appUpdateState = appUpdateState,
+                        onStateChange = { updated ->
+                            settingsState = updated
+                            playerSettingsPreferences.save(updated)
+                        },
+                        onRefreshContent = ::refreshCatalog,
+                        onCheckForAppUpdate = onCheckForAppUpdate,
+                    )
+
+                    NativeDestination.Player -> Unit
                 }
-
-                NativeDestination.Playback -> PlaybackScreen(
-                    isTelevision = isWideLayout,
-                    channels = catalogState.channels,
-                    movies = catalogState.movies,
-                    series = catalogState.series,
-                    favoriteChannelIds = favoriteChannelIds,
-                    favoriteMovieIds = favoriteMovieIds,
-                    favoriteSeriesIds = favoriteSeriesIds,
-                    progress = savedProgress,
-                    onBack = { destination = NativeDestination.Home },
-                    onPlayChannel = ::openChannel,
-                    onOpenMovie = { movie ->
-                        selectedMovie = movie
-                        destination = NativeDestination.MovieDetail
-                    },
-                    onResumeMovie = ::openMovie,
-                    onOpenSeries = { series ->
-                        selectedSeries = series
-                        pendingSeriesResume = null
-                        seriesEpisodesViewModel.clear()
-                        destination = NativeDestination.SeriesDetail
-                    },
-                    onResumeSeries = ::resumeSeries,
-                )
-
-                NativeDestination.Settings -> SettingsScreen(
-                    isTelevision = isWideLayout,
-                    state = settingsState,
-                    appUpdateState = appUpdateState,
-                    onStateChange = { updated ->
-                        settingsState = updated
-                        playerSettingsPreferences.save(updated)
-                    },
-                    onRefreshContent = ::refreshCatalog,
-                    onCheckForAppUpdate = onCheckForAppUpdate,
-                )
-
-                NativeDestination.Player -> Unit
             }
         }
 
-        if (showMainNavigation && isWideLayout) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(RonecaColors.Background),
-            ) {
-                MainNavigationRail(
-                    selectedTab = selectedTab,
-                    isTelevision = isTelevision || settingsState.forceTvMode,
-                    onSelect = ::selectMainTab,
-                )
-                Box(
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (showMainNavigation && isWideLayout) {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                        .fillMaxSize()
+                        .background(RonecaColors.Background),
                 ) {
-                    screenContent()
+                    MainNavigationRail(
+                        selectedTab = selectedTab,
+                        isTelevision = isTelevision || settingsState.forceTvMode,
+                        onSelect = ::selectMainTab,
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    ) {
+                        screenContent()
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(RonecaColors.Background),
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        screenContent()
+                    }
+
+                    if (showMainNavigation) {
+                        MainNavigationBar(
+                            selectedTab = selectedTab,
+                            isTelevision = false,
+                            onSelect = ::selectMainTab,
+                        )
+                    }
                 }
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(RonecaColors.Background),
-            ) {
-                Box(modifier = Modifier.weight(1f)) {
-                    screenContent()
-                }
 
-                if (showMainNavigation) {
-                    MainNavigationBar(
-                        selectedTab = selectedTab,
-                        isTelevision = false,
-                        onSelect = ::selectMainTab,
+            if (destination == NativeDestination.Player) {
+                val seriesPlayback = activeSeriesPlayback
+                if (seriesPlayback != null) {
+                    SeriesNativePlayerScreen(
+                        isTelevision = isTelevision || settingsState.forceTvMode,
+                        seriesTitle = seriesPlayback.series.name,
+                        seasons = seriesPlayback.seasons,
+                        initialEpisodeId = seriesPlayback.episodeId,
+                        initialPositionMs = selectedInitialPositionMs,
+                        decoderMode = settingsState.decoderMode,
+                        bufferSeconds = settingsState.bufferSeconds,
+                        automaticReconnect = settingsState.automaticReconnect,
+                        positionForEpisode = { episode ->
+                            playbackPreferences
+                                .progressFor("episode:${seriesPlayback.series.id}:${episode.id}")
+                                ?.positionMs
+                                ?: 0L
+                        },
+                        onEpisodeChanged = { season, episode ->
+                            activeSeriesPlayback = seriesPlayback.copy(
+                                seasonNumber = season.number,
+                                episodeId = episode.id,
+                            )
+                            selectedTitle = "${seriesPlayback.series.name} • T${season.number} E${episode.number}"
+                            selectedContentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
+                            selectedInitialPositionMs = 0L
+                        },
+                        onProgress = { _, episode, positionMs, durationMs ->
+                            val contentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
+                            playbackPreferences.saveProgress(contentKey, positionMs, durationMs)
+                            savedProgress = playbackPreferences.startedProgress()
+                        },
+                        onBack = {
+                            destination = playerReturnDestination
+                            activeSeriesPlayback = null
+                        },
+                    )
+                } else {
+                    val relatedChannels = selectedChannelGroup
+                        ?.let { group ->
+                            catalogState.channels.filter { it.groupTitle.equals(group, ignoreCase = true) }
+                        }
+                        .orEmpty()
+                    val currentChannelId = selectedContentKey
+                        .takeIf { it.startsWith("channel:") }
+                        ?.removePrefix("channel:")
+
+                    NativePlayerScreen(
+                        isTelevision = isTelevision || settingsState.forceTvMode,
+                        title = selectedTitle,
+                        streamUrls = selectedStreamUrls,
+                        initialPositionMs = selectedInitialPositionMs,
+                        relatedChannels = relatedChannels,
+                        currentChannelId = currentChannelId,
+                        decoderMode = settingsState.decoderMode,
+                        bufferSeconds = settingsState.bufferSeconds,
+                        automaticReconnect = settingsState.automaticReconnect,
+                        onProgress = { positionMs, durationMs ->
+                            if (selectedContentKey.startsWith("movie:") || selectedContentKey.startsWith("episode:")) {
+                                playbackPreferences.saveProgress(selectedContentKey, positionMs, durationMs)
+                                savedProgress = playbackPreferences.startedProgress()
+                            }
+                        },
+                        onSelectChannel = ::selectChannelInsidePlayer,
+                        onBack = { destination = playerReturnDestination },
                     )
                 }
             }

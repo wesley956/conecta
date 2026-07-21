@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.ui.player
 
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -67,6 +70,8 @@ import kotlinx.coroutines.launch
 
 private const val SERIES_IPTV_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
 private const val SERIES_SOURCE_RETRY_LIMIT = 1
+private const val SERIES_CONTROLS_TIMEOUT_MS = 5_000L
+private const val SERIES_SEEK_STEP_MS = 10_000L
 
 private data class EpisodeEntry(
     val season: NativeSeason,
@@ -91,6 +96,11 @@ fun SeriesNativePlayerScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val rootFocusRequester = remember { FocusRequester() }
+    val playPauseFocusRequester = remember { FocusRequester() }
+    val drawerFirstItemFocusRequester = remember { FocusRequester() }
+    val touchInteraction = remember { MutableInteractionSource() }
+
     val entries = remember(seasons) {
         seasons
             .sortedBy(NativeSeason::number)
@@ -109,6 +119,11 @@ fun SeriesNativePlayerScreen(
     var pendingSeekMs by remember(entries) { mutableLongStateOf(initialPositionMs.coerceAtLeast(0L)) }
     var episodeDrawerVisible by remember { mutableStateOf(false) }
     var transitionLocked by remember(entries) { mutableStateOf(false) }
+    var controlsVisible by remember { mutableStateOf(true) }
+    var interactionVersion by remember { mutableLongStateOf(0L) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var positionMs by remember { mutableLongStateOf(initialPositionMs.coerceAtLeast(0L)) }
+    var durationMs by remember { mutableLongStateOf(0L) }
     var playerMessage by remember(entries) {
         mutableStateOf(if (entries.isEmpty()) "Esta série não possui episódios disponíveis." else null)
     }
@@ -174,6 +189,38 @@ fun SeriesNativePlayerScreen(
             }
     }
 
+    fun markInteraction(showControls: Boolean = true) {
+        interactionVersion += 1L
+        if (showControls) controlsVisible = true
+    }
+
+    fun requestPlayPauseFocus() {
+        coroutineScope.launch {
+            delay(60)
+            runCatching { playPauseFocusRequester.requestFocus() }
+        }
+    }
+
+    fun togglePlayPause() {
+        if (player.isPlaying) player.pause() else player.play()
+        markInteraction()
+        requestPlayPauseFocus()
+    }
+
+    fun seekBy(deltaMs: Long) {
+        val duration = player.duration
+        if (duration <= 0L) return
+        player.seekTo((player.currentPosition + deltaMs).coerceIn(0L, duration))
+        markInteraction()
+        requestPlayPauseFocus()
+    }
+
+    fun closeDrawer() {
+        episodeDrawerVisible = false
+        markInteraction()
+        requestPlayPauseFocus()
+    }
+
     fun selectEntry(index: Int, resumePositionMs: Long, notify: Boolean) {
         val entry = entries.getOrNull(index) ?: return
         currentIndex = index
@@ -183,6 +230,27 @@ fun SeriesNativePlayerScreen(
         transitionLocked = false
         playerMessage = "Carregando T${entry.season.number} E${entry.episode.number}..."
         if (notify) onEpisodeChanged(entry.season, entry.episode)
+    }
+
+    LaunchedEffect(Unit) {
+        delay(80)
+        runCatching { rootFocusRequester.requestFocus() }
+        requestPlayPauseFocus()
+    }
+
+    LaunchedEffect(controlsVisible, isPlaying, episodeDrawerVisible, interactionVersion) {
+        if (controlsVisible && isPlaying && !episodeDrawerVisible) {
+            delay(SERIES_CONTROLS_TIMEOUT_MS)
+            controlsVisible = false
+            runCatching { rootFocusRequester.requestFocus() }
+        }
+    }
+
+    LaunchedEffect(episodeDrawerVisible, currentEntry?.episode?.id) {
+        if (episodeDrawerVisible && entries.isNotEmpty()) {
+            delay(80)
+            runCatching { drawerFirstItemFocusRequester.requestFocus() }
+        }
     }
 
     LaunchedEffect(currentIndex, sourceIndex, currentSources) {
@@ -202,10 +270,12 @@ fun SeriesNativePlayerScreen(
 
     LaunchedEffect(player, currentIndex) {
         while (true) {
-            delay(2_000)
+            delay(500)
             val entry = entries.getOrNull(currentIndex) ?: continue
             val duration = player.duration
             val position = player.currentPosition
+            positionMs = position.coerceAtLeast(0L)
+            durationMs = duration.takeIf { it > 0L } ?: 0L
             if (duration > 0L && position > 0L) {
                 onProgress(entry.season, entry.episode, position, duration)
             }
@@ -214,6 +284,11 @@ fun SeriesNativePlayerScreen(
 
     DisposableEffect(player, currentIndex, currentSources, automaticReconnect, hasNextEpisode) {
         val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(value: Boolean) {
+                isPlaying = value
+                if (!value) controlsVisible = true
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_BUFFERING -> if (playerMessage == null) {
@@ -222,6 +297,7 @@ fun SeriesNativePlayerScreen(
                     Player.STATE_READY -> {
                         sameSourceRetries = 0
                         playerMessage = null
+                        isPlaying = player.isPlaying
                     }
                     Player.STATE_ENDED -> {
                         if (hasNextEpisode && !transitionLocked) {
@@ -289,19 +365,91 @@ fun SeriesNativePlayerScreen(
         }
     }
 
+    DisposableEffect(player) {
+        val registration = NativePlaybackKeyRouter.register { event ->
+            val supported = event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_HEADSETPHOOK ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PLAY ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_PAUSE ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD ||
+                event.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_REWIND
+
+            if (!supported) {
+                false
+            } else {
+                if (event.action == AndroidKeyEvent.ACTION_UP) {
+                    when (event.keyCode) {
+                        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        AndroidKeyEvent.KEYCODE_HEADSETPHOOK,
+                        -> togglePlayPause()
+                        AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
+                            player.play()
+                            markInteraction()
+                            requestPlayPauseFocus()
+                        }
+                        AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                            player.pause()
+                            markInteraction()
+                            requestPlayPauseFocus()
+                        }
+                        AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seekBy(SERIES_SEEK_STEP_MS)
+                        AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> seekBy(-SERIES_SEEK_STEP_MS)
+                    }
+                }
+                true
+            }
+        }
+        onDispose { NativePlaybackKeyRouter.unregister(registration) }
+    }
+
     BackHandler {
-        if (episodeDrawerVisible) episodeDrawerVisible = false else onBack()
+        if (episodeDrawerVisible) closeDrawer() else onBack()
+    }
+
+    val chromeTitle = buildString {
+        append(seriesTitle)
+        currentEntry?.let { append(" • T${it.season.number} E${it.episode.number}") }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .focusRequester(rootFocusRequester)
+            .focusable()
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyUp && event.key == Key.Back) {
-                    if (episodeDrawerVisible) episodeDrawerVisible = false else onBack()
-                    true
-                } else false
+                when {
+                    event.type == KeyEventType.KeyUp && event.key == Key.Back -> {
+                        if (episodeDrawerVisible) closeDrawer() else onBack()
+                        true
+                    }
+                    episodeDrawerVisible -> false
+                    event.type == KeyEventType.KeyUp &&
+                        (event.key == Key.DirectionCenter ||
+                            event.key == Key.Enter ||
+                            event.key == Key.NumPadEnter ||
+                            event.key == Key.Spacebar) &&
+                        !controlsVisible -> {
+                        togglePlayPause()
+                        true
+                    }
+                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft && !controlsVisible -> {
+                        seekBy(-SERIES_SEEK_STEP_MS)
+                        true
+                    }
+                    event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight && !controlsVisible -> {
+                        seekBy(SERIES_SEEK_STEP_MS)
+                        true
+                    }
+                    event.type == KeyEventType.KeyDown &&
+                        (event.key == Key.DirectionUp || event.key == Key.DirectionDown) &&
+                        !controlsVisible -> {
+                        markInteraction()
+                        requestPlayPauseFocus()
+                        true
+                    }
+                    else -> false
+                }
             },
     ) {
         AndroidView(
@@ -310,25 +458,51 @@ fun SeriesNativePlayerScreen(
                 PlayerView(viewContext).apply {
                     this.player = player
                     keepScreenOn = true
-                    useController = true
-                    controllerAutoShow = true
-                    setControllerShowTimeoutMs(if (isTelevision) 5_000 else 3_000)
+                    useController = false
                     setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    isFocusable = true
-                    isFocusableInTouchMode = true
-                    requestFocus()
+                    isFocusable = false
+                    isFocusableInTouchMode = false
                 }
             },
             update = { playerView -> playerView.player = player },
         )
 
-        SeriesPlayerHeader(
-            seriesTitle = seriesTitle,
-            currentEntry = currentEntry,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = touchInteraction,
+                    indication = null,
+                    onClick = {
+                        controlsVisible = !controlsVisible
+                        markInteraction(showControls = controlsVisible)
+                        if (controlsVisible) requestPlayPauseFocus()
+                    },
+                ),
+        )
+
+        NativePlayerChrome(
+            title = chromeTitle,
+            eyebrow = "RONECAPLAYTV • SÉRIE",
+            live = false,
             isTelevision = isTelevision,
+            controlsVisible = controlsVisible,
+            drawerVisible = episodeDrawerVisible,
+            drawerLabel = "Episódios",
+            isPlaying = isPlaying,
+            positionMs = positionMs,
+            durationMs = durationMs,
+            playPauseFocusRequester = playPauseFocusRequester,
             onBack = onBack,
-            onOpenEpisodes = { episodeDrawerVisible = true },
+            onOpenDrawer = {
+                episodeDrawerVisible = true
+                controlsVisible = true
+                interactionVersion += 1L
+            },
+            onSeekBack = { seekBy(-SERIES_SEEK_STEP_MS) },
+            onTogglePlayPause = ::togglePlayPause,
+            onSeekForward = { seekBy(SERIES_SEEK_STEP_MS) },
         )
 
         playerMessage?.let { message ->
@@ -338,7 +512,7 @@ fun SeriesNativePlayerScreen(
                 fontSize = if (isTelevision) 17.sp else 14.sp,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = if (controlsVisible) 150.dp else 24.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(RonecaColors.SurfaceOverlay)
                     .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
@@ -351,12 +525,14 @@ fun SeriesNativePlayerScreen(
                 seriesTitle = seriesTitle,
                 seasons = seasons,
                 currentEpisodeId = currentEntry?.episode?.id,
+                currentSeasonNumber = currentEntry?.season?.number,
                 isTelevision = isTelevision,
-                onDismiss = { episodeDrawerVisible = false },
+                firstItemFocusRequester = drawerFirstItemFocusRequester,
+                onDismiss = ::closeDrawer,
                 onSelect = { season, episode ->
                     val index = entries.indexOfFirst { it.episode.id == episode.id }
                     if (index >= 0) {
-                        episodeDrawerVisible = false
+                        closeDrawer()
                         selectEntry(index, positionForEpisode(episode), notify = true)
                     }
                 },
@@ -367,92 +543,27 @@ fun SeriesNativePlayerScreen(
 }
 
 @Composable
-private fun SeriesPlayerHeader(
-    seriesTitle: String,
-    currentEntry: EpisodeEntry?,
-    isTelevision: Boolean,
-    onBack: () -> Unit,
-    onOpenEpisodes: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xC4050505))
-            .padding(horizontal = if (isTelevision) 24.dp else 14.dp, vertical = 11.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SeriesPlayerAction(label = "←", onClick = onBack)
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(if (isTelevision) 34.dp else 30.dp)
-                    .background(RonecaColors.RedStrong),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "RONECAPLAYTV • SÉRIE",
-                    color = RonecaColors.Primary,
-                    fontSize = if (isTelevision) 10.sp else 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.4.sp,
-                )
-                Text(
-                    text = buildString {
-                        append(seriesTitle)
-                        currentEntry?.let { append(" • T${it.season.number} E${it.episode.number}") }
-                    },
-                    color = RonecaColors.TextPrimary,
-                    fontSize = if (isTelevision) 17.sp else 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-        }
-        SeriesPlayerAction(label = "☰  Episódios", onClick = onOpenEpisodes)
-    }
-}
-
-@Composable
-private fun SeriesPlayerAction(label: String, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.SurfaceOverlay)
-            .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.RedStrong else RonecaColors.Primary.copy(alpha = 0.60f),
-                shape = RoundedCornerShape(999.dp),
-            )
-            .onFocusChanged { focused = it.isFocused }
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .focusable()
-            .padding(horizontal = 13.dp, vertical = 8.dp),
-    ) {
-        Text(text = label, color = RonecaColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
 private fun EpisodeDrawer(
     seriesTitle: String,
     seasons: List<NativeSeason>,
     currentEpisodeId: String?,
+    currentSeasonNumber: Int?,
     isTelevision: Boolean,
+    firstItemFocusRequester: FocusRequester,
     onDismiss: () -> Unit,
     onSelect: (NativeSeason, NativeEpisode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val orderedSeasons = remember(seasons, currentSeasonNumber, currentEpisodeId) {
+        seasons.sortedWith(
+            compareByDescending<NativeSeason> { it.number == currentSeasonNumber }
+                .thenBy(NativeSeason::number),
+        )
+    }
+
     Column(
         modifier = modifier
-            .width(if (isTelevision) 390.dp else 330.dp)
+            .width(if (isTelevision) 410.dp else 340.dp)
             .fillMaxHeight()
             .background(Color(0xF20A0908))
             .border(1.dp, RonecaColors.Border)
@@ -471,17 +582,23 @@ private fun EpisodeDrawer(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "$seriesTitle • próximo episódio automático",
+                    text = "$seriesTitle • episódio atual primeiro",
                     color = RonecaColors.TextSecondary,
                     fontSize = 11.sp,
                     maxLines = 1,
                 )
             }
-            SeriesPlayerAction(label = "×", onClick = onDismiss)
+            NativePlayerAction(label = "×", contentDescription = "Fechar episódios", onClick = onDismiss)
         }
         Spacer(modifier = Modifier.height(13.dp))
+
+        var firstEpisodeRendered = false
         LazyColumn(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            seasons.sortedBy(NativeSeason::number).forEach { season ->
+            orderedSeasons.forEach { season ->
+                val orderedEpisodes = season.episodes.sortedWith(
+                    compareByDescending<NativeEpisode> { it.id == currentEpisodeId }
+                        .thenBy(NativeEpisode::number),
+                )
                 item(key = "season-${season.number}") {
                     Text(
                         text = "TEMPORADA ${season.number}",
@@ -492,14 +609,21 @@ private fun EpisodeDrawer(
                     )
                 }
                 items(
-                    items = season.episodes.sortedBy(NativeEpisode::number),
+                    items = orderedEpisodes,
                     key = { episode -> "${season.number}-${episode.id}" },
                 ) { episode ->
+                    val shouldReceiveInitialFocus = !firstEpisodeRendered
+                    firstEpisodeRendered = true
                     EpisodeDrawerRow(
                         season = season,
                         episode = episode,
                         active = episode.id == currentEpisodeId,
                         isTelevision = isTelevision,
+                        modifier = if (shouldReceiveInitialFocus) {
+                            Modifier.focusRequester(firstItemFocusRequester)
+                        } else {
+                            Modifier
+                        },
                         onClick = { if (episode.id != currentEpisodeId) onSelect(season, episode) },
                     )
                 }
@@ -514,12 +638,13 @@ private fun EpisodeDrawerRow(
     episode: NativeEpisode,
     active: Boolean,
     isTelevision: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
+    var focused by remember(episode.id) { mutableStateOf(false) }
+    val interactionSource = remember(episode.id) { MutableInteractionSource() }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(

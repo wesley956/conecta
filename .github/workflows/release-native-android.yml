@@ -1,25 +1,23 @@
-name: Publish ronecaPlayerTV Release
+name: Publish native RonecaPlayTV release
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "native-android/**"
-      - "scripts/patch-native-player-tv-controls.cjs"
-      - ".github/workflows/release-native-android.yml"
   workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Resumo desta versão nativa'
+        required: false
+        default: 'Melhorias do aplicativo Android nativo.'
 
 permissions:
   contents: write
 
 concurrency:
-  group: native-android-release-${{ github.ref }}
+  group: native-android-release
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Build and publish ronecaPlayerTV APK
+    name: Build and publish immutable native APK
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -32,21 +30,21 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install Android platform
-        run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: yes | sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "9.4.1"
+          gradle-version: '9.4.1'
 
-      - name: Apply TV remote player controls
-        run: node scripts/patch-native-player-tv-controls.cjs
+      - name: Validate native-only platform
+        run: node scripts/check-native-only.mjs
 
       - name: Read application version
         id: app
@@ -55,17 +53,23 @@ jobs:
           set -euo pipefail
           VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' native-android/app/build.gradle.kts | head -n1)
           VERSION_CODE=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\)/\1/p' native-android/app/build.gradle.kts | head -n1)
-          if [ -z "$VERSION" ]; then
-            echo "Unable to resolve versionName" >&2
-            exit 1
-          fi
-          if [ -z "$VERSION_CODE" ]; then
-            echo "Unable to resolve versionCode" >&2
-            exit 1
-          fi
+          test -n "$VERSION"
+          test -n "$VERSION_CODE"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse mutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.app.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A release $TAG já existe. Aumente versionName e versionCode antes de publicar."
+            exit 1
+          fi
 
       - name: Restore permanent release key
         env:
@@ -76,10 +80,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : "${ANDROID_KEYSTORE_BASE64:?Missing ANDROID_KEYSTORE_BASE64 secret}"
-          : "${ANDROID_KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD secret}"
-          : "${ANDROID_KEY_ALIAS:?Missing ANDROID_KEY_ALIAS secret}"
-          : "${ANDROID_KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD secret}"
+          : "${ANDROID_KEYSTORE_BASE64:?Missing NATIVE_ANDROID_KEYSTORE_BASE64 secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing NATIVE_ANDROID_KEYSTORE_PASSWORD secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing NATIVE_ANDROID_KEY_ALIAS secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing NATIVE_ANDROID_KEY_PASSWORD secret}"
 
           KEYSTORE_FILE="$RUNNER_TEMP/ronecaplaytv-release.jks"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
@@ -93,9 +97,7 @@ jobs:
       - name: Assemble signed release APK
         working-directory: native-android
         shell: bash
-        run: |
-          set -euo pipefail
-          gradle --no-daemon :app:assembleRelease
+        run: gradle --no-daemon :app:assembleRelease
 
       - name: Verify signature and prepare release files
         env:
@@ -119,14 +121,11 @@ jobs:
               tr -d ':'
           )
           NORMALIZED_EXPECTED=$(printf '%s' "$EXPECTED_SIGNER_SHA256" | tr '[:upper:]' '[:lower:]' | tr -d ':')
-          if [ "$ACTUAL_SIGNER_SHA256" != "$NORMALIZED_EXPECTED" ]; then
-            echo "Release signer does not match the permanent certificate" >&2
-            exit 1
-          fi
+          test "$ACTUAL_SIGNER_SHA256" = "$NORMALIZED_EXPECTED"
 
           APK_SHA256=$(sha256sum "$APK" | awk '{print $1}')
           printf '%s  %s\n' "$APK_SHA256" "$(basename "$APK")" > "release/ronecaPlayerTV-v${{ steps.app.outputs.version }}.sha256"
-          printf '%s\n' "$ACTUAL_SIGNER_SHA256" > "release/ronecaPlayerTV-signing-cert.sha256"
+          printf '%s\n' "$ACTUAL_SIGNER_SHA256" > release/ronecaPlayerTV-signing-cert.sha256
 
           jq -n \
             --argjson schemaVersion 1 \
@@ -136,7 +135,7 @@ jobs:
             --arg sha256 "$APK_SHA256" \
             --arg signerSha256 "$ACTUAL_SIGNER_SHA256" \
             --argjson mandatory false \
-            --arg notes "Correção de compatibilidade do atualizador e melhorias de estabilidade." \
+            --arg notes "${{ github.event.inputs.release_notes }}" \
             '{
               schemaVersion: $schemaVersion,
               versionCode: $versionCode,
@@ -148,7 +147,7 @@ jobs:
               notes: $notes
             }' > release/ronecaPlayerTV-update.json
 
-      - name: Publish GitHub Release
+      - name: Publish immutable GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.app.outputs.tag }}
@@ -156,17 +155,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="release/ronecaPlayerTV-v${VERSION}.apk"
-          CHECKSUM="release/ronecaPlayerTV-v${VERSION}.sha256"
-          UPDATE_MANIFEST="release/ronecaPlayerTV-update.json"
-          SIGNING_CERT="release/ronecaPlayerTV-signing-cert.sha256"
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" "$SIGNING_CERT" --clobber
-          else
-            gh release create "$TAG" "$APK" "$CHECKSUM" "$UPDATE_MANIFEST" "$SIGNING_CERT" \
-              --target "$GITHUB_SHA" \
-              --title "ronecaPlayerTV v${VERSION}" \
-              --notes-file native-android/RELEASE_NOTES.md \
-              --latest
-          fi
+          gh release create "$TAG" \
+            "release/ronecaPlayerTV-v${VERSION}.apk" \
+            "release/ronecaPlayerTV-v${VERSION}.sha256" \
+            release/ronecaPlayerTV-update.json \
+            release/ronecaPlayerTV-signing-cert.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "ronecaPlayerTV v${VERSION}" \
+            --notes "${{ github.event.inputs.release_notes }}" \
+            --latest

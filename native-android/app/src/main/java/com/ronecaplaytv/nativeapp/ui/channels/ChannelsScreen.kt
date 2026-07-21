@@ -20,12 +20,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,8 +37,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -51,6 +55,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import kotlinx.coroutines.delay
 
 @Composable
 fun ChannelsScreen(
@@ -64,6 +69,13 @@ fun ChannelsScreen(
     var selectedCategory by rememberSaveable { mutableStateOf("Todos") }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var alphabetical by rememberSaveable { mutableStateOf(false) }
+    var lastFocusedChannelId by rememberSaveable { mutableStateOf<String?>(null) }
+    var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
+
+    val categoryState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
+    val mobileListState = rememberLazyListState()
+    val restoreFocusRequester = remember { FocusRequester() }
 
     val categories = remember(channels) {
         listOf("Todos") + channels
@@ -87,6 +99,35 @@ fun ChannelsScreen(
             .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
             .let { sequence -> if (alphabetical) sequence.sortedBy { it.name.lowercase() } else sequence }
             .toList()
+    }
+
+    val filterSignature = remember(query, selectedCategory, favoritesOnly, alphabetical, favoriteIds) {
+        buildString {
+            append(query.trim().lowercase())
+            append('|').append(selectedCategory)
+            append('|').append(favoritesOnly)
+            append('|').append(alphabetical)
+            if (favoritesOnly) append('|').append(favoriteIds.hashCode())
+        }
+    }
+
+    LaunchedEffect(filterSignature, filteredChannels.map(NativeChannel::id), isTelevision) {
+        val ids = filteredChannels.map(NativeChannel::id)
+        val firstId = ids.firstOrNull()
+        if (appliedFilterSignature != filterSignature) {
+            appliedFilterSignature = filterSignature
+            lastFocusedChannelId = firstId
+            if (filteredChannels.isNotEmpty()) {
+                if (isTelevision) gridState.scrollToItem(0) else mobileListState.scrollToItem(0)
+            }
+        } else if (lastFocusedChannelId !in ids) {
+            lastFocusedChannelId = firstId
+        }
+
+        if (isTelevision && lastFocusedChannelId != null) {
+            delay(100)
+            runCatching { restoreFocusRequester.requestFocus() }
+        }
     }
 
     Column(
@@ -130,7 +171,10 @@ fun ChannelsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                LazyRow(
+                    state = categoryState,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
                     item {
                         FilterChip(
                             label = "Todos",
@@ -156,7 +200,7 @@ fun ChannelsScreen(
                             onClick = { alphabetical = !alphabetical },
                         )
                     }
-                    items(categories.drop(1)) { category ->
+                    items(categories.drop(1), key = { it }) { category ->
                         FilterChip(
                             label = category,
                             selected = selectedCategory == category,
@@ -214,8 +258,11 @@ fun ChannelsScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(categories) { category ->
+                LazyRow(
+                    state = categoryState,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(categories, key = { it }) { category ->
                         FilterChip(
                             label = category,
                             selected = selectedCategory == category,
@@ -230,24 +277,36 @@ fun ChannelsScreen(
         if (isTelevision) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
+                state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(filteredChannels, key = NativeChannel::id) { channel ->
+                    val focusModifier = if (channel.id == lastFocusedChannelId) {
+                        Modifier.focusRequester(restoreFocusRequester)
+                    } else {
+                        Modifier
+                    }
                     ChannelItem(
                         channel = channel,
                         favorite = channel.id in favoriteIds,
                         isTelevision = true,
                         compact = true,
+                        modifier = focusModifier,
+                        onFocused = { lastFocusedChannelId = channel.id },
                         onToggleFavorite = { onToggleFavorite(channel) },
-                        onPlay = { onPlay(channel) },
+                        onPlay = {
+                            lastFocusedChannelId = channel.id
+                            onPlay(channel)
+                        },
                     )
                 }
             }
         } else {
             LazyColumn(
+                state = mobileListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp),
             ) {
@@ -266,8 +325,12 @@ fun ChannelsScreen(
                         favorite = channel.id in favoriteIds,
                         isTelevision = false,
                         compact = false,
+                        onFocused = { lastFocusedChannelId = channel.id },
                         onToggleFavorite = { onToggleFavorite(channel) },
-                        onPlay = { onPlay(channel) },
+                        onPlay = {
+                            lastFocusedChannelId = channel.id
+                            onPlay(channel)
+                        },
                     )
                 }
             }
@@ -288,7 +351,7 @@ private fun SearchField(
             .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
             .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
-            .padding(horizontal = 16.dp, vertical = if (isTelevision) 10.dp else 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         if (value.isBlank()) {
             Text(
@@ -313,23 +376,41 @@ private fun SearchField(
 
 @Composable
 private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    else -> RonecaColors.Surface
+                },
+            )
             .border(
-                width = 1.dp,
-                color = if (selected) RonecaColors.Primary else RonecaColors.Border,
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    selected -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
                 shape = RoundedCornerShape(999.dp),
             )
-            .clickable(onClick = onClick)
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = label,
-            color = if (selected) RonecaColors.Primary else RonecaColors.TextSecondary,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                selected -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
             fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
         )
     }
@@ -341,14 +422,16 @@ private fun ChannelItem(
     favorite: Boolean,
     isTelevision: Boolean,
     compact: Boolean,
+    modifier: Modifier = Modifier,
+    onFocused: () -> Unit,
     onToggleFavorite: () -> Unit,
     onPlay: () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
+    var focused by remember(channel.id) { mutableStateOf(false) }
+    val interactionSource = remember(channel.id) { MutableInteractionSource() }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
@@ -357,11 +440,17 @@ private fun ChannelItem(
                 color = if (focused) RonecaColors.Primary else RonecaColors.Border,
                 shape = RoundedCornerShape(10.dp),
             )
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused()
+            }
             .onPreviewKeyEvent { event ->
                 if (
                     event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                    (event.key == Key.DirectionCenter ||
+                        event.key == Key.Enter ||
+                        event.key == Key.NumPadEnter ||
+                        event.key == Key.Spacebar)
                 ) {
                     onPlay()
                     true

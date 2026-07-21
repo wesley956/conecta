@@ -20,9 +20,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -49,6 +55,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import kotlinx.coroutines.delay
 
 private const val FILTER_ALL = "Todos"
 private const val FILTER_FAVORITES = "Minha Lista"
@@ -64,6 +71,12 @@ fun MoviesScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var selectedCategory by rememberSaveable { mutableStateOf(FILTER_ALL) }
+    var lastFocusedMovieId by rememberSaveable { mutableStateOf<String?>(null) }
+    var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
+
+    val gridState = rememberLazyGridState()
+    val categoryState = rememberLazyListState()
+    val restoreFocusRequester = remember { FocusRequester() }
 
     val categories = remember(movies) {
         listOf(FILTER_ALL, FILTER_FAVORITES, FILTER_CONTINUE) +
@@ -78,6 +91,32 @@ fun MoviesScreen(
                 else -> movie.category == selectedCategory
             }
             categoryMatches && (query.isBlank() || movie.name.contains(query, ignoreCase = true))
+        }
+    }
+
+    val filterSignature = remember(query, selectedCategory, favoriteIds, startedIds) {
+        buildString {
+            append(query.trim().lowercase())
+            append('|')
+            append(selectedCategory)
+            if (selectedCategory == FILTER_FAVORITES) append('|').append(favoriteIds.hashCode())
+            if (selectedCategory == FILTER_CONTINUE) append('|').append(startedIds.hashCode())
+        }
+    }
+
+    LaunchedEffect(filterSignature, filtered.map(NativeMovie::id), isTelevision) {
+        val firstId = filtered.firstOrNull()?.id
+        if (appliedFilterSignature != filterSignature) {
+            appliedFilterSignature = filterSignature
+            lastFocusedMovieId = firstId
+            if (filtered.isNotEmpty()) gridState.scrollToItem(0)
+        } else if (lastFocusedMovieId !in filtered.map(NativeMovie::id)) {
+            lastFocusedMovieId = firstId
+        }
+
+        if (isTelevision && lastFocusedMovieId != null) {
+            delay(100)
+            runCatching { restoreFocusRequester.requestFocus() }
         }
     }
 
@@ -140,9 +179,11 @@ fun MoviesScreen(
                 )
             }
             Spacer(modifier = Modifier.height(if (isTelevision) 9.dp else 10.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                items(categories.size) { index ->
-                    val category = categories[index]
+            LazyRow(
+                state = categoryState,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                items(categories, key = { it }) { category ->
                     MovieCategoryChip(
                         label = category,
                         selected = selectedCategory == category,
@@ -155,6 +196,7 @@ fun MoviesScreen(
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(if (isTelevision) 6 else 2),
+            state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = sidePadding,
@@ -165,12 +207,22 @@ fun MoviesScreen(
             verticalArrangement = Arrangement.spacedBy(if (isTelevision) 12.dp else 14.dp),
         ) {
             items(filtered, key = NativeMovie::id) { movie ->
+                val focusModifier = if (movie.id == lastFocusedMovieId) {
+                    Modifier.focusRequester(restoreFocusRequester)
+                } else {
+                    Modifier
+                }
                 MoviePosterCard(
                     movie = movie,
                     isTelevision = isTelevision,
                     favorite = movie.id in favoriteIds,
                     started = movie.id in startedIds,
-                    onClick = { onOpenDetails(movie) },
+                    modifier = focusModifier,
+                    onFocused = { lastFocusedMovieId = movie.id },
+                    onClick = {
+                        lastFocusedMovieId = movie.id
+                        onOpenDetails(movie)
+                    },
                 )
             }
         }
@@ -190,7 +242,7 @@ private fun MovieSearchField(
             .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
             .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
-            .padding(horizontal = 16.dp, vertical = if (isTelevision) 10.dp else 10.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         if (value.isBlank()) {
             Text(
@@ -215,22 +267,41 @@ private fun MovieSearchField(
 
 @Composable
 private fun MovieCategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    else -> RonecaColors.Surface
+                },
+            )
             .border(
-                width = 1.dp,
-                color = if (selected) RonecaColors.Primary else RonecaColors.Border,
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    selected -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
                 shape = RoundedCornerShape(999.dp),
             )
-            .clickable(onClick = onClick)
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) {
         Text(
             text = label,
-            color = if (selected) RonecaColors.Primary else RonecaColors.TextSecondary,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                selected -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
             fontSize = 11.sp,
+            fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
         )
     }
@@ -242,13 +313,15 @@ private fun MoviePosterCard(
     isTelevision: Boolean,
     favorite: Boolean,
     started: Boolean,
+    modifier: Modifier = Modifier,
+    onFocused: () -> Unit,
     onClick: () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val interactionSource = remember { MutableInteractionSource() }
+    var focused by remember(movie.id) { mutableStateOf(false) }
+    val interactionSource = remember(movie.id) { MutableInteractionSource() }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(2f / 3f)
             .clip(RoundedCornerShape(12.dp))
@@ -258,11 +331,17 @@ private fun MoviePosterCard(
                 color = if (focused) RonecaColors.Primary else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused()
+            }
             .onPreviewKeyEvent { event ->
                 if (
                     event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                    (event.key == Key.DirectionCenter ||
+                        event.key == Key.Enter ||
+                        event.key == Key.NumPadEnter ||
+                        event.key == Key.Spacebar)
                 ) {
                     onClick()
                     true
