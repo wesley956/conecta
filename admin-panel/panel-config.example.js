@@ -4,3 +4,11 @@ window.RONECA_PANEL_CONFIG = Object.freeze({
   supabaseUrl: 'https://SEU-PROJETO.supabase.co',
   anonKey: 'SUA-CHAVE-PUBLICA-ANON',
 });
+
+(function loadPanelEnhancements() {
+  if (!/\/(dashboard|seller)\.html$/.test(window.location.pathname)) return;
+  const script = document.createElement('script');
+  script.src = './inline-playlist-activation.js?v=1.0';
+  script.async = false;
+  document.head.appendChild(script);
+})();
