@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(24);
+select plan(27);
 
 select has_table('public', 'panel_financial_records', 'Tabela financeira existe');
 select has_column('public', 'panel_financial_records', 'amount_cents', 'Financeiro armazena valores em centavos');
