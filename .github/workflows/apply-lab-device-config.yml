@@ -1,0 +1,160 @@
+name: Apply lab session to device config
+
+on:
+  push:
+    branches:
+      - feature/subscriptions-lab-security
+    paths:
+      - '.github/workflows/apply-lab-device-config.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/subscriptions-lab-security
+          fetch-depth: 0
+
+      - name: Add temporary laboratory configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/device-config/index.ts')
+          text = path.read_text()
+
+          import_marker = "import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';\n"
+          import_replacement = import_marker + "import { resolveActiveLabSession } from '../_shared/labSession.ts';\n"
+          if "resolveActiveLabSession" not in text:
+              if import_marker not in text:
+                  raise SystemExit('Import marker not found')
+              text = text.replace(import_marker, import_replacement, 1)
+
+          health_marker = "  const playlistHealth = payload.playlistHealth && typeof payload.playlistHealth === 'object'\n"
+          if "const labContext = await resolveActiveLabSession" not in text:
+              if health_marker not in text:
+                  raise SystemExit('Health marker not found')
+              text = text.replace(
+                  health_marker,
+                  "  const labContext = await resolveActiveLabSession(supabase, device.id);\n\n" + health_marker,
+                  1,
+              )
+
+          text = text.replace("  if (playlistHealth) {", "  if (playlistHealth && !labContext) {", 1)
+
+          old_state = '''  const expiresAt = device.subscription_expires_at;
+  const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
+  const legacyPlaylist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
+
+  if (device.status !== 'active' || expired) {
+    return json({
+      active: false,
+      status: expired ? 'expired' : device.status,
+      deviceCode: device.device_code,
+      clientName: device.client_name,
+      expiresAt,
+      message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.',
+    });
+  }
+
+  const assignments: any[] = (device.device_playlists ?? [])
+    .map((assignment: any) => ({
+      ...assignment,
+      playlist: Array.isArray(assignment.playlist) ? assignment.playlist[0] : assignment.playlist,
+    }))
+    .filter((assignment: any) => assignment.active !== false && assignment.playlist?.active !== false)
+    .sort((left: any, right: any) => Number(left.priority) - Number(right.priority));
+'''
+          new_state = '''  const expiresAt = labContext?.expiresAt || device.subscription_expires_at;
+  const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
+  const legacyPlaylist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
+
+  if (!labContext && (device.status !== 'active' || expired)) {
+    return json({
+      active: false,
+      status: expired ? 'expired' : device.status,
+      deviceCode: device.device_code,
+      clientName: device.client_name,
+      expiresAt,
+      message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.',
+    });
+  }
+
+  let assignments: any[] = labContext
+    ? labContext.assignments.map((assignment: any) => ({
+        ...assignment,
+        playlist: Array.isArray(assignment.playlist) ? assignment.playlist[0] : assignment.playlist,
+      }))
+    : (device.device_playlists ?? [])
+        .map((assignment: any) => ({
+          ...assignment,
+          playlist: Array.isArray(assignment.playlist) ? assignment.playlist[0] : assignment.playlist,
+        }))
+        .filter((assignment: any) => assignment.active !== false && assignment.playlist?.active !== false)
+        .sort((left: any, right: any) => Number(left.priority) - Number(right.priority));
+'''
+          if old_state in text:
+              text = text.replace(old_state, new_state, 1)
+          elif new_state not in text:
+              raise SystemExit('State block not found')
+
+          text = text.replace(
+              "  if (!assignments.length && legacyPlaylist?.active) {",
+              "  if (!labContext && !assignments.length && legacyPlaylist?.active) {",
+              1,
+          )
+          text = text.replace(
+              "  const directFallbackAllowed = allowDirectPlaylistFallback();",
+              "  const directFallbackAllowed = allowDirectPlaylistFallback() && !labContext;",
+              1,
+          )
+
+          response_marker = '''    expiresAt,
+    selectedPlaylistId: selected.id,'''
+          response_replacement = '''    expiresAt,
+    labMode: Boolean(labContext),
+    labSessionId: labContext?.sessionId || null,
+    labSessionExpiresAt: labContext?.expiresAt || null,
+    sourceSubscriptionId: labContext?.sourceSubscriptionId || null,
+    selectedPlaylistId: selected.id,'''
+          if response_replacement not in text:
+              if response_marker not in text:
+                  raise SystemExit('Response marker not found')
+              text = text.replace(response_marker, response_replacement, 1)
+
+          empty_marker = '''      expiresAt,
+      message: 'Aparelho ativo, mas sem lista ativa vinculada.','''
+          empty_replacement = '''      expiresAt,
+      labMode: Boolean(labContext),
+      labSessionExpiresAt: labContext?.expiresAt || null,
+      message: labContext
+        ? 'Sessão de laboratório ativa, mas a origem não possui cache ou lista disponível.'
+        : 'Aparelho ativo, mas sem lista ativa vinculada.','''
+          if empty_replacement not in text:
+              if empty_marker not in text:
+                  raise SystemExit('Empty response marker not found')
+              text = text.replace(empty_marker, empty_replacement, 1)
+
+          path.write_text(text)
+          PY
+
+          grep -q "const labContext = await resolveActiveLabSession" supabase/functions/device-config/index.ts
+          grep -q "directFallbackAllowed = allowDirectPlaylistFallback() && !labContext" supabase/functions/device-config/index.ts
+
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-lab-device-config.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/device-config/index.ts
+          git commit -m 'Aplicar sessão temporária de laboratório no aparelho nativo'
+          git push origin HEAD:feature/subscriptions-lab-security
