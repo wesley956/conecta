@@ -53,14 +53,24 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `})();\n` +
   `(function loadSubscriptionModule(){\n` +
   `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  var style = document.createElement('link');\n` +
-  `  style.rel = 'stylesheet';\n` +
-  `  style.href = './subscription-module.css?v=3.0';\n` +
-  `  document.head.appendChild(style);\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './subscription-module.js?v=3.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
+  `  function loadOnce(){\n` +
+  `    if (document.querySelector('script[src*="subscription-module.js"]')) return;\n` +
+  `    if (!document.querySelector('link[href*="subscription-module.css"]')) {\n` +
+  `      var style = document.createElement('link');\n` +
+  `      style.rel = 'stylesheet';\n` +
+  `      style.href = './subscription-module.css?v=3.0';\n` +
+  `      document.head.appendChild(style);\n` +
+  `    }\n` +
+  `    var script = document.createElement('script');\n` +
+  `    script.src = './subscription-module.js?v=3.0';\n` +
+  `    script.async = false;\n` +
+  `    document.head.appendChild(script);\n` +
+  `  }\n` +
+  `  if (document.readyState === 'loading') {\n` +
+  `    document.addEventListener('DOMContentLoaded', loadOnce, { once: true });\n` +
+  `  } else {\n` +
+  `    loadOnce();\n` +
+  `  }\n` +
   `})();\n`;
 
 const outputs = [
