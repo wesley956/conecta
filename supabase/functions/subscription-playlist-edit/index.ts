@@ -8,6 +8,15 @@ import {
 } from '../_shared/panelAuth.ts';
 
 type JsonBody = Record<string, unknown>;
+type TargetContext = {
+  mode: 'subscription' | 'device';
+  id: string;
+  sellerId: string;
+  customerName: string | null;
+  status: string;
+  simultaneousConnections: number;
+  currentAssignment: any | null;
+};
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://wesley956.github.io',
@@ -80,12 +89,19 @@ function requiredText(value: unknown, label: string, maxLength = 500) {
   return text;
 }
 
-function requiredUuid(value: unknown, label: string) {
-  const text = requiredText(value, label, 80);
+function uuidOrNull(value: unknown) {
+  const text = textOrNull(value, 80);
+  if (!text) return null;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) {
-    throw new Error(`${label} inválido.`);
+    throw new Error('Identificador inválido.');
   }
   return text;
+}
+
+function requiredUuid(value: unknown, label: string) {
+  const id = uuidOrNull(value);
+  if (!id) throw new Error(`${label} é obrigatório.`);
+  return id;
 }
 
 function integerInRange(value: unknown, label: string, minimum: number, maximum: number) {
@@ -200,75 +216,145 @@ function safeDatabaseError(error: any, fallback: string) {
   return fallback;
 }
 
-async function assertSubscriptionAccess(
+function unwrap(value: any) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function mapPlaylist(assignment: any) {
+  return unwrap(assignment?.playlist);
+}
+
+async function resolveDeviceTarget(
+  supabase: any,
+  principal: PanelPrincipal,
+  deviceId: string,
+  priority: number,
+): Promise<TargetContext> {
+  const { data, error } = await supabase
+    .from('panel_devices')
+    .select(`
+      id,
+      seller_id,
+      customer_id,
+      plan_id,
+      status,
+      playlist_id,
+      customer:panel_customers(id, name),
+      plan:panel_plans(id, simultaneous_connections),
+      primary_playlist:panel_playlists!panel_devices_playlist_id_fkey(
+        id, name, playlist_url, playlist_type, active, max_connections,
+        playlist_updated_at, playlist_cache_status, playlist_cache_updated_at,
+        playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error
+      ),
+      device_playlists:panel_device_playlists(
+        playlist_id,
+        priority,
+        active,
+        playlist:panel_playlists(
+          id, name, playlist_url, playlist_type, active, max_connections,
+          playlist_updated_at, playlist_cache_status, playlist_cache_updated_at,
+          playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error
+        )
+      )
+    `)
+    .eq('id', deviceId)
+    .maybeSingle();
+
+  if (error || !data) throw new Error('Aparelho não encontrado.');
+  if (!data.seller_id) throw new Error('Aparelho sem vendedor responsável.');
+  if (principal.role === 'seller' && data.seller_id !== principal.sellerId) {
+    throw new PanelAuthError('Vendedor não pode editar a lista deste aparelho.', 403);
+  }
+
+  const explicit = (data.device_playlists || []).find((item: any) =>
+    Number(item.priority) === priority && item.active !== false
+  );
+  const fallback = priority === 1 ? unwrap(data.primary_playlist) : null;
+  const customer = unwrap(data.customer);
+  const plan = unwrap(data.plan);
+
+  return {
+    mode: 'device',
+    id: data.id,
+    sellerId: data.seller_id,
+    customerName: customer?.name || null,
+    status: data.status,
+    simultaneousConnections: Math.max(1, Number(plan?.simultaneous_connections || 1)),
+    currentAssignment: explicit || (fallback ? { playlist_id: fallback.id, priority: 1, playlist: fallback } : null),
+  };
+}
+
+async function resolveSubscriptionTarget(
   supabase: any,
   principal: PanelPrincipal,
   subscriptionId: string,
-) {
+  priority: number,
+): Promise<TargetContext> {
   const { data, error } = await supabase
     .from('panel_subscriptions')
     .select(`
       id,
       seller_id,
-      customer_id,
       status,
       simultaneous_connections_snapshot,
-      customer:panel_customers(id, name)
+      customer:panel_customers(id, name),
+      subscription_playlists:panel_subscription_playlists(
+        playlist_id,
+        priority,
+        active,
+        playlist:panel_playlists(
+          id, name, playlist_url, playlist_type, active, max_connections,
+          playlist_updated_at, playlist_cache_status, playlist_cache_updated_at,
+          playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error
+        )
+      )
     `)
     .eq('id', subscriptionId)
     .maybeSingle();
+
   if (error || !data) throw new Error('Assinatura não encontrada.');
   if (principal.role === 'seller' && data.seller_id !== principal.sellerId) {
     throw new PanelAuthError('Vendedor não pode editar a lista desta assinatura.', 403);
   }
-  return data;
-}
 
-async function currentAssignment(supabase: any, subscriptionId: string, priority: number) {
-  const { data, error } = await supabase
-    .from('panel_subscription_playlists')
-    .select(`
-      id,
-      playlist_id,
-      priority,
-      active,
-      assigned_at,
-      playlist:panel_playlists(
-        id,
-        name,
-        playlist_url,
-        playlist_type,
-        active,
-        max_connections,
-        playlist_updated_at,
-        playlist_cache_status,
-        playlist_cache_updated_at,
-        playlist_cache_item_count,
-        playlist_cache_size_bytes,
-        playlist_cache_error
-      )
-    `)
-    .eq('subscription_id', subscriptionId)
-    .eq('priority', priority)
-    .eq('active', true)
-    .maybeSingle();
-  if (error) throw new Error('Não foi possível carregar a lista atual.');
-  return data || null;
-}
+  const assignment = (data.subscription_playlists || []).find((item: any) =>
+    Number(item.priority) === priority && item.active !== false
+  ) || null;
+  const customer = unwrap(data.customer);
 
-function unwrap(value: any) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function mapDetails(subscription: any, assignment: any, priority: number) {
-  const playlist = unwrap(assignment?.playlist);
-  const customer = unwrap(subscription?.customer);
   return {
-    subscriptionId: subscription.id,
+    mode: 'subscription',
+    id: data.id,
+    sellerId: data.seller_id,
+    customerName: customer?.name || null,
+    status: data.status,
+    simultaneousConnections: Math.max(1, Number(data.simultaneous_connections_snapshot || 1)),
+    currentAssignment: assignment,
+  };
+}
+
+async function resolveTarget(
+  supabase: any,
+  principal: PanelPrincipal,
+  body: JsonBody,
+  priority: number,
+) {
+  const deviceId = uuidOrNull(body.deviceId);
+  if (deviceId) return resolveDeviceTarget(supabase, principal, deviceId, priority);
+  const subscriptionId = requiredUuid(body.subscriptionId, 'Assinatura ou aparelho');
+  return resolveSubscriptionTarget(supabase, principal, subscriptionId, priority);
+}
+
+function mapDetails(target: TargetContext, priority: number) {
+  const playlist = mapPlaylist(target.currentAssignment);
+  return {
+    targetMode: target.mode,
+    deviceId: target.mode === 'device' ? target.id : null,
+    subscriptionId: target.mode === 'subscription' ? target.id : null,
     priority,
     role: priority === 1 ? 'principal' : 'reserva',
-    customerName: customer?.name || null,
-    simultaneousConnections: Number(subscription.simultaneous_connections_snapshot || 1),
+    customerName: target.customerName,
+    simultaneousConnections: target.simultaneousConnections,
     current: playlist ? {
       id: playlist.id,
       name: playlist.name,
@@ -320,20 +406,16 @@ async function archiveCandidate(supabase: any, playlistId: string, error: string
 }
 
 async function loadDetails(supabase: any, principal: PanelPrincipal, body: JsonBody) {
-  const subscriptionId = requiredUuid(body.subscriptionId, 'Assinatura');
   const priority = integerInRange(body.priority, 'Posição da lista', 1, 2);
-  const subscription = await assertSubscriptionAccess(supabase, principal, subscriptionId);
-  const assignment = await currentAssignment(supabase, subscriptionId, priority);
-  if (priority === 1 && !assignment) throw new Error('A assinatura não possui lista principal exclusiva para editar.');
-  return mapDetails(subscription, assignment, priority);
+  const target = await resolveTarget(supabase, principal, body, priority);
+  return mapDetails(target, priority);
 }
 
 async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: JsonBody) {
-  const subscriptionId = requiredUuid(body.subscriptionId, 'Assinatura');
   const priority = integerInRange(body.priority, 'Posição da lista', 1, 2);
-  const subscription = await assertSubscriptionAccess(supabase, principal, subscriptionId);
-  if (['cancelled', 'needs_review'].includes(subscription.status)) {
-    throw new Error('A assinatura não permite editar listas neste estado.');
+  const target = await resolveTarget(supabase, principal, body, priority);
+  if (['cancelled', 'blocked', 'inactive'].includes(String(target.status || '').toLowerCase())) {
+    throw new Error('Este aparelho ou assinatura não permite editar listas no estado atual.');
   }
 
   const name = requiredText(body.name, 'Nome da lista', 180);
@@ -343,7 +425,7 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
   const reason = requiredText(body.reason, 'Motivo da edição', 500);
   const idempotencyKey = requiredText(body.idempotencyKey, 'Chave da operação', 200);
 
-  if (maxConnections < Number(subscription.simultaneous_connections_snapshot || 1)) {
+  if (maxConnections < target.simultaneousConnections) {
     throw new Error('A nova lista não suporta as conexões simultâneas do plano.');
   }
 
@@ -378,7 +460,7 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
     const { error: permissionError } = await supabase
       .from('panel_seller_playlists')
       .upsert({
-        seller_id: subscription.seller_id,
+        seller_id: target.sellerId,
         playlist_id: candidateId,
         active: true,
         updated_at: now,
@@ -392,19 +474,30 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
       throw new Error(`A nova lista não foi aplicada. A lista anterior continua funcionando. Motivo: ${detail}`);
     }
 
-    const { data: switched, error: switchError } = await supabase.rpc(
-      'replace_subscription_playlist_transaction',
-      {
-        p_subscription_id: subscriptionId,
-        p_priority: priority,
-        p_candidate_playlist_id: candidateId,
-        p_reason: reason,
-        p_performed_by: principal.email || principal.userId,
-        p_performed_by_user_id: principal.userId,
-        p_idempotency_key: idempotencyKey,
-      },
-    );
+    const rpcName = target.mode === 'device'
+      ? 'replace_device_playlist_transaction'
+      : 'replace_subscription_playlist_transaction';
+    const rpcArgs = target.mode === 'device'
+      ? {
+          p_device_id: target.id,
+          p_priority: priority,
+          p_candidate_playlist_id: candidateId,
+          p_reason: reason,
+          p_performed_by: principal.email || principal.userId,
+          p_performed_by_user_id: principal.userId,
+          p_idempotency_key: idempotencyKey,
+        }
+      : {
+          p_subscription_id: target.id,
+          p_priority: priority,
+          p_candidate_playlist_id: candidateId,
+          p_reason: reason,
+          p_performed_by: principal.email || principal.userId,
+          p_performed_by_user_id: principal.userId,
+          p_idempotency_key: idempotencyKey,
+        };
 
+    const { data: switched, error: switchError } = await supabase.rpc(rpcName, rpcArgs);
     if (switchError) {
       await archiveCandidate(supabase, candidateId, switchError.message || 'Falha ao concluir a troca.');
       throw new Error(safeDatabaseError(switchError, 'A nova lista foi validada, mas não pôde ser vinculada.'));
@@ -413,6 +506,7 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
     const result = Array.isArray(switched) ? switched[0] : switched;
     return {
       ...result,
+      targetMode: target.mode,
       playlist: {
         id: candidateId,
         name,
@@ -423,13 +517,16 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
         cacheItemCount: Number(cache.data?.itemCount || 0),
       },
       message: priority === 1
-        ? 'Lista principal validada e atualizada em todos os aparelhos.'
-        : 'Lista reserva validada e atualizada em todos os aparelhos.',
+        ? 'Lista principal validada e atualizada com segurança.'
+        : 'Lista reserva validada e atualizada com segurança.',
     };
   } catch (error) {
+    const assignmentTable = target.mode === 'device'
+      ? 'panel_device_playlists'
+      : 'panel_subscription_playlists';
     const { data: activeAssignment } = await supabase
-      .from('panel_subscription_playlists')
-      .select('id')
+      .from(assignmentTable)
+      .select('playlist_id')
       .eq('playlist_id', candidateId)
       .eq('active', true)
       .maybeSingle();

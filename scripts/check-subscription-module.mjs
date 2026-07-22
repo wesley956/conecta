@@ -11,8 +11,10 @@ const requiredFiles = [
   'supabase/migrations/2026072201_customer_subscriptions_lab.sql',
   'supabase/migrations/2026072202_owner_role_compat.sql',
   'supabase/migrations/2026072205_subscription_playlist_edit.sql',
+  'supabase/migrations/2026072206_legacy_device_playlist_edit.sql',
   'supabase/tests/customer_subscriptions_lab_test.sql',
   'supabase/tests/subscription_playlist_edit_test.sql',
+  'supabase/tests/legacy_device_playlist_edit_test.sql',
 ];
 
 for (const file of requiredFiles) {
@@ -25,6 +27,7 @@ const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'u
 const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/2026072201_customer_subscriptions_lab.sql', 'utf8');
 const playlistEditMigration = fs.readFileSync('supabase/migrations/2026072205_subscription_playlist_edit.sql', 'utf8');
+const legacyEditMigration = fs.readFileSync('supabase/migrations/2026072206_legacy_device_playlist_edit.sql', 'utf8');
 const deviceConfig = fs.readFileSync('supabase/functions/device-config/index.ts', 'utf8');
 const configGenerator = fs.readFileSync('scripts/generate-panel-config.mjs', 'utf8');
 const supabaseConfig = fs.readFileSync('supabase/config.toml', 'utf8');
@@ -46,6 +49,9 @@ for (const token of uiRequirements) {
 const playlistEditUiRequirements = [
   'Editar / trocar',
   'Adicionar lista reserva',
+  'Editar lista principal',
+  'Editar / adicionar reserva',
+  '.admin-device-card, .seller-device-card',
   'a lista atual permanece funcionando',
   'Validar e aplicar',
   'Nova URL completa',
@@ -79,6 +85,9 @@ const playlistEditApiRequirements = [
   "action === 'details'",
   "action === 'replace'",
   'replace_subscription_playlist_transaction',
+  'replace_device_playlist_transaction',
+  'resolveDeviceTarget',
+  'resolveSubscriptionTarget',
   'triggerPlaylistCache',
   'inspectSource',
   'hmacSha256Hex',
@@ -118,6 +127,18 @@ for (const token of playlistEditMigrationRequirements) {
   if (!playlistEditMigration.includes(token)) throw new Error(`Migração de edição de lista não contém: ${token}`);
 }
 
+const legacyMigrationRequirements = [
+  'panel_device_playlist_operations',
+  'panel_device_playlist_revisions',
+  'replace_device_playlist_transaction',
+  "playlist_cache_status <> 'ready'",
+  'device.playlist_replaced',
+  'on conflict on constraint panel_device_playlists_device_id_priority_key',
+];
+for (const token of legacyMigrationRequirements) {
+  if (!legacyEditMigration.includes(token)) throw new Error(`Compatibilidade dos aparelhos atuais não contém: ${token}`);
+}
+
 if (!deviceConfig.includes('resolveActiveLabSession')) {
   throw new Error('device-config não aplica sessão temporária de laboratório.');
 }
@@ -134,4 +155,4 @@ if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supab
   throw new Error('Função de edição de listas precisa exigir JWT.');
 }
 
-console.log('✅ Assinaturas, planos, laboratório e edição segura de listas validados.');
+console.log('✅ Assinaturas, laboratório e edição segura em aparelhos atuais e futuros validados.');
