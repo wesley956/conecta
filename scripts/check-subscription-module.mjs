@@ -3,11 +3,16 @@ import fs from 'node:fs';
 const requiredFiles = [
   'admin-panel/subscription-module.js',
   'admin-panel/subscription-module.css',
+  'admin-panel/playlist-edit-module.js',
+  'admin-panel/playlist-edit-module.css',
   'supabase/functions/subscription-panel/index.ts',
+  'supabase/functions/subscription-playlist-edit/index.ts',
   'supabase/functions/_shared/labSession.ts',
   'supabase/migrations/2026072201_customer_subscriptions_lab.sql',
   'supabase/migrations/2026072202_owner_role_compat.sql',
+  'supabase/migrations/2026072205_subscription_playlist_edit.sql',
   'supabase/tests/customer_subscriptions_lab_test.sql',
+  'supabase/tests/subscription_playlist_edit_test.sql',
 ];
 
 for (const file of requiredFiles) {
@@ -15,10 +20,14 @@ for (const file of requiredFiles) {
 }
 
 const ui = fs.readFileSync('admin-panel/subscription-module.js', 'utf8');
+const playlistEditUi = fs.readFileSync('admin-panel/playlist-edit-module.js', 'utf8');
 const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'utf8');
+const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/2026072201_customer_subscriptions_lab.sql', 'utf8');
+const playlistEditMigration = fs.readFileSync('supabase/migrations/2026072205_subscription_playlist_edit.sql', 'utf8');
 const deviceConfig = fs.readFileSync('supabase/functions/device-config/index.ts', 'utf8');
 const configGenerator = fs.readFileSync('scripts/generate-panel-config.mjs', 'utf8');
+const supabaseConfig = fs.readFileSync('supabase/config.toml', 'utf8');
 
 const uiRequirements = [
   'Nova assinatura',
@@ -33,8 +42,21 @@ const uiRequirements = [
 for (const token of uiRequirements) {
   if (!ui.includes(token)) throw new Error(`Interface de assinatura não contém: ${token}`);
 }
-if (/\bFunction\s*\(|\beval\s*\(/.test(ui)) {
-  throw new Error('Módulo de assinatura não pode executar código dinâmico.');
+
+const playlistEditUiRequirements = [
+  'Editar / trocar',
+  'Adicionar lista reserva',
+  'a lista atual permanece funcionando',
+  'Validar e aplicar',
+  'Nova URL completa',
+  'Motivo da alteração',
+];
+for (const token of playlistEditUiRequirements) {
+  if (!playlistEditUi.includes(token)) throw new Error(`Interface de edição de lista não contém: ${token}`);
+}
+
+if (/\bFunction\s*\(|\beval\s*\(/.test(ui) || /\bFunction\s*\(|\beval\s*\(/.test(playlistEditUi)) {
+  throw new Error('Módulos do painel não podem executar código dinâmico.');
 }
 
 const apiRequirements = [
@@ -52,6 +74,23 @@ for (const token of apiRequirements) {
   if (!api.includes(token)) throw new Error(`API de assinatura não contém: ${token}`);
 }
 
+const playlistEditApiRequirements = [
+  "['owner', 'admin', 'seller']",
+  "action === 'details'",
+  "action === 'replace'",
+  'replace_subscription_playlist_transaction',
+  'triggerPlaylistCache',
+  'inspectSource',
+  'hmacSha256Hex',
+  'A lista anterior continua funcionando',
+];
+for (const token of playlistEditApiRequirements) {
+  if (!playlistEditApi.includes(token)) throw new Error(`API de edição de lista não contém: ${token}`);
+}
+if (playlistEditApi.includes('playlistUrl: playlistUrl') && playlistEditApi.includes('return {\n      ...result')) {
+  throw new Error('API de edição não pode devolver a URL completa da lista.');
+}
+
 const migrationRequirements = [
   "role in ('owner', 'admin', 'seller')",
   'panel_subscriptions',
@@ -66,6 +105,18 @@ for (const token of migrationRequirements) {
   if (!migration.includes(token)) throw new Error(`Migração de assinatura não contém: ${token}`);
 }
 
+const playlistEditMigrationRequirements = [
+  'panel_playlist_revisions',
+  "'replace_playlist'",
+  'replace_subscription_playlist_transaction',
+  "playlist_cache_status <> 'ready'",
+  'simultaneous_connections_snapshot',
+  'subscription.playlist_replaced',
+];
+for (const token of playlistEditMigrationRequirements) {
+  if (!playlistEditMigration.includes(token)) throw new Error(`Migração de edição de lista não contém: ${token}`);
+}
+
 if (!deviceConfig.includes('resolveActiveLabSession')) {
   throw new Error('device-config não aplica sessão temporária de laboratório.');
 }
@@ -75,5 +126,11 @@ if (!deviceConfig.includes('allowDirectPlaylistFallback() && !labContext')) {
 if (!configGenerator.includes('subscription-module.js')) {
   throw new Error('Deploy dos painéis não carrega o módulo de assinatura.');
 }
+if (!configGenerator.includes('playlist-edit-module.js')) {
+  throw new Error('Deploy dos painéis não carrega a edição de listas.');
+}
+if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supabaseConfig.includes('verify_jwt = true')) {
+  throw new Error('Função de edição de listas precisa exigir JWT.');
+}
 
-console.log('✅ Assinaturas, planos de até cinco aparelhos e laboratório validados.');
+console.log('✅ Assinaturas, planos, laboratório e edição segura de listas validados.');
