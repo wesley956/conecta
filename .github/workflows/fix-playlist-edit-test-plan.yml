@@ -1,0 +1,39 @@
+name: Fix playlist edit test plan
+
+on:
+  push:
+    branches:
+      - feature/edit-subscription-playlists
+    paths:
+      - '.github/workflows/fix-playlist-edit-test-plan.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/edit-subscription-playlists
+          fetch-depth: 0
+
+      - name: Correct pgTAP assertion count
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/select plan(20);/select plan(23);/' supabase/tests/subscription_playlist_edit_test.sql
+          grep -q 'select plan(23);' supabase/tests/subscription_playlist_edit_test.sql
+
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/fix-playlist-edit-test-plan.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/tests/subscription_playlist_edit_test.sql
+          git commit -m 'Corrigir quantidade de testes da edição de listas'
+          git push origin HEAD:feature/edit-subscription-playlists
