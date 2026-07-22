@@ -112,6 +112,7 @@ const playlistEditMigrationRequirements = [
   "playlist_cache_status <> 'ready'",
   'simultaneous_connections_snapshot',
   'subscription.playlist_replaced',
+  'on conflict on constraint panel_device_playlists_device_id_priority_key',
 ];
 for (const token of playlistEditMigrationRequirements) {
   if (!playlistEditMigration.includes(token)) throw new Error(`Migração de edição de lista não contém: ${token}`);
