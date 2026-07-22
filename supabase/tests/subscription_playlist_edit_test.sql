@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(20);
+select plan(23);
 
 select has_table('public', 'panel_playlist_revisions', 'Histórico de troca de listas existe');
 select has_function(
