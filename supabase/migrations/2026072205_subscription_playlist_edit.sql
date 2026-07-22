@@ -240,7 +240,7 @@ begin
     from public.panel_subscription_devices subscription_device
     where subscription_device.subscription_id = p_subscription_id
       and subscription_device.status = 'active'
-    on conflict (device_id, priority) do update
+    on conflict on constraint panel_device_playlists_device_id_priority_key do update
     set playlist_id = excluded.playlist_id,
         active = true,
         consecutive_failures = 0,
