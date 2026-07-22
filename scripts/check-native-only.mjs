@@ -32,8 +32,11 @@ for (const path of nativePlayers) {
   if (!source.includes('NativePlaybackKeyRouter.register')) {
     throw new Error(`${path} perdeu o roteamento global de teclas físicas.`);
   }
-  if (!source.includes('KEYCODE_DPAD_CENTER') || !source.includes('!controlsVisible')) {
-    throw new Error(`${path} deve proteger OK/Enter quando os controles estão escondidos.`);
+  if (!source.includes('KEYCODE_DPAD_CENTER') || !source.includes('controlsVisible')) {
+    throw new Error(`${path} deve proteger OK/Enter conforme a visibilidade dos controles.`);
+  }
+  if (!source.includes('KEYCODE_BACK') || !source.includes('togglePlayPause()')) {
+    throw new Error(`${path} deve separar explicitamente Voltar de Play/Pause.`);
   }
 }
 
