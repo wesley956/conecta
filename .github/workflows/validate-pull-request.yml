@@ -200,12 +200,21 @@ jobs:
       - name: Run pgTAP database tests
         shell: bash
         run: |
-          set -euo pipefail
+          set -o pipefail
           if ! compgen -G 'supabase/tests/*' > /dev/null; then
-            echo 'Nenhum teste de banco foi encontrado em supabase/tests.'
+            echo 'Nenhum teste de banco foi encontrado em supabase/tests.' | tee database-tests.log
             exit 1
           fi
-          npx supabase test db --local
+          npx supabase test db --local 2>&1 | tee database-tests.log
+
+      - name: Upload pgTAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-playlist-edit-pgtap
+          path: database-tests.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Stop local Supabase
         if: always()
