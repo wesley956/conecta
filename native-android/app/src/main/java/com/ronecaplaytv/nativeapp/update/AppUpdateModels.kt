@@ -1,6 +1,6 @@
 package com.ronecaplaytv.nativeapp.update
 
-data class UpdateManifest(
+class UpdateManifest(
     val versionCode: Long,
     val versionName: String,
     val apkUrl: String,
