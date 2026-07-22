@@ -1,0 +1,52 @@
+name: Fix playlist edit pgTAP types
+
+on:
+  push:
+    branches:
+      - feature/edit-subscription-playlists
+    paths:
+      - '.github/workflows/fix-playlist-edit-test-types.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/edit-subscription-playlists
+          fetch-depth: 0
+
+      - name: Cast playlist priority explicitly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('supabase/tests/subscription_playlist_edit_test.sql')
+          text = path.read_text()
+          pattern = re.compile(
+              r"(replace_subscription_playlist_transaction\(\n\s*'00000000-0000-0000-0000-000000008501',\n\s*)([12]),"
+          )
+          updated, count = pattern.subn(r"\g<1>\2::smallint,", text)
+          if count != 6:
+              raise SystemExit(f'Expected 6 priority casts, changed {count}')
+          path.write_text(updated)
+          PY
+          test "$(grep -c '::smallint' supabase/tests/subscription_playlist_edit_test.sql)" -ge 6
+
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/fix-playlist-edit-test-types.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/tests/subscription_playlist_edit_test.sql
+          git commit -m 'Tipar prioridade nos testes de troca de lista'
+          git push origin HEAD:feature/edit-subscription-playlists
