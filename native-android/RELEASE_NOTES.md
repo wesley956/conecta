@@ -1,8 +1,9 @@
-# ronecaPlayerTV Native 2.1.3
+# ronecaPlayerTV Native 2.2
 
-Restaura o visual clássico do player da versão 2.0 sem perder as correções de navegação.
+Controles completos do Media3 com navegação protegida para celular, TV e TV Box.
 
-- cabeçalho discreto no topo e controles na parte inferior;
-- vídeo livre no centro, sem a faixa grande sobre a imagem;
-- mantém pause, Enter, setas, controle remoto e retorno à mesma categoria;
-- preserva ativação, favoritos, progresso, listas e configurações locais.
+- barra de progresso arrastável por toque no celular;
+- controle de posição pela barra e pelo D-pad na TV;
+- OK e Enter pausam ou reproduzem sem sair do player;
+- cabeçalho, play, pause, progresso, duração e buffer no mesmo controlador Media3;
+- mantém canais, episódios, retorno à categoria, favoritos e progresso salvo.
