@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(18);
+select plan(19);
 
 select has_table('public', 'panel_device_playlist_operations', 'Operações idempotentes do aparelho existem');
 select has_table('public', 'panel_device_playlist_revisions', 'Histórico de edição do aparelho existe');
