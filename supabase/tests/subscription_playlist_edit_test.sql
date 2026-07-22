@@ -218,7 +218,7 @@ insert into public.panel_subscription_playlists (
 select lives_ok(
   $$select * from public.replace_subscription_playlist_transaction(
     '00000000-0000-0000-0000-000000008501',
-    1,
+    1::smallint,
     '00000000-0000-0000-0000-000000008302',
     'Corrigir credenciais digitadas',
     'teste',
@@ -286,7 +286,7 @@ select is(
 select is(
   (select applied from public.replace_subscription_playlist_transaction(
     '00000000-0000-0000-0000-000000008501',
-    1,
+    1::smallint,
     '00000000-0000-0000-0000-000000008302',
     'Corrigir credenciais digitadas',
     'teste',
@@ -307,7 +307,7 @@ select is(
 select lives_ok(
   $$select * from public.replace_subscription_playlist_transaction(
     '00000000-0000-0000-0000-000000008501',
-    2,
+    2::smallint,
     '00000000-0000-0000-0000-000000008303',
     'Adicionar redundância',
     'teste',
@@ -332,7 +332,7 @@ select is(
 select throws_ok(
   $$select * from public.replace_subscription_playlist_transaction(
     '00000000-0000-0000-0000-000000008501',
-    1,
+    1::smallint,
     '00000000-0000-0000-0000-000000008304',
     'Lista com poucas conexões',
     'teste',
@@ -347,7 +347,7 @@ select throws_ok(
 select throws_ok(
   $$select * from public.replace_subscription_playlist_transaction(
     '00000000-0000-0000-0000-000000008501',
-    1,
+    1::smallint,
     '00000000-0000-0000-0000-000000008305',
     'Lista sem cache válido',
     'teste',
@@ -362,7 +362,7 @@ select throws_ok(
 select throws_ok(
   $$select * from public.replace_subscription_playlist_transaction(
     '00000000-0000-0000-0000-000000008501',
-    1,
+    1::smallint,
     '00000000-0000-0000-0000-000000008306',
     'Lista sem permissão do vendedor',
     'teste',
