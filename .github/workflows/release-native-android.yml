@@ -1,6 +1,9 @@
 name: Publish native RonecaPlayTV release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       release_notes:
@@ -58,6 +61,22 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release notes
+        id: notes
+        env:
+          INPUT_RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$RUNNER_TEMP/ronecaplaytv-release-notes.md"
+          if [ -n "${INPUT_RELEASE_NOTES:-}" ]; then
+            printf '%s\n' "$INPUT_RELEASE_NOTES" > "$NOTES_FILE"
+          else
+            cp native-android/RELEASE_NOTES.md "$NOTES_FILE"
+          fi
+          test -s "$NOTES_FILE"
+          echo "file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
       - name: Refuse mutable release
         env:
@@ -135,7 +154,7 @@ jobs:
             --arg sha256 "$APK_SHA256" \
             --arg signerSha256 "$ACTUAL_SIGNER_SHA256" \
             --argjson mandatory false \
-            --arg notes "${{ github.event.inputs.release_notes }}" \
+            --rawfile notes "${{ steps.notes.outputs.file }}" \
             '{
               schemaVersion: $schemaVersion,
               versionCode: $versionCode,
@@ -162,5 +181,5 @@ jobs:
             release/ronecaPlayerTV-signing-cert.sha256 \
             --target "$GITHUB_SHA" \
             --title "ronecaPlayerTV v${VERSION}" \
-            --notes "${{ github.event.inputs.release_notes }}" \
+            --notes-file "${{ steps.notes.outputs.file }}" \
             --latest
