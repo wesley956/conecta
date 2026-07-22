@@ -113,7 +113,7 @@ serve(async request => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const principal = await requirePanelPrincipal(request, supabase, ['admin']);
+    const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
     const body = await readBody(request);
     const name = requiredText(body.name, 'Nome da lista', 180);
     const playlistUrl = validatePlaylistUrl(requiredText(body.playlistUrl, 'URL da lista', 4096));

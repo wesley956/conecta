@@ -42,7 +42,7 @@ const required = {
     '(dashboard|seller)',
   ],
   adminFunction: [
-    "requirePanelPrincipal(request, supabase, ['admin'])",
+    "requirePanelPrincipal(request, supabase, ['owner', 'admin'])",
     "from('panel_seller_playlists')",
     "onConflict: 'seller_id,playlist_id'",
     "action: 'playlist.created_during_device_activation'",

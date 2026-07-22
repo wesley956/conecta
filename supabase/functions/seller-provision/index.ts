@@ -86,7 +86,7 @@ serve(async request => {
     const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
     supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    const principal = await requirePanelPrincipal(request, supabase, ['admin']);
+    const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
     const body = await readBody(request);
     const name = requiredText(body.name, 'Nome do vendedor', 160);
     const whatsapp = normalizeWhatsapp(body.whatsapp);

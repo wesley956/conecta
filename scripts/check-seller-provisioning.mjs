@@ -30,7 +30,7 @@ const requiredFrontendSnippets = [
 ];
 
 const requiredBackendSnippets = [
-  "requirePanelPrincipal(request, supabase, ['admin'])",
+  "requirePanelPrincipal(request, supabase, ['owner', 'admin'])",
   'supabase.auth.admin.createUser',
   "p_role: 'seller'",
   'p_seller_id: createdSellerId',

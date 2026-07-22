@@ -1,4 +1,4 @@
-export type PanelRole = 'admin' | 'seller';
+export type PanelRole = 'owner' | 'admin' | 'seller';
 
 export interface PanelPrincipal {
   userId: string;
@@ -20,7 +20,7 @@ export class PanelAuthError extends Error {
 const MAX_BEARER_TOKEN_LENGTH = 16 * 1024;
 
 function isPanelRole(value: unknown): value is PanelRole {
-  return value === 'admin' || value === 'seller';
+  return value === 'owner' || value === 'admin' || value === 'seller';
 }
 
 function readBearerToken(request: Request) {
@@ -86,7 +86,7 @@ export async function requirePanelPrincipal(
   const role = roleRecord.role;
   const sellerId = roleRecord.seller_id ? String(roleRecord.seller_id) : null;
 
-  if (role === 'admin' && sellerId) {
+  if ((role === 'owner' || role === 'admin') && sellerId) {
     throw new PanelAuthError('Conta administrativa possui vínculo comercial inválido.', 403);
   }
 
