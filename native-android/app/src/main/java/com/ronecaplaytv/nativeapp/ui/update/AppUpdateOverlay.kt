@@ -26,9 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -37,18 +37,12 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import com.ronecaplaytv.nativeapp.update.UpdateManifest
-
-private data class UpdateNotesSummary(
-    val description: String,
-    val highlights: List<String>,
-)
 
 @Composable
 fun AppUpdateOverlay(
@@ -84,7 +78,7 @@ fun AppUpdateOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.90f))
-            .padding(if (isTelevision) 24.dp else 14.dp),
+            .padding(if (isTelevision) 36.dp else 20.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -93,7 +87,7 @@ fun AppUpdateOverlay(
                 .clip(RoundedCornerShape(24.dp))
                 .background(RonecaColors.Surface)
                 .border(1.dp, RonecaColors.Primary.copy(alpha = 0.72f), RoundedCornerShape(24.dp))
-                .padding(if (isTelevision) 26.dp else 20.dp),
+                .padding(if (isTelevision) 30.dp else 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -145,8 +139,8 @@ private fun AvailableContent(
     onDownload: (UpdateManifest) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val summary = remember(state.manifest.notes, isTelevision) {
-        summarizeUpdateNotes(state.manifest.notes, isTelevision)
+    val shortNotes = remember(state.manifest.notes) {
+        compactUpdateNotes(state.manifest.notes)
     }
 
     Text(
@@ -157,110 +151,67 @@ private fun AvailableContent(
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-        text = summary.description,
+        text = shortNotes,
         color = RonecaColors.TextSecondary,
         fontSize = if (isTelevision) 16.sp else 14.sp,
         textAlign = TextAlign.Center,
-        maxLines = if (isTelevision) 2 else 3,
-        overflow = TextOverflow.Ellipsis,
     )
-
-    if (summary.highlights.isNotEmpty()) {
-        Spacer(modifier = Modifier.height(if (isTelevision) 16.dp else 14.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(if (isTelevision) 8.dp else 7.dp),
-        ) {
-            summary.highlights.forEach { highlight ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(9.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = "•",
-                        color = RonecaColors.Primary,
-                        fontSize = if (isTelevision) 16.sp else 14.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = highlight,
-                        color = RonecaColors.TextSecondary,
-                        fontSize = if (isTelevision) 15.sp else 13.sp,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-
-    Spacer(modifier = Modifier.height(if (isTelevision) 20.dp else 18.dp))
+    Spacer(modifier = Modifier.height(24.dp))
     UpdateActions(
-        primaryLabel = "ATUALIZAR AGORA",
+        primaryLabel = "BAIXAR ATUALIZAÇÃO",
         onPrimary = { onDownload(state.manifest) },
         secondaryLabel = "DEPOIS".takeIf { canDismiss },
         onSecondary = onDismiss,
     )
 }
 
-private fun summarizeUpdateNotes(rawNotes: String, isTelevision: Boolean): UpdateNotesSummary {
+private fun compactUpdateNotes(rawNotes: String): String {
     val lines = rawNotes
         .replace("\r\n", "\n")
         .lineSequence()
         .map(String::trim)
         .filter(String::isNotBlank)
+        .filterNot { line -> line.startsWith("#") }
         .toList()
 
     val description = lines
-        .firstOrNull { line ->
-            !line.startsWith("#") &&
-                !line.startsWith("-") &&
-                !line.startsWith("•") &&
-                !line.startsWith("*")
-        }
-        ?.removeMarkdownDecoration()
-        ?.limitAtWordBoundary(if (isTelevision) 145 else 220)
+        .firstOrNull { line -> !line.startsWith("-") && !line.startsWith("•") && !line.startsWith("*") }
+        ?.cleanUpdateText()
+        ?.limitUpdateText(115)
         .orEmpty()
-        .ifBlank { "Melhorias de estabilidade, navegação e desempenho." }
+        .ifBlank { "Melhorias de estabilidade e navegação." }
 
-    val maximumHighlights = if (isTelevision) 3 else 4
-    val maximumHighlightLength = if (isTelevision) 88 else 120
     val highlights = lines
         .asSequence()
-        .filter { line ->
-            line.startsWith("-") || line.startsWith("•") || line.startsWith("*")
-        }
+        .filter { line -> line.startsWith("-") || line.startsWith("•") || line.startsWith("*") }
         .map { line ->
             line
                 .removePrefix("-")
                 .removePrefix("•")
                 .removePrefix("*")
-                .trim()
-                .trimEnd(';', '.')
-                .removeMarkdownDecoration()
-                .limitAtWordBoundary(maximumHighlightLength)
+                .cleanUpdateText()
+                .limitUpdateText(72)
         }
         .filter(String::isNotBlank)
         .distinct()
-        .take(maximumHighlights)
+        .take(2)
         .toList()
 
-    return UpdateNotesSummary(
-        description = description,
-        highlights = highlights,
-    )
+    return buildList {
+        add(description)
+        highlights.forEach { highlight -> add("• $highlight") }
+    }.joinToString("\n")
 }
 
-private fun String.removeMarkdownDecoration(): String =
+private fun String.cleanUpdateText(): String =
     replace("**", "")
         .replace("__", "")
         .replace("`", "")
         .replace(Regex("\\s+"), " ")
         .trim()
+        .trimEnd(';', '.')
 
-private fun String.limitAtWordBoundary(maximumLength: Int): String {
+private fun String.limitUpdateText(maximumLength: Int): String {
     if (length <= maximumLength) return this
     val shortened = take(maximumLength + 1)
         .substringBeforeLast(' ', missingDelimiterValue = take(maximumLength))

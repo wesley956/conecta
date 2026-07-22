@@ -1,8 +1,7 @@
-# ronecaPlayerTV Native 2.1.1
+# ronecaPlayerTV Native 2.1.2
 
-Melhoria visual da tela de atualização para celular, TV e TV Box.
+Restaura o visual original e elegante da tela de atualização.
 
-- mantém os botões Atualizar agora e Depois sempre visíveis;
-- resume automaticamente notas extensas;
-- mostra no máximo três destaques na TV e quatro no celular;
-- preserva ativação, favoritos, progresso e configurações locais.
+- mantém somente o texto curto necessário;
+- preserva os botões Baixar atualização e Depois;
+- não altera player, navegação, listas ou dados locais.
