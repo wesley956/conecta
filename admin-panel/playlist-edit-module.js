@@ -19,7 +19,7 @@
     if (document.querySelector('link[data-playlist-edit-module]')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './playlist-edit-module.css?v=1.0';
+    link.href = './playlist-edit-module.css?v=1.1';
     link.dataset.playlistEditModule = 'true';
     document.head.appendChild(link);
   }
@@ -27,7 +27,7 @@
   function operationKey() {
     const random = globalThis.crypto?.randomUUID?.()
       || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return `subscription-replace-playlist:${random}`;
+    return `replace-playlist:${random}`;
   }
 
   function showToast(message, error = false) {
@@ -126,7 +126,16 @@
       </div>`;
   }
 
-  async function openEditor(subscriptionId, priority) {
+  async function refreshPanels() {
+    document.querySelector('[data-subscription-action="refresh"]')?.click();
+    if (typeof window.loadAll === 'function') {
+      await window.loadAll();
+    } else if (typeof window.loadSellerData === 'function') {
+      await window.loadSellerData();
+    }
+  }
+
+  async function openEditor(target, priority) {
     const modal = ensureModal();
     const content = document.getElementById('playlistEditContent');
     modal.classList.add('open');
@@ -134,7 +143,7 @@
     content.innerHTML = '<div class="playlist-edit-loading">Carregando os dados protegidos da lista...</div>';
 
     try {
-      const details = await callApi({ action: 'details', subscriptionId, priority });
+      const details = await callApi({ action: 'details', ...target, priority });
       const current = details.current;
       const roleLabel = priority === 1 ? 'principal' : 'reserva';
       const defaultName = current?.name || `Lista ${roleLabel} de ${details.customerName || 'cliente'}`;
@@ -172,7 +181,7 @@
             <label class="wide"><span>Motivo da alteração</span><input name="reason" minlength="3" maxlength="500" required placeholder="Ex: corrigir senha digitada ou trocar provedor" /></label>
           </div>
           <div class="playlist-edit-safety">
-            <strong>Troca sem interrupção:</strong> primeiro o servidor testa a URL e gera o novo cache. A mudança só chega aos aparelhos depois que esse processo terminar com sucesso. Em caso de erro, a lista atual é mantida.
+            <strong>Troca sem interrupção:</strong> primeiro o servidor testa a URL e gera o novo cache. A mudança só é aplicada depois que esse processo terminar com sucesso. Em caso de erro, a lista atual é mantida.
           </div>
           <div id="playlistEditProgress" class="playlist-edit-progress" hidden></div>
           <div class="playlist-edit-actions">
@@ -192,12 +201,13 @@
         const progress = document.getElementById('playlistEditProgress');
         submit.disabled = true;
         progress.hidden = false;
+        progress.classList.remove('error');
         progress.textContent = 'Validando acesso, testando a origem e gerando o cache. Aguarde...';
         try {
           const values = new FormData(form);
           const result = await callApi({
             action: 'replace',
-            subscriptionId,
+            ...target,
             priority,
             name: values.get('name'),
             playlistType: values.get('playlistType'),
@@ -207,10 +217,10 @@
             idempotencyKey: operationKey(),
           });
           progress.textContent = result.message || 'Lista validada e aplicada.';
-          showToast(result.message || 'Lista validada e aplicada em todos os aparelhos.');
-          setTimeout(() => {
+          showToast(result.message || 'Lista validada e aplicada com segurança.');
+          setTimeout(async () => {
             closeModal();
-            document.querySelector('[data-subscription-action="refresh"]')?.click();
+            await refreshPanels();
           }, 650);
         } catch (error) {
           progress.textContent = error.message || 'Não foi possível aplicar a nova lista.';
@@ -237,50 +247,80 @@
     return null;
   }
 
-  function addEditButton(row, subscriptionId, priority) {
-    if (row.querySelector('[data-playlist-edit-button]')) return;
+  function addEditButton(container, target, priority, label = 'Editar / trocar') {
+    const key = target.deviceId || target.subscriptionId;
+    const selector = `[data-playlist-edit-button="${priority}-${key}"]`;
+    if (container.querySelector(selector)) return;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn playlist-edit-button';
-    button.dataset.playlistEditButton = 'true';
-    button.textContent = 'Editar / trocar';
+    button.dataset.playlistEditButton = `${priority}-${key}`;
+    button.textContent = label;
     button.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      openEditor(subscriptionId, priority);
+      openEditor(target, priority);
     });
-    row.appendChild(button);
+    container.appendChild(button);
   }
 
-  function addBackupButton(list, subscriptionId) {
+  function addSubscriptionBackupButton(list, subscriptionId) {
     if (list.querySelector('[data-playlist-add-backup]')) return;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn playlist-edit-add-backup';
     button.dataset.playlistAddBackup = 'true';
     button.textContent = 'Adicionar lista reserva';
-    button.addEventListener('click', () => openEditor(subscriptionId, 2));
+    button.addEventListener('click', () => openEditor({ subscriptionId }, 2));
     list.appendChild(button);
   }
 
-  function enhanceCards() {
+  function enhanceSubscriptionCards() {
     document.querySelectorAll('.subscription-card').forEach(card => {
       const subscriptionId = subscriptionIdForCard(card);
       if (!subscriptionId) return;
-      const blocked = ['cancelled', 'needs_review'].includes(String(card.dataset.status || ''));
       const list = card.querySelector('.subscription-playlist-list');
-      if (!list || blocked) return;
+      if (!list) return;
       let hasBackup = false;
       list.querySelectorAll('.subscription-playlist-row').forEach(row => {
         const priority = priorityForRow(row);
         if (!priority) return;
         if (priority === 2) hasBackup = true;
-        addEditButton(row, subscriptionId, priority);
+        addEditButton(row, { subscriptionId }, priority);
       });
-      if (!hasBackup && list.querySelector('.subscription-playlist-row')) {
-        addBackupButton(list, subscriptionId);
-      }
+      if (!hasBackup) addSubscriptionBackupButton(list, subscriptionId);
     });
+  }
+
+  function extractDeviceId(card) {
+    const direct = card.dataset.deviceId || card.getAttribute('data-id');
+    if (/^[0-9a-f-]{36}$/i.test(String(direct || ''))) return direct;
+    const elements = card.querySelectorAll('[onclick], [data-device-id]');
+    for (const element of elements) {
+      const explicit = element.dataset?.deviceId;
+      if (/^[0-9a-f-]{36}$/i.test(String(explicit || ''))) return explicit;
+      const onclick = element.getAttribute('onclick') || '';
+      const match = onclick.match(/["']([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})["']/i);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  function enhanceLegacyDeviceCards() {
+    document.querySelectorAll('.admin-device-card, .seller-device-card, [data-device-card]').forEach(card => {
+      const deviceId = extractDeviceId(card);
+      if (!deviceId) return;
+      const status = String(card.dataset.status || '').toLowerCase();
+      if (['blocked', 'inactive'].includes(status)) return;
+      const actions = card.querySelector('.admin-device-actions, .seller-device-actions, .actions') || card;
+      addEditButton(actions, { deviceId }, 1, 'Editar lista principal');
+      addEditButton(actions, { deviceId }, 2, 'Editar / adicionar reserva');
+    });
+  }
+
+  function enhanceCards() {
+    enhanceSubscriptionCards();
+    enhanceLegacyDeviceCards();
   }
 
   function scheduleEnhancement() {
