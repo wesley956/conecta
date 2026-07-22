@@ -1,24 +1,31 @@
-# ronecaPlayerTV Native 2.0
+# ronecaPlayerTV Native 2.1
 
-Versão focada na experiência de navegação por controle remoto em Android TV e TV Box.
+Versão de estabilidade focada em controle remoto, retorno ao conteúdo e consolidação do aplicativo exclusivamente nativo.
 
-## Navegação do player
+## Player e controle remoto
 
-- remove a interceptação global que fazia Enter, setas esquerda e direita competirem com os controles do ExoPlayer;
-- deixa o próprio Media3 tratar reprodução, pausa, avanço, retorno e movimentação entre os controles;
-- ao pressionar a seta para cima, o foco pode ser levado diretamente ao cabeçalho do player;
-- mantém a seta de voltar, o título e os atalhos visíveis apenas enquanto os controles estão abertos;
-- preserva a navegação dos seletores de canais e episódios sem bloquear o botão central do controle remoto.
+- centraliza o tratamento das teclas físicas de mídia no aplicativo nativo;
+- corrige reprodução e pausa pelo botão central, Enter e teclas de mídia;
+- melhora avanço, retrocesso e navegação entre os controles na TV e TV Box;
+- mantém controles próprios em Jetpack Compose e Media3, sem conflito com player WebView;
+- fecha primeiro os seletores de canais ou episódios antes de sair do player.
 
-## Foco visível nas categorias
+## Retorno à categoria e ao conteúdo
 
-- adiciona indicação visual de foco antes do usuário apertar Enter;
-- usa borda vermelha reforçada, fundo elevado e texto destacado no item atualmente focado;
-- mantém separado o estado de foco do estado da categoria já selecionada;
-- aplica a correção às categorias de canais, filmes e séries.
+- ao sair de um canal, filme ou episódio, retorna à mesma categoria;
+- preserva pesquisa, filtros, rolagem e item que estava focado;
+- mantém a tela de origem atrás do player para retorno imediato;
+- restaura corretamente o foco ao canal, filme ou série que estava aberto.
 
-## Atualizações e segurança
+## Aplicativo exclusivamente nativo
 
-- mantém a correção de compatibilidade de assinatura introduzida na versão 1.9;
-- mantém validação de checksum SHA-256, pacote, versão e certificado;
-- publica o APK com a mesma chave permanente usada nas versões anteriores.
+- mantém somente o projeto Android em Kotlin, Jetpack Compose e Media3;
+- remove do caminho de publicação os antigos players React, WebView e Capacitor;
+- impede que o pipeline volte a publicar acidentalmente o APK antigo.
+
+## Atualização e segurança
+
+- versionCode 18 e versionName 2.1;
+- APK de produção assinado com a mesma chave permanente das versões anteriores;
+- validação de checksum SHA-256, pacote, número da versão e certificado;
+- atualização preparada para instalação por cima da v2.0, preservando ativação, favoritos, progresso e configurações locais.
