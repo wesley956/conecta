@@ -78,12 +78,12 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `    if (!document.querySelector('link[href*="playlist-edit-module.css"]')) {\n` +
   `      var style = document.createElement('link');\n` +
   `      style.rel = 'stylesheet';\n` +
-  `      style.href = './playlist-edit-module.css?v=1.0';\n` +
+  `      style.href = './playlist-edit-module.css?v=1.1';\n` +
   `      document.head.appendChild(style);\n` +
   `    }\n` +
   `    if (document.querySelector('script[src*="playlist-edit-module.js"]')) return;\n` +
   `    var script = document.createElement('script');\n` +
-  `    script.src = './playlist-edit-module.js?v=1.0';\n` +
+  `    script.src = './playlist-edit-module.js?v=1.1';\n` +
   `    script.async = false;\n` +
   `    document.head.appendChild(script);\n` +
   `  }\n` +
