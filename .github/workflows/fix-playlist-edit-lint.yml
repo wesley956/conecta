@@ -1,0 +1,48 @@
+name: Fix playlist edit SQL lint
+
+on:
+  push:
+    branches:
+      - feature/edit-subscription-playlists
+    paths:
+      - '.github/workflows/fix-playlist-edit-lint.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/edit-subscription-playlists
+          fetch-depth: 0
+
+      - name: Use explicit unique constraint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('supabase/migrations/2026072205_subscription_playlist_edit.sql')
+          text = path.read_text()
+          old = 'on conflict (device_id, priority) do update'
+          new = 'on conflict on constraint panel_device_playlists_device_id_priority_key do update'
+          if old not in text:
+              raise SystemExit('Ambiguous ON CONFLICT marker not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          grep -q 'on conflict on constraint panel_device_playlists_device_id_priority_key do update' supabase/migrations/2026072205_subscription_playlist_edit.sql
+
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/fix-playlist-edit-lint.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/migrations/2026072205_subscription_playlist_edit.sql
+          git commit -m 'Eliminar ambiguidade no vínculo da lista reserva'
+          git push origin HEAD:feature/edit-subscription-playlists
