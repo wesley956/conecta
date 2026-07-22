@@ -1,4 +1,4 @@
-name: Publish ronecaPlayerTV v2.1.1 once
+name: Publish ronecaPlayerTV v2.1.2 once
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   release:
-    name: Build and publish immutable v2.1.1 APK
+    name: Build and publish immutable v2.1.2 APK
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -51,11 +51,11 @@ jobs:
           set -euo pipefail
           VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' native-android/app/build.gradle.kts | head -n1)
           VERSION_CODE=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\)/\1/p' native-android/app/build.gradle.kts | head -n1)
-          test "$VERSION" = '2.1.1'
-          test "$VERSION_CODE" = '19'
-          echo 'VERSION=2.1.1' >> "$GITHUB_ENV"
-          echo 'VERSION_CODE=19' >> "$GITHUB_ENV"
-          echo 'TAG=v2.1.1' >> "$GITHUB_ENV"
+          test "$VERSION" = '2.1.2'
+          test "$VERSION_CODE" = '20'
+          echo 'VERSION=2.1.2' >> "$GITHUB_ENV"
+          echo 'VERSION_CODE=20' >> "$GITHUB_ENV"
+          echo 'TAG=v2.1.2' >> "$GITHUB_ENV"
 
       - name: Refuse mutable release
         env:
