@@ -195,7 +195,19 @@ jobs:
         run: npx supabase db reset --local --no-seed
 
       - name: Lint PostgreSQL functions and schema
-        run: npx supabase db lint --local --schema public --level error --fail-on error
+        shell: bash
+        run: |
+          set -o pipefail
+          npx supabase db lint --local --schema public --level error --fail-on error 2>&1 | tee database-lint.log
+
+      - name: Upload PostgreSQL lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playlist-edit-database-lint
+          path: database-lint.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Run pgTAP database tests
         shell: bash
