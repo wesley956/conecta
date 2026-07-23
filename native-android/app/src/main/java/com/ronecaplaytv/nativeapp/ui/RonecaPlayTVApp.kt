@@ -116,12 +116,14 @@ fun RonecaPlayTVApp(
         sessionState.channelsUrl,
         sessionState.moviesUrl,
         sessionState.seriesUrl,
+        sessionState.playlists,
     ) {
         if (sessionState.isActive) {
             catalogViewModel.load(
                 channelsUrl = sessionState.channelsUrl,
                 moviesUrl = sessionState.moviesUrl,
                 seriesUrl = sessionState.seriesUrl,
+                playlists = sessionState.playlists,
             )
         }
     }
@@ -149,6 +151,7 @@ fun RonecaPlayTVApp(
             channelsUrl = sessionState.channelsUrl,
             moviesUrl = sessionState.moviesUrl,
             seriesUrl = sessionState.seriesUrl,
+            playlists = sessionState.playlists,
             force = true,
         )
     }
@@ -367,12 +370,15 @@ fun RonecaPlayTVApp(
                         seriesCount = catalogState.series.size,
                         featuredMovie = catalogState.movies.firstOrNull { !it.coverUrl.isNullOrBlank() }
                             ?: catalogState.movies.firstOrNull(),
+                        featuredSeries = catalogState.series.firstOrNull { !it.coverUrl.isNullOrBlank() }
+                            ?: catalogState.series.firstOrNull(),
                         onOpenChannels = { destination = NativeDestination.Channels },
                         onOpenMovies = { destination = NativeDestination.Movies },
                         onOpenSeries = { destination = NativeDestination.Series },
                         onOpenPlayback = { destination = NativeDestination.Playback },
                         onOpenSearch = { destination = NativeDestination.Search },
                         onOpenFeatured = { movie -> openMovieDetails(movie) },
+                        onOpenFeaturedSeries = { series -> openSeriesDetails(series) },
                     )
 
                     NativeDestination.Search -> SearchScreen(

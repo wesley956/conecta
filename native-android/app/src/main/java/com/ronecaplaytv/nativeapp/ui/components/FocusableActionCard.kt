@@ -95,6 +95,7 @@ fun FocusableActionCard(
     Box(
         modifier = modifier
             .then(focusModifier)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (!enabled || event.type != KeyEventType.KeyUp) {

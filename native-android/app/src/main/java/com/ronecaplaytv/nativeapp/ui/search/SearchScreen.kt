@@ -50,6 +50,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 
 @Composable
 fun SearchScreen(
@@ -248,6 +249,7 @@ private fun SearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(

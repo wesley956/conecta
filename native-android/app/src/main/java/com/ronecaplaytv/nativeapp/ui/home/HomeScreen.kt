@@ -54,7 +54,9 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
+import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
 
 private enum class QuickKind {
@@ -83,12 +85,14 @@ fun HomeScreen(
     movieCount: Int,
     seriesCount: Int,
     featuredMovie: NativeMovie?,
+    featuredSeries: NativeSeries?,
     onOpenChannels: () -> Unit,
     onOpenMovies: () -> Unit,
     onOpenSeries: () -> Unit,
     onOpenPlayback: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenFeatured: (NativeMovie) -> Unit,
+    onOpenFeaturedSeries: (NativeSeries) -> Unit,
 ) {
     val firstFocusRequester = remember { FocusRequester() }
     val statusText = when {
@@ -157,9 +161,16 @@ fun HomeScreen(
                             .fillMaxHeight(),
                     )
 
-                    ModernExploreRail(
-                        destinations = destinations,
+                    FeaturedContentRail(
+                        movie = featuredMovie,
+                        series = featuredSeries,
                         isTelevision = isTelevision,
+                        onOpenMovie = {
+                            if (featuredMovie != null) onOpenFeatured(featuredMovie) else onOpenMovies()
+                        },
+                        onOpenSeries = {
+                            if (featuredSeries != null) onOpenFeaturedSeries(featuredSeries) else onOpenSeries()
+                        },
                         modifier = Modifier
                             .width(if (isTelevision) 254.dp else 224.dp)
                             .fillMaxHeight(),
@@ -317,7 +328,8 @@ private fun HomeHero(
                 model = movie?.coverUrl,
                 contentDescription = movie?.name,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
+                alignment = Alignment.CenterEnd,
             )
         }
 
@@ -400,6 +412,7 @@ private fun HeroButton(
     Box(
         modifier = Modifier
             .then(requestModifier)
+            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
@@ -463,6 +476,7 @@ private fun MobileExploreItem(
 
     Column(
         modifier = modifier
+            .ronecaFocusScale(focused = focused)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
@@ -525,9 +539,12 @@ private fun MobileExploreItem(
 }
 
 @Composable
-private fun ModernExploreRail(
-    destinations: List<QuickDestination>,
+private fun FeaturedContentRail(
+    movie: NativeMovie?,
+    series: NativeSeries?,
     isTelevision: Boolean,
+    onOpenMovie: () -> Unit,
+    onOpenSeries: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -541,13 +558,13 @@ private fun ModernExploreRail(
         ) {
             Column {
                 Text(
-                    text = "Explorar",
+                    text = "Em destaque",
                     color = RonecaColors.TextPrimary,
                     fontSize = if (isTelevision) 15.sp else 13.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "Navegação rápida",
+                    text = "Escolhas do seu catálogo",
                     color = RonecaColors.TextMuted,
                     fontSize = if (isTelevision) 10.sp else 9.sp,
                 )
@@ -555,94 +572,104 @@ private fun ModernExploreRail(
             AccentCut()
         }
 
-        destinations.forEach { destination ->
-            ExploreRailItem(
-                destination = destination,
-                isTelevision = isTelevision,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        FeaturedContentCard(
+            title = movie?.name ?: "Explorar filmes",
+            eyebrow = "FILME",
+            imageUrl = movie?.coverUrl,
+            isTelevision = isTelevision,
+            onClick = onOpenMovie,
+            modifier = Modifier.weight(1f),
+        )
+        FeaturedContentCard(
+            title = series?.name ?: "Explorar séries",
+            eyebrow = "SÉRIE",
+            imageUrl = series?.coverUrl,
+            isTelevision = isTelevision,
+            onClick = onOpenSeries,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
 @Composable
-private fun ExploreRailItem(
-    destination: QuickDestination,
+private fun FeaturedContentCard(
+    title: String,
+    eyebrow: String,
+    imageUrl: String?,
     isTelevision: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
                     event.type == KeyEventType.KeyUp &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
                 ) {
-                    destination.action()
+                    onClick()
                     true
                 } else false
             }
             .clip(RoundedCornerShape(13.dp))
-            .background(if (focused) RonecaColors.SurfaceRaised else Color.Transparent)
+            .background(RonecaColors.Surface)
             .border(
-                width = if (focused) 1.dp else 0.dp,
-                color = if (focused) RonecaColors.Primary else Color.Transparent,
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Border,
                 shape = RoundedCornerShape(13.dp),
             )
-            .clickable(interactionSource = interactionSource, indication = null, onClick = destination.action)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .focusable()
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(1.dp),
     ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = title,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop,
+            )
+        }
         Box(
             modifier = Modifier
-                .size(if (isTelevision) 37.dp else 33.dp)
-                .clip(CircleShape)
-                .background(RonecaColors.Surface)
-                .border(
-                    width = 1.dp,
-                    color = if (focused) RonecaColors.RedStrong else RonecaColors.Border,
-                    shape = CircleShape,
+                .fillMaxSize()
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xF2050505), Color(0x9E050505), Color(0x20050505)),
+                    ),
                 ),
-            contentAlignment = Alignment.Center,
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxWidth(0.74f)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            QuickGlyph(
-                kind = destination.kind,
-                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary,
-                modifier = Modifier.size(if (isTelevision) 19.dp else 17.dp),
-            )
-        }
-
-        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = destination.title,
-                color = if (focused) RonecaColors.TextPrimary else RonecaColors.BodyText,
-                fontSize = if (isTelevision) 12.sp else 10.sp,
-                fontWeight = FontWeight.SemiBold,
+                text = eyebrow,
+                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary,
+                fontSize = if (isTelevision) 9.sp else 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.1.sp,
                 maxLines = 1,
             )
-            destination.count?.let { count ->
-                Text(
-                    text = "${compactNumber(count)} itens",
-                    color = RonecaColors.TextMuted,
-                    fontSize = if (isTelevision) 9.sp else 8.sp,
-                    maxLines = 1,
-                )
-            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = title,
+                color = RonecaColors.TextPrimary,
+                fontSize = if (isTelevision) 12.sp else 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-
-        Text(
-            text = "›",
-            color = if (focused) RonecaColors.RedStrong else RonecaColors.TextMuted,
-            fontSize = if (isTelevision) 20.sp else 17.sp,
-            fontWeight = FontWeight.Light,
-        )
     }
 }
 

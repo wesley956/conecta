@@ -47,6 +47,7 @@ import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 
 @Composable
 fun SeriesDetailScreen(
@@ -205,6 +206,7 @@ fun SeriesDetailScreen(
 private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
     Box(
         modifier = Modifier
+            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
             .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
             .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
@@ -298,6 +300,7 @@ private fun DetailActionButton(label: String, isTelevision: Boolean, onClick: ()
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(999.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
@@ -444,6 +447,7 @@ private fun EpisodeRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
@@ -510,6 +514,7 @@ private fun RecommendationCard(
     Column(
         modifier = Modifier
             .width(width)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))
             .background(RonecaColors.Surface)
             .border(

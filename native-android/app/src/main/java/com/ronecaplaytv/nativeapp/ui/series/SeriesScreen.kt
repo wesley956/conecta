@@ -55,6 +55,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
 
 private const val FILTER_ALL = "Todas"
@@ -274,6 +275,7 @@ private fun SeriesCategoryChip(label: String, selected: Boolean, onClick: () -> 
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
+            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
             .clip(RoundedCornerShape(999.dp))
             .background(
                 when {
@@ -328,6 +330,7 @@ private fun SeriesPosterCard(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(2f / 3f)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))
             .background(RonecaColors.Surface)
             .border(

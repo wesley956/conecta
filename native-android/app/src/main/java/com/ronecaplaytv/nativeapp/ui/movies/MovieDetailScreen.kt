@@ -46,6 +46,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 
 @Composable
 fun MovieDetailScreen(
@@ -149,6 +150,7 @@ fun MovieDetailScreen(
 private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
     Box(
         modifier = Modifier
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
             .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
@@ -328,6 +330,7 @@ private fun RecommendationCard(
     Column(
         modifier = Modifier
             .width(width)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))
             .background(RonecaColors.Surface)
             .border(

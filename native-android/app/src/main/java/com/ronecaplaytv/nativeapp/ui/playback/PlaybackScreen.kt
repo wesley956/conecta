@@ -49,6 +49,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.persistence.SavedProgress
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 
 private data class PlaybackCardItem(
     val key: String,
@@ -336,6 +337,7 @@ private fun MediaCard(
     Column(
         modifier = Modifier
             .width(width)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(13.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
@@ -425,6 +427,7 @@ private fun CompactChannelCard(
     Row(
         modifier = Modifier
             .width(if (isTelevision) 190.dp else 160.dp)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
