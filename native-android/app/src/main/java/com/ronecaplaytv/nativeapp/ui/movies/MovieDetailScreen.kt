@@ -148,13 +148,34 @@ fun MovieDetailScreen(
 
 @Composable
 private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(999.dp))
-            .background(RonecaColors.Surface)
-            .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
-            .clickable(onClick = onBack)
+            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+            .border(
+                width = if (focused) 2.dp else 1.dp,
+                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Border,
+                shape = RoundedCornerShape(999.dp),
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter ||
+                        event.key == Key.Enter ||
+                        event.key == Key.NumPadEnter)
+                ) {
+                    onBack()
+                    true
+                } else {
+                    false
+                }
+            }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onBack)
+            .focusable()
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Text(
