@@ -71,6 +71,7 @@ fun ChannelsScreen(
     var alphabetical by rememberSaveable { mutableStateOf(false) }
     var lastFocusedChannelId by rememberSaveable { mutableStateOf<String?>(null) }
     var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
 
     val categoryState = rememberLazyListState()
     val gridState = rememberLazyGridState()
@@ -124,7 +125,7 @@ fun ChannelsScreen(
             lastFocusedChannelId = firstId
         }
 
-        if (isTelevision && lastFocusedChannelId != null) {
+        if (isTelevision && !searchFocused && lastFocusedChannelId != null) {
             delay(100)
             runCatching { restoreFocusRequester.requestFocus() }
         }
@@ -167,6 +168,7 @@ fun ChannelsScreen(
                         value = query,
                         onValueChange = { query = it },
                         isTelevision = true,
+                        onFocusChanged = { searchFocused = it },
                         modifier = Modifier.weight(0.66f),
                     )
                 }
@@ -229,6 +231,7 @@ fun ChannelsScreen(
                     value = query,
                     onValueChange = { query = it },
                     isTelevision = false,
+                    onFocusChanged = { searchFocused = it },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -343,6 +346,7 @@ private fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     isTelevision: Boolean,
+    onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -369,7 +373,9 @@ private fun SearchField(
                 fontSize = if (isTelevision) 13.sp else 14.sp,
             ),
             cursorBrush = SolidColor(RonecaColors.Primary),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { onFocusChanged(it.isFocused) },
         )
     }
 }
