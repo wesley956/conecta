@@ -1,0 +1,208 @@
+name: Apply TV season and search focus fixes
+
+on:
+  push:
+    branches:
+      - fix/tv-season-search
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fixes:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tv-season-search
+          fetch-depth: 0
+
+      - name: Apply source corrections
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if new in text:
+                  return
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"Expected one occurrence in {path}, found {count}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          screens = [
+              (
+                  "native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/movies/MoviesScreen.kt",
+                  "MovieSearchField",
+                  "lastFocusedMovieId",
+              ),
+              (
+                  "native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/series/SeriesScreen.kt",
+                  "SeriesSearchField",
+                  "lastFocusedSeriesId",
+              ),
+              (
+                  "native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/channels/ChannelsScreen.kt",
+                  "SearchField",
+                  "lastFocusedChannelId",
+              ),
+          ]
+
+          for path, field_name, last_focused in screens:
+              replace_once(
+                  path,
+                  '    var appliedFilterSignature by rememberSaveable { mutableStateOf("") }\n',
+                  '    var appliedFilterSignature by rememberSaveable { mutableStateOf("") }\n'
+                  '    var searchFocused by remember { mutableStateOf(false) }\n',
+              )
+              replace_once(
+                  path,
+                  f'        if (isTelevision && {last_focused} != null) {{',
+                  f'        if (isTelevision && !searchFocused && {last_focused} != null) {{',
+              )
+
+              tv_call = (
+                  '                        onValueChange = { query = it },\n'
+                  '                        isTelevision = true,\n'
+              )
+              replace_once(
+                  path,
+                  tv_call,
+                  tv_call + '                        onFocusChanged = { searchFocused = it },\n',
+              )
+
+              mobile_call = (
+                  '                    onValueChange = { query = it },\n'
+                  '                    isTelevision = false,\n'
+              )
+              replace_once(
+                  path,
+                  mobile_call,
+                  mobile_call + '                    onFocusChanged = { searchFocused = it },\n',
+              )
+
+              signature = (
+                  '    onValueChange: (String) -> Unit,\n'
+                  '    isTelevision: Boolean,\n'
+                  '    modifier: Modifier = Modifier,\n'
+              )
+              replace_once(
+                  path,
+                  signature,
+                  '    onValueChange: (String) -> Unit,\n'
+                  '    isTelevision: Boolean,\n'
+                  '    onFocusChanged: (Boolean) -> Unit,\n'
+                  '    modifier: Modifier = Modifier,\n',
+              )
+
+              text_field_modifier = (
+                  '            cursorBrush = SolidColor(RonecaColors.Primary),\n'
+                  '            modifier = Modifier.fillMaxWidth(),\n'
+              )
+              replace_once(
+                  path,
+                  text_field_modifier,
+                  '            cursorBrush = SolidColor(RonecaColors.Primary),\n'
+                  '            modifier = Modifier\n'
+                  '                .fillMaxWidth()\n'
+                  '                .onFocusChanged { onFocusChanged(it.isFocused) },\n',
+              )
+
+          detail_path = "native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/series/SeriesDetailScreen.kt"
+          old_season_chip = '''@Composable
+          private fun SeasonChip(seasonNumber: Int, selected: Boolean, onClick: () -> Unit) {
+              Box(
+                  modifier = Modifier
+                      .clip(RoundedCornerShape(999.dp))
+                      .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
+                      .border(
+                          width = 1.dp,
+                          color = if (selected) RonecaColors.Primary else RonecaColors.Border,
+                          shape = RoundedCornerShape(999.dp),
+                      )
+                      .clickable(onClick = onClick)
+                      .padding(horizontal = 14.dp, vertical = 8.dp),
+              ) {
+                  Text(
+                      text = "Temporada $seasonNumber",
+                      color = if (selected) RonecaColors.Primary else RonecaColors.TextSecondary,
+                      fontSize = 12.sp,
+                  )
+              }
+          }
+          '''
+          new_season_chip = '''@Composable
+          private fun SeasonChip(seasonNumber: Int, selected: Boolean, onClick: () -> Unit) {
+              var focused by remember(seasonNumber) { mutableStateOf(false) }
+              val interactionSource = remember(seasonNumber) { MutableInteractionSource() }
+
+              Box(
+                  modifier = Modifier
+                      .clip(RoundedCornerShape(999.dp))
+                      .background(
+                          when {
+                              focused -> RonecaColors.SurfaceRaised
+                              selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                              else -> RonecaColors.Surface
+                          },
+                      )
+                      .border(
+                          width = if (focused) 2.dp else 1.dp,
+                          color = when {
+                              focused -> RonecaColors.RedStrong
+                              selected -> RonecaColors.Primary
+                              else -> RonecaColors.Border
+                          },
+                          shape = RoundedCornerShape(999.dp),
+                      )
+                      .onFocusChanged { focused = it.isFocused }
+                      .onPreviewKeyEvent { event ->
+                          if (
+                              event.type == KeyEventType.KeyUp &&
+                              (event.key == Key.DirectionCenter ||
+                                  event.key == Key.Enter ||
+                                  event.key == Key.NumPadEnter ||
+                                  event.key == Key.Spacebar)
+                          ) {
+                              onClick()
+                              true
+                          } else {
+                              false
+                          }
+                      }
+                      .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+                      .focusable()
+                      .padding(horizontal = 14.dp, vertical = 8.dp),
+              ) {
+                  Text(
+                      text = "Temporada $seasonNumber",
+                      color = when {
+                          focused -> RonecaColors.TextPrimary
+                          selected -> RonecaColors.Primary
+                          else -> RonecaColors.TextSecondary
+                      },
+                      fontSize = 12.sp,
+                      fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
+                  )
+              }
+          }
+          '''
+          replace_once(detail_path, old_season_chip, new_season_chip)
+          PY
+
+      - name: Commit corrected source
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Source is already corrected."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui
+          git commit -m "fix(native): corrigir temporadas e foco durante pesquisa"
+          git push origin HEAD:fix/tv-season-search
