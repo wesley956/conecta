@@ -73,6 +73,7 @@ fun MoviesScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(FILTER_ALL) }
     var lastFocusedMovieId by rememberSaveable { mutableStateOf<String?>(null) }
     var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
 
     val gridState = rememberLazyGridState()
     val categoryState = rememberLazyListState()
@@ -114,7 +115,7 @@ fun MoviesScreen(
             lastFocusedMovieId = firstId
         }
 
-        if (isTelevision && lastFocusedMovieId != null) {
+        if (isTelevision && !searchFocused && lastFocusedMovieId != null) {
             delay(100)
             runCatching { restoreFocusRequester.requestFocus() }
         }
@@ -156,6 +157,7 @@ fun MoviesScreen(
                         value = query,
                         onValueChange = { query = it },
                         isTelevision = true,
+                        onFocusChanged = { searchFocused = it },
                         modifier = Modifier.weight(0.66f),
                     )
                 }
@@ -176,6 +178,7 @@ fun MoviesScreen(
                     value = query,
                     onValueChange = { query = it },
                     isTelevision = false,
+                    onFocusChanged = { searchFocused = it },
                 )
             }
             Spacer(modifier = Modifier.height(if (isTelevision) 9.dp else 10.dp))
@@ -234,6 +237,7 @@ private fun MovieSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     isTelevision: Boolean,
+    onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -260,7 +264,9 @@ private fun MovieSearchField(
                 fontSize = if (isTelevision) 13.sp else 14.sp,
             ),
             cursorBrush = SolidColor(RonecaColors.Primary),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { onFocusChanged(it.isFocused) },
         )
     }
 }

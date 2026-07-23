@@ -378,22 +378,56 @@ private fun EmptyEpisodesCard(
 
 @Composable
 private fun SeasonChip(seasonNumber: Int, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember(seasonNumber) { mutableStateOf(false) }
+    val interactionSource = remember(seasonNumber) { MutableInteractionSource() }
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) RonecaColors.Primary.copy(alpha = 0.12f) else RonecaColors.Surface)
+            .background(
+                when {
+                    focused -> RonecaColors.SurfaceRaised
+                    selected -> RonecaColors.Primary.copy(alpha = 0.12f)
+                    else -> RonecaColors.Surface
+                },
+            )
             .border(
-                width = 1.dp,
-                color = if (selected) RonecaColors.Primary else RonecaColors.Border,
+                width = if (focused) 2.dp else 1.dp,
+                color = when {
+                    focused -> RonecaColors.RedStrong
+                    selected -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
                 shape = RoundedCornerShape(999.dp),
             )
-            .clickable(onClick = onClick)
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (
+                    event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter ||
+                        event.key == Key.Enter ||
+                        event.key == Key.NumPadEnter ||
+                        event.key == Key.Spacebar)
+                ) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .focusable()
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Text(
             text = "Temporada $seasonNumber",
-            color = if (selected) RonecaColors.Primary else RonecaColors.TextSecondary,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                selected -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
             fontSize = 12.sp,
+            fontWeight = if (focused || selected) FontWeight.Medium else FontWeight.Normal,
         )
     }
 }
