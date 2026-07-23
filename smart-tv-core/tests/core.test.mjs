@@ -24,7 +24,9 @@ const series = {
   ],
 };
 
-test("o contrato visual preserva as cores e medidas do Android", () => {
+test("o contrato visual preserva a referência, as cores e medidas do Android", () => {
+  assert.equal(nativeVisualContract.sourceVersionName, "2.2.1");
+  assert.equal(nativeVisualContract.sourceVersionCode, 23);
   assert.equal(nativeVisualContract.colors.background, "#050505");
   assert.equal(nativeVisualContract.colors.primary, "#E8C768");
   assert.equal(nativeVisualContract.television.navigationRailWidth, 82);
