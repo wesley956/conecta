@@ -1,8 +1,8 @@
 export const nativeVisualContract = {
   contractVersion: "1.0.0",
   sourceApplication: "RonecaPlayTV Android Native",
-  sourceVersionName: "2.2",
-  sourceVersionCode: 22,
+  sourceVersionName: "2.2.1",
+  sourceVersionCode: 23,
   units: {
     layout: "dp",
     typography: "sp",
