@@ -317,7 +317,11 @@ serve(async req => {
   const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } });
   const { data: device, error } = await supabase.from('panel_devices').select(`
     id, device_uuid, device_credential_hash, status, subscription_expires_at,
-    playlist:panel_playlists (id, playlist_url, playlist_cache_version, active)
+    playlist:panel_playlists (id, playlist_url, playlist_cache_version, active),
+    device_playlists:panel_device_playlists (
+      playlist_id, priority, active, cooldown_until,
+      playlist:panel_playlists (id, playlist_url, playlist_cache_version, active)
+    )
   `).eq('device_code', deviceCode).maybeSingle();
 
   if (error) return json({ message: 'Não foi possível validar o aparelho.' }, 500);
@@ -336,38 +340,90 @@ serve(async req => {
     return json({ message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.' }, 403);
   }
 
-  const playlist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
-  if (!playlist?.active || !playlist.playlist_url) return json({ message: 'Lista ativa não encontrada.' }, 404);
-  const source = parseSource(playlist.playlist_url);
-  if (!source) return json({ message: 'Fonte de séries inválida.' }, 422);
+  const requestedPlaylistId = text(body.playlistId) || text(body.playlist_id);
+  const legacyPlaylist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
+  let assignments = (device.device_playlists ?? [])
+    .map((assignment: any) => ({
+      ...assignment,
+      playlist: Array.isArray(assignment.playlist) ? assignment.playlist[0] : assignment.playlist,
+    }))
+    .filter((assignment: any) =>
+      assignment.active !== false &&
+      assignment.playlist?.active !== false &&
+      assignment.playlist?.playlist_url
+    )
+    .sort((left: any, right: any) => Number(left.priority) - Number(right.priority));
 
-  const stored = await loadCache(supabase, playlist.id, seriesId, playlist.playlist_cache_version);
-  if (stored) return json({ seriesId, seasons: stored, source: 'storage-cache', message: null });
+  if (!assignments.length && legacyPlaylist?.active && legacyPlaylist.playlist_url) {
+    assignments = [{ playlist_id: legacyPlaylist.id, priority: 1, playlist: legacyPlaylist }];
+  }
+  if (!assignments.length) return json({ message: 'Lista ativa não encontrada.' }, 404);
+
+  // O ID enviado pelo aplicativo é apenas uma preferência. Ele nunca permite
+  // acessar uma lista que não esteja vinculada ao aparelho autenticado.
+  if (requestedPlaylistId) {
+    assignments.sort((left: any, right: any) => {
+      const leftRequested = left.playlist_id === requestedPlaylistId ? 0 : 1;
+      const rightRequested = right.playlist_id === requestedPlaylistId ? 0 : 1;
+      return leftRequested - rightRequested || Number(left.priority) - Number(right.priority);
+    });
+  }
 
   let failure: unknown = new Error('UPSTREAM_EMPTY_EPISODES');
-  const attempts = [
-    apiUrl(source, 'get_series_info', { series_id: seriesId }),
-    apiUrl(source, 'get_series_info', { id: seriesId }),
-  ];
+  const attemptedPlaylistIds: string[] = [];
 
-  for (const target of attempts) {
-    try {
-      const raw = await providerText(target, source.origin);
-      const seasons = mapSeasons(JSON.parse(raw), source, seriesId);
-      if (seasons.length) {
-        await saveCache(supabase, playlist.id, seriesId, playlist.playlist_cache_version, seasons);
-        return json({ seriesId, seasons, source: 'xtream', message: null });
+  for (const assignment of assignments) {
+    const playlist = assignment.playlist;
+    const source = parseSource(playlist.playlist_url);
+    if (!source) {
+      failure = new Error('UPSTREAM_INVALID_SOURCE');
+      continue;
+    }
+    attemptedPlaylistIds.push(playlist.id);
+
+    const stored = await loadCache(supabase, playlist.id, seriesId, playlist.playlist_cache_version);
+    if (stored) {
+      return json({
+        seriesId,
+        seasons: stored,
+        source: 'storage-cache',
+        sourcePlaylistId: playlist.id,
+        usedFallback: playlist.id !== assignments[0].playlist_id,
+        message: null,
+      });
+    }
+
+    const attempts = [
+      apiUrl(source, 'get_series_info', { series_id: seriesId }),
+      apiUrl(source, 'get_series_info', { id: seriesId }),
+    ];
+    for (const target of attempts) {
+      try {
+        const raw = await providerText(target, source.origin);
+        const seasons = mapSeasons(JSON.parse(raw), source, seriesId);
+        if (seasons.length) {
+          await saveCache(supabase, playlist.id, seriesId, playlist.playlist_cache_version, seasons);
+          return json({
+            seriesId,
+            seasons,
+            source: 'xtream',
+            sourcePlaylistId: playlist.id,
+            usedFallback: playlist.id !== assignments[0].playlist_id,
+            message: null,
+          });
+        }
+        failure = new Error('UPSTREAM_EMPTY_EPISODES');
+      } catch (error) {
+        failure = error;
       }
-      failure = new Error('UPSTREAM_EMPTY_EPISODES');
-    } catch (error) {
-      failure = error;
     }
   }
 
   const reasonCode = reason(failure);
   console.error('series-detail provider failed', {
     deviceId: device.id,
-    playlistId: playlist.id,
+    attemptedPlaylistIds,
+    requestedPlaylistId,
     seriesId,
     reasonCode,
   });
