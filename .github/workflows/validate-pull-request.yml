@@ -46,7 +46,9 @@ jobs:
         run: node scripts/check-native-only.mjs
 
       - name: Validate production server syntax
-        run: node --check server.mjs
+        run: |
+          node --check server.mjs
+          npm run check:commercial-security
 
   native-android:
     name: Native Android Compose and Media3
