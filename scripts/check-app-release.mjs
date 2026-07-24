@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const files = {
   edge: 'supabase/functions/app-release/index.ts',
   migration: 'supabase/migrations/2026072401_protected_apk_distribution.sql',
+  multiPlatformMigration: 'supabase/migrations/2026072402_multi_platform_app_releases.sql',
   workflow: '.github/workflows/release-native-android.yml',
   android: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/update/AppUpdateManager.kt',
   auth: 'admin-panel/panel-auth-session.js',
@@ -28,6 +29,11 @@ const required = [
   [source.android, "verifyPackageAndSignature", 'A validação do pacote/assinatura foi removida.'],
   [source.auth, "'app-release': true", 'A sessão do painel não autoriza a função de release.'],
   [source.panel, "Gerando link temporário", 'O painel não oferece link para o Downloader.'],
+  [source.multiPlatformMigration, "platform in ('android', 'webos', 'tizen')", 'As plataformas de release não estão protegidas.'],
+  [source.edge, ".eq('platform', platform)", 'A função não separa releases por plataforma.'],
+  [source.edge, "downloadUrl", 'A função não entrega URL genérica para LG e Samsung.'],
+  [source.panel, "LG webOS", 'O painel não oferece o aplicativo LG.'],
+  [source.panel, "Samsung Tizen", 'O painel não oferece o aplicativo Samsung.'],
 ];
 
 for (const [haystack, needle, message] of required) {
