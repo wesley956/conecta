@@ -51,6 +51,32 @@ jobs:
           node --check server.mjs
           npm run check:commercial-security
 
+  smart-tv:
+    name: LG webOS and Samsung Tizen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smart-tv/package-lock.json
+
+      - name: Install Smart TV dependencies
+        working-directory: smart-tv
+        run: npm ci
+
+      - name: Type-check and build Smart TV app
+        working-directory: smart-tv
+        run: |
+          npm run typecheck
+          npm run build
+
   native-android:
     name: Native Android Compose and Media3
     runs-on: ubuntu-latest

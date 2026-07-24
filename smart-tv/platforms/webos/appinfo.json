@@ -1,0 +1,13 @@
+{
+  "id": "com.ronecaplaytv.app",
+  "version": "0.1.0",
+  "vendor": "Roneca",
+  "type": "web",
+  "main": "index.html",
+  "title": "ronecaPlayer TV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "backgroundColor": "#050505",
+  "transparent": false,
+  "disableBackHistoryAPI": true
+}
