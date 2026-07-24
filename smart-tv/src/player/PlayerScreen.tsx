@@ -4,7 +4,8 @@ import { createPlayer } from "./createPlayer";
 import type { PlaybackItem, PlaybackSnapshot, PlayerAdapter } from "./types";
 
 const initial: PlaybackSnapshot = {
-  status: "loading", currentTime: 0, duration: 0, buffering: true, error: null
+  status: "loading", currentTime: 0, duration: 0, buffering: true, error: null,
+  sourceIndex: 0, sourceCount: 1
 };
 
 function time(value: number) {
@@ -23,6 +24,8 @@ export function PlayerScreen({ item, onClose, onProgress }: {
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [controls, setControls] = useState(true);
+  const [sourceOffset, setSourceOffset] = useState(0);
+  const [automaticRecoveries, setAutomaticRecoveries] = useState(0);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
   const lastSavedSecond = useRef(-1);
@@ -42,6 +45,20 @@ export function PlayerScreen({ item, onClose, onProgress }: {
   }, [item.live, onProgress, snapshot.currentTime, snapshot.duration]);
 
   useEffect(() => {
+    if (snapshot.status === "playing" && automaticRecoveries > 0) setAutomaticRecoveries(0);
+  }, [automaticRecoveries, snapshot.status]);
+
+  useEffect(() => {
+    if (snapshot.status !== "error" || item.urls.length < 2 || automaticRecoveries >= item.urls.length - 1) return;
+    const timer = window.setTimeout(() => {
+      setSnapshot({ ...initial, sourceCount: item.urls.length });
+      setSourceOffset(value => (value + 1) % item.urls.length);
+      setAutomaticRecoveries(value => value + 1);
+    }, 1_500);
+    return () => window.clearTimeout(timer);
+  }, [automaticRecoveries, item.urls.length, snapshot.status]);
+
+  useEffect(() => {
     document.body.classList.add("playback-active");
     if (platform === "tizen") {
       try {
@@ -53,7 +70,8 @@ export function PlayerScreen({ item, onClose, onProgress }: {
     adapter.current = player;
     try {
       player.mount();
-      void player.load(item.urls, item.live).then(async () => {
+      const orderedUrls = [...item.urls.slice(sourceOffset), ...item.urls.slice(0, sourceOffset)];
+      void player.load(orderedUrls, item.live).then(async () => {
         await player.play();
         setSnapshot(current => ({ ...current, status: "playing", buffering: false }));
       }).catch(error => setSnapshot(current => ({
@@ -70,7 +88,7 @@ export function PlayerScreen({ item, onClose, onProgress }: {
       player.destroy();
       adapter.current = null;
     };
-  }, [item, showControls]);
+  }, [item, showControls, sourceOffset]);
 
   const toggle = useCallback(() => {
     if (snapshot.status === "playing") {
@@ -107,9 +125,21 @@ export function PlayerScreen({ item, onClose, onProgress }: {
   return (
     <main className="player-screen">
       {snapshot.buffering && <div className="player-loading"><span className="spinner" /><p>Carregando...</p></div>}
-      {snapshot.status === "error" && <section className="player-error"><h2>Não foi possível reproduzir</h2><p>{snapshot.error}</p><button autoFocus onClick={onClose}>Voltar ao catálogo</button></section>}
+      {snapshot.status === "error" && <section className="player-error">
+        <h2>{automaticRecoveries < item.urls.length - 1 ? "Tentando uma origem alternativa" : "Não foi possível reproduzir"}</h2>
+        <p>{snapshot.error}</p>
+        {automaticRecoveries < item.urls.length - 1
+          ? <span className="source-retry"><i className="spinner" /> Recuperando automaticamente...</span>
+          : <div className="player-error-actions"><button autoFocus onClick={() => {
+              setAutomaticRecoveries(0);
+              setSnapshot({ ...initial, sourceCount: item.urls.length });
+              setSourceOffset(value => (value + 1) % item.urls.length);
+            }}>Tentar novamente</button><button onClick={onClose}>Voltar ao catálogo</button></div>}
+      </section>}
       <section className={`player-overlay ${controls || snapshot.status === "error" ? "visible" : ""}`}>
-        <header><button onClick={onClose}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECAPLAYTV"}</small><strong>{item.name}</strong></div></header>
+        <header><button onClick={onClose}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECAPLAYTV"}</small><strong>{item.name}</strong></div>
+          {snapshot.sourceCount > 1 && <span className={`source-badge ${snapshot.sourceIndex > 0 || sourceOffset > 0 ? "alternative" : ""}`}>{snapshot.sourceIndex > 0 || sourceOffset > 0 ? "ORIGEM ALTERNATIVA" : "ORIGEM PRINCIPAL"}</span>}
+        </header>
         {snapshot.status !== "error" && <footer>
           <button className="play-control" onClick={toggle}>{snapshot.status === "playing" ? "Ⅱ" : "▶"}</button>
           {!item.live && <div className="timeline"><div><i style={{ width: `${progress}%` }} /></div><span>{time(snapshot.currentTime)} / {time(snapshot.duration)}</span></div>}
