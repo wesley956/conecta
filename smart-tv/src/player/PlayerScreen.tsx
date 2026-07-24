@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchChannelEpg } from "../deviceSession";
+import type { ChannelEpgProgram } from "../deviceSession";
 import { moveFocus } from "../focus";
 import { isBackKey, platform } from "../platform";
 import { createPlayer } from "./createPlayer";
@@ -19,8 +21,9 @@ function time(value: number) {
     .map(part => String(part).padStart(2, "0")).join(":");
 }
 
-export function PlayerScreen({ item, onClose, onProgress }: {
+export function PlayerScreen({ item, playlistId, onClose, onProgress }: {
   item: PlaybackItem;
+  playlistId?: string | null;
   onClose: () => void;
   onProgress?: (currentTime: number, duration: number) => void;
 }) {
@@ -29,9 +32,19 @@ export function PlayerScreen({ item, onClose, onProgress }: {
   const [sourceOffset, setSourceOffset] = useState(0);
   const [automaticRecoveries, setAutomaticRecoveries] = useState(0);
   const [trackPanel, setTrackPanel] = useState(false);
+  const [programs, setPrograms] = useState<ChannelEpgProgram[]>([]);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
   const lastSavedSecond = useRef(-1);
+
+  useEffect(() => {
+    if (!item.live) { setPrograms([]); return; }
+    let cancelled = false;
+    void fetchChannelEpg(item.id, playlistId).then(value => {
+      if (!cancelled) setPrograms(value);
+    });
+    return () => { cancelled = true; };
+  }, [item.id, item.live, playlistId]);
 
   const showControls = useCallback(() => {
     setControls(true);
@@ -155,7 +168,11 @@ export function PlayerScreen({ item, onClose, onProgress }: {
             }}>Tentar novamente</button><button onClick={onClose}>Voltar ao catálogo</button></div>}
       </section>}
       <section className={`player-overlay ${controls || snapshot.status === "error" ? "visible" : ""}`}>
-        <header><button onClick={onClose}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECAPLAYTV"}</small><strong>{item.name}</strong></div>
+        <header><button onClick={onClose}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECAPLAYTV"}</small><strong>{item.name}</strong>
+          {item.live && programs[0] && <span className="player-program"><b>AGORA</b> {programs[0].title}
+            {programs[1] && <em>DEPOIS • {programs[1].title}</em>}
+          </span>}
+        </div>
           {snapshot.sourceCount > 1 && <span className={`source-badge ${snapshot.sourceIndex > 0 || sourceOffset > 0 ? "alternative" : ""}`}>{snapshot.sourceIndex > 0 || sourceOffset > 0 ? "ORIGEM ALTERNATIVA" : "ORIGEM PRINCIPAL"}</span>}
         </header>
         {snapshot.status !== "error" && <footer>
