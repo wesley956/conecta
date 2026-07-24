@@ -1,10 +1,9 @@
-# ronecaPlayerTV Native 2.3.2
+# ronecaPlayerTV Native 2.3.3
 
-Atualização do sistema de distribuição protegida do aplicativo.
+Nova abertura com identidade sonora própria da marca.
 
-- atualizador do aplicativo passa a consultar a infraestrutura protegida do Conecta;
-- APK publicado automaticamente no Supabase Storage privado;
-- administrador e vendedor podem baixar o APK pelo painel;
-- painel pode gerar link temporário de uma hora para usar no Downloader;
-- download do aparelho exige que ele esteja ativo e autorizado;
-- validações de SHA-256, pacote, versão e assinatura permanecem obrigatórias.
+- abertura ampliada para o nome ronecaPlayer TV permanecer visível por mais tempo;
+- assinatura sonora original sincronizada com a aparição da marca;
+- sequência curta com notas ascendentes, brilho e impacto grave final;
+- som reproduzido pelo canal de mídia, respeitando o volume e o mudo do aparelho;
+- saída da abertura mais suave.

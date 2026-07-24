@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
             val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
 
             LaunchedEffect(Unit) {
-                delay(2_250)
+                delay(4_000)
                 showLaunch = false
                 appUpdateViewModel.checkForUpdates(userInitiated = false)
             }
@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
                 )
                 AnimatedVisibility(
                     visible = showLaunch,
-                    exit = fadeOut(animationSpec = tween(durationMillis = 350)),
+                    exit = fadeOut(animationSpec = tween(durationMillis = 450)),
                 ) {
                     RonecaLaunchScreen(isTelevision = isTelevision)
                 }
