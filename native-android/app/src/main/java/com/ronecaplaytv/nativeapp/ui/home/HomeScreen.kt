@@ -84,8 +84,8 @@ fun HomeScreen(
     channelCount: Int,
     movieCount: Int,
     seriesCount: Int,
-    featuredMovie: NativeMovie?,
-    featuredSeries: NativeSeries?,
+    featuredMovies: List<NativeMovie>,
+    featuredSeries: List<NativeSeries>,
     onOpenChannels: () -> Unit,
     onOpenMovies: () -> Unit,
     onOpenSeries: () -> Unit,
@@ -95,13 +95,39 @@ fun HomeScreen(
     onOpenFeaturedSeries: (NativeSeries) -> Unit,
 ) {
     val firstFocusRequester = remember { FocusRequester() }
+    val movieRotation = remember(featuredMovies.map(NativeMovie::id)) {
+        featuredMovies.shuffled()
+    }
+    val seriesRotation = remember(featuredSeries.map(NativeSeries::id)) {
+        featuredSeries.shuffled()
+    }
+    var rotationIndex by remember(movieRotation, seriesRotation) { mutableStateOf(0) }
+    val heroMovie = movieRotation.getOrNull(
+        rotationIndex.mod(movieRotation.size.coerceAtLeast(1)),
+    )
+    val railMovie = movieRotation
+        .takeIf { it.size > 1 }
+        ?.get((rotationIndex + 1).mod(movieRotation.size))
+    val railSeries = seriesRotation.getOrNull(
+        rotationIndex.mod(seriesRotation.size.coerceAtLeast(1)),
+    )
+
+    LaunchedEffect(movieRotation, seriesRotation) {
+        if (movieRotation.size + seriesRotation.size > 1) {
+            while (true) {
+                delay(12_000)
+                rotationIndex += 1
+            }
+        }
+    }
+
     val statusText = when {
         loadingSection != null -> "Sincronizando $loadingSection"
         catalogError != null -> catalogError
         else -> "Catálogo atualizado"
     }
 
-    LaunchedEffect(isWideLayout, featuredMovie?.id, channelCount, movieCount, seriesCount) {
+    LaunchedEffect(isWideLayout, heroMovie?.id, channelCount, movieCount, seriesCount) {
         if (isWideLayout) {
             delay(220)
             runCatching { firstFocusRequester.requestFocus() }
@@ -146,14 +172,14 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     HomeHero(
-                        movie = featuredMovie,
+                        movie = heroMovie,
                         statusText = statusText,
                         hasError = catalogError != null,
                         isTelevision = isTelevision,
                         isWideLayout = true,
                         firstFocusRequester = firstFocusRequester,
                         onPrimary = {
-                            if (featuredMovie != null) onOpenFeatured(featuredMovie) else onOpenMovies()
+                            if (heroMovie != null) onOpenFeatured(heroMovie) else onOpenMovies()
                         },
                         onLive = onOpenChannels,
                         modifier = Modifier
@@ -162,14 +188,14 @@ fun HomeScreen(
                     )
 
                     FeaturedContentRail(
-                        movie = featuredMovie,
-                        series = featuredSeries,
+                        movie = railMovie,
+                        series = railSeries,
                         isTelevision = isTelevision,
                         onOpenMovie = {
-                            if (featuredMovie != null) onOpenFeatured(featuredMovie) else onOpenMovies()
+                            if (railMovie != null) onOpenFeatured(railMovie) else onOpenMovies()
                         },
                         onOpenSeries = {
-                            if (featuredSeries != null) onOpenFeaturedSeries(featuredSeries) else onOpenSeries()
+                            if (railSeries != null) onOpenFeaturedSeries(railSeries) else onOpenSeries()
                         },
                         modifier = Modifier
                             .width(if (isTelevision) 254.dp else 224.dp)
@@ -180,14 +206,14 @@ fun HomeScreen(
         } else {
             item {
                 HomeHero(
-                    movie = featuredMovie,
+                    movie = heroMovie,
                     statusText = statusText,
                     hasError = catalogError != null,
                     isTelevision = false,
                     isWideLayout = false,
                     firstFocusRequester = firstFocusRequester,
                     onPrimary = {
-                        if (featuredMovie != null) onOpenFeatured(featuredMovie) else onOpenMovies()
+                        if (heroMovie != null) onOpenFeatured(heroMovie) else onOpenMovies()
                     },
                     onLive = onOpenChannels,
                     modifier = Modifier
