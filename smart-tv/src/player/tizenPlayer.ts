@@ -32,15 +32,20 @@ export class TizenPlayer implements PlayerAdapter {
       onbufferingcomplete: () => this.update({ buffering: false }),
       oncurrentplaytime: (milliseconds: never) => this.update({ currentTime: Number(milliseconds) / 1000 }),
       onstreamcompleted: () => this.update({ status: "ended", buffering: false }),
-      onerror: () => this.update({ status: "error", buffering: false, error: "A Samsung não conseguiu reproduzir este conteúdo." })
+      onerror: () => this.update({
+        status: "error", buffering: false, error: "A origem ativa parou de responder na Samsung."
+      })
     });
   }
 
   async load(urls: string[]) {
     let lastError: unknown;
-    for (const url of urls) {
-      try { await this.trySource(url); return; }
-      catch (error) { lastError = error; this.safeClose(); }
+    for (let index = 0; index < urls.length; index += 1) {
+      try {
+        this.update({ sourceIndex: index, sourceCount: urls.length, error: null });
+        await this.trySource(urls[index]);
+        return;
+      } catch (error) { lastError = error; this.safeClose(); }
     }
     throw lastError || new Error("Nenhuma origem de vídeo pôde ser aberta.");
   }

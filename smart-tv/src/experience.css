@@ -208,6 +208,31 @@ button, input { font: inherit; color: inherit; }
 .settings-panel dd { margin: 0; }
 .settings-actions { display: grid; gap: 12px; }
 .danger { border-color: #7e2630; color: #ef8994; }
+.source-badge {
+  margin-left: auto;
+  padding: 7px 11px;
+  border: 1px solid #d9b65f66;
+  border-radius: 999px;
+  color: var(--gold);
+  background: #17140ed9;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  font-weight: 800;
+}
+.source-badge.alternative {
+  border-color: #b51f2e88;
+  color: #ef8994;
+  background: #2a1015dc;
+}
+.source-retry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--gold);
+}
+.source-retry .spinner { width: 22px; height: 22px; }
+.player-error-actions { display: flex; gap: 12px; margin-top: 16px; }
+.player-error-actions button { margin-top: 0; }
 @media (max-width: 1050px) {
   .home-media-row { grid-template-columns: repeat(4, 1fr); }
   .movie-panel { grid-template-columns: 100px 220px minmax(0, 1fr); padding: 34px; }

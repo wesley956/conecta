@@ -24,14 +24,18 @@ export class Html5Player implements PlayerAdapter {
     on("timeupdate", () => this.update({ currentTime: video.currentTime || 0 }));
     on("durationchange", () => this.update({ duration: Number.isFinite(video.duration) ? video.duration : 0 }));
     on("ended", () => this.update({ status: "ended", buffering: false }));
+    on("error", () => this.update({
+      status: "error", buffering: false, error: "A origem ativa parou de responder."
+    }));
   }
 
   async load(urls: string[]) {
     if (!this.video) throw new Error("Player não inicializado.");
     let lastError: unknown;
-    for (const url of urls) {
+    for (let index = 0; index < urls.length; index += 1) {
       try {
-        await this.trySource(url);
+        this.update({ sourceIndex: index, sourceCount: urls.length, error: null });
+        await this.trySource(urls[index]);
         return;
       } catch (error) { lastError = error; }
     }
