@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCatalog } from "./catalog";
+import type { Series } from "./catalog";
 import type { DeviceSession } from "./deviceSession";
 import { useDeviceSession } from "./deviceSession";
 import { moveFocus } from "./focus";
 import { closeApplication, isBackKey, platform } from "./platform";
 import { PlayerScreen } from "./player/PlayerScreen";
 import type { PlaybackItem } from "./player/types";
+import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
 
 const destinations = [
   { icon: "⌂", label: "Início" }, { icon: "◉", label: "TV ao vivo" },
@@ -45,11 +47,12 @@ function playableUrls(url: string, alternatives?: string[]) {
 export function App() {
   const [selected, setSelected] = useState("Início");
   const [playback, setPlayback] = useState<PlaybackItem | null>(null);
+  const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const { session, refresh, renewConfiguration, reset } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
 
   useEffect(() => {
-    if (playback) return;
+    if (playback || selectedSeries) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const directions: Record<string, "up" | "down" | "left" | "right"> = {
         ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
@@ -64,7 +67,7 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     window.setTimeout(() => document.querySelector<HTMLElement>("[data-autofocus='true']")?.focus(), 0);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [playback, selected, session.status, catalog.status]);
+  }, [playback, selected, selectedSeries, session.status, catalog.status]);
 
   const counts = useMemo(() => ({
     channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length
@@ -82,11 +85,17 @@ export function App() {
       }))
       : selected === "Séries"
         ? catalog.data.series.slice(0, 60).map(item => ({
-          id: item.id, name: item.name, image: item.cover, meta: item.category || "Séries", playback: null
+          id: item.id, name: item.name, image: item.cover, meta: item.category || "Séries", playback: null, series: item
         }))
         : [];
 
   if (playback) return <PlayerScreen item={playback} onClose={() => setPlayback(null)} />;
+  if (selectedSeries) return <SeriesDetailScreen
+    series={selectedSeries}
+    playlistId={session.selectedPlaylistId}
+    onBack={() => setSelectedSeries(null)}
+    onPlay={setPlayback}
+  />;
   if (session.status !== "active") return <ActivationScreen session={session} onRefresh={() => void refresh()} onReset={() => void reset()} />;
 
   return <main className="shell">
@@ -111,8 +120,8 @@ export function App() {
         </div></section>
       </>}
       {catalog.status === "ready" && cards.length > 0 && <section className="catalog-grid">{cards.map((item, index) =>
-        <FocusableButton key={item.id} data-autofocus={index === 0 ? "true" : undefined} className="media-card" onClick={() => item.playback ? setPlayback(item.playback) : undefined}>
-          <span className="poster"><Poster image={item.image} /></span><strong>{item.name}</strong><small>{item.playback ? item.meta : `${item.meta} • Episódios em breve`}</small>
+        <FocusableButton key={item.id} data-autofocus={index === 0 ? "true" : undefined} className="media-card" onClick={() => item.playback ? setPlayback(item.playback) : item.series ? setSelectedSeries(item.series) : undefined}>
+          <span className="poster"><Poster image={item.image} /></span><strong>{item.name}</strong><small>{item.meta}</small>
         </FocusableButton>)}</section>}
       {catalog.status === "ready" && !["Início", "TV ao vivo", "Filmes", "Séries"].includes(selected) && <section className="state-panel"><h2>{selected}</h2><p>Esta área será conectada nos próximos marcos.</p></section>}
       {catalog.status === "ready" && ["TV ao vivo", "Filmes", "Séries"].includes(selected) && cards.length === 0 && <section className="state-panel"><h2>Nenhum conteúdo encontrado</h2><p>Esta categoria está vazia na lista vinculada.</p></section>}
