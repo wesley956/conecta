@@ -3,16 +3,14 @@
 Base compartilhada das versões para Smart TV. A versão Android é a referência
 visual e comportamental obrigatória.
 
-## Catálogo protegido
+## Player nativo
 
-- usa a mesma ativação e o mesmo cadastro de aparelhos do Android;
-- renova a configuração antes de baixar o conteúdo;
-- baixa canais, filmes e séries em partes paralelas pelo cache privado;
-- aceita somente links assinados temporários entregues por `device-config`;
-- não persiste links assinados, URL da lista ou credenciais do provedor;
-- mostra estados controlados de carregamento, catálogo vazio e falha;
-- mantém navegação completa por controle remoto.
+- Samsung usa `AVPlay`, com preparação assíncrona e retângulo 1920 × 1080;
+- LG webOS usa o elemento de vídeo conectado ao pipeline nativo;
+- canais e filmes testam as origens de reprodução em ordem;
+- URLs temporárias permanecem somente em memória;
+- controles compartilhados oferecem play, pausa, busca, progresso e voltar;
+- controles somem após quatro segundos, como no Android;
+- erros de formato, endereço e tempo limite são mostrados sem fechar o app.
 
-O shell, a ativação e o catálogo real estão implementados. Player, detalhes,
-favoritos, pesquisa, splash sonora e empacotamento assinado entram nos próximos
-marcos.
+Séries serão conectadas quando o próximo marco carregar temporadas e episódios.
