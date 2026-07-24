@@ -1,4 +1,10 @@
-import type { PlayerAdapter, SnapshotListener } from "./types";
+import type { PlayerAdapter, PlayerTrack, SnapshotListener } from "./types";
+
+interface AvPlayTrackInfo {
+  index: number;
+  type: "AUDIO" | "VIDEO" | "TEXT";
+  extra_info?: string;
+}
 
 interface AvPlay {
   open(url: string): void;
@@ -13,6 +19,9 @@ interface AvPlay {
   jumpForward(milliseconds: number): void;
   jumpBackward(milliseconds: number): void;
   getDuration(): number;
+  getTotalTrackInfo(): AvPlayTrackInfo[];
+  setSelectTrack(type: "AUDIO" | "TEXT", index: number): void;
+  setSilentSubtitle(silent: boolean): void;
 }
 
 declare global {
@@ -58,6 +67,7 @@ export class TizenPlayer implements PlayerAdapter {
     return new Promise<void>((resolve, reject) => {
       avplay.prepareAsync(() => {
         this.update({ duration: Math.max(0, avplay.getDuration() / 1000) });
+        this.publishTracks();
         resolve();
       }, () => reject(new Error("Formato ou endereço não suportado nesta Samsung.")));
     });
@@ -70,10 +80,47 @@ export class TizenPlayer implements PlayerAdapter {
     if (seconds >= 0) this.avplay.jumpForward(seconds * 1000);
     else this.avplay.jumpBackward(Math.abs(seconds) * 1000);
   }
+  selectTrack(kind: "audio" | "text", index: number | null) {
+    if (!this.avplay) return;
+    if (kind === "text" && index == null) {
+      this.avplay.setSilentSubtitle(true);
+      this.update({ selectedTextTrack: null });
+      return;
+    }
+    if (index == null) return;
+    if (kind === "text") this.avplay.setSilentSubtitle(false);
+    this.avplay.setSelectTrack(kind === "audio" ? "AUDIO" : "TEXT", index);
+    this.update(kind === "audio" ? { selectedAudioTrack: index } : { selectedTextTrack: index });
+  }
   stop() {
     try { this.avplay?.stop(); } catch { /* o estado pode já estar fechado */ }
     this.safeClose();
   }
   destroy() { this.stop(); this.avplay = null; }
   private safeClose() { try { this.avplay?.close(); } catch { /* o estado pode já estar NONE */ } }
+
+  private publishTracks() {
+    if (!this.avplay) return;
+    let info: AvPlayTrackInfo[] = [];
+    try { info = this.avplay.getTotalTrackInfo(); } catch { return; }
+    const convert = (track: AvPlayTrackInfo, kind: "audio" | "text"): PlayerTrack => {
+      let extra: Record<string, unknown> = {};
+      try { extra = JSON.parse(track.extra_info || "{}") as Record<string, unknown>; } catch { /* rótulo padrão */ }
+      const language = String(extra.language || extra.lang || "").trim();
+      return {
+        index: track.index,
+        kind,
+        language: language || undefined,
+        label: language || `${kind === "audio" ? "Áudio" : "Legenda"} ${track.index + 1}`
+      };
+    };
+    const audioTracks = info.filter(track => track.type === "AUDIO").map(track => convert(track, "audio"));
+    const textTracks = info.filter(track => track.type === "TEXT").map(track => convert(track, "text"));
+    this.update({
+      audioTracks,
+      textTracks,
+      selectedAudioTrack: audioTracks[0]?.index ?? null,
+      selectedTextTrack: null
+    });
+  }
 }
