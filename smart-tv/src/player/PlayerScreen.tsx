@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { moveFocus } from "../focus";
 import { isBackKey, platform } from "../platform";
 import { createPlayer } from "./createPlayer";
 import type { PlaybackItem, PlaybackSnapshot, PlayerAdapter } from "./types";
 
 const initial: PlaybackSnapshot = {
   status: "loading", currentTime: 0, duration: 0, buffering: true, error: null,
-  sourceIndex: 0, sourceCount: 1
+  sourceIndex: 0, sourceCount: 1, audioTracks: [], textTracks: [],
+  selectedAudioTrack: null, selectedTextTrack: null
 };
 
 function time(value: number) {
@@ -26,6 +28,7 @@ export function PlayerScreen({ item, onClose, onProgress }: {
   const [controls, setControls] = useState(true);
   const [sourceOffset, setSourceOffset] = useState(0);
   const [automaticRecoveries, setAutomaticRecoveries] = useState(0);
+  const [trackPanel, setTrackPanel] = useState(false);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
   const lastSavedSecond = useRef(-1);
@@ -104,7 +107,17 @@ export function PlayerScreen({ item, onClose, onProgress }: {
     const onKey = (event: KeyboardEvent) => {
       showControls();
       if (isBackKey(event) || event.keyCode === 413) {
-        event.preventDefault(); onClose(); return;
+        event.preventDefault();
+        if (trackPanel) setTrackPanel(false); else onClose();
+        return;
+      }
+      if (trackPanel) {
+        const directions: Record<string, "up" | "down" | "left" | "right"> = {
+          ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
+        };
+        const direction = directions[event.key];
+        if (direction) { event.preventDefault(); moveFocus(direction); }
+        return;
       }
       if (event.key === "Enter" || event.key === " " || event.keyCode === 10252 || event.keyCode === 415 || event.keyCode === 19) {
         event.preventDefault();
@@ -119,7 +132,12 @@ export function PlayerScreen({ item, onClose, onProgress }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [item.live, onClose, showControls, toggle]);
+  }, [item.live, onClose, showControls, toggle, trackPanel]);
+
+  useEffect(() => {
+    if (!trackPanel) return;
+    window.setTimeout(() => document.querySelector<HTMLElement>(".track-panel [data-autofocus='true']")?.focus(), 0);
+  }, [trackPanel]);
 
   const progress = snapshot.duration > 0 ? Math.min(100, snapshot.currentTime / snapshot.duration * 100) : 0;
   return (
@@ -144,8 +162,31 @@ export function PlayerScreen({ item, onClose, onProgress }: {
           <button className="play-control" onClick={toggle}>{snapshot.status === "playing" ? "Ⅱ" : "▶"}</button>
           {!item.live && <div className="timeline"><div><i style={{ width: `${progress}%` }} /></div><span>{time(snapshot.currentTime)} / {time(snapshot.duration)}</span></div>}
           {item.live && <div className="live-badge"><i /> AO VIVO</div>}
+          <button data-tv-focusable="true" className="track-control" onClick={() => setTrackPanel(true)}>♪ Áudio e legendas</button>
         </footer>}
       </section>
+      {trackPanel && <aside className="track-panel">
+        <header><div><p className="eyebrow">REPRODUÇÃO</p><h2>Áudio e legendas</h2></div><button data-tv-focusable="true" onClick={() => setTrackPanel(false)}>×</button></header>
+        <section><h3>Faixa de áudio</h3>
+          {snapshot.audioTracks.length === 0 && <p>Nenhuma faixa alternativa foi informada pelo conteúdo.</p>}
+          {snapshot.audioTracks.map((track, index) => <button
+            key={`audio:${track.index}`} data-tv-focusable="true" data-autofocus={index === 0 ? "true" : undefined}
+            className={snapshot.selectedAudioTrack === track.index ? "selected" : ""}
+            onClick={() => adapter.current?.selectTrack("audio", track.index)}
+          ><span>♪</span><strong>{track.label}</strong><small>{track.language?.toUpperCase() || "ÁUDIO"}</small></button>)}
+        </section>
+        <section><h3>Legendas</h3>
+          <button data-tv-focusable="true" data-autofocus={snapshot.audioTracks.length === 0 ? "true" : undefined}
+            className={snapshot.selectedTextTrack == null ? "selected" : ""}
+            onClick={() => adapter.current?.selectTrack("text", null)}
+          ><span>CC</span><strong>Desativadas</strong><small>SEM LEGENDA</small></button>
+          {snapshot.textTracks.map(track => <button
+            key={`text:${track.index}`} data-tv-focusable="true"
+            className={snapshot.selectedTextTrack === track.index ? "selected" : ""}
+            onClick={() => adapter.current?.selectTrack("text", track.index)}
+          ><span>CC</span><strong>{track.label}</strong><small>{track.language?.toUpperCase() || "LEGENDA"}</small></button>)}
+        </section>
+      </aside>}
     </main>
   );
 }
