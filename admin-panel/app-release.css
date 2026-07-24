@@ -45,3 +45,13 @@
   white-space: pre-wrap;
 }
 
+
+.app-release-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+}
+.app-release-platform {
+  min-width: 150px;
+}
