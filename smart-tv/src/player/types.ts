@@ -16,6 +16,8 @@ export interface PlaybackSnapshot {
   duration: number;
   buffering: boolean;
   error: string | null;
+  sourceIndex: number;
+  sourceCount: number;
 }
 
 export interface PlayerAdapter {
