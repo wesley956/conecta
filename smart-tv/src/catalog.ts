@@ -22,6 +22,20 @@ export interface Movie {
   playbackUrls?: string[];
 }
 
+export interface Episode {
+  id: string;
+  number: number;
+  name: string;
+  duration?: string;
+  url: string;
+  playbackUrls?: string[];
+}
+
+export interface Season {
+  number: number;
+  episodes: Episode[];
+}
+
 export interface Series {
   id: string;
   name: string;
@@ -29,7 +43,7 @@ export interface Series {
   category?: string;
   synopsis?: string;
   xtreamSeriesId?: string | number;
-  seasons?: unknown[];
+  seasons?: Season[];
 }
 
 export interface Catalog {
