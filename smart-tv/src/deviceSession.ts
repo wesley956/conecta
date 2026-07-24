@@ -36,7 +36,7 @@ function getOrCreateDeviceUuid() {
   const existing = readStored("deviceUuid"); if (existing) return existing;
   const created = randomDeviceId(); writeStored("deviceUuid", created); return created;
 }
-async function post(endpoint: "device-activate" | "device-config" | "series-detail", payload: Record<string, unknown>, credential?: string) {
+async function post(endpoint: "device-activate" | "device-config" | "series-detail" | "channel-epg", payload: Record<string, unknown>, credential?: string) {
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8" };
   if (credential) headers["x-device-credential"] = credential;
   const response = await fetch(`${FUNCTIONS_URL}/${endpoint}`, { method: "POST", headers, body: JSON.stringify(payload), redirect: "error", cache: "no-store" });
@@ -76,6 +76,12 @@ export interface SeriesEpisodeResponse {
   id: string; number: number; name: string; duration?: string; url: string; playbackUrls?: string[];
 }
 export interface SeriesSeasonResponse { number: number; episodes: SeriesEpisodeResponse[]; }
+export interface ChannelEpgProgram {
+  title: string;
+  description?: string;
+  start: string;
+  end: string;
+}
 function validSeasons(value: unknown): SeriesSeasonResponse[] {
   if (!Array.isArray(value)) throw new Error("O servidor retornou temporadas inválidas.");
   return value.flatMap((season, seasonIndex) => {
@@ -120,6 +126,35 @@ export async function fetchSeriesSeasons(seriesId: string, playlistId?: string |
   const seasons = validSeasons(payload.seasons);
   if (!seasons.length) throw new Error("Nenhum episódio foi encontrado para esta série.");
   return seasons;
+}
+export async function fetchChannelEpg(channelId: string, playlistId?: string | null): Promise<ChannelEpgProgram[]> {
+  const deviceCode = readStored("deviceCode");
+  const deviceCredential = readStored("deviceCredential");
+  if (!deviceCode || !deviceCredential) return [];
+  const streamId = channelId.match(/-ch-(\d+)$/)?.[1];
+  if (!streamId) return [];
+  const { response, body } = await post("channel-epg", {
+    deviceCode,
+    deviceUuid: getOrCreateDeviceUuid(),
+    streamId,
+    ...(playlistId ? { playlistId } : {})
+  }, deviceCredential);
+  const payload = body as DeviceResponse & { programs?: unknown };
+  if (!response.ok || !Array.isArray(payload.programs)) return [];
+  return payload.programs.flatMap(value => {
+    if (!value || typeof value !== "object") return [];
+    const program = value as Record<string, unknown>;
+    const title = String(program.title || "").trim();
+    const start = String(program.start || "").trim();
+    const end = String(program.end || "").trim();
+    if (!title || !start || !end) return [];
+    return [{
+      title,
+      description: String(program.description || "").trim() || undefined,
+      start,
+      end
+    }];
+  });
 }
 async function loadSession() {
   try { return readStored("deviceCode") && readStored("deviceCredential") ? await fetchConfiguration() : await activate(); }

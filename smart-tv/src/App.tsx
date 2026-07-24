@@ -230,6 +230,7 @@ export function App() {
 
   if (playback) return <PlayerScreen
     item={playback}
+    playlistId={session.selectedPlaylistId}
     onClose={() => setPlayback(null)}
     onProgress={(currentTime, duration) => library.remember(playback, currentTime, duration)}
   />;
