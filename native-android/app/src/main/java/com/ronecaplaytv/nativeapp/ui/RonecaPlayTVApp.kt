@@ -235,6 +235,7 @@ fun RonecaPlayTVApp(
         selectedSeries?.id,
         selectedSeries?.xtreamSeriesId,
         selectedSeries?.seasons?.size,
+        catalogState.activePlaylistId,
     ) {
         val series = selectedSeries
         if (
@@ -243,7 +244,7 @@ fun RonecaPlayTVApp(
             series.seasons.isEmpty() &&
             !series.xtreamSeriesId.isNullOrBlank()
         ) {
-            seriesEpisodesViewModel.load(series.xtreamSeriesId)
+            seriesEpisodesViewModel.load(series.xtreamSeriesId, catalogState.activePlaylistId)
         }
     }
 
@@ -592,7 +593,7 @@ fun RonecaPlayTVApp(
                                 onRefreshEpisodes = {
                                     val xtreamId = baseSeries.xtreamSeriesId
                                     if (!xtreamId.isNullOrBlank()) {
-                                        seriesEpisodesViewModel.load(xtreamId, force = true)
+                                        seriesEpisodesViewModel.load(xtreamId, catalogState.activePlaylistId, force = true)
                                     } else {
                                         refreshCatalog()
                                     }
