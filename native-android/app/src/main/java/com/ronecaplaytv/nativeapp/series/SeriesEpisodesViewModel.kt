@@ -21,18 +21,24 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
     private val mutableState = MutableStateFlow(SeriesEpisodesState())
     val state: StateFlow<SeriesEpisodesState> = mutableState.asStateFlow()
 
-    fun load(seriesId: String, force: Boolean = false) {
+    fun load(seriesId: String, playlistId: String?, force: Boolean = false) {
         val normalizedId = seriesId.trim()
         if (normalizedId.isEmpty()) return
 
         val current = mutableState.value
-        if (!force && current.seriesId == normalizedId && (current.loading || current.seasons.isNotEmpty())) {
+        if (
+            !force &&
+            current.seriesId == normalizedId &&
+            current.playlistId == playlistId &&
+            (current.loading || current.seasons.isNotEmpty())
+        ) {
             return
         }
 
         viewModelScope.launch {
             mutableState.value = SeriesEpisodesState(
                 seriesId = normalizedId,
+                playlistId = playlistId,
                 loading = true,
             )
 
@@ -48,6 +54,7 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
                     deviceUuid = deviceUuid,
                     deviceCredential = credential,
                     seriesId = normalizedId,
+                    playlistId = playlistId,
                 )
                 if (!response.successful) {
                     error(response.message ?: "Não foi possível carregar os episódios.")
@@ -67,6 +74,7 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
                 onFailure = { failure ->
                     SeriesEpisodesState(
                         seriesId = normalizedId,
+                        playlistId = playlistId,
                         loading = false,
                         error = failure.message ?: "Falha ao carregar episódios.",
                     )
@@ -82,6 +90,7 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
 
 data class SeriesEpisodesState(
     val seriesId: String? = null,
+    val playlistId: String? = null,
     val seasons: List<NativeSeason> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
