@@ -1,9 +1,12 @@
-# ronecaPlayerTV Native 2.2.1
+# ronecaPlayerTV Native 2.3.0
 
-Correções de navegação para temporadas e pesquisa em televisões e TV Box.
+Atualização de consolidação da experiência em televisões e TV Box.
 
-- temporadas agora recebem foco visível e podem ser selecionadas pelo controle remoto;
-- OK, Enter e teclas equivalentes abrem a temporada focada;
-- a pesquisa não perde mais o foco enquanto o usuário está digitando;
-- correção aplicada às buscas de canais, filmes e séries;
-- mantém o visual e os controles Media3 da versão 2.2.
+- player com política de buffer unificada e reserva maior de vídeo em TVs;
+- failover automático entre a lista principal e a lista reserva;
+- foco mais evidente com contorno dourado, crescimento discreto e animação suave;
+- navegação aprimorada em cartazes, canais, categorias, temporadas, episódios, busca, Minha Lista e recomendações;
+- botões Voltar dos detalhes aprimorados para uso pelo controle remoto;
+- tela inicial mais cinematográfica, com destaques de filme e série;
+- pôster do destaque principal exibido sem corte;
+- dependências de segurança atualizadas.

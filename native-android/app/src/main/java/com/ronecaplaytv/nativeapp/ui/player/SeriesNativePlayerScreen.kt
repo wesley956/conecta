@@ -49,7 +49,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -127,21 +126,9 @@ fun SeriesNativePlayerScreen(
         }
     }
     val hasNextEpisode = currentIndex + 1 < entries.size
-    val safeBufferSeconds = bufferSeconds.coerceIn(2, 10)
 
-    val loadControl = remember(isTelevision, safeBufferSeconds) {
-        val playbackBufferMs = safeBufferSeconds * 1_000
-        val minimumBufferMs = maxOf(playbackBufferMs, if (isTelevision) 5_000 else 8_000)
-        val maximumBufferMs = maxOf(minimumBufferMs * 4, if (isTelevision) 20_000 else 35_000)
-        DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                minimumBufferMs,
-                maximumBufferMs,
-                playbackBufferMs,
-                playbackBufferMs,
-            )
-            .setPrioritizeTimeOverSizeThresholds(true)
-            .build()
+    val loadControl = remember(isTelevision, bufferSeconds) {
+        ronecaLoadControl(isTelevision, bufferSeconds)
     }
 
     val mediaSourceFactory = remember(context) {

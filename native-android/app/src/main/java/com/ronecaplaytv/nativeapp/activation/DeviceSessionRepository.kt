@@ -107,6 +107,7 @@ class DeviceSessionRepository(context: Context) {
         channelsUrl = channelsUrl,
         moviesUrl = moviesUrl,
         seriesUrl = seriesUrl,
+        playlists = playlists,
         message = message,
     )
 

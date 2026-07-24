@@ -55,6 +55,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
 
 @Composable
@@ -386,6 +387,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
+            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
             .clip(RoundedCornerShape(999.dp))
             .background(
                 when {
@@ -439,6 +441,7 @@ private fun ChannelItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(10.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(

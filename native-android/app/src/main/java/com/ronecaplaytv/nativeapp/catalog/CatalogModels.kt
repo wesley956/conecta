@@ -52,6 +52,9 @@ data class NativeCatalogState(
     val loadingSection: String? = null,
     val loaded: Boolean = false,
     val error: String? = null,
+    val activePlaylistId: String? = null,
+    val activePlaylistName: String? = null,
+    val usingBackupPlaylist: Boolean = false,
 ) {
     val isLoading: Boolean
         get() = loadingSection != null

@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.network
 
+import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import kotlinx.coroutines.Dispatchers
@@ -205,11 +206,34 @@ data class DeviceConfigResponse(
     val channelsUrl: String?,
     val moviesUrl: String?,
     val seriesUrl: String?,
+    val playlists: List<DevicePlaylistConfig>,
     val message: String?,
 ) {
     companion object {
         fun from(httpStatus: Int, json: JSONObject): DeviceConfigResponse {
             val cacheParts = json.optJSONObject("cacheParts")
+            val playlistsJson = json.optJSONArray("playlists")
+            val playlists = buildList {
+                if (playlistsJson != null) {
+                    for (index in 0 until playlistsJson.length()) {
+                        val item = playlistsJson.optJSONObject(index) ?: continue
+                        val id = item.optNullableString("id") ?: continue
+                        val itemCacheParts = item.optJSONObject("cacheParts")
+                        add(
+                            DevicePlaylistConfig(
+                                id = id,
+                                name = item.optNullableString("name") ?: "Lista ${index + 1}",
+                                priority = item.optInt("priority", index + 1).coerceAtLeast(1),
+                                role = item.optNullableString("role")
+                                    ?: if (index == 0) "primary" else "backup",
+                                channelsUrl = itemCacheParts?.optNullableString("channelsUrl"),
+                                moviesUrl = itemCacheParts?.optNullableString("moviesUrl"),
+                                seriesUrl = itemCacheParts?.optNullableString("seriesUrl"),
+                            ),
+                        )
+                    }
+                }
+            }.sortedBy(DevicePlaylistConfig::priority)
             return DeviceConfigResponse(
                 httpStatus = httpStatus,
                 active = json.optBoolean("active", false),
@@ -222,6 +246,7 @@ data class DeviceConfigResponse(
                 channelsUrl = cacheParts?.optNullableString("channelsUrl"),
                 moviesUrl = cacheParts?.optNullableString("moviesUrl"),
                 seriesUrl = cacheParts?.optNullableString("seriesUrl"),
+                playlists = playlists,
                 message = json.optNullableString("message"),
             )
         }
