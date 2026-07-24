@@ -1,6 +1,12 @@
 name: Publish native RonecaPlayTV release
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'native-android/app/build.gradle.kts'
+      - 'native-android/RELEASE_NOTES.md'
   workflow_dispatch:
     inputs:
       release_notes:
