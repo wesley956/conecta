@@ -41,9 +41,20 @@ O GitHub Actions também valida:
 - Edge Functions;
 - reconstrução do banco e testes pgTAP.
 
-## Painel
+## Publicar o painel no Vercel
 
-O conteúdo de `admin-panel/` pode ser publicado como site estático. Gere a configuração pública a partir do exemplo existente e nunca inclua chaves privadas ou `service_role` no navegador.
+O arquivo `vercel.json` publica `admin-panel/` como site estático e executa `npm run panel:config` durante o build.
+
+Configure no projeto do Vercel, para os ambientes Production e Preview:
+
+```env
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_ANON_KEY=SUA-CHAVE-PUBLICA-ANON
+```
+
+`SUPABASE_ANON_KEY` é uma chave pública própria para o navegador. Nunca configure `service_role`, senha de banco ou outra chave privada no painel. O arquivo gerado `admin-panel/panel-config.js` permanece ignorado pelo Git.
+
+Ao importar o repositório no Vercel, mantenha o diretório raiz do projeto. O build e a pasta de saída já estão definidos em `vercel.json`.
 
 ## Proxy opcional
 
@@ -65,6 +76,11 @@ RONECA_ALLOW_PRIVATE_PROXY=false
 
 Use o RonecaPlayTV somente com conteúdo próprio ou devidamente autorizado. O projeto não deve incluir scraping de conteúdo pago, bypass de DRM, credenciais reais, listas públicas ou mecanismos de violação de direitos autorais.
 
-## Releases
+## GitHub Actions
 
-O workflow `release-native-android.yml` publica o APK assinado. Cada atualização deve possuir `versionCode` maior e uma versão ainda não publicada.
+Os workflows atuais possuem funções distintas:
+
+- `validate-pull-request.yml`: valida painel, arquitetura nativa, APK, Edge Functions, migrações e pgTAP antes da mesclagem.
+- `release-native-android.yml`: publica manualmente o APK assinado e imutável a partir da `main`.
+
+Eles não são duplicados e devem permanecer separados. Cada atualização deve possuir `versionCode` maior e uma versão ainda não publicada.
