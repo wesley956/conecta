@@ -5,6 +5,9 @@ export interface PlaybackItem {
   name: string;
   urls: string[];
   live: boolean;
+  kind?: "channel" | "movie" | "episode";
+  image?: string;
+  meta?: string;
 }
 
 export interface PlaybackSnapshot {
