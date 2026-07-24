@@ -9,7 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc -b",
     "stage:webos": "npm run build && node scripts/stage-platform.mjs webos",
-    "stage:tizen": "npm run build && node scripts/stage-platform.mjs tizen"
+    "stage:tizen": "npm run build && node scripts/stage-platform.mjs tizen",
+    "package:webos": "npm run stage:webos && node scripts/package-webos.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",

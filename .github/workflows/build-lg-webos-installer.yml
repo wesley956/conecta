@@ -1,0 +1,66 @@
+name: Build LG webOS installer
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'smart-tv/**'
+      - '.github/workflows/build-lg-webos-installer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-lg-webos-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-webos:
+    name: Generate LG IPK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smart-tv/package-lock.json
+
+      - name: Install Smart TV dependencies
+        working-directory: smart-tv
+        run: npm ci
+
+      - name: Generate webOS IPK
+        working-directory: smart-tv
+        run: npm run package:webos
+
+      - name: Validate generated installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find smart-tv/artifacts -maxdepth 1 -type f -name 'com.ronecaplaytv.app_*_all.ipk' -print)
+          if [ "${#packages[@]}" -ne 1 ]; then
+            echo "::error::Esperado exatamente um instalador IPK; encontrados ${#packages[@]}."
+            exit 1
+          fi
+          test -s "${packages[0]}"
+          echo "Instalador: $(basename "${packages[0]}")" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tamanho: $(stat -c%s "${packages[0]}") bytes" >> "$GITHUB_STEP_SUMMARY"
+          sha256sum "${packages[0]}" >> smart-tv/artifacts/SHA256SUMS
+
+      - name: Upload LG installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: roneca-play-tv-lg-ipk
+          path: |
+            smart-tv/artifacts/*.ipk
+            smart-tv/artifacts/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
