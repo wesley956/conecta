@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isBackKey } from "../platform";
-import { platform } from "../platform";
+import { isBackKey, platform } from "../platform";
 import { createPlayer } from "./createPlayer";
 import type { PlaybackItem, PlaybackSnapshot, PlayerAdapter } from "./types";
 
@@ -17,17 +16,30 @@ function time(value: number) {
     .map(part => String(part).padStart(2, "0")).join(":");
 }
 
-export function PlayerScreen({ item, onClose }: { item: PlaybackItem; onClose: () => void }) {
+export function PlayerScreen({ item, onClose, onProgress }: {
+  item: PlaybackItem;
+  onClose: () => void;
+  onProgress?: (currentTime: number, duration: number) => void;
+}) {
   const [snapshot, setSnapshot] = useState(initial);
   const [controls, setControls] = useState(true);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
+  const lastSavedSecond = useRef(-1);
 
   const showControls = useCallback(() => {
     setControls(true);
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => setControls(false), 4_000);
   }, []);
+
+  useEffect(() => {
+    if (item.live || !onProgress || snapshot.currentTime < 1) return;
+    const second = Math.floor(snapshot.currentTime);
+    if (lastSavedSecond.current >= 0 && second - lastSavedSecond.current < 15) return;
+    lastSavedSecond.current = second;
+    onProgress(snapshot.currentTime, snapshot.duration);
+  }, [item.live, onProgress, snapshot.currentTime, snapshot.duration]);
 
   useEffect(() => {
     document.body.classList.add("playback-active");

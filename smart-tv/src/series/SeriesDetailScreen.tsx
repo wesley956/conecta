@@ -16,10 +16,12 @@ function embeddedSeasons(series: Series): Season[] {
   );
 }
 
-export function SeriesDetailScreen({ series, playlistId, onBack, onPlay }: {
+export function SeriesDetailScreen({ series, playlistId, favorite, onBack, onFavorite, onPlay }: {
   series: Series;
   playlistId: string | null;
+  favorite: boolean;
   onBack: () => void;
+  onFavorite: () => void;
   onPlay: (item: PlaybackItem) => void;
 }) {
   const embedded = useMemo(() => embeddedSeasons(series), [series]);
@@ -74,7 +76,10 @@ export function SeriesDetailScreen({ series, playlistId, onBack, onPlay }: {
         <p className="eyebrow">{(series.category || "Série").toUpperCase()}</p>
         <h1>{series.name}</h1>
         <p className="series-summary">{series.synopsis || "Sinopse não informada para esta série."}</p>
-        {seasons.length > 0 && <small>{seasons.length} temporada(s) • {seasons.reduce((sum, item) => sum + item.episodes.length, 0)} episódio(s)</small>}
+        <div className="series-info">
+          {seasons.length > 0 && <small>{seasons.length} temporada(s) • {seasons.reduce((sum, item) => sum + item.episodes.length, 0)} episódio(s)</small>}
+          <button data-tv-focusable="true" className={`favorite-chip ${favorite ? "selected" : ""}`} onClick={onFavorite}>{favorite ? "♥ Na minha lista" : "♡ Adicionar à lista"}</button>
+        </div>
       </div>
     </header>
 
@@ -90,7 +95,10 @@ export function SeriesDetailScreen({ series, playlistId, onBack, onPlay }: {
           id: episode.id,
           name: `${series.name} • T${season.number}E${episode.number}`,
           urls: urls(episode.url, episode.playbackUrls),
-          live: false
+          live: false,
+          kind: "episode",
+          image: series.cover,
+          meta: `${series.name} • T${season.number}E${episode.number}`
         })}>
           <span className="episode-number">{episode.number}</span>
           <span><strong>{episode.name}</strong><small>{episode.duration || "Duração não informada"}</small></span>
