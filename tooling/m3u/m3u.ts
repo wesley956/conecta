@@ -1,4 +1,4 @@
-import type { Channel, Movie, Series } from '@/types';
+import type { Channel, Movie, Series } from './types';
 
 export interface ParsedM3UResult {
   channels: Channel[];
