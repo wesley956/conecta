@@ -47,6 +47,8 @@ import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
 import com.ronecaplaytv.nativeapp.ui.settings.SettingsScreen
 import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
+import java.text.Normalizer
+import java.util.Locale
 
 private enum class NativeDestination {
     Home,
@@ -67,6 +69,106 @@ private data class ActiveSeriesPlayback(
     val seasonNumber: Int,
     val episodeId: String,
 )
+
+private val recommendationSeparators = Regex("[^a-z0-9]+")
+private val recommendationMarks = Regex("\\p{M}+")
+private val recommendationStopWords = setOf(
+    "a", "as", "o", "os", "de", "da", "das", "do", "dos", "e", "em", "na", "nas",
+    "no", "nos", "para", "por", "um", "uma", "the", "and", "of", "in", "to",
+)
+
+private fun recommendationWords(vararg values: String?): Set<String> =
+    values.asSequence()
+        .filterNotNull()
+        .flatMap { value ->
+            Normalizer.normalize(value, Normalizer.Form.NFD)
+                .lowercase(Locale.ROOT)
+                .replace(recommendationMarks, "")
+                .split(recommendationSeparators)
+                .asSequence()
+        }
+        .filter { it.length >= 3 && it !in recommendationStopWords }
+        .toSet()
+
+private fun recommendedMovies(
+    current: NativeMovie,
+    catalog: List<NativeMovie>,
+    limit: Int,
+): List<NativeMovie> {
+    val currentName = recommendationWords(current.name)
+    val currentCategory = recommendationWords(current.category)
+    val currentSynopsis = recommendationWords(current.synopsis)
+
+    return catalog.asSequence()
+        .filter { it.id != current.id }
+        .map { candidate ->
+            val candidateName = recommendationWords(candidate.name)
+            val candidateCategory = recommendationWords(candidate.category)
+            val candidateSynopsis = recommendationWords(candidate.synopsis)
+            val exactCategory = candidate.category.equals(current.category, ignoreCase = true)
+            val yearDistance = if (current.year != null && candidate.year != null) {
+                kotlin.math.abs(current.year - candidate.year)
+            } else {
+                null
+            }
+            val score =
+                (if (exactCategory) 140 else 0) +
+                    ((currentCategory intersect candidateCategory).size * 28) +
+                    ((currentName intersect candidateName).size * 36) +
+                    (((currentSynopsis intersect candidateSynopsis).size * 3).coerceAtMost(36)) +
+                    (if (!candidate.coverUrl.isNullOrBlank()) 10 else 0) +
+                    (if (!candidate.synopsis.isNullOrBlank()) 6 else 0) +
+                    when {
+                        yearDistance == null -> 0
+                        yearDistance <= 2 -> 10
+                        yearDistance <= 5 -> 6
+                        else -> 0
+                    }
+            candidate to score
+        }
+        .sortedWith(
+            compareByDescending<Pair<NativeMovie, Int>> { it.second }
+                .thenBy { it.first.name.lowercase(Locale.ROOT) },
+        )
+        .take(limit)
+        .map(Pair<NativeMovie, Int>::first)
+        .toList()
+}
+
+private fun recommendedSeries(
+    current: NativeSeries,
+    catalog: List<NativeSeries>,
+    limit: Int,
+): List<NativeSeries> {
+    val currentName = recommendationWords(current.name)
+    val currentCategory = recommendationWords(current.category)
+    val currentSynopsis = recommendationWords(current.synopsis)
+
+    return catalog.asSequence()
+        .filter { it.id != current.id }
+        .map { candidate ->
+            val candidateName = recommendationWords(candidate.name)
+            val candidateCategory = recommendationWords(candidate.category)
+            val candidateSynopsis = recommendationWords(candidate.synopsis)
+            val exactCategory = candidate.category.equals(current.category, ignoreCase = true)
+            val score =
+                (if (exactCategory) 140 else 0) +
+                    ((currentCategory intersect candidateCategory).size * 28) +
+                    ((currentName intersect candidateName).size * 36) +
+                    (((currentSynopsis intersect candidateSynopsis).size * 3).coerceAtMost(36)) +
+                    (if (!candidate.coverUrl.isNullOrBlank()) 10 else 0) +
+                    (if (!candidate.synopsis.isNullOrBlank()) 6 else 0) +
+                    (if (candidate.seasons.isNotEmpty()) 5 else 0)
+            candidate to score
+        }
+        .sortedWith(
+            compareByDescending<Pair<NativeSeries, Int>> { it.second }
+                .thenBy { it.first.name.lowercase(Locale.ROOT) },
+        )
+        .take(limit)
+        .map(Pair<NativeSeries, Int>::first)
+        .toList()
+}
 
 @Composable
 fun RonecaPlayTVApp(
@@ -368,10 +470,14 @@ fun RonecaPlayTVApp(
                         channelCount = catalogState.channels.size,
                         movieCount = catalogState.movies.size,
                         seriesCount = catalogState.series.size,
-                        featuredMovie = catalogState.movies.firstOrNull { !it.coverUrl.isNullOrBlank() }
-                            ?: catalogState.movies.firstOrNull(),
-                        featuredSeries = catalogState.series.firstOrNull { !it.coverUrl.isNullOrBlank() }
-                            ?: catalogState.series.firstOrNull(),
+                        featuredMovies = catalogState.movies
+                            .filter { !it.coverUrl.isNullOrBlank() }
+                            .take(18)
+                            .ifEmpty { catalogState.movies.take(18) },
+                        featuredSeries = catalogState.series
+                            .filter { !it.coverUrl.isNullOrBlank() }
+                            .take(18)
+                            .ifEmpty { catalogState.series.take(18) },
                         onOpenChannels = { destination = NativeDestination.Channels },
                         onOpenMovies = { destination = NativeDestination.Movies },
                         onOpenSeries = { destination = NativeDestination.Series },
@@ -415,11 +521,11 @@ fun RonecaPlayTVApp(
                         if (movie == null) {
                             destination = detailReturnDestination
                         } else {
-                            val recommendations = catalogState.movies
-                                .asSequence()
-                                .filter { it.id != movie.id && it.category.equals(movie.category, ignoreCase = true) }
-                                .take(14)
-                                .toList()
+                            val recommendations = recommendedMovies(
+                                current = movie,
+                                catalog = catalogState.movies,
+                                limit = 14,
+                            )
 
                             MovieDetailScreen(
                                 movie = movie,
@@ -461,11 +567,11 @@ fun RonecaPlayTVApp(
                             } else {
                                 baseSeries
                             }
-                            val recommendations = catalogState.series
-                                .asSequence()
-                                .filter { it.id != baseSeries.id && it.category.equals(baseSeries.category, ignoreCase = true) }
-                                .take(14)
-                                .toList()
+                            val recommendations = recommendedSeries(
+                                current = baseSeries,
+                                catalog = catalogState.series,
+                                limit = 14,
+                            )
 
                             SeriesDetailScreen(
                                 series = resolvedSeries,
