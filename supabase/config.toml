@@ -66,6 +66,9 @@ verify_jwt = false
 [functions.series-detail]
 verify_jwt = false
 
+[functions.channel-epg]
+verify_jwt = false
+
 [functions.playlist-cache]
 verify_jwt = false
 
