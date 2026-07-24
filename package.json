@@ -10,7 +10,6 @@
     "verify": "npm run check:m3u-parser && npm run check:panel-auth && npm run check:seller-provisioning && npm run check:playlist-failover && npm run check:inline-playlist-activation && npm run check:finance-module && npm run check:subscriptions && npm run typecheck && npm run build",
     "preview": "vite preview",
     "audit:ui": "node scripts/audit-ui-crud.cjs",
-    "panel:design": "node scripts/apply-panel-redesign-links.cjs",
     "panel:config": "node scripts/generate-panel-config.mjs",
     "serve:prod": "npm run build && node server.mjs",
     "serve:dist": "node server.mjs",
