@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAppUpdate } from "./appUpdate";
 import { useCatalog } from "./catalog";
 import type { Series } from "./catalog";
 import type { DeviceSession } from "./deviceSession";
@@ -50,6 +51,7 @@ export function App() {
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const { session, refresh, renewConfiguration, reset } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
+  const appUpdate = useAppUpdate(session.status === "active");
 
   useEffect(() => {
     if (playback || selectedSeries) return;
@@ -105,6 +107,10 @@ export function App() {
       <small className="platform">{platform.toUpperCase()}</small>
     </aside>
     <section className="content">
+      {appUpdate.update && <aside className="update-banner" role="status">
+        <span><b>Nova versão {appUpdate.update.versionName}</b><small>{platform === "webos" ? "Atualize pela LG Content Store ou pelo pacote IPK do painel." : "Atualize pela Samsung Apps ou pelo pacote WGT do painel."}</small></span>
+        <FocusableButton onClick={appUpdate.dismiss}>Agora não</FocusableButton>
+      </aside>}
       <header><div><p className="eyebrow">RONECAPLAYTV</p><h1>{selected}</h1></div><div className="status"><i /> {session.clientName || "Aparelho ativo"} <span>•</span> <b>Ativo</b></div></header>
       {catalog.status === "loading" && <section className="state-panel"><span className="spinner" /><h2>Carregando seu catálogo</h2><p>Buscando canais, filmes e séries com segurança.</p></section>}
       {catalog.status === "error" && <section className="state-panel error"><h2>Não foi possível carregar</h2><p>{catalog.message}</p><FocusableButton data-autofocus="true" className="primary" onClick={catalog.retry}>Tentar novamente</FocusableButton></section>}
