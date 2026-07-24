@@ -1,4 +1,4 @@
-// ===== RonecaPlayTV Types =====
+// Tipos preservados para o verificador independente do parser M3U.
 
 // Device types
 export type DeviceType = 'celular' | 'tablet' | 'tvbox' | 'androidtv' | 'googletv' | 'smarttv';

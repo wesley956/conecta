@@ -1,60 +1,52 @@
 # Roadmap — RonecaPlayTV
 
-## Fase 1 — Protótipo visual
+## Histórico — protótipo visual concluído e retirado
 
 - [x] README profissional
-- [x] Base React + Vite + TypeScript
+- [x] Protótipo React + Vite + TypeScript usado durante a validação inicial
 - [x] Tema visual escuro neon
 - [x] Home inicial estilo TV Box
 - [x] Documentação legal e roadmap
 
-## Fase 1.5 — Importar protótipo completo do ZIP
+O protótipo React/Capacitor foi substituído pelo aplicativo Android nativo e removido do caminho de produção.
 
-- [ ] Subir telas completas do protótipo analisado
-- [ ] SplashScreen
-- [ ] ActivationScreen
-- [ ] HomeScreen completa
-- [ ] LiveScreen
-- [ ] MoviesScreen
-- [ ] SeriesScreen
-- [ ] FavoritesScreen
-- [ ] SearchScreen
-- [ ] PlaylistsScreen
-- [ ] SettingsScreen
-- [ ] Admin demo
+## Aplicativo Android nativo
 
-## Fase 2 — IPTV real legal/autorizado
+- [x] Splash e ativação
+- [x] Home, canais, filmes e séries
+- [x] Favoritos, busca e configurações
+- [x] Player Media3
+- [x] Navegação por controle remoto
+- [x] APK oficial em `native-android/`
 
-- [ ] Parser M3U
+## Conteúdo legal/autorizado
+
+- [x] Parser M3U preservado como ferramenta de validação
 - [ ] Serviço de playlists
 - [ ] Teste de listas
-- [ ] Player HLS real com hls.js
-- [ ] PlayerScreen
+- [x] Player nativo Media3
 - [ ] Reconexão automática
 - [ ] Tratamento de erro de stream
 - [ ] Favoritos persistentes
 - [ ] Histórico persistente
 
-## Fase 3 — APK Android/TV
+## Plataforma e operação
 
-- [ ] Capacitor
-- [ ] Configuração Android
-- [ ] Manifest compatível com Android TV
-- [ ] Ícone e splash nativa
-- [ ] Build APK debug
+- [x] Aplicativo Kotlin/Compose sem Capacitor
+- [x] Configuração Android
+- [x] Manifest compatível com Android TV
+- [x] Ícone e splash nativa
+- [x] Build APK debug
 - [ ] Teste em celular
 - [ ] Teste em TV Box
 
-## Fase 4 — Backend real
+## Backend real
 
-- [ ] API
-- [ ] Banco de dados
-- [ ] Clientes
-- [ ] Dispositivos
-- [ ] Planos
-- [ ] Assinaturas
-- [ ] Vencimentos
-- [ ] Painel admin funcional
+- [x] API e Edge Functions
+- [x] Banco de dados versionado
+- [x] Clientes, dispositivos e vendedores
+- [x] Assinaturas e vencimentos
+- [x] Painel admin e portal do vendedor
 
 ## Fase 5 — Recursos avançados
 

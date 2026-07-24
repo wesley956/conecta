@@ -36,4 +36,4 @@ Painel administrativo separado do APK para gerenciar clientes, listas, aparelhos
 
 ## Observação
 
-Este painel é separado do APK. O código do aplicativo em `src/` não deve conter rotas, telas ou lógica administrativa.
+Este painel é separado do APK. O aplicativo oficial está em `native-android/`; rotas, telas e lógica administrativa permanecem somente neste painel.

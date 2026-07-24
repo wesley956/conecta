@@ -29,8 +29,8 @@ try {
   const parserOutput = path.join(tmpDir, 'm3u.mjs');
   const normalizerOutput = path.join(tmpDir, 'normalize-m3u.mjs');
 
-  compileModule('src/utils/m3u.ts', parserOutput);
-  compileModule('src/utils/normalizeM3U.ts', normalizerOutput);
+  compileModule('tooling/m3u/m3u.ts', parserOutput);
+  compileModule('tooling/m3u/normalizeM3U.ts', normalizerOutput);
 
   const { parseM3U, isLikelyM3U } = await import(`file://${parserOutput}`);
   const { normalizeM3UInput } = await import(`file://${normalizerOutput}`);
