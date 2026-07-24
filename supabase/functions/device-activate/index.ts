@@ -6,6 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+const MAX_REQUEST_BYTES = 16 * 1024;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -72,14 +73,42 @@ function textOrNull(value: unknown) {
 }
 
 async function readPayload(request: Request): Promise<Record<string, unknown>> {
+  const declaredLength = Number(request.headers.get('content-length') || 0);
+  if (declaredLength > MAX_REQUEST_BYTES) {
+    throw new Error('PAYLOAD_TOO_LARGE');
+  }
+
   try {
-    const payload = await request.json();
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).byteLength > MAX_REQUEST_BYTES) {
+      throw new Error('PAYLOAD_TOO_LARGE');
+    }
+    const payload = JSON.parse(raw);
     return payload && typeof payload === 'object'
       ? payload as Record<string, unknown>
       : {};
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'PAYLOAD_TOO_LARGE') throw error;
     return {};
   }
+}
+
+async function consumeActivationLimit(
+  supabase: any,
+  key: string,
+  limit: number,
+  metadata: Record<string, unknown>,
+) {
+  const keyHash = await sha256Hex(key);
+  const { data, error } = await supabase.rpc('consume_device_activation_rate_limit', {
+    p_key_hash: keyHash,
+    p_limit: limit,
+    p_window_seconds: 3600,
+    p_metadata: metadata,
+  });
+
+  if (error) throw new Error(`Falha ao validar limite de ativação: ${error.message}`);
+  return data === true;
 }
 
 async function findSellerByCode(supabase: any, sellerCode: string | null) {
@@ -217,7 +246,16 @@ serve(async request => {
     return json({ active: false, message: 'Servidor não configurado.' }, 500);
   }
 
-  const payload = await readPayload(request);
+  let payload: Record<string, unknown>;
+  try {
+    payload = await readPayload(request);
+  } catch {
+    return json({
+      active: false,
+      status: 'pending',
+      message: 'Solicitação de ativação excede o tamanho permitido.',
+    }, 413);
+  }
   const deviceUuid = String(payload.deviceUuid ?? '').trim();
   const deviceType = String(payload.deviceType ?? 'androidtv').trim() || 'androidtv';
   const appVersion = textOrNull(payload.appVersion);
@@ -247,6 +285,29 @@ serve(async request => {
   });
 
   try {
+    const limitMetadata = {
+      ip: lastIp,
+      deviceUuidHash: await sha256Hex(deviceUuid),
+      appVersion,
+    };
+    const ipAllowed = lastIp
+      ? await consumeActivationLimit(supabase, `ip:${lastIp}`, 30, limitMetadata)
+      : true;
+    const deviceAllowed = await consumeActivationLimit(
+      supabase,
+      `device:${deviceUuid}`,
+      10,
+      limitMetadata,
+    );
+
+    if (!ipAllowed || !deviceAllowed) {
+      return json({
+        active: false,
+        status: 'pending',
+        message: 'Muitas tentativas de ativação. Aguarde antes de tentar novamente.',
+      }, 429);
+    }
+
     const seller = sellerCode ? await findSellerByCode(supabase, sellerCode) : null;
 
     if (sellerCode && !seller) {

@@ -20,7 +20,8 @@
     "check:playlist-failover": "node scripts/check-playlist-failover.mjs",
     "check:inline-playlist-activation": "node --check admin-panel/inline-playlist-activation.js && node scripts/check-inline-playlist-activation.mjs",
     "check:finance-module": "node --check admin-panel/finance-module.js && node scripts/check-finance-module.mjs",
-    "check:subscriptions": "node --check admin-panel/subscription-module.js && node scripts/check-subscription-module.mjs"
+    "check:subscriptions": "node --check admin-panel/subscription-module.js && node scripts/check-subscription-module.mjs",
+    "check:commercial-security": "node scripts/check-commercial-security.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",

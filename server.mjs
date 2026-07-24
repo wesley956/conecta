@@ -107,7 +107,7 @@ function isPrivateHostname(hostname) {
 }
 
 function isAllowedHostname(hostname) {
-  if (ALLOWED_PROXY_HOSTS.length === 0) return true;
+  if (ALLOWED_PROXY_HOSTS.length === 0) return false;
 
   const normalized = hostname.toLowerCase();
 
