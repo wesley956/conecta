@@ -246,6 +246,40 @@ async function listRecords(supabase: any, principal: Principal, body: JsonBody) 
   return { records: (data || []).map(mapRecord), dateFrom, dateTo };
 }
 
+async function listAllRecordsForSummary(supabase: any, principal: Principal, body: JsonBody, dateFrom: string, dateTo: string) {
+  const pageSize = 1000;
+  const records: any[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from('panel_financial_records')
+      .select(recordsSelect())
+      .gte('reference_date', dateFrom)
+      .lte('reference_date', dateTo)
+      .order('reference_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (principal.role === 'seller') {
+      query = query.eq('seller_id', principal.sellerId).eq('record_type', 'income');
+    } else if (body.sellerId) {
+      query = query.eq('seller_id', uuidOrNull(body.sellerId));
+    }
+
+    if (body.recordType) query = query.eq('record_type', normalizeRecordType(body.recordType));
+    if (body.status) query = query.eq('status', normalizeStatus(body.status));
+    if (body.paymentMethod) query = query.eq('payment_method', normalizePaymentMethod(body.paymentMethod));
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Falha ao consolidar o financeiro: ${error.message}`);
+    const page = (data || []).map(mapRecord);
+    records.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return records;
+}
+
 function summarize(records: any[]) {
   const paidIncome = records
     .filter(record => record.recordType === 'income' && record.status === 'paid')
@@ -265,7 +299,7 @@ function summarize(records: any[]) {
   return {
     paidIncomeCents: paidIncome,
     paidExpensesCents: paidExpenses,
-    estimatedProfitCents: paidIncome - paidExpenses,
+    confirmedCashResultCents: paidIncome - paidExpenses,
     pendingIncomeCents: pending,
     overdueIncomeCents: overdue,
     paidSalesCount: paidSales.length,
@@ -286,7 +320,7 @@ function sellerSummary(records: any[]) {
       overdueCents: 0,
       salesCount: 0,
     };
-    if (record.recordType === 'income') {
+    if (record.recordType === 'income' && record.status !== 'cancelled') {
       current.salesCount += 1;
       if (record.status === 'paid') current.paidCents += record.amountCents;
       if (record.status === 'pending') current.pendingCents += record.amountCents;
@@ -349,6 +383,8 @@ async function createRecord(supabase: any, principal: Principal, body: JsonBody)
     ? normalizeTimestamp(body.paidAt, 'Data do pagamento') || new Date().toISOString()
     : null;
   const snapshots = await loadEntitySnapshots(supabase, { sellerId, customerId, deviceId, planId });
+  const referenceDate = normalizeDate(body.referenceDate, 'Data de referência')
+    || (paidAt ? paidAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
 
   if (principal.role === 'seller') {
     if (snapshots.customer?.seller_id && snapshots.customer.seller_id !== principal.sellerId) {
@@ -356,6 +392,22 @@ async function createRecord(supabase: any, principal: Principal, body: JsonBody)
     }
     if (snapshots.device?.seller_id && snapshots.device.seller_id !== principal.sellerId) {
       throw new Error('Este aparelho não pertence ao vendedor autenticado.');
+    }
+  }
+
+  if (recordType === 'income' && deviceId) {
+    const { data: automaticRecord, error: duplicateError } = await supabase
+      .from('panel_financial_records')
+      .select('id')
+      .eq('device_id', deviceId)
+      .eq('reference_date', referenceDate)
+      .in('source', ['device_activation', 'device_renewal'])
+      .neq('status', 'cancelled')
+      .limit(1)
+      .maybeSingle();
+    if (duplicateError) throw new Error(`Falha ao verificar duplicidade: ${duplicateError.message}`);
+    if (automaticRecord) {
+      throw new Error('Já existe uma venda automática para este aparelho nesta data. Atualize o registro existente em vez de criar uma receita duplicada.');
     }
   }
 
@@ -377,7 +429,7 @@ async function createRecord(supabase: any, principal: Principal, body: JsonBody)
     status,
     due_date: dueDate,
     paid_at: paidAt,
-    reference_date: normalizeDate(body.referenceDate, 'Data de referência') || (paidAt ? paidAt.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+    reference_date: referenceDate,
     notes: textOrNull(body.notes, 2000),
     idempotency_key: textOrNull(body.idempotencyKey, 200),
     created_by_user_id: principal.userId,
@@ -422,6 +474,12 @@ async function updateRecord(supabase: any, principal: Principal, body: JsonBody)
   const id = requiredText(body.id, 'ID da movimentação', 80);
   const current = await getScopedRecord(supabase, principal, id);
   const updates: Record<string, unknown> = {};
+  const isAutomatic = current.source !== 'manual';
+
+  if (isAutomatic && ['description', 'amountCents', 'category', 'dueDate', 'referenceDate', 'recordType']
+    .some(field => field in body)) {
+    throw new Error('Vendas automáticas preservam valor, origem e referência. Altere somente pagamento, status ou observação.');
+  }
 
   if ('description' in body) updates.description = requiredText(body.description, 'Descrição', 300);
   if ('notes' in body) updates.notes = textOrNull(body.notes, 2000);
@@ -460,7 +518,10 @@ async function updateRecord(supabase: any, principal: Principal, body: JsonBody)
 async function deleteRecord(supabase: any, principal: Principal, body: JsonBody) {
   if (!['owner', 'admin'].includes(principal.role)) throw new PanelAuthError('Somente administradores podem excluir movimentações.', 403);
   const id = requiredText(body.id, 'ID da movimentação', 80);
-  await getScopedRecord(supabase, principal, id);
+  const current = await getScopedRecord(supabase, principal, id);
+  if (current.source !== 'manual') {
+    throw new Error('Uma venda automática não pode ser excluída. Cancele o registro para preservar o histórico da operação.');
+  }
 
   const { error } = await supabase.from('panel_financial_records').delete().eq('id', id);
   if (error) throw new Error(`Falha ao excluir movimentação: ${error.message}`);
@@ -667,11 +728,18 @@ serve(async request => {
 
     if (action === 'dashboard' || action === 'listRecords') {
       const result = await listRecords(supabase, principal, body);
+      const summaryRecords = await listAllRecordsForSummary(
+        supabase,
+        principal,
+        body,
+        result.dateFrom,
+        result.dateTo,
+      );
       return json({
         ok: true,
         ...result,
-        summary: summarize(result.records),
-        sellerSummary: principal.role !== 'seller' ? sellerSummary(result.records) : [],
+        summary: summarize(summaryRecords),
+        sellerSummary: principal.role !== 'seller' ? sellerSummary(summaryRecords) : [],
       });
     }
 
