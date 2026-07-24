@@ -259,6 +259,8 @@ export function App() {
   const visibleCards = filteredCards.slice(0, visibleLimit);
   const recentCards = libraryCards(library.history).slice(0, 6);
   const favoriteCards = libraryCards(library.favorites).slice(0, 6);
+  const featuredMovie = catalog.data.movies.find(item => item.cover) || catalog.data.movies[0];
+  const featuredSeries = catalog.data.series.find(item => item.cover) || catalog.data.series[0];
 
   return <main className="shell">
     <aside className="rail">
@@ -275,11 +277,30 @@ export function App() {
       {catalog.status === "loading" && <section className="state-panel"><span className="spinner" /><h2>Carregando seu catálogo</h2><p>Buscando canais, filmes e séries com segurança.</p></section>}
       {catalog.status === "error" && <section className="state-panel error"><h2>Não foi possível carregar</h2><p>{catalog.message}</p><FocusableButton data-autofocus="true" className="primary" onClick={catalog.retry}>Tentar novamente</FocusableButton></section>}
       {catalog.status === "ready" && selected === "Início" && <section className="home-scroll">
-        <section className="hero"><div className="accent"><i /><i /></div><div className="hero-copy">
-          <p className="eyebrow">RONECAPLAYTV</p><h2>Sua programação em um só lugar</h2>
-          <p className="description">{session.playlistName ? `${session.playlistName} pronta para explorar.` : "A mesma experiência do aplicativo Android."}</p>
-          <div className="hero-actions"><FocusableButton data-autofocus="true" className="primary" onClick={() => setSelected("Buscar")}>Buscar conteúdo</FocusableButton><FocusableButton className="secondary" onClick={() => setSelected("TV ao vivo")}>TV ao vivo</FocusableButton></div>
-        </div><div className="hero-art"><div className="orb" /><span>R</span></div></section>
+        <div className="home-feature-layout">
+          <section className="hero">
+            {featuredMovie?.cover && <img className="hero-backdrop" src={featuredMovie.cover} alt="" />}
+            <div className="hero-shade" /><div className="accent"><i /><i /></div><div className="hero-copy">
+              <p className="eyebrow">{(featuredMovie?.category || "RONECAPLAYTV").toUpperCase()}</p>
+              <h2>{featuredMovie?.name || "Sua programação em um só lugar"}</h2>
+              <p className="description">{featuredMovie?.synopsis || (session.playlistName ? `${session.playlistName} pronta para explorar.` : "A mesma experiência do aplicativo Android.")}</p>
+              <div className="hero-actions">
+                <FocusableButton data-autofocus="true" className="primary" onClick={() => featuredMovie ? setSelectedMovie(featuredMovie) : setSelected("Filmes")}>{featuredMovie ? "Ver detalhes" : "Explorar filmes"}</FocusableButton>
+                <FocusableButton className="secondary" onClick={() => setSelected("TV ao vivo")}>TV ao vivo</FocusableButton>
+              </div>
+            </div>
+          </section>
+          <aside className="featured-rail">
+            <FocusableButton onClick={() => featuredMovie ? setSelectedMovie(featuredMovie) : setSelected("Filmes")}>
+              <span>{featuredMovie?.cover ? <img src={featuredMovie.cover} alt="" /> : <Poster />}</span>
+              <small>FILME EM DESTAQUE</small><strong>{featuredMovie?.name || "Explorar filmes"}</strong>
+            </FocusableButton>
+            <FocusableButton onClick={() => featuredSeries ? setSelectedSeries(featuredSeries) : setSelected("Séries")}>
+              <span>{featuredSeries?.cover ? <img src={featuredSeries.cover} alt="" /> : <Poster />}</span>
+              <small>SÉRIE EM DESTAQUE</small><strong>{featuredSeries?.name || "Explorar séries"}</strong>
+            </FocusableButton>
+          </aside>
+        </div>
         <section className="explore-section"><div className="section-heading"><div><h3>Explorar</h3><p>Conteúdo real da sua lista</p></div></div><div className="cards">
           {[["TV ao vivo", `${counts.channels.toLocaleString("pt-BR")} canais`, "gold"], ["Filmes", `${counts.movies.toLocaleString("pt-BR")} títulos`, "red"], ["Séries", `${counts.series.toLocaleString("pt-BR")} séries`, "gold"]].map(([label, count, tone]) =>
             <FocusableButton key={label} className={`card ${tone}`} onClick={() => setSelected(label)}><span className="card-icon">◆</span><span><strong>{label}</strong><small>{count}</small></span><b>›</b></FocusableButton>)}
