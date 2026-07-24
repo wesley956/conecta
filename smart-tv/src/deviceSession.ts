@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { platform } from "./platform";
 
 const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
-const APP_VERSION = "0.5.0";
+export const APP_VERSION = "0.5.0";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }

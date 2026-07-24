@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-  id="http://ronecaplaytv.com/app" version="0.1.0" viewmodes="maximized">
+  id="http://ronecaplaytv.com/app" version="0.5.0" viewmodes="maximized">
   <access origin="*" subdomains="true"/>
   <content src="index.html"/>
   <feature name="http://tizen.org/feature/screen.size.all"/>
