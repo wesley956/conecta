@@ -1,11 +1,13 @@
 # Cruz Stars Admin
 
-Painel administrativo separado do APK para gerenciar clientes, listas, aparelhos, ativações e histórico de ações.
+Painel administrativo estático separado do APK para gerenciar clientes, listas, aparelhos, ativações e histórico de ações.
 
 ## Estrutura
 
-- `index.html`: tela de login do painel.
+- `index.html`: login único de administrador e vendedores.
 - `dashboard.html`: dashboard administrativo.
+- `seller.html`: portal do vendedor.
+- `panel-config.example.js`: exemplo seguro da configuração pública.
 - `assets/cruz-stars-logo.png`: logo transparente do Cruz Stars.
 - `assets/universe-bg.png`: fundo visual do painel.
 
@@ -24,15 +26,27 @@ Painel administrativo separado do APK para gerenciar clientes, listas, aparelhos
 
 - CRUD de clientes.
 - CRUD de listas.
-- Liberação de aparelhos.
-- Bloqueio de aparelhos.
-- Exclusão de aparelhos.
-- Vínculo de cliente por aparelho.
-- Vínculo de lista por aparelho.
+- Liberação, bloqueio e exclusão de aparelhos.
+- Vínculo de cliente e até duas listas por aparelho.
+- Portal do vendedor.
 - Busca e filtros.
 - Alertas de vencimento.
 - Detalhes de cliente, lista e aparelho.
-- Histórico/auditoria de ações do painel.
+- Histórico e auditoria.
+- Assinaturas e resultado de caixa confirmado.
+
+## Deploy no Vercel
+
+Importe o repositório pela raiz. O `vercel.json` do projeto executa o gerador e publica esta pasta automaticamente.
+
+Cadastre no Vercel:
+
+```env
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_ANON_KEY=SUA-CHAVE-PUBLICA-ANON
+```
+
+O build cria `panel-config.js`; esse arquivo não deve ser versionado. Use apenas a chave pública `anon` do Supabase. Nunca exponha `service_role`, senha de banco ou credenciais privadas no navegador.
 
 ## Observação
 
