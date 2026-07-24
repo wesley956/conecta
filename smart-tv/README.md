@@ -23,8 +23,17 @@ npm run build
 O navegador é usado apenas para desenvolvimento. O produto final será
 empacotado como `.ipk` para webOS e `.wgt` para Tizen.
 
-## Situação deste marco
+## Ativação compartilhada
 
-Este primeiro marco entrega o shell visual, a detecção de plataforma e a
-navegação espacial por setas. Ativação, catálogo, player e empacotamento
-assinado entram nos próximos marcos, reutilizando as APIs já existentes.
+LG e Samsung usam o mesmo cadastro de aparelhos do Android:
+
+- a instalação cria uma identidade aleatória persistente;
+- `device-activate` gera o código e a credencial individual;
+- somente o hash da credencial fica no banco;
+- `device-config` valida código, identidade e credencial antes de liberar;
+- o aplicativo consulta automaticamente a liberação a cada 15 segundos;
+- nenhuma chave privada é empacotada no aplicativo.
+
+O shell visual, a detecção de plataforma, a navegação por controle e a ativação
+estão implementados. Catálogo, player, splash sonora e empacotamento assinado
+entram nos próximos marcos.
