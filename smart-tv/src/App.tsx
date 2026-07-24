@@ -295,7 +295,7 @@ export function App() {
         <small>{query ? `${filteredCards.length.toLocaleString("pt-BR")} resultado(s)` : "Digite usando o teclado da TV ou do navegador"}</small>
       </section>}
       {catalog.status === "ready" && ["TV ao vivo", "Filmes", "Séries"].includes(selected) && categories.length > 1 && <section className="category-row">
-        {categories.slice(0, 30).map(item => <FocusableButton key={item} className={`category-chip ${category === item ? "selected" : ""}`} onClick={() => { setCategory(item); setVisibleLimit(PAGE_SIZE); }}>{item}</FocusableButton>)}
+        {categories.map(item => <FocusableButton key={item} className={`category-chip ${category === item ? "selected" : ""}`} onClick={() => { setCategory(item); setVisibleLimit(PAGE_SIZE); }}>{item}</FocusableButton>)}
       </section>}
       {catalog.status === "ready" && ["Buscar", "TV ao vivo", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length > 0 &&
         <MediaGrid cards={visibleCards} total={filteredCards.length} onOpen={openCard} onMore={() => setVisibleLimit(value => value + PAGE_SIZE)} />}
