@@ -36,7 +36,7 @@ const required = {
   sellerBackend: ['setSellerDeviceBackupPlaylist', 'backupPlaylistId', 'panel_device_playlists'],
   deviceBackend: ['playlistHealth', 'cooldown_until', 'selectedPlaylistId', 'playlists: playlistConfigs'],
   seriesDetail: ['device_playlists:panel_device_playlists', 'requestedPlaylistId', 'attemptedPlaylistIds', 'sourcePlaylistId'],
-  nativeDeviceApi: ['playlistId: String?', '.put("playlistId", it)'],
+  nativeDeviceApi: ['playlistId: String?', 'put("playlistId", it)'],
   nativeSeriesViewModel: ['current.playlistId == playlistId', 'playlistId = playlistId'],
   app: ['reportDevicePlaylistHealth', 'Lista principal indisponível. Ativando a lista reserva'],
   devicePanel: ['DevicePanelPlaylistConfig', 'reportDevicePlaylistHealth'],
