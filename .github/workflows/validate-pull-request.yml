@@ -41,6 +41,7 @@ jobs:
           npm run check:inline-playlist-activation
           npm run check:finance-module
           npm run check:subscriptions
+          npm run check:app-release
 
       - name: Validate native-only architecture
         run: node scripts/check-native-only.mjs

@@ -1,0 +1,47 @@
+.app-release-card {
+  display: grid;
+  gap: 18px;
+}
+
+.app-release-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.app-release-summary > div {
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .035);
+}
+
+.app-release-summary small,
+.app-release-summary strong {
+  display: block;
+}
+
+.app-release-summary strong {
+  margin-top: 6px;
+}
+
+.app-release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.app-release-link {
+  display: grid;
+  gap: 8px;
+}
+
+.app-release-link input {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.app-release-notes {
+  white-space: pre-wrap;
+}
+

@@ -10,6 +10,7 @@
     'admin-panel': true,
     'seller-panel': true,
     'subscription-panel': true,
+    'app-release': true,
   });
   var originalFetch = global.fetch.bind(global);
   var refreshPromise = null;
@@ -233,7 +234,7 @@
     try {
       var config = getConfig();
       var url = new URL(String(value), global.location.href);
-      var match = url.pathname.match(/^\/functions\/v1\/(admin-panel|seller-panel|subscription-panel)(?:\/|$)/);
+      var match = url.pathname.match(/^\/functions\/v1\/(admin-panel|seller-panel|subscription-panel|app-release)(?:\/|$)/);
 
       if (!match || !PANEL_FUNCTIONS[match[1]]) return null;
       return new URL(url.pathname + url.search, config.supabaseOrigin).toString();

@@ -147,7 +147,7 @@ jobs:
             --argjson schemaVersion 1 \
             --argjson versionCode "${{ steps.app.outputs.version_code }}" \
             --arg versionName "${{ steps.app.outputs.version }}" \
-            --arg apkUrl "https://github.com/${{ github.repository }}/releases/download/${{ steps.app.outputs.tag }}/ronecaPlayerTV-v${{ steps.app.outputs.version }}.apk" \
+            --arg updateApiUrl "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/app-release" \
             --arg sha256 "$APK_SHA256" \
             --arg signerSha256 "$ACTUAL_SIGNER_SHA256" \
             --argjson mandatory false \
@@ -156,12 +156,17 @@ jobs:
               schemaVersion: $schemaVersion,
               versionCode: $versionCode,
               versionName: $versionName,
-              apkUrl: $apkUrl,
+              updateApiUrl: $updateApiUrl,
               sha256: $sha256,
               signerSha256: $signerSha256,
               mandatory: $mandatory,
               notes: $notes
             }' > release/ronecaPlayerTV-update.json
+
+          echo "APK_FILE=$APK" >> "$GITHUB_ENV"
+          echo "APK_SHA256=$APK_SHA256" >> "$GITHUB_ENV"
+          echo "APK_SIGNER_SHA256=$ACTUAL_SIGNER_SHA256" >> "$GITHUB_ENV"
+          echo "APK_SIZE_BYTES=$(stat -c '%s' "$APK")" >> "$GITHUB_ENV"
 
       - name: Publish immutable GitHub Release
         env:
@@ -180,3 +185,55 @@ jobs:
             --title "ronecaPlayerTV v${VERSION}" \
             --notes-file "${{ steps.notes.outputs.file }}" \
             --latest
+
+      - name: Publish APK to protected Supabase Storage
+        env:
+          SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VERSION: ${{ steps.app.outputs.version }}
+          VERSION_CODE: ${{ steps.app.outputs.version_code }}
+          RELEASE_NOTES_FILE: ${{ steps.notes.outputs.file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY secret}"
+          STORAGE_PATH="versions/v${VERSION}/ronecaPlayerTV-v${VERSION}.apk"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/vnd.android.package-archive" \
+            --header "x-upsert: false" \
+            --data-binary "@${APK_FILE}" \
+            "${SUPABASE_URL}/storage/v1/object/app-releases/${STORAGE_PATH}"
+
+          RELEASE_PAYLOAD="$RUNNER_TEMP/app-release.json"
+          jq -n \
+            --argjson version_code "$VERSION_CODE" \
+            --arg version_name "$VERSION" \
+            --arg storage_path "$STORAGE_PATH" \
+            --arg sha256 "$APK_SHA256" \
+            --arg signer_sha256 "$APK_SIGNER_SHA256" \
+            --argjson file_size_bytes "$APK_SIZE_BYTES" \
+            --rawfile notes "$RELEASE_NOTES_FILE" \
+            '{
+              version_code: $version_code,
+              version_name: $version_name,
+              storage_path: $storage_path,
+              sha256: $sha256,
+              signer_sha256: $signer_sha256,
+              file_size_bytes: $file_size_bytes,
+              notes: $notes,
+              mandatory: false,
+              published: true
+            }' > "$RELEASE_PAYLOAD"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/json" \
+            --header "Prefer: return=minimal" \
+            --data-binary "@${RELEASE_PAYLOAD}" \
+            "${SUPABASE_URL}/rest/v1/app_releases"
