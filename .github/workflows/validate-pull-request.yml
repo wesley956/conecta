@@ -77,6 +77,15 @@ jobs:
           npm run typecheck
           npm run build
 
+      - name: Stage LG webOS and Samsung Tizen packages
+        working-directory: smart-tv
+        run: |
+          node scripts/stage-platform.mjs webos
+          node scripts/stage-platform.mjs tizen
+
+      - name: Validate package structures and versions
+        run: node scripts/check-smart-tv-packages.mjs
+
   native-android:
     name: Native Android Compose and Media3
     runs-on: ubuntu-latest
