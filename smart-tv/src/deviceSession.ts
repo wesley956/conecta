@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { platform } from "./platform";
 
 const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
-const APP_VERSION = "0.4.0";
+const APP_VERSION = "0.5.0";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }
@@ -36,7 +36,7 @@ function getOrCreateDeviceUuid() {
   const existing = readStored("deviceUuid"); if (existing) return existing;
   const created = randomDeviceId(); writeStored("deviceUuid", created); return created;
 }
-async function post(endpoint: "device-activate" | "device-config", payload: Record<string, unknown>, credential?: string) {
+async function post(endpoint: "device-activate" | "device-config" | "series-detail", payload: Record<string, unknown>, credential?: string) {
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
   if (credential) headers["x-device-credential"] = credential;
   const response = await fetch(`${FUNCTIONS_URL}/${endpoint}`, { method: "POST", headers, body: JSON.stringify(payload), redirect: "error", cache: "no-store" });
@@ -71,6 +71,55 @@ export async function fetchConfiguration(): Promise<DeviceSession> {
   const { response, body } = await post("device-config", { deviceCode, deviceUuid: getOrCreateDeviceUuid() }, credential);
   if (body.deviceCode && body.deviceCode !== deviceCode) writeStored("deviceCode", body.deviceCode);
   return mapResponse(response.status, body);
+}
+export interface SeriesEpisodeResponse {
+  id: string; number: number; name: string; duration?: string; url: string; playbackUrls?: string[];
+}
+export interface SeriesSeasonResponse { number: number; episodes: SeriesEpisodeResponse[]; }
+function validSeasons(value: unknown): SeriesSeasonResponse[] {
+  if (!Array.isArray(value)) throw new Error("O servidor retornou temporadas inválidas.");
+  return value.flatMap((season, seasonIndex) => {
+    if (!season || typeof season !== "object") return [];
+    const raw = season as Record<string, unknown>;
+    const number = Number(raw.number);
+    if (!Number.isFinite(number) || !Array.isArray(raw.episodes)) return [];
+    const episodes = raw.episodes.flatMap((episode, episodeIndex) => {
+      if (!episode || typeof episode !== "object") return [];
+      const item = episode as Record<string, unknown>;
+      const id = String(item.id || "");
+      const url = String(item.url || "");
+      if (!id || !/^https?:\/\//i.test(url)) return [];
+      const episodeNumber = Number(item.number);
+      return [{
+        id,
+        number: Number.isFinite(episodeNumber) ? episodeNumber : episodeIndex + 1,
+        name: String(item.name || `Episódio ${episodeIndex + 1}`),
+        duration: item.duration == null ? undefined : String(item.duration),
+        url,
+        playbackUrls: Array.isArray(item.playbackUrls)
+          ? item.playbackUrls.filter(value => typeof value === "string" && /^https?:\/\//i.test(value))
+          : [url]
+      }];
+    });
+    return episodes.length ? [{ number: number || seasonIndex + 1, episodes }] : [];
+  }).sort((left, right) => left.number - right.number);
+}
+export async function fetchSeriesSeasons(seriesId: string, playlistId?: string | null): Promise<SeriesSeasonResponse[]> {
+  const deviceCode = readStored("deviceCode");
+  const deviceCredential = readStored("deviceCredential");
+  if (!deviceCode || !deviceCredential) throw new Error("A identidade do aparelho não está disponível.");
+  if (!/^\d{1,20}$/.test(seriesId)) throw new Error("Esta série não possui um identificador válido.");
+  const { response, body } = await post("series-detail", {
+    deviceCode,
+    deviceUuid: getOrCreateDeviceUuid(),
+    seriesId,
+    ...(playlistId ? { playlistId } : {})
+  }, deviceCredential);
+  const payload = body as DeviceResponse & { seasons?: unknown };
+  if (!response.ok) throw new Error(payload.message || "Não foi possível carregar os episódios desta série.");
+  const seasons = validSeasons(payload.seasons);
+  if (!seasons.length) throw new Error("Nenhum episódio foi encontrado para esta série.");
+  return seasons;
 }
 async function loadSession() {
   try { return readStored("deviceCode") && readStored("deviceCredential") ? await fetchConfiguration() : await activate(); }
