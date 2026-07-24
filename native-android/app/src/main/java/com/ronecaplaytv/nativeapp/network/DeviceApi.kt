@@ -61,11 +61,13 @@ class DeviceApi(private val functionsBaseUrl: String) {
         deviceUuid: String,
         deviceCredential: String,
         seriesId: String,
+        playlistId: String?,
     ): SeriesEpisodesResponse = withContext(Dispatchers.IO) {
         val payload = JSONObject()
             .put("deviceCode", deviceCode)
             .put("deviceUuid", deviceUuid)
             .put("seriesId", seriesId)
+            .apply { playlistId?.takeIf(String::isNotBlank)?.let { put("playlistId", it) } }
 
         val result = postJson(
             endpoint = "series-detail",
