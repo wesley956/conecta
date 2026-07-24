@@ -1,5 +1,12 @@
 export type PlaybackStatus = "idle" | "loading" | "playing" | "paused" | "ended" | "error";
 
+export interface PlayerTrack {
+  index: number;
+  kind: "audio" | "text";
+  label: string;
+  language?: string;
+}
+
 export interface PlaybackItem {
   id: string;
   name: string;
@@ -18,6 +25,10 @@ export interface PlaybackSnapshot {
   error: string | null;
   sourceIndex: number;
   sourceCount: number;
+  audioTracks: PlayerTrack[];
+  textTracks: PlayerTrack[];
+  selectedAudioTrack: number | null;
+  selectedTextTrack: number | null;
 }
 
 export interface PlayerAdapter {
@@ -26,6 +37,7 @@ export interface PlayerAdapter {
   play(): Promise<void>;
   pause(): void;
   seek(seconds: number): void;
+  selectTrack(kind: "audio" | "text", index: number | null): void;
   stop(): void;
   destroy(): void;
 }
