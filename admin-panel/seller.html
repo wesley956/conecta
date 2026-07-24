@@ -231,6 +231,7 @@
   <link rel="stylesheet" href="./seller-portal-ux.css" />
   <link rel="stylesheet" href="./seller-lists-ux.css" />
   <link rel="stylesheet" href="./panel-redesign.css" />
+  <link rel="stylesheet" href="./app-release.css" />
 </head>
 <body class="seller-v2">
   <main class="wrap">
@@ -277,6 +278,7 @@
         <button data-seller-nav="devices" type="button" onclick="sellerPortalNavigate('devices')">Meus aparelhos</button>
         <button data-seller-nav="lists" type="button" onclick="sellerPortalNavigate('lists')">Minhas listas</button>
         <button data-seller-nav="credits" type="button" onclick="sellerPortalNavigate('credits')">Créditos</button>
+        <button data-seller-nav="app" type="button" onclick="sellerPortalNavigate('app')">Baixar aplicativo</button>
       </nav>
 
       <div id="sellerOverviewCard" class="card seller-v2-overview seller-portal-section" data-seller-section="home">
@@ -337,6 +339,28 @@
         </div>
         <div id="ledgerList" class="ledger"></div>
       </div>
+      <div class="card app-release-card seller-portal-section" data-seller-section="app" data-app-release hidden>
+        <div>
+          <h2>Baixar aplicativo</h2>
+          <p class="muted">Baixe o APK ou gere um link temporário para usar no Downloader.</p>
+        </div>
+        <div class="app-release-summary">
+          <div><small>Versão</small><strong data-app-release-version>—</strong></div>
+          <div><small>Tamanho</small><strong data-app-release-size>—</strong></div>
+          <div><small>Publicada em</small><strong data-app-release-date>—</strong></div>
+        </div>
+        <p class="app-release-notes" data-app-release-notes></p>
+        <div class="app-release-actions">
+          <button class="primary" type="button" data-app-release-download>Baixar APK</button>
+          <button type="button" data-app-release-generate>Gerar link para Downloader</button>
+        </div>
+        <div class="app-release-link" data-app-release-link-wrap hidden>
+          <label>Link temporário — válido por 1 hora</label>
+          <input readonly data-app-release-link aria-label="Link temporário do APK" />
+          <button type="button" data-app-release-copy>Copiar link</button>
+        </div>
+        <p class="muted" data-app-release-status role="status"></p>
+      </div>
     </section>
   </main>
 
@@ -354,7 +378,7 @@
       const dashboard = $('dashboardView');
       if (!dashboard) return;
 
-      const allowedSections = new Set(['home', 'activation', 'devices', 'lists', 'credits']);
+      const allowedSections = new Set(['home', 'activation', 'devices', 'lists', 'credits', 'app']);
       const activeSection = allowedSections.has(section) ? section : 'home';
       dashboard.dataset.activeSection = activeSection;
 
@@ -602,5 +626,6 @@
   </script>
   <script src="./seller-portal-ux.js"></script>
   <script src="./seller-lists-ux.js"></script>
+  <script src="./app-release.js"></script>
 </body>
 </html>

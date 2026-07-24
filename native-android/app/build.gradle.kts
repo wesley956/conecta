@@ -36,8 +36,8 @@ android {
         )
         buildConfigField(
             "String",
-            "UPDATE_MANIFEST_URL",
-            "\"https://github.com/wesley956/conecta/releases/latest/download/ronecaPlayerTV-update.json\"",
+            "UPDATE_API_URL",
+            "\"https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/app-release\"",
         )
     }
 

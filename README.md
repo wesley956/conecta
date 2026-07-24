@@ -54,6 +54,19 @@ SUPABASE_ANON_KEY=SUA-CHAVE-PUBLICA-ANON
 
 `SUPABASE_ANON_KEY` é uma chave pública própria para o navegador. Nunca configure `service_role`, senha de banco ou outra chave privada no painel. O arquivo gerado `admin-panel/panel-config.js` permanece ignorado pelo Git.
 
+## Publicação protegida do APK
+
+O workflow manual de release compila e assina o APK, preserva uma cópia imutável
+no GitHub Release e publica automaticamente a mesma versão no bucket privado
+`app-releases` do Supabase. O painel administrativo e o portal do vendedor podem
+baixar o arquivo ou gerar um link temporário de uma hora para usar no Downloader.
+Aparelhos ativos usam a credencial local para obter um link novo no momento do
+download.
+
+Configure uma única vez no GitHub, em **Settings → Secrets and variables →
+Actions**, o segredo `SUPABASE_SERVICE_ROLE_KEY`. Ele é utilizado somente pelo
+runner de release e nunca é enviado ao APK, ao painel ou ao Vercel.
+
 Ao importar o repositório no Vercel, mantenha o diretório raiz do projeto. O build e a pasta de saída já estão definidos em `vercel.json`.
 
 ## Proxy opcional

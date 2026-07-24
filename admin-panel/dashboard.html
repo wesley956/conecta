@@ -929,6 +929,7 @@ tbody tr:hover td {
   <link rel="stylesheet" href="./panel-ux.css" />
   <link rel="stylesheet" href="./panel-next-ux.css" />
   <link rel="stylesheet" href="./panel-redesign.css" />
+  <link rel="stylesheet" href="./app-release.css" />
 </head>
 
 <body class="admin-v2">
@@ -973,6 +974,9 @@ tbody tr:hover td {
       </button>
       <button class="tab" data-tab="audit" onclick="setTab('audit')" title="Histórico" aria-label="Histórico">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg><span>Histórico</span>
+      </button>
+      <button class="tab" data-tab="app" onclick="setTab('app')" title="Aplicativo" aria-label="Aplicativo">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>Aplicativo</span>
       </button>
       <div class="admin-nav-status" title="Sistema operacional"><span></span></div>
     </nav>
@@ -1382,6 +1386,31 @@ tbody tr:hover td {
 
 
 
+    <section id="section-app" class="section">
+      <div class="card app-release-card" data-app-release>
+        <div>
+          <h2>Baixar aplicativo</h2>
+          <p class="sub">Baixe diretamente ou gere um link temporário para usar no Downloader.</p>
+        </div>
+        <div class="app-release-summary">
+          <div><small>Versão</small><strong data-app-release-version>—</strong></div>
+          <div><small>Tamanho</small><strong data-app-release-size>—</strong></div>
+          <div><small>Publicada em</small><strong data-app-release-date>—</strong></div>
+        </div>
+        <p class="app-release-notes" data-app-release-notes></p>
+        <div class="app-release-actions">
+          <button class="btn primary" type="button" data-app-release-download>Baixar APK</button>
+          <button class="btn" type="button" data-app-release-generate>Gerar link para Downloader</button>
+        </div>
+        <div class="app-release-link" data-app-release-link-wrap hidden>
+          <label>Link temporário — válido por 1 hora</label>
+          <input readonly data-app-release-link aria-label="Link temporário do APK" />
+          <button class="btn" type="button" data-app-release-copy>Copiar link</button>
+        </div>
+        <p class="sub" data-app-release-status role="status"></p>
+      </div>
+    </section>
+
     <section id="section-audit" class="section">
       <div class="card">
         <h2>Histórico do painel</h2>
@@ -1668,6 +1697,7 @@ function setTab(tab) {
     commercial: ['Negócio', 'Comercial', 'Vendedores, planos e créditos em uma área dedicada.'],
     playlists: ['Negócio', 'Listas', 'Organize as listas e entenda onde cada uma está em uso.'],
     audit: ['Controle', 'Histórico', 'Consulte alterações importantes sem misturar auditoria com a rotina.'],
+    app: ['Distribuição', 'Aplicativo', 'Baixe o APK ou gere um link temporário para o Downloader.'],
   };
 
   document.querySelectorAll('.tab').forEach(btn => {
@@ -3646,5 +3676,6 @@ async function logout() {
 
 loadAll();
 </script>
+<script src="./app-release.js"></script>
 </body>
 </html>

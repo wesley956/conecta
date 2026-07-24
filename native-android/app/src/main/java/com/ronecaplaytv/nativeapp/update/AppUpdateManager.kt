@@ -10,6 +10,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.ronecaplaytv.nativeapp.BuildConfig
+import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
+import com.ronecaplaytv.nativeapp.security.SecureCredentialStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -19,31 +21,32 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Locale
 
 class AppUpdateManager(private val context: Context) {
-    suspend fun fetchManifest(): UpdateManifest = withContext(Dispatchers.IO) {
-        val connection = openHttpsConnection(URL(BuildConfig.UPDATE_MANIFEST_URL))
-        try {
-            if (connection.responseCode !in 200..299) {
-                throw AppUpdateException("Não foi possível consultar a versão mais recente.")
-            }
+    private val identityStore = DeviceIdentityStore(context)
+    private val credentialStore = SecureCredentialStore(context)
 
-            val body = connection.inputStream.use { input ->
-                readLimited(input, MAX_MANIFEST_BYTES).toString(Charsets.UTF_8.name())
-            }
-            parseManifest(JSONObject(body))
-        } finally {
-            connection.disconnect()
-        }
+    suspend fun fetchManifest(): UpdateManifest = withContext(Dispatchers.IO) {
+        fetchAuthorizedManifest("manifest")
     }
 
     suspend fun download(
         manifest: UpdateManifest,
         onProgress: (Float?) -> Unit,
     ): File = withContext(Dispatchers.IO) {
-        val connection = openHttpsConnection(URL(manifest.apkUrl), readTimeoutMs = DOWNLOAD_TIMEOUT_MS)
+        val authorized = fetchAuthorizedManifest("download")
+        if (
+            authorized.versionCode != manifest.versionCode ||
+            authorized.sha256 != manifest.sha256
+        ) {
+            throw AppUpdateException("A versão disponível mudou. Verifique a atualização novamente.")
+        }
+        val apkUrl = authorized.apkUrl
+            ?: throw AppUpdateException("O servidor não autorizou o download do APK.")
+        val connection = openHttpsConnection(URL(apkUrl), readTimeoutMs = DOWNLOAD_TIMEOUT_MS)
         val updateDirectory = File(context.cacheDir, UPDATE_DIRECTORY).apply { mkdirs() }
         val partialFile = File(updateDirectory, "ronecaPlayerTV-${manifest.versionName}.apk.part")
         val finalFile = File(updateDirectory, "ronecaPlayerTV-${manifest.versionName}.apk")
@@ -129,14 +132,14 @@ class AppUpdateManager(private val context: Context) {
     private fun parseManifest(json: JSONObject): UpdateManifest {
         val versionCode = json.optLong("versionCode", -1L)
         val versionName = json.optString("versionName").trim()
-        val apkUrl = json.optString("apkUrl").trim()
+        val apkUrl = json.optString("apkUrl").trim().ifBlank { null }
         val sha256 = json.optString("sha256").trim().lowercase(Locale.US)
         val notes = json.optString("notes", "Nova versão disponível.").trim().take(MAX_NOTES_LENGTH)
 
         if (versionCode <= 0L || versionName.isBlank()) {
             throw AppUpdateException("O servidor retornou uma versão inválida.")
         }
-        validateHttpsUrl(URL(apkUrl))
+        apkUrl?.let { validateHttpsUrl(URL(it)) }
         if (!SHA256_PATTERN.matches(sha256)) {
             throw AppUpdateException("O checksum da atualização é inválido.")
         }
@@ -149,6 +152,56 @@ class AppUpdateManager(private val context: Context) {
             mandatory = json.optBoolean("mandatory", false),
             notes = notes.ifBlank { "Nova versão disponível." },
         )
+    }
+
+    private fun fetchAuthorizedManifest(action: String): UpdateManifest {
+        val deviceCode = identityStore.getDeviceCode()
+            ?: throw AppUpdateException("Ative este aparelho antes de consultar atualizações.")
+        val credential = credentialStore.load()
+            ?: throw AppUpdateException("A credencial segura do aparelho não foi encontrada.")
+        val deviceUuid = identityStore.getOrCreateDeviceUuid()
+        val url = URL(BuildConfig.UPDATE_API_URL)
+        validateHttpsUrl(url)
+
+        val payload = JSONObject()
+            .put("action", action)
+            .put("deviceCode", deviceCode)
+            .put("deviceUuid", deviceUuid)
+            .toString()
+            .toByteArray(StandardCharsets.UTF_8)
+
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = CONNECT_TIMEOUT_MS
+            readTimeout = DEFAULT_READ_TIMEOUT_MS
+            instanceFollowRedirects = false
+            doOutput = true
+            setFixedLengthStreamingMode(payload.size)
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("Cache-Control", "no-store")
+            setRequestProperty("User-Agent", "ronecaPlayerTV/${BuildConfig.VERSION_NAME}")
+            setRequestProperty("x-device-credential", credential)
+        }
+
+        return try {
+            connection.outputStream.use { it.write(payload) }
+            if (connection.responseCode !in 200..299) {
+                throw AppUpdateException(
+                    if (connection.responseCode == 403) {
+                        "Este aparelho não está autorizado a baixar atualizações."
+                    } else {
+                        "Não foi possível consultar a versão mais recente."
+                    },
+                )
+            }
+            val body = connection.inputStream.use { input ->
+                readLimited(input, MAX_MANIFEST_BYTES).toString(Charsets.UTF_8.name())
+            }
+            parseManifest(JSONObject(body))
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun openHttpsConnection(
@@ -327,6 +380,7 @@ class AppUpdateManager(private val context: Context) {
         val SHA256_PATTERN = Regex("^[a-f0-9]{64}$")
         val REDIRECT_STATUS_CODES = setOf(301, 302, 303, 307, 308)
         val ALLOWED_UPDATE_HOSTS = setOf(
+            "awauvkjkucjqulkklmuo.supabase.co",
             "github.com",
             "release-assets.githubusercontent.com",
             "objects.githubusercontent.com",
