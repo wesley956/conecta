@@ -1,11 +1,10 @@
-# ronecaPlayerTV Native 2.3.1
+# ronecaPlayerTV Native 2.3.2
 
-Atualização da vitrine e das recomendações do aplicativo.
+Atualização do sistema de distribuição protegida do aplicativo.
 
-- destaque principal e card de filme agora exibem conteúdos diferentes;
-- vitrine alterna sugestões automaticamente a cada 12 segundos;
-- filmes e séries da vitrine variam sem deslocar o foco do controle;
-- títulos não se repetem simultaneamente nos destaques;
-- recomendações de filmes e séries são ordenadas por relevância;
-- relevância considera categoria, franquia ou título, sinopse, ano e qualidade dos metadados;
-- o conteúdo aberto não aparece entre as próprias recomendações.
+- atualizador do aplicativo passa a consultar a infraestrutura protegida do Conecta;
+- APK publicado automaticamente no Supabase Storage privado;
+- administrador e vendedor podem baixar o APK pelo painel;
+- painel pode gerar link temporário de uma hora para usar no Downloader;
+- download do aparelho exige que ele esteja ativo e autorizado;
+- validações de SHA-256, pacote, versão e assinatura permanecem obrigatórias.
