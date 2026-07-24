@@ -66,6 +66,7 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
                 onSuccess = { response ->
                     SeriesEpisodesState(
                         seriesId = normalizedId,
+                        playlistId = playlistId,
                         seasons = response.seasons,
                         loading = false,
                         error = response.message?.takeIf { response.seasons.isEmpty() },
