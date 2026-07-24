@@ -29,6 +29,7 @@ const required = {
     'renewDeviceWithFinance',
     'financeSellerSummary',
     'Não representa comissão',
+    'Resultado de caixa confirmado',
   ],
   css: [
     '.finance-metrics',
@@ -43,6 +44,13 @@ const required = {
     "principal.role === 'seller'",
     "recordType = 'income'",
     "action === 'deleteRecord'",
+    'listAllRecordsForSummary',
+    "record.status !== 'cancelled'",
+    'confirmedCashResultCents',
+    "source', ['device_activation', 'device_renewal']",
+    'Já existe uma venda automática para este aparelho nesta data',
+    'Vendas automáticas preservam valor, origem e referência',
+    'Uma venda automática não pode ser excluída',
   ],
   migration: [
     'create table if not exists public.panel_financial_records',
