@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,6 +50,11 @@ fun RonecaLaunchScreen(isTelevision: Boolean) {
     val wordmarkAlpha = remember { Animatable(0f) }
     val wordmarkOffset = remember { Animatable(18f) }
     val progress = remember { Animatable(0f) }
+    val launchSound = remember { RonecaLaunchSound() }
+
+    DisposableEffect(launchSound) {
+        onDispose(launchSound::release)
+    }
 
     val pulseTransition = rememberInfiniteTransition(label = "roneca-splash-pulse")
     val goldGlow by pulseTransition.animateFloat(
@@ -91,19 +97,18 @@ fun RonecaLaunchScreen(isTelevision: Boolean) {
                 delay(340)
                 progress.animateTo(
                     targetValue = 1f,
-                    animationSpec = tween(durationMillis = 1_520),
+                    animationSpec = tween(durationMillis = 3_100),
                 )
             }
-        }
-
-        coroutineScope {
             launch {
+                delay(650)
                 wordmarkAlpha.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(durationMillis = 470),
                 )
             }
             launch {
+                delay(650)
                 wordmarkOffset.animateTo(
                     targetValue = 0f,
                     animationSpec = tween(
@@ -111,6 +116,10 @@ fun RonecaLaunchScreen(isTelevision: Boolean) {
                         easing = FastOutSlowInEasing,
                     ),
                 )
+            }
+            launch {
+                delay(650)
+                launchSound.play()
             }
         }
     }
