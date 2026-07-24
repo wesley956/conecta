@@ -384,7 +384,7 @@
       <div class="finance-section">
         <div class="finance-toolbar">
           <div class="finance-toolbar-head">
-            <div><h2>Financeiro operacional</h2><p>Receitas, despesas, contas a receber e lucro estimado, sem misturar dinheiro com créditos.</p></div>
+            <div><h2>Financeiro operacional</h2><p>Caixa confirmado, contas a receber e despesas, sem misturar dinheiro com créditos.</p></div>
             <div class="actions">
               <button class="btn green" type="button" onclick="financeOpenRecord('income','admin')">Nova receita</button>
               <button class="btn red" type="button" onclick="financeOpenRecord('expense','admin')">Nova despesa</button>
@@ -405,7 +405,7 @@
         <div class="finance-metrics">
           <div class="finance-metric"><small>Recebido no período</small><strong id="financePaidIncome" class="finance-positive">R$ 0,00</strong></div>
           <div class="finance-metric"><small>Despesas pagas</small><strong id="financePaidExpenses" class="finance-negative">R$ 0,00</strong></div>
-          <div class="finance-metric"><small>Lucro estimado</small><strong id="financeProfit" class="finance-neutral">R$ 0,00</strong></div>
+          <div class="finance-metric"><small>Resultado de caixa confirmado</small><strong id="financeProfit" class="finance-neutral">R$ 0,00</strong></div>
           <div class="finance-metric"><small>A receber</small><strong id="financePending" class="finance-warning">R$ 0,00</strong></div>
           <div class="finance-metric"><small>Em atraso</small><strong id="financeOverdue" class="finance-negative">R$ 0,00</strong></div>
           <div class="finance-metric"><small>Ticket médio</small><strong id="financeTicket" class="finance-neutral">R$ 0,00</strong></div>
@@ -467,7 +467,7 @@
         if (tab === 'finance') {
           if ($('adminPageEyebrow')) $('adminPageEyebrow').textContent = 'Negócio';
           if ($('adminPageTitle')) $('adminPageTitle').textContent = 'Financeiro';
-          if ($('adminPageDescription')) $('adminPageDescription').textContent = 'Acompanhe dinheiro recebido, despesas, pendências e lucro estimado.';
+          if ($('adminPageDescription')) $('adminPageDescription').textContent = 'Acompanhe dinheiro confirmado, despesas e pendências sem misturar estimativas.';
           loadAdminFinance().catch(error => showNotice('admin', error.message, true));
         }
       };
@@ -506,10 +506,10 @@
         <td><span class="finance-status ${esc(record.status)}">${esc(statusLabel(record.status))}</span></td>
         <td><strong class="${record.recordType === 'income' ? 'finance-positive' : 'finance-negative'}">${money(record.amountCents)}</strong></td>
         <td><div class="finance-actions">
-          <button class="btn" onclick="financeEditRecord('${esc(record.id)}','${role}')">Editar</button>
+          ${record.source === 'manual' ? `<button class="btn" onclick="financeEditRecord('${esc(record.id)}','${role}')">Editar</button>` : ''}
           ${record.status !== 'paid' ? `<button class="btn green" onclick="financeUpdateStatus('${esc(record.id)}','paid','${role}')">Marcar pago</button>` : ''}
           ${record.status !== 'cancelled' ? `<button class="btn orange" onclick="financeUpdateStatus('${esc(record.id)}','cancelled','${role}')">Cancelar</button>` : ''}
-          ${role === 'admin' ? `<button class="btn red" onclick="financeDeleteRecord('${esc(record.id)}')">Excluir</button>` : ''}
+          ${role === 'admin' && record.source === 'manual' ? `<button class="btn red" onclick="financeDeleteRecord('${esc(record.id)}')">Excluir</button>` : ''}
         </div></td>
       </tr>
     `).join('') : '<tr><td colspan="8" class="finance-empty">Nenhuma movimentação encontrada neste período.</td></tr>';
@@ -520,8 +520,8 @@
     const summary = adminFinanceData.summary || {};
     $('financePaidIncome').textContent = money(summary.paidIncomeCents);
     $('financePaidExpenses').textContent = money(summary.paidExpensesCents);
-    $('financeProfit').textContent = money(summary.estimatedProfitCents);
-    $('financeProfit').className = Number(summary.estimatedProfitCents || 0) < 0 ? 'finance-negative' : 'finance-positive';
+    $('financeProfit').textContent = money(summary.confirmedCashResultCents);
+    $('financeProfit').className = Number(summary.confirmedCashResultCents || 0) < 0 ? 'finance-negative' : 'finance-positive';
     $('financePending').textContent = money(summary.pendingIncomeCents);
     $('financeOverdue').textContent = money(summary.overdueIncomeCents);
     $('financeTicket').textContent = money(summary.ticketAverageCents);
@@ -651,7 +651,7 @@
     $('sellerFinanceRecords').innerHTML = records.length ? records.map(record => `
       <div class="seller-finance-record">
         <div><h3>${esc(record.description)}</h3><p>${esc(record.customerName || 'Sem cliente')} · ${esc(record.deviceCode || 'Sem aparelho')}</p><p>${dateOnly(record.referenceDate)} · ${esc(paymentLabel(record.paymentMethod))} · <span class="finance-status ${esc(record.status)}">${esc(statusLabel(record.status))}</span></p></div>
-        <div class="seller-finance-value"><div class="finance-positive">${money(record.amountCents)}</div><div class="finance-actions" style="margin-top:8px;"><button onclick="financeEditRecord('${esc(record.id)}','seller')">Editar</button>${record.status !== 'paid' ? `<button onclick="financeUpdateStatus('${esc(record.id)}','paid','seller')">Pago</button>` : ''}</div></div>
+        <div class="seller-finance-value"><div class="finance-positive">${money(record.amountCents)}</div><div class="finance-actions" style="margin-top:8px;">${record.source === 'manual' ? `<button onclick="financeEditRecord('${esc(record.id)}','seller')">Editar</button>` : ''}${record.status !== 'paid' ? `<button onclick="financeUpdateStatus('${esc(record.id)}','paid','seller')">Pago</button>` : ''}</div></div>
       </div>
     `).join('') : '<div class="finance-empty">Nenhuma movimentação financeira neste período.</div>';
   }
