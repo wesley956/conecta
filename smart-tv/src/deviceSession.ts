@@ -37,7 +37,7 @@ function getOrCreateDeviceUuid() {
   const created = randomDeviceId(); writeStored("deviceUuid", created); return created;
 }
 async function post(endpoint: "device-activate" | "device-config" | "series-detail", payload: Record<string, unknown>, credential?: string) {
-  const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
+  const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8" };
   if (credential) headers["x-device-credential"] = credential;
   const response = await fetch(`${FUNCTIONS_URL}/${endpoint}`, { method: "POST", headers, body: JSON.stringify(payload), redirect: "error", cache: "no-store" });
   return { response, body: (await response.json()) as DeviceResponse };
