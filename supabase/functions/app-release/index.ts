@@ -99,13 +99,14 @@ async function authorize(request: Request, body: JsonBody, supabase: any) {
   return null;
 }
 
-async function latestRelease(supabase: any) {
+async function latestRelease(supabase: any, platform: string) {
   const { data, error } = await supabase
     .from('app_releases')
     .select(
-      'version_code, version_name, storage_path, sha256, signer_sha256, file_size_bytes, notes, mandatory, published_at',
+      'platform, file_extension, version_code, version_name, storage_path, sha256, signer_sha256, file_size_bytes, notes, mandatory, published_at',
     )
     .eq('published', true)
+    .eq('platform', platform)
     .order('version_code', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -130,7 +131,12 @@ serve(async (request) => {
     const authorization = await authorize(request, body, supabase);
     if (!authorization) return json({ error: 'Acesso à atualização não autorizado.' }, 403);
 
-    const release = await latestRelease(supabase);
+    const platform = text(body.platform) || 'android';
+    if (!['android', 'webos', 'tizen'].includes(platform)) {
+      return json({ error: 'Plataforma inválida.' }, 400);
+    }
+
+    const release = await latestRelease(supabase, platform);
     if (!release) return json({ error: 'Nenhuma versão foi publicada.' }, 404);
     if (!SHA256_PATTERN.test(String(release.sha256 || ''))) {
       throw new Error('Metadados da versão publicada são inválidos.');
@@ -138,11 +144,13 @@ serve(async (request) => {
 
     const action = text(body.action) || 'manifest';
     const manifest = {
-      schemaVersion: 2,
+      schemaVersion: 3,
+      platform,
+      fileExtension: String(release.file_extension),
       versionCode: Number(release.version_code),
       versionName: String(release.version_name),
       sha256: String(release.sha256),
-      signerSha256: String(release.signer_sha256),
+      signerSha256: release.signer_sha256 ? String(release.signer_sha256) : null,
       fileSizeBytes: Number(release.file_size_bytes),
       mandatory: release.mandatory === true,
       notes: String(release.notes || ''),
@@ -155,7 +163,7 @@ serve(async (request) => {
     const { data, error } = await supabase.storage
       .from('app-releases')
       .createSignedUrl(String(release.storage_path), SIGNED_URL_TTL_SECONDS, {
-        download: `ronecaPlayerTV-v${release.version_name}.apk`,
+        download: `ronecaPlayerTV-${platform}-v${release.version_name}.${release.file_extension}`,
       });
 
     if (error || !data?.signedUrl) {
@@ -164,7 +172,8 @@ serve(async (request) => {
 
     return json({
       ...manifest,
-      apkUrl: data.signedUrl,
+      downloadUrl: data.signedUrl,
+      ...(platform === 'android' ? { apkUrl: data.signedUrl } : {}),
       expiresIn: SIGNED_URL_TTL_SECONDS,
     });
   } catch (error) {
