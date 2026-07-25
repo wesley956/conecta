@@ -130,6 +130,7 @@ export function App() {
 
   useEffect(() => {
     setCategory("Todos");
+    setQuery("");
     setVisibleLimit(PAGE_SIZE);
   }, [selected]);
 
