@@ -22,11 +22,12 @@ function time(value: number) {
     .map(part => String(part).padStart(2, "0")).join(":");
 }
 
-export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel, onClose, onProgress }: {
+export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel, onChangePlayback, onClose, onProgress }: {
   item: PlaybackItem;
   playlistId?: string | null;
   channels?: Channel[];
   onChangeChannel?: (channel: Channel) => void;
+  onChangePlayback?: (item: PlaybackItem) => void;
   onClose: () => void;
   onProgress?: (currentTime: number, duration: number) => void;
 }) {
@@ -36,10 +37,28 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   const [automaticRecoveries, setAutomaticRecoveries] = useState(0);
   const [trackPanel, setTrackPanel] = useState(false);
   const [channelPanel, setChannelPanel] = useState(false);
+  const [episodePanel, setEpisodePanel] = useState(false);
   const [programs, setPrograms] = useState<ChannelEpgProgram[]>([]);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
   const lastSavedSecond = useRef(-1);
+  const seriesQueue = item.seriesQueue || [];
+  const seriesQueueIndex = item.seriesQueueIndex ?? seriesQueue.findIndex(entry => entry.id === item.id);
+  const changeEpisode = useCallback((index: number) => {
+    const entry = seriesQueue[index];
+    if (!entry || !onChangePlayback) return;
+    onChangePlayback({
+      id: entry.id,
+      name: entry.name,
+      urls: entry.urls,
+      live: false,
+      kind: "episode",
+      image: entry.image,
+      meta: entry.meta,
+      seriesQueue,
+      seriesQueueIndex: index
+    });
+  }, [onChangePlayback, seriesQueue]);
 
   useEffect(() => {
     if (!item.live) { setPrograms([]); return; }
@@ -67,6 +86,12 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   useEffect(() => {
     if (snapshot.status === "playing" && automaticRecoveries > 0) setAutomaticRecoveries(0);
   }, [automaticRecoveries, snapshot.status]);
+
+  useEffect(() => {
+    if (snapshot.status !== "ended" || seriesQueueIndex < 0 || seriesQueueIndex + 1 >= seriesQueue.length) return;
+    const timer = window.setTimeout(() => changeEpisode(seriesQueueIndex + 1), 900);
+    return () => window.clearTimeout(timer);
+  }, [changeEpisode, seriesQueue.length, seriesQueueIndex, snapshot.status]);
 
   useEffect(() => {
     if (snapshot.status !== "error" || item.urls.length < 2 || automaticRecoveries >= item.urls.length - 1) return;
@@ -127,10 +152,11 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
         event.preventDefault();
         if (trackPanel) setTrackPanel(false);
         else if (channelPanel) setChannelPanel(false);
+        else if (episodePanel) setEpisodePanel(false);
         else onClose();
         return;
       }
-      if (trackPanel || channelPanel) {
+      if (trackPanel || channelPanel || episodePanel) {
         const directions: Record<string, "up" | "down" | "left" | "right"> = {
           ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
         };
@@ -151,13 +177,13 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [channelPanel, item.live, onClose, showControls, toggle, trackPanel]);
+  }, [channelPanel, episodePanel, item.live, onClose, showControls, toggle, trackPanel]);
 
   useEffect(() => {
-    if (!trackPanel && !channelPanel) return;
-    const selector = trackPanel ? ".track-panel" : ".channel-panel";
+    if (!trackPanel && !channelPanel && !episodePanel) return;
+    const selector = trackPanel ? ".track-panel" : episodePanel ? ".episode-panel" : ".channel-panel";
     window.setTimeout(() => document.querySelector<HTMLElement>(`${selector} [data-autofocus='true']`)?.focus(), 0);
-  }, [channelPanel, trackPanel]);
+  }, [channelPanel, episodePanel, trackPanel]);
 
   const progress = snapshot.duration > 0 ? Math.min(100, snapshot.currentTime / snapshot.duration * 100) : 0;
   return (
@@ -187,6 +213,7 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
           {!item.live && <div className="timeline"><div><i style={{ width: `${progress}%` }} /></div><span>{time(snapshot.currentTime)} / {time(snapshot.duration)}</span></div>}
           {item.live && <div className="live-badge"><i /> AO VIVO</div>}
           {item.live && channels.length > 1 && <button data-tv-focusable="true" className="track-control channel-control" onClick={() => setChannelPanel(true)}>☰ Canais</button>}
+          {item.kind === "episode" && seriesQueue.length > 1 && <button data-tv-focusable="true" className="track-control channel-control" onClick={() => setEpisodePanel(true)}>☰ Episódios</button>}
           <button data-tv-focusable="true" className="track-control" onClick={() => setTrackPanel(true)}>♪ Áudio e legendas</button>
         </footer>}
       </section>
@@ -198,6 +225,17 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
           <span>{channel.logo ? <img src={channel.logo} alt="" /> : <b>R</b>}</span>
           <span><strong>{channel.name}</strong><small>{channel.groupTitle || "TV ao vivo"}</small></span>
           <b>{channel.id === item.id ? "NO AR" : "▶"}</b>
+        </button>)}</section>
+      </aside>}
+      {episodePanel && <aside className="channel-panel episode-panel">
+        <header><div><p className="eyebrow">SÉRIE</p><h2>Temporadas e episódios</h2><small>{item.meta || item.name} • episódio atual primeiro</small></div><button data-tv-focusable="true" onClick={() => setEpisodePanel(false)}>×</button></header>
+        <section>{seriesQueue.map((entry, index) => <button key={entry.id} data-tv-focusable="true"
+          data-autofocus={index === seriesQueueIndex || (seriesQueueIndex < 0 && index === 0) ? "true" : undefined}
+          className={index === seriesQueueIndex ? "selected" : ""}
+          onClick={() => { setEpisodePanel(false); changeEpisode(index); }}>
+          <span><b>{entry.episodeNumber}</b></span>
+          <span><strong>{entry.name}</strong><small>Temporada {entry.seasonNumber} • Episódio {entry.episodeNumber}</small></span>
+          <b>{index === seriesQueueIndex ? "NO AR" : "▶"}</b>
         </button>)}</section>
       </aside>}
       {trackPanel && <aside className="track-panel">
