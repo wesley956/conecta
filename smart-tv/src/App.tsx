@@ -248,10 +248,12 @@ export function App() {
   }, [beginPlayback]);
 
   if (playback) return <PlayerScreen
+    key={playback.id}
     item={playback}
     playlistId={session.selectedPlaylistId}
     channels={playback.live ? catalog.data.channels.filter(channel => !playback.meta || channel.groupTitle === playback.meta) : []}
     onChangeChannel={channel => beginPlayback(channelCard(channel).playback!)}
+    onChangePlayback={beginPlayback}
     onClose={() => setPlayback(null)}
     onProgress={(currentTime, duration) => library.remember(playback, currentTime, duration)}
   />;
@@ -271,11 +273,13 @@ export function App() {
     series={selectedSeries}
     playlistId={session.selectedPlaylistId}
     favorite={library.isFavorite("series", selectedSeries.id)}
+    recommendations={catalog.data.series.filter(item => item.id !== selectedSeries.id && item.category === selectedSeries.category).slice(0, 5)}
     onBack={() => setSelectedSeries(null)}
     onFavorite={() => library.toggleFavorite({
       id: selectedSeries.id, kind: "series", name: selectedSeries.name,
       image: selectedSeries.cover, meta: selectedSeries.category || "Séries"
     })}
+    onOpenRecommendation={setSelectedSeries}
     onPlay={beginPlayback}
   />;
   if (session.status !== "active") return <ActivationScreen session={session} onRefresh={() => void refresh()} onReset={() => void reset()} />;
