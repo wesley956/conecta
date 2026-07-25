@@ -16,12 +16,14 @@ function embeddedSeasons(series: Series): Season[] {
   );
 }
 
-export function SeriesDetailScreen({ series, playlistId, favorite, onBack, onFavorite, onPlay }: {
+export function SeriesDetailScreen({ series, playlistId, favorite, recommendations, onBack, onFavorite, onOpenRecommendation, onPlay }: {
   series: Series;
   playlistId: string | null;
   favorite: boolean;
+  recommendations: Series[];
   onBack: () => void;
   onFavorite: () => void;
+  onOpenRecommendation: (series: Series) => void;
   onPlay: (item: PlaybackItem) => void;
 }) {
   const embedded = useMemo(() => embeddedSeasons(series), [series]);
@@ -30,6 +32,28 @@ export function SeriesDetailScreen({ series, playlistId, favorite, onBack, onFav
   const [status, setStatus] = useState<"loading" | "ready" | "error">(embedded.length ? "ready" : "loading");
   const [message, setMessage] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const episodeQueue = useMemo(() => seasons
+    .slice()
+    .sort((a, b) => a.number - b.number)
+    .flatMap(season => season.episodes
+      .slice()
+      .sort((a, b) => a.number - b.number)
+      .map(episode => ({
+        id: episode.id,
+        name: `${series.name} • T${season.number}E${episode.number}`,
+        urls: urls(episode.url, episode.playbackUrls),
+        image: series.cover,
+        meta: `${series.name} • T${season.number}E${episode.number}`,
+        seasonNumber: season.number,
+        episodeNumber: episode.number
+      }))), [seasons, series.cover, series.name]);
+
+  useEffect(() => {
+    setSeasons(embedded);
+    setSelectedSeason(embedded[0]?.number ?? 1);
+    setStatus(embedded.length ? "ready" : "loading");
+    setMessage(null);
+  }, [embedded, series.id]);
 
   useEffect(() => {
     if (embedded.length) return;
@@ -90,19 +114,31 @@ export function SeriesDetailScreen({ series, playlistId, favorite, onBack, onFav
         <button key={item.number} data-tv-focusable="true" className={`season-chip ${item.number === season.number ? "selected" : ""}`} onClick={() => setSelectedSeason(item.number)}>Temporada {item.number}</button>
       )}</div>
       <h2>Episódios • Temporada {season.number}</h2>
-      <div className="episode-list">{season.episodes.map(episode =>
-        <button key={episode.id} data-tv-focusable="true" className="episode-row" onClick={() => onPlay({
+      <div className="episode-list">{season.episodes.map(episode => {
+        const queueIndex = episodeQueue.findIndex(item => item.id === episode.id);
+        return <button key={episode.id} data-tv-focusable="true" className="episode-row" onClick={() => onPlay({
           id: episode.id,
           name: `${series.name} • T${season.number}E${episode.number}`,
           urls: urls(episode.url, episode.playbackUrls),
           live: false,
           kind: "episode",
           image: series.cover,
-          meta: `${series.name} • T${season.number}E${episode.number}`
+          meta: `${series.name} • T${season.number}E${episode.number}`,
+          seriesQueue: episodeQueue,
+          seriesQueueIndex: Math.max(0, queueIndex)
         })}>
           <span className="episode-number">{episode.number}</span>
           <span><strong>{episode.name}</strong><small>{episode.duration || "Duração não informada"}</small></span>
           <b>▶</b>
+        </button>;
+      })}</div>
+    </section>}
+    {recommendations.length > 0 && <section className="series-library related-section">
+      <div><h2>Você também pode gostar</h2><small>Séries da mesma categoria</small></div>
+      <div className="related-row">{recommendations.map(item =>
+        <button key={item.id} data-tv-focusable="true" onClick={() => onOpenRecommendation(item)}>
+          <span>{item.cover ? <img src={item.cover} alt="" /> : <b>R</b>}</span>
+          <strong>{item.name}</strong><small>{item.category || "Série"}</small>
         </button>
       )}</div>
     </section>}

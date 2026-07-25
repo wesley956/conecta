@@ -7,6 +7,16 @@ export interface PlayerTrack {
   language?: string;
 }
 
+export interface PlaybackQueueItem {
+  id: string;
+  name: string;
+  urls: string[];
+  image?: string;
+  meta?: string;
+  seasonNumber: number;
+  episodeNumber: number;
+}
+
 export interface PlaybackItem {
   id: string;
   name: string;
@@ -15,6 +25,8 @@ export interface PlaybackItem {
   kind?: "channel" | "movie" | "episode";
   image?: string;
   meta?: string;
+  seriesQueue?: PlaybackQueueItem[];
+  seriesQueueIndex?: number;
 }
 
 export interface PlaybackSnapshot {
