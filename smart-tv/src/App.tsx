@@ -14,10 +14,12 @@ import type { PlaybackItem } from "./player/types";
 import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
 
 const destinations = [
-  { icon: "⌂", label: "Início" }, { icon: "⌕", label: "Buscar" },
-  { icon: "◉", label: "TV ao vivo" }, { icon: "▶", label: "Filmes" },
-  { icon: "▣", label: "Séries" }, { icon: "♥", label: "Minha lista" },
-  { icon: "⚙", label: "Ajustes" }
+  { icon: "⌂", label: "Início" },
+  { icon: "◉", label: "Canais" },
+  { icon: "▶", label: "Filmes" },
+  { icon: "▥", label: "Séries" },
+  { icon: "♡", label: "Minha lista" },
+  { icon: "⚙", label: "Configurações" }
 ];
 const PAGE_SIZE = 60;
 
@@ -91,18 +93,24 @@ function seriesCard(item: Series): MediaCard {
   return { id: item.id, kind: "series", name: item.name, image: item.cover, meta: item.category || "Séries", series: item };
 }
 
-function MediaGrid({ cards, total, onOpen, onMore }: {
+function MediaGrid({ cards, total, onOpen, onMore, isFavorite, onFavorite }: {
   cards: MediaCard[];
   total: number;
   onOpen: (item: MediaCard) => void;
   onMore: () => void;
+  isFavorite: (item: MediaCard) => boolean;
+  onFavorite: (item: MediaCard) => void;
 }) {
   return <section className="catalog-grid">{cards.map((item, index) =>
-    <FocusableButton key={`${item.kind}:${item.id}`} data-autofocus={index === 0 ? "true" : undefined} className="media-card" onClick={() => onOpen(item)}>
-      <span className="poster"><Poster image={item.image} /></span>
-      <strong>{item.name}</strong><small>{item.meta}</small>
-      {item.progress != null && item.progress > 0 && <span className="watch-progress"><i style={{ width: `${item.progress}%` }} /></span>}
-    </FocusableButton>)}
+    <div className="media-card-shell" key={`${item.kind}:${item.id}`}>
+      <FocusableButton data-autofocus={index === 0 ? "true" : undefined} className="media-card" onClick={() => onOpen(item)}>
+        <span className="poster"><Poster image={item.image} /></span>
+        <span className="media-badge">{item.kind === "channel" ? "AO VIVO" : item.kind === "movie" ? "FILME" : "SÉRIE"}</span>
+        <strong>{item.name}</strong><small>{item.meta}</small>
+        {item.progress != null && item.progress > 0 && <span className="watch-progress"><i style={{ width: `${item.progress}%` }} /></span>}
+      </FocusableButton>
+      {item.kind === "channel" && <FocusableButton aria-label={isFavorite(item) ? `Remover ${item.name} dos favoritos` : `Favoritar ${item.name}`} className={`favorite-card-action ${isFavorite(item) ? "selected" : ""}`} onClick={() => onFavorite(item)}>{isFavorite(item) ? "♥" : "♡"}</FocusableButton>}
+    </div>)}
     {cards.length < total && <FocusableButton className="load-more-card" onClick={onMore}><b>＋</b><strong>Carregar mais</strong><small>{total - cards.length} itens restantes</small></FocusableButton>}
   </section>;
 }
@@ -113,7 +121,7 @@ export function App() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("Todas");
+  const [category, setCategory] = useState("Todos");
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const { session, refresh, renewConfiguration, reset } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
@@ -121,7 +129,7 @@ export function App() {
   const library = useMediaLibrary();
 
   useEffect(() => {
-    setCategory("Todas");
+    setCategory("Todos");
     setVisibleLimit(PAGE_SIZE);
   }, [selected]);
 
@@ -135,7 +143,7 @@ export function App() {
       if (direction) { event.preventDefault(); moveFocus(direction); }
       else if (isBackKey(event)) {
         event.preventDefault();
-        if (category !== "Todas") setCategory("Todas");
+        if (category !== "Todos") setCategory("Todos");
         else if (selected === "Buscar" && query) setQuery("");
         else if (selected !== "Início") setSelected("Início");
         else closeApplication();
@@ -196,26 +204,36 @@ export function App() {
   }), [resolveLibraryItem]);
 
   const categories = useMemo(() => {
-    const source = selected === "TV ao vivo" ? catalog.data.channels.map(item => item.groupTitle)
+    const source = selected === "Canais" ? catalog.data.channels.map(item => item.groupTitle)
       : selected === "Filmes" ? catalog.data.movies.map(item => item.category)
         : selected === "Séries" ? catalog.data.series.map(item => item.category) : [];
-    return ["Todas", ...Array.from(new Set(source.filter((value): value is string => Boolean(value?.trim())))).sort((a, b) => a.localeCompare(b, "pt-BR"))];
+    const fixed = selected === "Canais" ? ["Todos", "Favoritos", "A-Z"]
+      : selected === "Filmes" ? ["Todos", "Minha Lista", "Continuar"]
+        : selected === "Séries" ? ["Todos", "Minha Lista"] : ["Todos"];
+    return [...fixed, ...Array.from(new Set(source.filter((value): value is string => Boolean(value?.trim())))).sort((a, b) => a.localeCompare(b, "pt-BR"))];
   }, [catalog.data, selected]);
 
   const filteredCards = useMemo(() => {
     let source: MediaCard[] = [];
-    if (selected === "TV ao vivo") source = catalog.data.channels.map(channelCard);
+    if (selected === "Canais") source = catalog.data.channels.map(channelCard);
     else if (selected === "Filmes") source = catalog.data.movies.map(movieCard);
     else if (selected === "Séries") source = catalog.data.series.map(seriesCard);
     else if (selected === "Minha lista") source = libraryCards(library.favorites);
     else if (selected === "Buscar") source = allCards;
     const term = normalized(query.trim());
-    return source.filter(item => {
-      const matchesCategory = category === "Todas" || item.meta.split(" • ")[0] === category;
-      const matchesQuery = selected !== "Buscar" || !term || normalized(`${item.name} ${item.meta}`).includes(term);
+    const historyIds = new Set(library.history.map(item => `${item.kind}:${item.id}`));
+    const filtered = source.filter(item => {
+      const saved = library.isFavorite(item.kind, item.id);
+      const matchesCategory = category === "Todos" || category === "A-Z"
+        || (category === "Favoritos" && saved)
+        || (category === "Minha Lista" && saved)
+        || (category === "Continuar" && historyIds.has(`${item.kind}:${item.id}`))
+        || item.meta.split(" • ")[0] === category;
+      const matchesQuery = !term || normalized(`${item.name} ${item.meta}`).includes(term);
       return matchesCategory && matchesQuery;
     });
-  }, [allCards, catalog.data, category, library.favorites, libraryCards, query, selected]);
+    return category === "A-Z" ? [...filtered].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")) : filtered;
+  }, [allCards, catalog.data, category, library.favorites, library.history, libraryCards, query, selected]);
 
   const beginPlayback = useCallback((item: PlaybackItem) => {
     library.remember(item);
@@ -231,6 +249,8 @@ export function App() {
   if (playback) return <PlayerScreen
     item={playback}
     playlistId={session.selectedPlaylistId}
+    channels={playback.live ? catalog.data.channels.filter(channel => !playback.meta || channel.groupTitle === playback.meta) : []}
+    onChangeChannel={channel => beginPlayback(channelCard(channel).playback!)}
     onClose={() => setPlayback(null)}
     onProgress={(currentTime, duration) => library.remember(playback, currentTime, duration)}
   />;
@@ -242,6 +262,8 @@ export function App() {
       id: selectedMovie.id, kind: "movie", name: selectedMovie.name,
       image: selectedMovie.cover, meta: [selectedMovie.category, selectedMovie.year || ""].filter(Boolean).join(" • ")
     })}
+    related={catalog.data.movies.filter(item => item.id !== selectedMovie.id && item.category === selectedMovie.category).slice(0, 5)}
+    onOpenMovie={setSelectedMovie}
     onPlay={beginPlayback}
   />;
   if (selectedSeries) return <SeriesDetailScreen
@@ -265,11 +287,11 @@ export function App() {
 
   return <main className="shell">
     <aside className="rail">
-      <div className="brand"><span className="brand-mark">R</span><span className="brand-name">RONECA</span></div>
+      <div className="brand"><span className="brand-mark">RP</span><span className="brand-name">RONECA</span></div>
       <nav>{destinations.map(item => <FocusableButton key={item.label} className={`nav-item ${selected === item.label ? "selected" : ""}`} onClick={() => setSelected(item.label)}><span>{item.icon}</span><strong>{item.label}</strong></FocusableButton>)}</nav>
       <small className="platform">{platform.toUpperCase()}</small>
     </aside>
-    <section className="content">
+    <section className={`content ${["Canais", "Filmes", "Séries"].includes(selected) ? "catalog-view" : ""}`}>
       {appUpdate.update && <aside className="update-banner" role="status">
         <span><b>Nova versão {appUpdate.update.versionName}</b><small>{platform === "webos" ? "Atualize pela LG Content Store ou pelo pacote IPK do painel." : "Atualize pela Samsung Apps ou pelo pacote WGT do painel."}</small></span>
         <FocusableButton onClick={appUpdate.dismiss}>Agora não</FocusableButton>
@@ -287,7 +309,7 @@ export function App() {
               <p className="description">{featuredMovie?.synopsis || (session.playlistName ? `${session.playlistName} pronta para explorar.` : "A mesma experiência do aplicativo Android.")}</p>
               <div className="hero-actions">
                 <FocusableButton data-autofocus="true" className="primary" onClick={() => featuredMovie ? setSelectedMovie(featuredMovie) : setSelected("Filmes")}>{featuredMovie ? "Ver detalhes" : "Explorar filmes"}</FocusableButton>
-                <FocusableButton className="secondary" onClick={() => setSelected("TV ao vivo")}>TV ao vivo</FocusableButton>
+                <FocusableButton className="secondary" onClick={() => setSelected("Canais")}>TV ao vivo</FocusableButton>
               </div>
             </div>
           </section>
@@ -303,8 +325,8 @@ export function App() {
           </aside>
         </div>
         <section className="explore-section"><div className="section-heading"><div><h3>Explorar</h3><p>Conteúdo real da sua lista</p></div></div><div className="cards">
-          {[["TV ao vivo", `${counts.channels.toLocaleString("pt-BR")} canais`, "gold"], ["Filmes", `${counts.movies.toLocaleString("pt-BR")} títulos`, "red"], ["Séries", `${counts.series.toLocaleString("pt-BR")} séries`, "gold"]].map(([label, count, tone]) =>
-            <FocusableButton key={label} className={`card ${tone}`} onClick={() => setSelected(label)}><span className="card-icon">◆</span><span><strong>{label}</strong><small>{count}</small></span><b>›</b></FocusableButton>)}
+          {[["Canais", "TV ao vivo", `${counts.channels.toLocaleString("pt-BR")} canais`, "gold"], ["Filmes", "Filmes", `${counts.movies.toLocaleString("pt-BR")} títulos`, "red"], ["Séries", "Séries", `${counts.series.toLocaleString("pt-BR")} séries`, "gold"], ["Minha lista", "Minha lista", `${library.favorites.length.toLocaleString("pt-BR")} favoritos`, "red"]].map(([target, label, count, tone]) =>
+            <FocusableButton key={target} className={`card ${tone}`} onClick={() => setSelected(target)}><span className="card-icon">{target === "Canais" ? "◉" : target === "Filmes" ? "▶" : target === "Séries" ? "▥" : "♡"}</span><span><strong>{label}</strong><small>{count}</small></span><b>›</b></FocusableButton>)}
         </div></section>
         {recentCards.length > 0 && <section className="home-library"><div className="section-heading"><h3>Continuar assistindo</h3><p>Seu histórico nesta TV</p></div><div className="home-media-row">{recentCards.map(item =>
           <FocusableButton key={`recent:${item.kind}:${item.id}`} className="home-media-card" onClick={() => openCard(item)}><span className="poster"><Poster image={item.image} /></span><strong>{item.name}</strong>{item.progress != null && <span className="watch-progress"><i style={{ width: `${item.progress}%` }} /></span>}</FocusableButton>)}</div></section>}
@@ -316,20 +338,29 @@ export function App() {
         {query && <FocusableButton className="clear-search" onClick={() => setQuery("")}>Limpar</FocusableButton>}
         <small>{query ? `${filteredCards.length.toLocaleString("pt-BR")} resultado(s)` : "Digite usando o teclado da TV ou do navegador"}</small>
       </section>}
-      {catalog.status === "ready" && ["TV ao vivo", "Filmes", "Séries"].includes(selected) && categories.length > 1 && <section className="category-row">
+      {catalog.status === "ready" && ["Canais", "Filmes", "Séries"].includes(selected) && <section className="catalog-toolbar">
+        <div><h2>{selected === "Canais" ? "TV ao vivo" : selected}</h2><small>{filteredCards.length.toLocaleString("pt-BR")} {selected === "Canais" ? "canais" : selected === "Filmes" ? "títulos" : "séries"}</small></div>
+        <label><span>⌕</span><input data-tv-focusable="true" value={query} onChange={event => { setQuery(event.target.value); setVisibleLimit(PAGE_SIZE); }} placeholder={`Buscar em ${selected.toLocaleLowerCase("pt-BR")}`} /></label>
+      </section>}
+      {catalog.status === "ready" && ["Canais", "Filmes", "Séries"].includes(selected) && categories.length > 1 && <section className="category-row">
         {categories.map(item => <FocusableButton key={item} className={`category-chip ${category === item ? "selected" : ""}`} onClick={() => { setCategory(item); setVisibleLimit(PAGE_SIZE); }}>{item}</FocusableButton>)}
       </section>}
-      {catalog.status === "ready" && ["Buscar", "TV ao vivo", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length > 0 &&
-        <MediaGrid cards={visibleCards} total={filteredCards.length} onOpen={openCard} onMore={() => setVisibleLimit(value => value + PAGE_SIZE)} />}
-      {catalog.status === "ready" && selected === "Ajustes" && <section className="settings-panel">
-        <div><p className="eyebrow">APARELHO</p><h2>{session.clientName || "Smart TV"}</h2><dl>
-          <dt>Plataforma</dt><dd>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"}</dd>
-          <dt>Versão</dt><dd>{APP_VERSION}</dd><dt>Código</dt><dd>{session.deviceCode}</dd>
-          <dt>Lista</dt><dd>{session.playlistName || "Lista ativa"}</dd>
-        </dl></div>
-        <div className="settings-actions"><FocusableButton data-autofocus="true" className="secondary" onClick={() => void appUpdate.refresh()}>{appUpdate.checking ? "Verificando..." : "Verificar atualização"}</FocusableButton><FocusableButton className="secondary danger" onClick={library.clearHistory}>Limpar histórico desta TV</FocusableButton></div>
+      {catalog.status === "ready" && ["Buscar", "Canais", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length > 0 &&
+        <MediaGrid cards={visibleCards} total={filteredCards.length} onOpen={openCard} onMore={() => setVisibleLimit(value => value + PAGE_SIZE)}
+          isFavorite={item => library.isFavorite(item.kind, item.id)}
+          onFavorite={item => library.toggleFavorite({ id: item.id, kind: item.kind, name: item.name, image: item.image, meta: item.meta })} />}
+      {catalog.status === "ready" && selected === "Configurações" && <section className="settings-list">
+        <div className="settings-heading"><p className="eyebrow">AJUSTES DO APP</p><h2>Configurações</h2><small>Preferências e informações desta TV</small></div>
+        <section className="settings-card"><span><strong>Atualizar conteúdo</strong><small>Sincronizar novamente a lista ativa</small></span><FocusableButton data-autofocus="true" onClick={catalog.retry}>ATUALIZAR</FocusableButton></section>
+        <p className="settings-section-title">PLAYER</p>
+        <section className="settings-card info"><span><strong>Decodificação</strong><small>O player seleciona automaticamente o modo ideal da plataforma.</small></span><b>AUTOMÁTICA</b></section>
+        <section className="settings-card info"><span><strong>Reconexão automática</strong><small>Alternar a origem quando uma transmissão cair.</small></span><b>ATIVA</b></section>
+        <p className="settings-section-title">APLICATIVO</p>
+        <section className="settings-card"><span><strong>Atualizações do aplicativo</strong><small>Versão atual {APP_VERSION}</small></span><FocusableButton onClick={() => void appUpdate.refresh()}>{appUpdate.checking ? "AGUARDE" : "VERIFICAR"}</FocusableButton></section>
+        <section className="settings-card info"><span><strong>{session.clientName || "RonecaPlayTV"}</strong><small>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"} • {session.playlistName || "Lista ativa"} • Código {session.deviceCode}</small></span><b>NATIVO TV</b></section>
+        <section className="settings-card danger-card"><span><strong>Histórico desta TV</strong><small>Remover o progresso e os itens assistidos neste aparelho.</small></span><FocusableButton className="danger" onClick={library.clearHistory}>LIMPAR</FocusableButton></section>
       </section>}
-      {catalog.status === "ready" && ["Buscar", "TV ao vivo", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length === 0 && <section className="state-panel">
+      {catalog.status === "ready" && ["Buscar", "Canais", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length === 0 && <section className="state-panel">
         <h2>{selected === "Minha lista" ? "Sua lista está vazia" : selected === "Buscar" && !query ? "O que você quer assistir?" : "Nenhum conteúdo encontrado"}</h2>
         <p>{selected === "Minha lista" ? "Adicione filmes e séries pelos detalhes do conteúdo." : selected === "Buscar" && !query ? "Selecione o campo acima para começar a busca." : "Tente outro nome ou categoria."}</p>
       </section>}
