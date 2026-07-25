@@ -8,11 +8,13 @@ function urls(url: string, alternatives?: string[]) {
   return Array.from(new Set([...(alternatives || []), url].filter(value => /^https?:\/\//i.test(value))));
 }
 
-export function MovieDetailScreen({ movie, favorite, onBack, onFavorite, onPlay }: {
+export function MovieDetailScreen({ movie, favorite, related, onBack, onFavorite, onOpenMovie, onPlay }: {
   movie: Movie;
   favorite: boolean;
+  related: Movie[];
   onBack: () => void;
   onFavorite: () => void;
+  onOpenMovie: (movie: Movie) => void;
   onPlay: (item: PlaybackItem) => void;
 }) {
   useEffect(() => {
@@ -27,7 +29,7 @@ export function MovieDetailScreen({ movie, favorite, onBack, onFavorite, onPlay 
     window.addEventListener("keydown", onKey);
     window.setTimeout(() => document.querySelector<HTMLElement>(".movie-detail [data-autofocus='true']")?.focus(), 0);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
+  }, [movie.id, onBack]);
 
   const playback: PlaybackItem = {
     id: movie.id,
@@ -55,6 +57,13 @@ export function MovieDetailScreen({ movie, favorite, onBack, onFavorite, onPlay 
           <button data-tv-focusable="true" className="primary detail-action" onClick={() => onPlay(playback)}>▶ Assistir agora</button>
           <button data-tv-focusable="true" className={`secondary detail-action ${favorite ? "favorite" : ""}`} onClick={onFavorite}>{favorite ? "♥ Na minha lista" : "♡ Adicionar à lista"}</button>
         </div>
+        {related.length > 0 && <section className="related-section">
+          <div><strong>Você também pode gostar</strong><small>Filmes da mesma categoria</small></div>
+          <div className="related-row">{related.map(item => <button key={item.id} data-tv-focusable="true" onClick={() => onOpenMovie(item)}>
+            <span>{item.cover ? <img src={item.cover} alt="" /> : <span className="poster-fallback">R</span>}</span>
+            <strong>{item.name}</strong><small>{item.year || item.category || "Filme"}</small>
+          </button>)}</div>
+        </section>}
       </div>
     </section>
   </main>;

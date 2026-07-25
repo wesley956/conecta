@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Channel } from "../catalog";
 import { fetchChannelEpg } from "../deviceSession";
 import type { ChannelEpgProgram } from "../deviceSession";
 import { moveFocus } from "../focus";
@@ -21,9 +22,11 @@ function time(value: number) {
     .map(part => String(part).padStart(2, "0")).join(":");
 }
 
-export function PlayerScreen({ item, playlistId, onClose, onProgress }: {
+export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel, onClose, onProgress }: {
   item: PlaybackItem;
   playlistId?: string | null;
+  channels?: Channel[];
+  onChangeChannel?: (channel: Channel) => void;
   onClose: () => void;
   onProgress?: (currentTime: number, duration: number) => void;
 }) {
@@ -32,6 +35,7 @@ export function PlayerScreen({ item, playlistId, onClose, onProgress }: {
   const [sourceOffset, setSourceOffset] = useState(0);
   const [automaticRecoveries, setAutomaticRecoveries] = useState(0);
   const [trackPanel, setTrackPanel] = useState(false);
+  const [channelPanel, setChannelPanel] = useState(false);
   const [programs, setPrograms] = useState<ChannelEpgProgram[]>([]);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
@@ -121,10 +125,12 @@ export function PlayerScreen({ item, playlistId, onClose, onProgress }: {
       showControls();
       if (isBackKey(event) || event.keyCode === 413) {
         event.preventDefault();
-        if (trackPanel) setTrackPanel(false); else onClose();
+        if (trackPanel) setTrackPanel(false);
+        else if (channelPanel) setChannelPanel(false);
+        else onClose();
         return;
       }
-      if (trackPanel) {
+      if (trackPanel || channelPanel) {
         const directions: Record<string, "up" | "down" | "left" | "right"> = {
           ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
         };
@@ -145,12 +151,13 @@ export function PlayerScreen({ item, playlistId, onClose, onProgress }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [item.live, onClose, showControls, toggle, trackPanel]);
+  }, [channelPanel, item.live, onClose, showControls, toggle, trackPanel]);
 
   useEffect(() => {
-    if (!trackPanel) return;
-    window.setTimeout(() => document.querySelector<HTMLElement>(".track-panel [data-autofocus='true']")?.focus(), 0);
-  }, [trackPanel]);
+    if (!trackPanel && !channelPanel) return;
+    const selector = trackPanel ? ".track-panel" : ".channel-panel";
+    window.setTimeout(() => document.querySelector<HTMLElement>(`${selector} [data-autofocus='true']`)?.focus(), 0);
+  }, [channelPanel, trackPanel]);
 
   const progress = snapshot.duration > 0 ? Math.min(100, snapshot.currentTime / snapshot.duration * 100) : 0;
   return (
@@ -179,9 +186,20 @@ export function PlayerScreen({ item, playlistId, onClose, onProgress }: {
           <button className="play-control" onClick={toggle}>{snapshot.status === "playing" ? "Ⅱ" : "▶"}</button>
           {!item.live && <div className="timeline"><div><i style={{ width: `${progress}%` }} /></div><span>{time(snapshot.currentTime)} / {time(snapshot.duration)}</span></div>}
           {item.live && <div className="live-badge"><i /> AO VIVO</div>}
+          {item.live && channels.length > 1 && <button data-tv-focusable="true" className="track-control channel-control" onClick={() => setChannelPanel(true)}>☰ Canais</button>}
           <button data-tv-focusable="true" className="track-control" onClick={() => setTrackPanel(true)}>♪ Áudio e legendas</button>
         </footer>}
       </section>
+      {channelPanel && <aside className="channel-panel">
+        <header><div><p className="eyebrow">TV AO VIVO</p><h2>{item.meta || "Canais"}</h2><small>{channels.length} canais nesta categoria</small></div><button data-tv-focusable="true" onClick={() => setChannelPanel(false)}>×</button></header>
+        <section>{channels.map((channel, index) => <button key={channel.id} data-tv-focusable="true" data-autofocus={channel.id === item.id || index === 0 ? "true" : undefined}
+          className={channel.id === item.id ? "selected" : ""}
+          onClick={() => { onChangeChannel?.(channel); setChannelPanel(false); }}>
+          <span>{channel.logo ? <img src={channel.logo} alt="" /> : <b>R</b>}</span>
+          <span><strong>{channel.name}</strong><small>{channel.groupTitle || "TV ao vivo"}</small></span>
+          <b>{channel.id === item.id ? "NO AR" : "▶"}</b>
+        </button>)}</section>
+      </aside>}
       {trackPanel && <aside className="track-panel">
         <header><div><p className="eyebrow">REPRODUÇÃO</p><h2>Áudio e legendas</h2></div><button data-tv-focusable="true" onClick={() => setTrackPanel(false)}>×</button></header>
         <section><h3>Faixa de áudio</h3>
