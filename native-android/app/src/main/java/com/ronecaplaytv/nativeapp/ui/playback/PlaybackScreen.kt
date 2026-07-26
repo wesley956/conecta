@@ -94,10 +94,25 @@ fun PlaybackScreen(
             }
         }
     }
-    val startedSeriesCards = remember(series, progress) {
+    val latestProgressBySeriesId = remember(progress) {
+        buildMap<String, SavedProgress> {
+            progress.forEach { saved ->
+                val seriesId = saved.contentKey
+                    .takeIf { it.startsWith("episode:") }
+                    ?.removePrefix("episode:")
+                    ?.substringBefore(':')
+                    ?.takeIf(String::isNotBlank)
+                    ?: return@forEach
+                val current = get(seriesId)
+                if (current == null || saved.updatedAt > current.updatedAt) {
+                    put(seriesId, saved)
+                }
+            }
+        }
+    }
+    val startedSeriesCards = remember(series, latestProgressBySeriesId) {
         series.mapNotNull { item ->
-            val prefix = "episode:${item.id}:"
-            progress.firstOrNull { it.contentKey.startsWith(prefix) }?.let { saved ->
+            latestProgressBySeriesId[item.id]?.let { saved ->
                 PlaybackCardItem(
                     key = "started-series-${item.id}",
                     title = item.name,

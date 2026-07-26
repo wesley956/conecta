@@ -1,4 +1,4 @@
-name: Build native Android debug APK
+name: Build native Android APKs
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: native-android-debug-${{ github.ref }}
+  group: native-android-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,12 +56,12 @@ jobs:
       - name: Validate native-only platform
         run: node scripts/check-native-only.mjs
 
-      - name: Compile debug APK
+      - name: Compile debug and optimized release APKs
         working-directory: native-android
         shell: bash
         run: |
           set -o pipefail
-          gradle --no-daemon :app:assembleDebug 2>&1 | tee native-gradle-build.log
+          gradle --no-daemon :app:assembleDebug :app:assembleRelease 2>&1 | tee native-gradle-build.log
 
       - name: Upload Gradle diagnostics
         if: always()

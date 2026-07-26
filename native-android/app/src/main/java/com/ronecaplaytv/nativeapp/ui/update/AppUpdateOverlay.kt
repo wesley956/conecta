@@ -387,7 +387,7 @@ private fun UpdateButton(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()

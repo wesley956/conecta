@@ -48,6 +48,7 @@ const required = {
     'loadCompleteCatalog',
     'Catálogo substituído pela lista reserva',
     'channels.isEmpty() && movies.isEmpty() && series.isEmpty()',
+    'lastFailoverAtMillis = System.currentTimeMillis()',
   ],
   nativePlayer: [
     'onTerminalPlaybackFailure',

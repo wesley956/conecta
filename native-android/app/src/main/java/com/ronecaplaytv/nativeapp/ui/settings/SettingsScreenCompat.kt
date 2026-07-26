@@ -21,6 +21,7 @@ fun SettingsScreen(
     isTelevision: Boolean,
     state: PlayerSettingsState,
     appUpdateState: AppUpdateState,
+    playlistDiagnostics: PlaylistDiagnosticsState,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
     onCheckForAppUpdate: () -> Unit,
@@ -38,6 +39,7 @@ fun SettingsScreen(
         refreshInProgress = refreshInProgress,
         refreshMessage = refreshMessage,
         appUpdateState = appUpdateState,
+        playlistDiagnostics = playlistDiagnostics,
         onStateChange = { updated ->
             persistedState = updated
             preferences.save(updated)

@@ -40,6 +40,8 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.BuildConfig
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
+import java.text.DateFormat
+import java.util.Date
 
 data class PlayerSettingsState(
     val decoderMode: String = "Hardware",
@@ -47,6 +49,17 @@ data class PlayerSettingsState(
     val language: String = "Português",
     val automaticReconnect: Boolean = true,
     val forceTvMode: Boolean = false,
+    val launchSoundEnabled: Boolean = true,
+)
+
+data class PlaylistDiagnosticsState(
+    val activePlaylistName: String?,
+    val usingBackupPlaylist: Boolean,
+    val lastFailoverAtMillis: Long?,
+    val lastFailureReason: String?,
+    val channels: Int,
+    val movies: Int,
+    val series: Int,
 )
 
 @Composable
@@ -56,6 +69,7 @@ fun SettingsScreen(
     refreshInProgress: Boolean,
     refreshMessage: String?,
     appUpdateState: AppUpdateState,
+    playlistDiagnostics: PlaylistDiagnosticsState,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
     onCheckForAppUpdate: () -> Unit,
@@ -83,6 +97,14 @@ fun SettingsScreen(
         }
         item { CurrentProfileCard(isTelevision = isTelevision, state = state) }
 
+        item { SectionTitle("DIAGNÓSTICO DAS LISTAS", isTelevision) }
+        item {
+            PlaylistDiagnosticsCard(
+                isTelevision = isTelevision,
+                diagnostics = playlistDiagnostics,
+            )
+        }
+
         item { SectionTitle("PLAYER", isTelevision) }
         item {
             ChoiceSettingRow(
@@ -108,6 +130,15 @@ fun SettingsScreen(
         }
 
         item { SectionTitle("INTERFACE", isTelevision) }
+        item {
+            ToggleSettingRow(
+                title = "Som de abertura",
+                subtitle = "Reproduzir a assinatura sonora de 3 segundos ao abrir o aplicativo.",
+                checked = state.launchSoundEnabled,
+                isTelevision = isTelevision,
+                onToggle = { onStateChange(state.copy(launchSoundEnabled = it)) },
+            )
+        }
         item {
             ToggleSettingRow(
                 title = "Modo TV",
@@ -145,6 +176,74 @@ fun SettingsScreen(
                 isTelevision = isTelevision,
             )
         }
+    }
+}
+
+@Composable
+private fun PlaylistDiagnosticsCard(
+    isTelevision: Boolean,
+    diagnostics: PlaylistDiagnosticsState,
+) {
+    val role = if (diagnostics.usingBackupPlaylist) "RESERVA" else "PRINCIPAL"
+    val activeName = diagnostics.activePlaylistName?.takeIf(String::isNotBlank) ?: "Aguardando catálogo"
+    val failoverTime = diagnostics.lastFailoverAtMillis?.let { timestamp ->
+        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(timestamp))
+    } ?: "Nenhuma troca nesta sessão"
+    val reason = diagnostics.lastFailureReason
+        ?.takeIf(String::isNotBlank)
+        ?.take(180)
+        ?: "Nenhuma falha registrada nesta sessão."
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(RonecaColors.BackgroundSoft)
+            .border(1.dp, RonecaColors.Border, RoundedCornerShape(14.dp))
+            .padding(if (isTelevision) 17.dp else 15.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Lista ativa",
+                    color = RonecaColors.TextMuted,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp,
+                )
+                Text(
+                    text = activeName,
+                    color = RonecaColors.TextPrimary,
+                    fontSize = if (isTelevision) 16.sp else 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            StatusPill(label = role, active = !diagnostics.usingBackupPlaylist)
+        }
+        Text(
+            text = "Catálogo: ${diagnostics.channels} canais • ${diagnostics.movies} filmes • ${diagnostics.series} séries",
+            color = RonecaColors.Primary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        Text(
+            text = "Última troca: $failoverTime",
+            color = RonecaColors.TextSecondary,
+            fontSize = 12.sp,
+        )
+        Text(
+            text = "Motivo: $reason",
+            color = if (diagnostics.lastFailureReason.isNullOrBlank()) {
+                RonecaColors.TextMuted
+            } else {
+                RonecaColors.TextSecondary
+            },
+            fontSize = 12.sp,
+        )
     }
 }
 
@@ -508,7 +607,7 @@ private fun Modifier.activateOnRemote(
 ): Modifier = onPreviewKeyEvent { event ->
     if (
         enabled &&
-        event.type == KeyEventType.KeyUp &&
+        event.type == KeyEventType.KeyDown &&
         (event.key == Key.DirectionCenter || event.key == Key.Enter)
     ) {
         onActivate()

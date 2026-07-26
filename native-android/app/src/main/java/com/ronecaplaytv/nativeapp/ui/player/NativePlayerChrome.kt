@@ -300,7 +300,7 @@ internal fun NativePlayerAction(
             )
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (!enabled || event.type != KeyEventType.KeyUp) {
+                if (!enabled || event.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
                 }
                 val activates = event.key == Key.DirectionCenter ||

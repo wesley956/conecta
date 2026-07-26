@@ -68,18 +68,24 @@ fun SearchScreen(
 
     val channelResults = remember(channels, query) {
         if (query.isBlank()) emptyList() else channels
+            .asSequence()
             .filter { it.name.contains(query, ignoreCase = true) }
             .take(20)
+            .toList()
     }
     val movieResults = remember(movies, query) {
         if (query.isBlank()) emptyList() else movies
+            .asSequence()
             .filter { it.name.contains(query, ignoreCase = true) }
             .take(20)
+            .toList()
     }
     val seriesResults = remember(series, query) {
         if (query.isBlank()) emptyList() else series
+            .asSequence()
             .filter { it.name.contains(query, ignoreCase = true) }
             .take(20)
+            .toList()
     }
 
     LazyColumn(
@@ -260,7 +266,7 @@ private fun SearchResultRow(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()

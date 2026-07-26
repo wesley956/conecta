@@ -219,7 +219,7 @@ private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter ||
                         event.key == Key.Enter ||
                         event.key == Key.NumPadEnter)
@@ -332,7 +332,7 @@ private fun DetailActionButton(label: String, isTelevision: Boolean, onClick: ()
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()
@@ -427,7 +427,7 @@ private fun SeasonChip(seasonNumber: Int, selected: Boolean, onClick: () -> Unit
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter ||
                         event.key == Key.Enter ||
                         event.key == Key.NumPadEnter ||
@@ -479,7 +479,7 @@ private fun EpisodeRow(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()
@@ -546,7 +546,7 @@ private fun RecommendationCard(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()

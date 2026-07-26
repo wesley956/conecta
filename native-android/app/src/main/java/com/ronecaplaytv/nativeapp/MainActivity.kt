@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.ui.RonecaPlayTVApp
 import com.ronecaplaytv.nativeapp.ui.player.NativePlaybackKeyRouter
@@ -48,6 +49,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val isTelevision = remember { isTelevisionDevice }
+            val launchSoundEnabled = remember {
+                PlayerSettingsPreferences(this@MainActivity).load().launchSoundEnabled
+            }
             var showLaunch by rememberSaveable { mutableStateOf(true) }
             val appUpdateViewModel: AppUpdateViewModel = viewModel()
             val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
@@ -70,7 +74,10 @@ class MainActivity : ComponentActivity() {
                     visible = showLaunch,
                     exit = fadeOut(animationSpec = tween(durationMillis = 450)),
                 ) {
-                    RonecaLaunchScreen(isTelevision = isTelevision)
+                    RonecaLaunchScreen(
+                        isTelevision = isTelevision,
+                        playSound = launchSoundEnabled,
+                    )
                 }
                 if (!showLaunch) {
                     AppUpdateOverlay(

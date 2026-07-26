@@ -57,6 +57,7 @@ data class NativeCatalogState(
     val usingBackupPlaylist: Boolean = false,
     val failoverNotice: String? = null,
     val lastFailureReason: String? = null,
+    val lastFailoverAtMillis: Long? = null,
 ) {
     val isLoading: Boolean
         get() = loadingSection != null

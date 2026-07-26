@@ -34,9 +34,13 @@ class CatalogViewModel : ViewModel() {
         if (!force && loadedKey == key && mutableState.value.loaded) return
         if (mutableState.value.isLoading) return
 
+        val previousState = mutableState.value
         viewModelScope.launch {
-            mutableState.value = NativeCatalogState(loadingSection = "canais")
-            loadFirstAvailable(candidates, key)
+            mutableState.value = previousState.copy(
+                loadingSection = "canais",
+                error = null,
+            )
+            loadFirstAvailable(candidates, key, previousState)
         }
     }
 
@@ -75,6 +79,7 @@ class CatalogViewModel : ViewModel() {
                         usingBackup = true,
                         failoverNotice = "Lista principal indisponível. Catálogo substituído pela lista reserva.",
                         lastFailureReason = reason,
+                        lastFailoverAtMillis = System.currentTimeMillis(),
                     )
                     return@launch
                 }.onFailure { lastFailure = it }
@@ -94,6 +99,7 @@ class CatalogViewModel : ViewModel() {
     private suspend fun loadFirstAvailable(
         candidates: List<DevicePlaylistConfig>,
         key: String,
+        previousState: NativeCatalogState,
     ) {
         runCatching {
             if (candidates.isEmpty()) {
@@ -107,6 +113,10 @@ class CatalogViewModel : ViewModel() {
 
                 result.onSuccess { catalog ->
                     loadedKey = key
+                    val switchedPlaylist = previousState.activePlaylistId != null &&
+                        previousState.activePlaylistId != candidate.id
+                    val initialFailover = previousState.activePlaylistId == null && candidateIndex > 0
+                    val recordedSwitch = switchedPlaylist || initialFailover
                     mutableState.value = catalog.toState(
                         candidate = candidate,
                         usingBackup = candidateIndex > 0 || candidate.role.equals("backup", true),
@@ -114,6 +124,16 @@ class CatalogViewModel : ViewModel() {
                             "Lista principal indisponível. Catálogo substituído pela lista reserva."
                         } else {
                             null
+                        },
+                        lastFailureReason = when {
+                            candidateIndex > 0 && recordedSwitch -> lastFailure?.message
+                            switchedPlaylist -> "Lista principal restabelecida após a atualização."
+                            else -> previousState.lastFailureReason
+                        },
+                        lastFailoverAtMillis = if (recordedSwitch) {
+                            System.currentTimeMillis()
+                        } else {
+                            previousState.lastFailoverAtMillis
                         },
                     )
                     return
@@ -187,6 +207,7 @@ class CatalogViewModel : ViewModel() {
             usingBackup: Boolean,
             failoverNotice: String?,
             lastFailureReason: String? = null,
+            lastFailoverAtMillis: Long? = null,
         ) = NativeCatalogState(
             channels = channels,
             movies = movies,
@@ -197,6 +218,7 @@ class CatalogViewModel : ViewModel() {
             usingBackupPlaylist = usingBackup,
             failoverNotice = failoverNotice,
             lastFailureReason = lastFailureReason,
+            lastFailoverAtMillis = lastFailoverAtMillis,
         )
     }
 }

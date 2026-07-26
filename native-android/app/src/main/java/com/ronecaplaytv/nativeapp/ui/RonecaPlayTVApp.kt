@@ -44,6 +44,7 @@ import com.ronecaplaytv.nativeapp.ui.player.SeriesNativePlayerScreen
 import com.ronecaplaytv.nativeapp.ui.search.SearchScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesDetailScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
+import com.ronecaplaytv.nativeapp.ui.settings.PlaylistDiagnosticsState
 import com.ronecaplaytv.nativeapp.ui.settings.SettingsScreen
 import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
@@ -440,6 +441,23 @@ fun RonecaPlayTVApp(
         }.toSet()
     }
 
+    val featuredMovies = remember(catalogState.movies) {
+        catalogState.movies
+            .asSequence()
+            .filter { !it.coverUrl.isNullOrBlank() }
+            .take(18)
+            .toList()
+            .ifEmpty { catalogState.movies.take(18) }
+    }
+    val featuredSeries = remember(catalogState.series) {
+        catalogState.series
+            .asSequence()
+            .filter { !it.coverUrl.isNullOrBlank() }
+            .take(18)
+            .toList()
+            .ifEmpty { catalogState.series.take(18) }
+    }
+
     val baseDestination = if (destination == NativeDestination.Player) {
         playerReturnDestination
     } else {
@@ -488,14 +506,8 @@ fun RonecaPlayTVApp(
                         channelCount = catalogState.channels.size,
                         movieCount = catalogState.movies.size,
                         seriesCount = catalogState.series.size,
-                        featuredMovies = catalogState.movies
-                            .filter { !it.coverUrl.isNullOrBlank() }
-                            .take(18)
-                            .ifEmpty { catalogState.movies.take(18) },
-                        featuredSeries = catalogState.series
-                            .filter { !it.coverUrl.isNullOrBlank() }
-                            .take(18)
-                            .ifEmpty { catalogState.series.take(18) },
+                        featuredMovies = featuredMovies,
+                        featuredSeries = featuredSeries,
                         onOpenChannels = { destination = NativeDestination.Channels },
                         onOpenMovies = { destination = NativeDestination.Movies },
                         onOpenSeries = { destination = NativeDestination.Series },
@@ -539,11 +551,13 @@ fun RonecaPlayTVApp(
                         if (movie == null) {
                             destination = detailReturnDestination
                         } else {
-                            val recommendations = recommendedMovies(
-                                current = movie,
-                                catalog = catalogState.movies,
-                                limit = 14,
-                            )
+                            val recommendations = remember(movie.id, catalogState.movies) {
+                                recommendedMovies(
+                                    current = movie,
+                                    catalog = catalogState.movies,
+                                    limit = 14,
+                                )
+                            }
 
                             MovieDetailScreen(
                                 movie = movie,
@@ -586,11 +600,13 @@ fun RonecaPlayTVApp(
                             } else {
                                 baseSeries
                             }
-                            val recommendations = recommendedSeries(
-                                current = baseSeries,
-                                catalog = catalogState.series,
-                                limit = 14,
-                            )
+                            val recommendations = remember(baseSeries.id, catalogState.series) {
+                                recommendedSeries(
+                                    current = baseSeries,
+                                    catalog = catalogState.series,
+                                    limit = 14,
+                                )
+                            }
 
                             SeriesDetailScreen(
                                 series = resolvedSeries,
@@ -665,6 +681,15 @@ fun RonecaPlayTVApp(
                         isTelevision = isWideLayout,
                         state = settingsState,
                         appUpdateState = appUpdateState,
+                        playlistDiagnostics = PlaylistDiagnosticsState(
+                            activePlaylistName = catalogState.activePlaylistName,
+                            usingBackupPlaylist = catalogState.usingBackupPlaylist,
+                            lastFailoverAtMillis = catalogState.lastFailoverAtMillis,
+                            lastFailureReason = catalogState.lastFailureReason,
+                            channels = catalogState.channels.size,
+                            movies = catalogState.movies.size,
+                            series = catalogState.series.size,
+                        ),
                         onStateChange = { updated ->
                             settingsState = updated
                             playerSettingsPreferences.save(updated)
@@ -756,11 +781,13 @@ fun RonecaPlayTVApp(
                         },
                     )
                 } else {
-                    val relatedChannels = selectedChannelGroup
-                        ?.let { group ->
-                            catalogState.channels.filter { it.groupTitle.equals(group, ignoreCase = true) }
-                        }
-                        .orEmpty()
+                    val relatedChannels = remember(selectedChannelGroup, catalogState.channels) {
+                        selectedChannelGroup
+                            ?.let { group ->
+                                catalogState.channels.filter { it.groupTitle.equals(group, ignoreCase = true) }
+                            }
+                            .orEmpty()
+                    }
                     val currentChannelId = selectedContentKey
                         .takeIf { it.startsWith("channel:") }
                         ?.removePrefix("channel:")
