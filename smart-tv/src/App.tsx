@@ -237,9 +237,13 @@ export function App() {
   }, [allCards, catalog.data, category, library.favorites, library.history, libraryCards, query, selected]);
 
   const beginPlayback = useCallback((item: PlaybackItem) => {
-    library.remember(item);
-    setPlayback(item);
-  }, [library]);
+    const kind = item.kind || (item.live ? "channel" : "movie");
+    const saved = library.history.find(value => value.id === item.id && value.kind === kind);
+    const canResume = !item.live
+      && Boolean(saved?.currentTime && saved.currentTime >= 30)
+      && Boolean(saved?.duration && saved.duration - (saved.currentTime || 0) > 60);
+    setPlayback(canResume ? { ...item, startTime: saved?.currentTime } : item);
+  }, [library.history]);
 
   const openCard = useCallback((item: MediaCard) => {
     if (item.playback) beginPlayback(item.playback);
