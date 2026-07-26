@@ -27,6 +27,7 @@ export interface PlaybackItem {
   meta?: string;
   seriesQueue?: PlaybackQueueItem[];
   seriesQueueIndex?: number;
+  startTime?: number;
 }
 
 export interface PlaybackSnapshot {
