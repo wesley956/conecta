@@ -259,6 +259,16 @@ fun RonecaPlayTVApp(
         )
     }
 
+    fun activateBackupPlaylist(reason: String) {
+        activationViewModel.reportPlaylistFailure(
+            playlistId = catalogState.activePlaylistId,
+            error = reason,
+        )
+        catalogViewModel.failoverActivePlaylist(reason)
+        destination = playerReturnDestination
+        activeSeriesPlayback = null
+    }
+
     fun openPlayer(
         title: String,
         playbackUrls: List<String>,
@@ -468,7 +478,7 @@ fun RonecaPlayTVApp(
                         deviceCode = sessionState.deviceCode,
                         expiresAt = sessionState.expiresAt,
                         loadingSection = catalogState.loadingSection,
-                        catalogError = catalogState.error,
+                        catalogError = catalogState.error ?: catalogState.failoverNotice,
                         channelCount = catalogState.channels.size,
                         movieCount = catalogState.movies.size,
                         seriesCount = catalogState.series.size,
@@ -734,6 +744,7 @@ fun RonecaPlayTVApp(
                             playbackPreferences.saveProgress(contentKey, positionMs, durationMs)
                             savedProgress = playbackPreferences.startedProgress()
                         },
+                        onTerminalPlaybackFailure = ::activateBackupPlaylist,
                         onBack = {
                             destination = playerReturnDestination
                             activeSeriesPlayback = null
@@ -766,6 +777,7 @@ fun RonecaPlayTVApp(
                             }
                         },
                         onSelectChannel = ::selectChannelInsidePlayer,
+                        onTerminalPlaybackFailure = ::activateBackupPlaylist,
                         onBack = { destination = playerReturnDestination },
                     )
                 }
