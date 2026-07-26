@@ -131,7 +131,7 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
         return;
       }
 
-      if (current.currentTime > lastPosition.current + 0.25 || (current.status === "playing" && !current.buffering)) {
+      if (current.currentTime > lastPosition.current + 0.25) {
         stalledSince.current = null;
         lastPosition.current = current.currentTime;
         terminalFailureReported.current = false;
