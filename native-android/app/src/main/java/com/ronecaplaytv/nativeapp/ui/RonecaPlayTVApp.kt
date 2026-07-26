@@ -44,6 +44,7 @@ import com.ronecaplaytv.nativeapp.ui.player.SeriesNativePlayerScreen
 import com.ronecaplaytv.nativeapp.ui.search.SearchScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesDetailScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
+import com.ronecaplaytv.nativeapp.ui.settings.PlaylistDiagnosticsState
 import com.ronecaplaytv.nativeapp.ui.settings.SettingsScreen
 import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
@@ -665,6 +666,15 @@ fun RonecaPlayTVApp(
                         isTelevision = isWideLayout,
                         state = settingsState,
                         appUpdateState = appUpdateState,
+                        playlistDiagnostics = PlaylistDiagnosticsState(
+                            activePlaylistName = catalogState.activePlaylistName,
+                            usingBackupPlaylist = catalogState.usingBackupPlaylist,
+                            lastFailoverAtMillis = catalogState.lastFailoverAtMillis,
+                            lastFailureReason = catalogState.lastFailureReason,
+                            channels = catalogState.channels.size,
+                            movies = catalogState.movies.size,
+                            series = catalogState.series.size,
+                        ),
                         onStateChange = { updated ->
                             settingsState = updated
                             playerSettingsPreferences.save(updated)
