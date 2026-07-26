@@ -44,7 +44,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun RonecaLaunchScreen(isTelevision: Boolean) {
+fun RonecaLaunchScreen(
+    isTelevision: Boolean,
+    playSound: Boolean,
+) {
     val emblemAlpha = remember { Animatable(0f) }
     val emblemScale = remember { Animatable(0.76f) }
     val wordmarkAlpha = remember { Animatable(0f) }
@@ -119,7 +122,7 @@ fun RonecaLaunchScreen(isTelevision: Boolean) {
             }
             launch {
                 delay(650)
-                launchSound.play()
+                if (playSound) launchSound.play()
             }
         }
     }
