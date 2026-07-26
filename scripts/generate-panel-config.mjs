@@ -51,6 +51,19 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
   `})();\n` +
+  `(function loadCreditPackagesModule(){\n` +
+  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
+  `  if (!document.querySelector('link[href*="credit-packages-module.css"]')) {\n` +
+  `    var style = document.createElement('link');\n` +
+  `    style.rel = 'stylesheet';\n` +
+  `    style.href = './credit-packages-module.css?v=1.0';\n` +
+  `    document.head.appendChild(style);\n` +
+  `  }\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './credit-packages-module.js?v=1.0';\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
+  `})();\n` +
   `(function loadSubscriptionModule(){\n` +
   `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
   `  function loadOnce(){\n` +
