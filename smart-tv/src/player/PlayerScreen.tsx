@@ -161,10 +161,13 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   }, [networkOffline, onTerminalPlaybackFailure, snapshot.error, snapshot.status]);
 
   useEffect(() => {
-    setSnapshot({ ...initial, sourceCount: Math.max(1, item.urls.length) });
+    const resumeFrom = !item.live
+      ? (reloadAttempt > 0 ? snapshotRef.current.currentTime : item.startTime) || 0
+      : 0;
+    setSnapshot({ ...initial, currentTime: resumeFrom, sourceCount: Math.max(1, item.urls.length) });
     terminalFailureReported.current = false;
     stalledSince.current = null;
-    lastPosition.current = item.startTime || 0;
+    lastPosition.current = resumeFrom;
     document.body.classList.add("playback-active");
     if (platform === "tizen") {
       try {
@@ -177,9 +180,9 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
     try {
       player.mount();
       void player.load(item.urls, item.live).then(async () => {
-        if (!item.live && item.startTime && item.startTime >= 30) {
-          player.seek(item.startTime);
-          setSnapshot(current => ({ ...current, currentTime: item.startTime || 0 }));
+        if (!item.live && resumeFrom >= 30) {
+          player.seek(resumeFrom);
+          setSnapshot(current => ({ ...current, currentTime: resumeFrom }));
         }
         await player.play();
         setSnapshot(current => ({ ...current, status: "playing", buffering: false }));
