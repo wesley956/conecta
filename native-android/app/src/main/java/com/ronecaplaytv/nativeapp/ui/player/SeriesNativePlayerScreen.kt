@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.ui.player
 
+import android.os.SystemClock
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -62,6 +63,8 @@ import kotlinx.coroutines.launch
 private const val SERIES_IPTV_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
 private const val SERIES_SOURCE_RETRY_LIMIT = 1
 private const val SERIES_SEEK_STEP_MS = 10_000L
+private const val SERIES_STARTUP_TIMEOUT_MS = 20_000L
+private const val SERIES_STALL_TIMEOUT_MS = 25_000L
 
 private data class EpisodeEntry(
     val season: NativeSeason,
@@ -82,6 +85,7 @@ fun SeriesNativePlayerScreen(
     positionForEpisode: (NativeEpisode) -> Long = { 0L },
     onEpisodeChanged: (NativeSeason, NativeEpisode) -> Unit = { _, _ -> },
     onProgress: (NativeSeason, NativeEpisode, positionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
+    onTerminalPlaybackFailure: (String) -> Unit = {},
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -108,6 +112,8 @@ fun SeriesNativePlayerScreen(
     var transitionLocked by remember(entries) { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var media3Controller by remember { mutableStateOf<RonecaMedia3Controller?>(null) }
+    var recoveryInProgress by remember(entries) { mutableStateOf(false) }
+    var terminalFailureReported by remember(entries) { mutableStateOf(false) }
     var playerMessage by remember(entries) {
         mutableStateOf(if (entries.isEmpty()) "Esta série não possui episódios disponíveis." else null)
     }
@@ -161,6 +167,44 @@ fun SeriesNativePlayerScreen(
             }
     }
 
+    fun recoverOrFail(diagnostic: String) {
+        if (!automaticReconnect) {
+            playerMessage = "Episódio interrompido. Reconexão automática desativada."
+            return
+        }
+        if (recoveryInProgress || terminalFailureReported) return
+
+        recoveryInProgress = true
+        if (sameSourceRetries < SERIES_SOURCE_RETRY_LIMIT) {
+            sameSourceRetries += 1
+            playerMessage = "Reconectando ao episódio..."
+            coroutineScope.launch {
+                delay(1_200)
+                currentSources.getOrNull(sourceIndex)?.let { source ->
+                    player.setMediaItem(mediaItemForSeries(source))
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+                recoveryInProgress = false
+            }
+            return
+        }
+
+        val nextSourceIndex = sourceIndex + 1
+        if (nextSourceIndex < currentSources.size) {
+            sourceIndex = nextSourceIndex
+            sameSourceRetries = 0
+            playerMessage = "Tentando fonte ${nextSourceIndex + 1}/${currentSources.size}..."
+            recoveryInProgress = false
+            return
+        }
+
+        recoveryInProgress = false
+        terminalFailureReported = true
+        playerMessage = "Lista ativa indisponível. Ativando a lista reserva..."
+        onTerminalPlaybackFailure(diagnostic)
+    }
+
     fun showPlayPauseControls() {
         controlsVisible = true
         media3Controller?.showAndFocusPlayPause()
@@ -204,6 +248,8 @@ fun SeriesNativePlayerScreen(
         sameSourceRetries = 0
         pendingSeekMs = resumePositionMs.coerceAtLeast(0L)
         transitionLocked = false
+        recoveryInProgress = false
+        terminalFailureReported = false
         playerMessage = "Carregando T${entry.season.number} E${entry.episode.number}..."
         if (notify) onEpisodeChanged(entry.season, entry.episode)
     }
@@ -234,6 +280,42 @@ fun SeriesNativePlayerScreen(
         player.playWhenReady = true
     }
 
+    LaunchedEffect(player, currentIndex, sourceIndex, automaticReconnect) {
+        var stalledSinceMs: Long? = null
+        var lastPositionMs = -1L
+
+        while (true) {
+            delay(1_000)
+            if (!player.playWhenReady || player.playbackState == Player.STATE_ENDED) {
+                stalledSinceMs = null
+                lastPositionMs = player.currentPosition
+                continue
+            }
+
+            val positionMs = player.currentPosition
+            val advancing = positionMs > lastPositionMs + 250L
+            if (advancing || player.isPlaying) {
+                stalledSinceMs = null
+                lastPositionMs = positionMs
+                continue
+            }
+
+            val now = SystemClock.elapsedRealtime()
+            val startedAt = stalledSinceMs ?: now.also { stalledSinceMs = it }
+            val timeoutMs = if (positionMs <= 1_000L) {
+                SERIES_STARTUP_TIMEOUT_MS
+            } else {
+                SERIES_STALL_TIMEOUT_MS
+            }
+
+            if (now - startedAt >= timeoutMs) {
+                stalledSinceMs = now
+                recoverOrFail("tempo limite de carregamento do episódio")
+            }
+            lastPositionMs = positionMs
+        }
+    }
+
     LaunchedEffect(player, currentIndex) {
         while (true) {
             delay(2_000)
@@ -255,6 +337,8 @@ fun SeriesNativePlayerScreen(
                     }
                     Player.STATE_READY -> {
                         sameSourceRetries = 0
+                        recoveryInProgress = false
+                        terminalFailureReported = false
                         playerMessage = null
                     }
                     Player.STATE_ENDED -> {
@@ -275,33 +359,7 @@ fun SeriesNativePlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                val diagnostic = error.errorCodeName
-                if (!automaticReconnect) {
-                    playerMessage = "Episódio interrompido. Reconexão automática desativada."
-                    return
-                }
-
-                if (sameSourceRetries < SERIES_SOURCE_RETRY_LIMIT) {
-                    sameSourceRetries += 1
-                    playerMessage = "Reconectando ao episódio..."
-                    coroutineScope.launch {
-                        delay(1_200)
-                        val source = currentSources.getOrNull(sourceIndex) ?: return@launch
-                        player.setMediaItem(mediaItemForSeries(source))
-                        player.prepare()
-                        player.playWhenReady = true
-                    }
-                    return
-                }
-
-                val nextSourceIndex = sourceIndex + 1
-                if (nextSourceIndex < currentSources.size) {
-                    sourceIndex = nextSourceIndex
-                    sameSourceRetries = 0
-                    playerMessage = "Tentando fonte ${nextSourceIndex + 1}/${currentSources.size}..."
-                } else {
-                    playerMessage = "Não foi possível reproduzir este episódio. Erro: $diagnostic"
-                }
+                recoverOrFail(error.errorCodeName)
             }
         }
 
