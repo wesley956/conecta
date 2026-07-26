@@ -54,11 +54,25 @@ function uuidOrNull(value: unknown) {
   return result;
 }
 
+function normalizeWhatsapp(value: unknown) {
+  const result = String(value ?? '').replace(/\D/g, '');
+  if (result.length < 10 || result.length > 15) return '';
+  return result;
+}
+
 function dateOnly(value: unknown, label: string) {
   const result = cleanText(value, 10);
   if (!result) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(result)) throw new Error(`${label} inválida.`);
   return result;
+}
+
+function timestamp(value: unknown, label: string) {
+  const result = cleanText(value, 80);
+  if (!result) return null;
+  const parsed = new Date(result);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`${label} inválida.`);
+  return parsed.toISOString();
 }
 
 function recordType(value: unknown) {
@@ -282,6 +296,195 @@ async function deleteRecord(supabase: any, principal: Principal, body: JsonBody)
   return { ok: true };
 }
 
+async function upsertSellerCustomer(supabase: any, sellerId: string, name: string, whatsapp: string) {
+  const { data: existing, error: findError } = await supabase
+    .from('panel_customers')
+    .select('id, name')
+    .eq('seller_id', sellerId)
+    .eq('whatsapp', whatsapp)
+    .maybeSingle();
+  if (findError) throw new Error(`Falha ao localizar cliente: ${findError.message}`);
+
+  if (existing) {
+    if (existing.name !== name) {
+      const { error } = await supabase
+        .from('panel_customers')
+        .update({ name, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+        .eq('seller_id', sellerId);
+      if (error) throw new Error(`Falha ao atualizar cliente: ${error.message}`);
+    }
+    return existing.id;
+  }
+
+  const { data, error } = await supabase
+    .from('panel_customers')
+    .insert({ name, whatsapp, seller_id: sellerId, status: 'active', updated_at: new Date().toISOString() })
+    .select('id')
+    .single();
+  if (error || !data) throw new Error(`Falha ao criar cliente: ${error?.message || 'erro desconhecido'}`);
+  return data.id;
+}
+
+async function getDeviceForOperation(supabase: any, principal: Principal, body: JsonBody) {
+  let query = supabase
+    .from('panel_devices')
+    .select('id, device_code, seller_id, customer_id, client_name, status, subscription_expires_at, plan_id, playlist_id');
+
+  if (body.deviceId) {
+    const id = uuidOrNull(body.deviceId);
+    if (!id) throw new Error('Aparelho inválido.');
+    query = query.eq('id', id);
+  } else {
+    const deviceCode = requiredText(body.deviceCode, 'Código do aparelho', 40).toUpperCase();
+    query = query.eq('device_code', deviceCode);
+  }
+
+  const { data: device, error } = await query.maybeSingle();
+  if (error) throw new Error(`Falha ao buscar aparelho: ${error.message}`);
+  if (!device) throw new Error('Aparelho não encontrado.');
+  if (device.seller_id && device.seller_id !== principal.sellerId) {
+    throw new PanelAuthError('Este aparelho pertence a outro vendedor.', 403);
+  }
+  return device;
+}
+
+async function defaultPlanPrice(supabase: any, sellerId: string, planId: string) {
+  const { data, error } = await supabase
+    .from('panel_seller_plan_prices')
+    .select('default_sale_price_cents, active')
+    .eq('seller_id', sellerId)
+    .eq('plan_id', planId)
+    .maybeSingle();
+  if (error) throw new Error(`Falha ao carregar preço do plano: ${error.message}`);
+  if (!data || data.active === false) return null;
+  const amount = Number(data.default_sale_price_cents || 0);
+  return Number.isSafeInteger(amount) && amount > 0 ? amount : null;
+}
+
+async function activateOrRenew(supabase: any, principal: Principal, body: JsonBody) {
+  const operationType = String(body.operationType || 'activation').trim().toLowerCase();
+  if (!['activation', 'renewal'].includes(operationType)) throw new Error('Operação comercial inválida.');
+
+  const device = await getDeviceForOperation(supabase, principal, body);
+  const sellerId = principal.sellerId;
+  let customerId = uuidOrNull(body.customerId) || device.customer_id || null;
+  let customerName = cleanText(body.customerName, 180) || device.client_name || null;
+
+  if (operationType === 'activation') {
+    customerName = requiredText(body.customerName, 'Nome do cliente', 180);
+    const whatsapp = normalizeWhatsapp(body.customerWhatsapp);
+    if (!whatsapp) throw new Error('WhatsApp do cliente é obrigatório.');
+    customerId = await upsertSellerCustomer(supabase, sellerId, customerName, whatsapp);
+  } else if (customerId) {
+    await validateOwnership(supabase, principal, customerId, null);
+  }
+
+  const planId = uuidOrNull(body.planId) || device.plan_id;
+  const playlistId = uuidOrNull(body.playlistId) || device.playlist_id;
+  const backupPlaylistId = uuidOrNull(body.backupPlaylistId);
+  if (!planId) throw new Error('Escolha um plano.');
+  if (!playlistId) throw new Error('Escolha uma lista principal.');
+  if (backupPlaylistId && backupPlaylistId === playlistId) throw new Error('As listas principal e reserva precisam ser diferentes.');
+
+  const { data: plan, error: planError } = await supabase
+    .from('panel_plans')
+    .select('id, name, status, credit_cost')
+    .eq('id', planId)
+    .maybeSingle();
+  if (planError || !plan || plan.status !== 'active') throw new Error('Plano inexistente ou inativo.');
+
+  const { data: playlist, error: playlistError } = await supabase
+    .from('panel_playlists')
+    .select('id, name, active, playlist_cache_status')
+    .eq('id', playlistId)
+    .maybeSingle();
+  if (playlistError || !playlist || playlist.active !== true) throw new Error('Lista inexistente ou inativa.');
+  if (playlist.playlist_cache_status !== 'ready') throw new Error('O cache da lista principal ainda não está pronto.');
+
+  const expiresAt = timestamp(body.expiresAt, 'Validade');
+  if (!expiresAt || new Date(expiresAt) <= new Date()) throw new Error('A validade precisa estar no futuro.');
+  const idempotencyKey = requiredText(body.idempotencyKey, 'Chave de idempotência', 200);
+
+  const explicitAmount = body.amountCents === null || body.amountCents === undefined || body.amountCents === ''
+    ? null
+    : positiveCents(body.amountCents);
+  const amountCents = explicitAmount || await defaultPlanPrice(supabase, sellerId, planId);
+  const dueDate = dateOnly(body.dueDate, 'Vencimento financeiro');
+  const financeStatus = amountCents ? statusOf(body.financeStatus || 'pending', dueDate) : null;
+  const method = amountCents ? paymentMethod(body.paymentMethod) : null;
+  const paidAt = financeStatus === 'paid'
+    ? timestamp(body.paidAt, 'Data do pagamento') || new Date().toISOString()
+    : null;
+
+  const { data, error } = await supabase.rpc('apply_device_subscription_with_finance', {
+    p_seller_id: sellerId,
+    p_device_id: device.id,
+    p_plan_id: planId,
+    p_playlist_id: playlistId,
+    p_backup_playlist_id: backupPlaylistId,
+    p_expires_at: expiresAt,
+    p_operation_type: operationType,
+    p_performed_by: 'seller',
+    p_idempotency_key: idempotencyKey,
+    p_customer_id: customerId,
+    p_client_name: customerName,
+    p_enforce_seller_ownership: true,
+    p_finance_amount_cents: amountCents,
+    p_finance_status: financeStatus,
+    p_payment_method: method,
+    p_due_date: dueDate,
+    p_paid_at: paidAt,
+    p_finance_notes: cleanText(body.financeNotes, 2000),
+    p_finance_description: cleanText(body.financeDescription, 300),
+    p_created_by_user_id: principal.userId,
+    p_created_by_role: 'seller',
+  });
+
+  if (error) throw new Error(`Falha na operação comercial: ${error.message}`);
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) throw new Error('A operação comercial não retornou resultado.');
+
+  await supabase.from('panel_audit_logs').insert({
+    action: operationType === 'activation' ? 'device.activated_with_finance' : 'device.renewed_with_finance',
+    entity_type: 'device',
+    entity_id: device.id,
+    description: `${operationType === 'activation' ? 'Ativação' : 'Renovação'} processada pelo vendedor`,
+    metadata: {
+      sellerId,
+      customerId,
+      planId,
+      playlistId,
+      backupPlaylistId,
+      financeRecordId: result.finance_record_id || null,
+      amountCents,
+      financeStatus,
+      performedByUserId: principal.userId,
+      performedByRole: 'seller',
+    },
+  });
+
+  return {
+    ok: true,
+    applied: result.applied !== false,
+    deviceId: device.id,
+    deviceCode: device.device_code,
+    sellerId,
+    customerId,
+    planId,
+    planName: plan.name,
+    playlistId,
+    playlistName: playlist.name,
+    backupPlaylistId,
+    expiresAt: result.subscription_expires_at || expiresAt,
+    ledgerId: result.ledger_id || null,
+    financeRecordId: result.finance_record_id || null,
+    balanceBefore: Number(result.balance_before || 0),
+    balanceAfter: Number(result.balance_after || 0),
+    saleAmountCents: amountCents,
+  };
+}
+
 serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -298,6 +501,8 @@ serve(async request => {
     if (action === 'createRecord') return json(await createRecord(supabase, principal, body));
     if (action === 'updateRecord') return json(await updateRecord(supabase, principal, body));
     if (action === 'deleteRecord') return json(await deleteRecord(supabase, principal, body));
+    if (action === 'activateDeviceWithFinance') return json(await activateOrRenew(supabase, principal, { ...body, operationType: 'activation' }));
+    if (action === 'renewDeviceWithFinance') return json(await activateOrRenew(supabase, principal, { ...body, operationType: 'renewal' }));
     return json({ error: 'Ação não reconhecida.' }, 400);
   } catch (error) {
     if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, corsHeaders);

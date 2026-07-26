@@ -145,8 +145,11 @@ if (!deviceConfig.includes('resolveActiveLabSession')) {
 if (!deviceConfig.includes('allowDirectPlaylistFallback() && !labContext')) {
   throw new Error('Laboratório precisa bloquear exposição direta da lista.');
 }
-if (!configGenerator.includes('subscription-module.js')) {
-  throw new Error('Deploy dos painéis não carrega o módulo de assinatura.');
+if (configGenerator.includes('subscription-module.js')) {
+  throw new Error('O módulo de assinatura incompleto deve permanecer preservado no repositório, mas desativado no painel publicado.');
+}
+if (!configGenerator.includes('commercial-consolidation.js')) {
+  throw new Error('O painel publicado precisa carregar a consolidação comercial que remove a aba incompleta.');
 }
 if (!configGenerator.includes('playlist-edit-module.js')) {
   throw new Error('Deploy dos painéis não carrega a edição de listas.');
@@ -155,4 +158,4 @@ if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supab
   throw new Error('Função de edição de listas precisa exigir JWT.');
 }
 
-console.log('✅ Assinaturas, laboratório e edição segura em aparelhos atuais e futuros validados.');
+console.log('✅ Assinaturas preservadas para uso futuro, desativadas no painel publicado, com edição segura de listas validada.');

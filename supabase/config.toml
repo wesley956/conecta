@@ -91,6 +91,9 @@ verify_jwt = true
 [functions.seller-panel]
 verify_jwt = true
 
+[functions.seller-commercial-panel]
+verify_jwt = true
+
 [functions.finance-panel]
 verify_jwt = true
 
