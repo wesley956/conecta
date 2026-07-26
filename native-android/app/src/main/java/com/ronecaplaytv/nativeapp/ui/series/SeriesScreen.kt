@@ -96,6 +96,10 @@ fun SeriesScreen(
         }
     }
 
+    val filteredSeriesIds = remember(filtered) {
+        filtered.map(NativeSeries::id)
+    }
+
     val filterSignature = remember(query, selectedCategory, favoriteIds, startedSeriesIds) {
         buildString {
             append(query.trim().lowercase())
@@ -106,14 +110,13 @@ fun SeriesScreen(
         }
     }
 
-    LaunchedEffect(filterSignature, filtered.map(NativeSeries::id), isTelevision) {
-        val ids = filtered.map(NativeSeries::id)
-        val firstId = ids.firstOrNull()
+    LaunchedEffect(filterSignature, filteredSeriesIds, isTelevision) {
+        val firstId = filteredSeriesIds.firstOrNull()
         if (appliedFilterSignature != filterSignature) {
             appliedFilterSignature = filterSignature
             lastFocusedSeriesId = firstId
             if (filtered.isNotEmpty()) gridState.scrollToItem(0)
-        } else if (lastFocusedSeriesId !in ids) {
+        } else if (lastFocusedSeriesId !in filteredSeriesIds) {
             lastFocusedSeriesId = firstId
         }
 
@@ -343,14 +346,12 @@ private fun SeriesPosterCard(
                 if (it.isFocused) onFocused()
             }
             .onPreviewKeyEvent { event ->
-                if (
-                    event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter ||
-                        event.key == Key.Enter ||
-                        event.key == Key.NumPadEnter ||
-                        event.key == Key.Spacebar)
-                ) {
-                    onClick()
+                val activationKey = event.key == Key.DirectionCenter ||
+                    event.key == Key.Enter ||
+                    event.key == Key.NumPadEnter ||
+                    event.key == Key.Spacebar
+                if (activationKey) {
+                    if (event.type == KeyEventType.KeyDown) onClick()
                     true
                 } else {
                     false
