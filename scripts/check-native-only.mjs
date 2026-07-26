@@ -132,6 +132,10 @@ if (!performanceSources.catalogModels.includes('lastFailoverAtMillis') ||
     !performanceSources.catalogViewModel.includes('System.currentTimeMillis()')) {
   throw new Error('O diagnóstico deve registrar o horário real da troca de lista.');
 }
+if (!performanceSources.catalogViewModel.includes('previousState.copy(') ||
+    performanceSources.catalogViewModel.includes('NativeCatalogState(loadingSection = "canais")')) {
+  throw new Error('A atualização não pode apagar o catálogo ativo antes de concluir o novo.');
+}
 if (!performanceSources.launchSound.includes('withContext(Dispatchers.Default)')) {
   throw new Error('A assinatura sonora não pode ser sintetizada na thread da interface.');
 }
