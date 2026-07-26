@@ -22,7 +22,7 @@ function time(value: number) {
     .map(part => String(part).padStart(2, "0")).join(":");
 }
 
-export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel, onChangePlayback, onClose, onProgress }: {
+export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel, onChangePlayback, onClose, onProgress, onTerminalPlaybackFailure }: {
   item: PlaybackItem;
   playlistId?: string | null;
   channels?: Channel[];
@@ -30,11 +30,10 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   onChangePlayback?: (item: PlaybackItem) => void;
   onClose: () => void;
   onProgress?: (currentTime: number, duration: number) => void;
+  onTerminalPlaybackFailure?: (reason: string) => void;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [controls, setControls] = useState(true);
-  const [sourceOffset, setSourceOffset] = useState(0);
-  const [automaticRecoveries, setAutomaticRecoveries] = useState(0);
   const [trackPanel, setTrackPanel] = useState(false);
   const [channelPanel, setChannelPanel] = useState(false);
   const [episodePanel, setEpisodePanel] = useState(false);
@@ -42,6 +41,10 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
   const lastSavedSecond = useRef(-1);
+  const snapshotRef = useRef(initial);
+  const lastPosition = useRef(0);
+  const stalledSince = useRef<number | null>(null);
+  const terminalFailureReported = useRef(false);
   const seriesQueue = item.seriesQueue || [];
   const seriesQueueIndex = item.seriesQueueIndex ?? seriesQueue.findIndex(entry => entry.id === item.id);
   const changeEpisode = useCallback((index: number) => {
@@ -84,8 +87,8 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   }, [item.live, onProgress, snapshot.currentTime, snapshot.duration]);
 
   useEffect(() => {
-    if (snapshot.status === "playing" && automaticRecoveries > 0) setAutomaticRecoveries(0);
-  }, [automaticRecoveries, snapshot.status]);
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
 
   useEffect(() => {
     if (snapshot.status !== "ended" || seriesQueueIndex < 0 || seriesQueueIndex + 1 >= seriesQueue.length) return;
@@ -94,14 +97,42 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
   }, [changeEpisode, seriesQueue.length, seriesQueueIndex, snapshot.status]);
 
   useEffect(() => {
-    if (snapshot.status !== "error" || item.urls.length < 2 || automaticRecoveries >= item.urls.length - 1) return;
-    const timer = window.setTimeout(() => {
-      setSnapshot({ ...initial, sourceCount: item.urls.length });
-      setSourceOffset(value => (value + 1) % item.urls.length);
-      setAutomaticRecoveries(value => value + 1);
-    }, 1_500);
-    return () => window.clearTimeout(timer);
-  }, [automaticRecoveries, item.urls.length, snapshot.status]);
+    const timer = window.setInterval(() => {
+      const current = snapshotRef.current;
+      if (["paused", "ended", "error", "idle"].includes(current.status)) {
+        stalledSince.current = null;
+        lastPosition.current = current.currentTime;
+        return;
+      }
+
+      if (current.currentTime > lastPosition.current + 0.25 || (current.status === "playing" && !current.buffering)) {
+        stalledSince.current = null;
+        lastPosition.current = current.currentTime;
+        terminalFailureReported.current = false;
+        return;
+      }
+
+      const now = Date.now();
+      if (stalledSince.current == null) stalledSince.current = now;
+      const timeout = current.currentTime <= 1 ? 20_000 : item.live ? 12_000 : 25_000;
+      if (now - stalledSince.current < timeout) return;
+
+      stalledSince.current = now;
+      setSnapshot(value => ({
+        ...value,
+        status: "error",
+        buffering: false,
+        error: "A reprodução ultrapassou o tempo limite de carregamento."
+      }));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [item.id, item.live]);
+
+  useEffect(() => {
+    if (snapshot.status !== "error" || terminalFailureReported.current) return;
+    terminalFailureReported.current = true;
+    onTerminalPlaybackFailure?.(snapshot.error || "A lista ativa não conseguiu reproduzir o conteúdo.");
+  }, [onTerminalPlaybackFailure, snapshot.error, snapshot.status]);
 
   useEffect(() => {
     document.body.classList.add("playback-active");
@@ -115,8 +146,7 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
     adapter.current = player;
     try {
       player.mount();
-      const orderedUrls = [...item.urls.slice(sourceOffset), ...item.urls.slice(0, sourceOffset)];
-      void player.load(orderedUrls, item.live).then(async () => {
+      void player.load(item.urls, item.live).then(async () => {
         await player.play();
         setSnapshot(current => ({ ...current, status: "playing", buffering: false }));
       }).catch(error => setSnapshot(current => ({
@@ -133,7 +163,7 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
       player.destroy();
       adapter.current = null;
     };
-  }, [item, showControls, sourceOffset]);
+  }, [item, showControls]);
 
   const toggle = useCallback(() => {
     if (snapshot.status === "playing") {
@@ -190,15 +220,9 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
     <main className="player-screen">
       {snapshot.buffering && <div className="player-loading"><span className="spinner" /><p>Carregando...</p></div>}
       {snapshot.status === "error" && <section className="player-error">
-        <h2>{automaticRecoveries < item.urls.length - 1 ? "Tentando uma origem alternativa" : "Não foi possível reproduzir"}</h2>
+        <h2>Ativando a lista reserva</h2>
         <p>{snapshot.error}</p>
-        {automaticRecoveries < item.urls.length - 1
-          ? <span className="source-retry"><i className="spinner" /> Recuperando automaticamente...</span>
-          : <div className="player-error-actions"><button autoFocus onClick={() => {
-              setAutomaticRecoveries(0);
-              setSnapshot({ ...initial, sourceCount: item.urls.length });
-              setSourceOffset(value => (value + 1) % item.urls.length);
-            }}>Tentar novamente</button><button onClick={onClose}>Voltar ao catálogo</button></div>}
+        <span className="source-retry"><i className="spinner" /> Substituindo o catálogo com segurança...</span>
       </section>}
       <section className={`player-overlay ${controls || snapshot.status === "error" ? "visible" : ""}`}>
         <header><button onClick={onClose}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECAPLAYTV"}</small><strong>{item.name}</strong>
@@ -206,7 +230,7 @@ export function PlayerScreen({ item, playlistId, channels = [], onChangeChannel,
             {programs[1] && <em>DEPOIS • {programs[1].title}</em>}
           </span>}
         </div>
-          {snapshot.sourceCount > 1 && <span className={`source-badge ${snapshot.sourceIndex > 0 || sourceOffset > 0 ? "alternative" : ""}`}>{snapshot.sourceIndex > 0 || sourceOffset > 0 ? "ORIGEM ALTERNATIVA" : "ORIGEM PRINCIPAL"}</span>}
+          {snapshot.sourceCount > 1 && <span className={`source-badge ${snapshot.sourceIndex > 0 ? "alternative" : ""}`}>{snapshot.sourceIndex > 0 ? "ORIGEM ALTERNATIVA" : "ORIGEM PRINCIPAL"}</span>}
         </header>
         {snapshot.status !== "error" && <footer>
           <button className="play-control" onClick={toggle}>{snapshot.status === "playing" ? "Ⅱ" : "▶"}</button>

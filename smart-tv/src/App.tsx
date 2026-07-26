@@ -250,12 +250,16 @@ export function App() {
   if (playback) return <PlayerScreen
     key={playback.id}
     item={playback}
-    playlistId={session.selectedPlaylistId}
+    playlistId={catalog.activePlaylistId || session.selectedPlaylistId}
     channels={playback.live ? catalog.data.channels.filter(channel => !playback.meta || channel.groupTitle === playback.meta) : []}
     onChangeChannel={channel => beginPlayback(channelCard(channel).playback!)}
     onChangePlayback={beginPlayback}
     onClose={() => setPlayback(null)}
     onProgress={(currentTime, duration) => library.remember(playback, currentTime, duration)}
+    onTerminalPlaybackFailure={reason => {
+      setPlayback(null);
+      void catalog.failover(reason);
+    }}
   />;
   if (selectedMovie) return <MovieDetailScreen
     movie={selectedMovie}
@@ -271,7 +275,7 @@ export function App() {
   />;
   if (selectedSeries) return <SeriesDetailScreen
     series={selectedSeries}
-    playlistId={session.selectedPlaylistId}
+    playlistId={catalog.activePlaylistId || session.selectedPlaylistId}
     favorite={library.isFavorite("series", selectedSeries.id)}
     recommendations={catalog.data.series.filter(item => item.id !== selectedSeries.id && item.category === selectedSeries.category).slice(0, 5)}
     onBack={() => setSelectedSeries(null)}
@@ -301,9 +305,10 @@ export function App() {
         <span><b>Nova versão {appUpdate.update.versionName}</b><small>{platform === "webos" ? "Atualize pela LG Content Store ou pelo pacote IPK do painel." : "Atualize pela Samsung Apps ou pelo pacote WGT do painel."}</small></span>
         <FocusableButton onClick={appUpdate.dismiss}>Agora não</FocusableButton>
       </aside>}
-      <header><div><p className="eyebrow">RONECAPLAYTV</p><h1>{selected}</h1></div><div className="status"><i /> {session.clientName || "Aparelho ativo"} <span>•</span> <b>Ativo</b></div></header>
+      <header><div><p className="eyebrow">RONECAPLAYTV</p><h1>{selected}</h1></div><div className="status"><i /> {session.clientName || "Aparelho ativo"} <span>•</span> <b>{catalog.usingBackupPlaylist ? "Reserva ativa" : "Ativo"}</b></div></header>
       {catalog.status === "loading" && <section className="state-panel"><span className="spinner" /><h2>Carregando seu catálogo</h2><p>Buscando canais, filmes e séries com segurança.</p></section>}
       {catalog.status === "error" && <section className="state-panel error"><h2>Não foi possível carregar</h2><p>{catalog.message}</p><FocusableButton data-autofocus="true" className="primary" onClick={catalog.retry}>Tentar novamente</FocusableButton></section>}
+      {catalog.status === "ready" && catalog.message && <section className="state-panel"><h2>Lista reserva ativa</h2><p>{catalog.message}</p></section>}
       {catalog.status === "ready" && selected === "Início" && <section className="home-scroll">
         <div className="home-feature-layout">
           <section className="hero">
@@ -362,7 +367,7 @@ export function App() {
         <section className="settings-card info"><span><strong>Reconexão automática</strong><small>Alternar a origem quando uma transmissão cair.</small></span><b>ATIVA</b></section>
         <p className="settings-section-title">APLICATIVO</p>
         <section className="settings-card"><span><strong>Atualizações do aplicativo</strong><small>Versão atual {APP_VERSION}</small></span><FocusableButton onClick={() => void appUpdate.refresh()}>{appUpdate.checking ? "AGUARDE" : "VERIFICAR"}</FocusableButton></section>
-        <section className="settings-card info"><span><strong>{session.clientName || "RonecaPlayTV"}</strong><small>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"} • {session.playlistName || "Lista ativa"} • Código {session.deviceCode}</small></span><b>NATIVO TV</b></section>
+        <section className="settings-card info"><span><strong>{session.clientName || "RonecaPlayTV"}</strong><small>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"} • {catalog.activePlaylistName || session.playlistName || "Lista ativa"} • Código {session.deviceCode}</small></span><b>NATIVO TV</b></section>
         <section className="settings-card danger-card"><span><strong>Histórico desta TV</strong><small>Remover o progresso e os itens assistidos neste aparelho.</small></span><FocusableButton className="danger" onClick={library.clearHistory}>LIMPAR</FocusableButton></section>
       </section>}
       {catalog.status === "ready" && ["Buscar", "Canais", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length === 0 && <section className="state-panel">

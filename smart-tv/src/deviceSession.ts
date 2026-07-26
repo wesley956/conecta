@@ -6,20 +6,24 @@ export const APP_VERSION = "0.5.0";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }
+export interface DevicePlaylist {
+  id: string; name: string; priority: number; role: "primary" | "backup"; cacheParts: CacheParts | null;
+}
 export interface DeviceSession {
   status: DeviceAccessStatus; deviceCode: string | null; clientName: string | null; expiresAt: string | null;
   playlistName: string | null; selectedPlaylistId: string | null; cacheVersion: string | null;
-  cacheItemCount: number; cacheError: string | null; cacheParts: CacheParts | null; message: string | null; refreshing: boolean;
+  cacheItemCount: number; cacheError: string | null; cacheParts: CacheParts | null; playlists: DevicePlaylist[];
+  message: string | null; refreshing: boolean;
 }
 interface DeviceResponse {
   active?: boolean; status?: string; deviceCode?: string; deviceCredential?: string; clientName?: string;
   expiresAt?: string; playlistName?: string; selectedPlaylistId?: string; cacheVersion?: string;
-  cacheItemCount?: number; cacheError?: string; cacheParts?: CacheParts; message?: string;
+  cacheItemCount?: number; cacheError?: string; cacheParts?: CacheParts; playlists?: unknown; message?: string;
 }
 const initialSession: DeviceSession = {
   status: "loading", deviceCode: null, clientName: null, expiresAt: null, playlistName: null,
   selectedPlaylistId: null, cacheVersion: null, cacheItemCount: 0, cacheError: null,
-  cacheParts: null, message: null, refreshing: false
+  cacheParts: null, playlists: [], message: null, refreshing: false
 };
 function storageKey(name: string) { return `${STORAGE_PREFIX}${name}`; }
 function readStored(name: string) { try { return window.localStorage.getItem(storageKey(name)); } catch { return null; } }
@@ -42,6 +46,26 @@ async function post(endpoint: "device-activate" | "device-config" | "series-deta
   const response = await fetch(`${FUNCTIONS_URL}/${endpoint}`, { method: "POST", headers, body: JSON.stringify(payload), redirect: "error", cache: "no-store" });
   return { response, body: (await response.json()) as DeviceResponse };
 }
+function validPlaylists(value: unknown): DevicePlaylist[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as Record<string, unknown>;
+    const id = String(item.id || "").trim();
+    const cacheParts = item.cacheParts && typeof item.cacheParts === "object"
+      ? item.cacheParts as CacheParts
+      : null;
+    if (!id || !cacheParts) return [];
+    const priority = Math.max(1, Number(item.priority || index + 1));
+    return [{
+      id,
+      name: String(item.name || ("Lista " + (index + 1))),
+      priority,
+      role: String(item.role || (priority === 1 ? "primary" : "backup")) === "backup" ? "backup" as const : "primary" as const,
+      cacheParts
+    }];
+  }).sort((left, right) => left.priority - right.priority);
+}
 function mapResponse(httpStatus: number, body: DeviceResponse): DeviceSession {
   let status = String(body.status || "pending").toLowerCase() as DeviceAccessStatus;
   if (body.active && status === "active") status = "active";
@@ -52,7 +76,8 @@ function mapResponse(httpStatus: number, body: DeviceResponse): DeviceSession {
     expiresAt: body.expiresAt || null, playlistName: body.playlistName || null,
     selectedPlaylistId: body.selectedPlaylistId || null, cacheVersion: body.cacheVersion || null,
     cacheItemCount: Number(body.cacheItemCount || 0), cacheError: body.cacheError || null,
-    cacheParts: body.cacheParts || null, message: body.message || null, refreshing: false
+    cacheParts: body.cacheParts || null, playlists: validPlaylists(body.playlists),
+    message: body.message || null, refreshing: false
   };
 }
 async function activate(): Promise<DeviceSession> {
@@ -72,6 +97,21 @@ export async function fetchConfiguration(): Promise<DeviceSession> {
   if (body.deviceCode && body.deviceCode !== deviceCode) writeStored("deviceCode", body.deviceCode);
   return mapResponse(response.status, body);
 }
+export async function reportPlaylistFailure(playlistId: string, error: string): Promise<void> {
+  const deviceCode = readStored("deviceCode");
+  const credential = readStored("deviceCredential");
+  if (!deviceCode || !credential || !playlistId) return;
+  await post("device-config", {
+    deviceCode,
+    deviceUuid: getOrCreateDeviceUuid(),
+    playlistHealth: {
+      playlistId,
+      status: "failure",
+      error: error.slice(0, 500)
+    }
+  }, credential);
+}
+
 export interface SeriesEpisodeResponse {
   id: string; number: number; name: string; duration?: string; url: string; playbackUrls?: string[];
 }
