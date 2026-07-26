@@ -103,6 +103,10 @@ fun ChannelsScreen(
             .toList()
     }
 
+    val filteredChannelIds = remember(filteredChannels) {
+        filteredChannels.map(NativeChannel::id)
+    }
+
     val filterSignature = remember(query, selectedCategory, favoritesOnly, alphabetical, favoriteIds) {
         buildString {
             append(query.trim().lowercase())
@@ -113,16 +117,15 @@ fun ChannelsScreen(
         }
     }
 
-    LaunchedEffect(filterSignature, filteredChannels.map(NativeChannel::id), isTelevision) {
-        val ids = filteredChannels.map(NativeChannel::id)
-        val firstId = ids.firstOrNull()
+    LaunchedEffect(filterSignature, filteredChannelIds, isTelevision) {
+        val firstId = filteredChannelIds.firstOrNull()
         if (appliedFilterSignature != filterSignature) {
             appliedFilterSignature = filterSignature
             lastFocusedChannelId = firstId
             if (filteredChannels.isNotEmpty()) {
                 if (isTelevision) gridState.scrollToItem(0) else mobileListState.scrollToItem(0)
             }
-        } else if (lastFocusedChannelId !in ids) {
+        } else if (lastFocusedChannelId !in filteredChannelIds) {
             lastFocusedChannelId = firstId
         }
 
@@ -454,14 +457,12 @@ private fun ChannelItem(
                 if (it.isFocused) onFocused()
             }
             .onPreviewKeyEvent { event ->
-                if (
-                    event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter ||
-                        event.key == Key.Enter ||
-                        event.key == Key.NumPadEnter ||
-                        event.key == Key.Spacebar)
-                ) {
-                    onPlay()
+                val activationKey = event.key == Key.DirectionCenter ||
+                    event.key == Key.Enter ||
+                    event.key == Key.NumPadEnter ||
+                    event.key == Key.Spacebar
+                if (activationKey) {
+                    if (event.type == KeyEventType.KeyDown) onPlay()
                     true
                 } else {
                     false
