@@ -10,7 +10,9 @@
     "typecheck": "tsc -b",
     "stage:webos": "npm run build && node scripts/stage-platform.mjs webos",
     "stage:tizen": "npm run build && node scripts/stage-platform.mjs tizen",
-    "package:webos": "npm run stage:webos && node scripts/package-webos.mjs"
+    "stage:webos:hosted": "npm run build && node scripts/stage-platform.mjs webos && node scripts/stage-webos-hosted.mjs",
+    "package:webos": "npm run stage:webos && node scripts/package-webos.mjs",
+    "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",
