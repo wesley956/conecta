@@ -148,8 +148,8 @@ if (!deviceConfig.includes('allowDirectPlaylistFallback() && !labContext')) {
 if (configGenerator.includes('subscription-module.js')) {
   throw new Error('O módulo de assinatura incompleto deve permanecer preservado no repositório, mas desativado no painel publicado.');
 }
-if (!configGenerator.includes('commercial-consolidation.js')) {
-  throw new Error('O painel publicado precisa carregar a consolidação comercial que remove a aba incompleta.');
+if (!configGenerator.includes('commercial-consolidation-v2.js')) {
+  throw new Error('O painel publicado precisa carregar a consolidação comercial V2 que remove a aba incompleta sem travar o DOM.');
 }
 if (!configGenerator.includes('playlist-edit-module.js')) {
   throw new Error('Deploy dos painéis não carrega a edição de listas.');
