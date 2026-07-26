@@ -14,6 +14,7 @@ export function moveFocus(direction: Direction): void {
 
   if (!current || !candidates.includes(current)) {
     candidates[0].focus();
+    candidates[0].scrollIntoView({ block: "nearest", inline: "nearest" });
     return;
   }
 
@@ -36,5 +37,7 @@ export function moveFocus(direction: Direction): void {
     .filter(({ valid }) => valid)
     .sort((a, b) => a.score - b.score);
 
-  ranked[0]?.candidate.focus();
+  const next = ranked[0]?.candidate;
+  next?.focus();
+  next?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
