@@ -106,3 +106,77 @@ body.playback-active #av-player, body.playback-active .native-video { visibility
   color: #17130a;
   font-weight: 900;
 }
+
+
+/* Confiabilidade, diagnóstico e privacidade */
+.connection-banner {
+  position: fixed;
+  z-index: 19;
+  left: 50%;
+  top: 18px;
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transform: translateX(-50%);
+  padding: 11px 16px;
+  border: 1px solid #ff3b3066;
+  border-radius: 999px;
+  background: #24100ff2;
+  box-shadow: 0 12px 38px #000a;
+}
+.connection-banner b { color: #ff8b84; white-space: nowrap; }
+.connection-banner span { color: #d0c9bd; font-size: 11px; }
+.settings-card.warning-card { border-color: #e8c76899; background: #2a210f; }
+.settings-card.warning-card > b { color: var(--gold); }
+.app-dialog-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  background: #000c;
+}
+.app-dialog {
+  width: min(680px, 78vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: 30px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #11100f;
+  box-shadow: 0 28px 90px #000;
+}
+.app-dialog h2 { margin: 6px 0 16px; font-size: 28px; }
+.app-dialog > p, .dialog-copy p { color: #b7b2a9; line-height: 1.55; }
+.app-dialog dl {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 0;
+  margin: 18px 0;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  overflow: hidden;
+}
+.app-dialog dt, .app-dialog dd {
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.app-dialog dt { color: #918b80; background: #171512; }
+.app-dialog dd { color: #f7f4ec; overflow-wrap: anywhere; }
+.dialog-actions { display: flex; gap: 11px; margin-top: 22px; }
+.dialog-actions button {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 999px;
+  outline: none;
+}
+.dialog-actions .danger {
+  border: 1px solid #ff5148;
+  background: #b42620;
+  color: #fff;
+  font-weight: 900;
+}
