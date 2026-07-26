@@ -90,25 +90,25 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  if (!document.querySelector('link[href*="commercial-consolidation.css"]')) {\n` +
   `    var style = document.createElement('link');\n` +
   `    style.rel = 'stylesheet';\n` +
-  `    style.href = './commercial-consolidation.css?v=1.0';\n` +
+  `    style.href = './commercial-consolidation.css?v=1.1';\n` +
   `    document.head.appendChild(style);\n` +
   `  }\n` +
   `  var script = document.createElement('script');\n` +
-  `  script.src = './commercial-consolidation.js?v=1.0';\n` +
+  `  script.src = './commercial-consolidation-v2.js?v=2.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
   `})();\n` +
   `(function loadAdminCommercialPrivacy(){\n` +
   `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
   `  var script = document.createElement('script');\n` +
-  `  script.src = './admin-commercial-privacy.js?v=1.0';\n` +
+  `  script.src = './admin-commercial-privacy-v2.js?v=2.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
   `})();\n` +
   `(function loadSellerDynamicNavigation(){\n` +
   `  if (!/\\/seller\\.html$/.test(window.location.pathname)) return;\n` +
   `  var script = document.createElement('script');\n` +
-  `  script.src = './seller-dynamic-navigation.js?v=1.0';\n` +
+  `  script.src = './seller-dynamic-navigation-v2.js?v=2.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
   `})();\n`;

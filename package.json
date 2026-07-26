@@ -17,7 +17,7 @@
     "check:subscriptions": "node --check admin-panel/subscription-module.js && node scripts/check-subscription-module.mjs",
     "check:app-release": "node --check admin-panel/app-release.js && node scripts/check-app-release.mjs",
     "check:commercial-security": "node scripts/check-commercial-security.mjs",
-    "check:commercial-consolidation": "node --check admin-panel/commercial-consolidation.js && node --check admin-panel/admin-commercial-privacy.js && node --check admin-panel/seller-dynamic-navigation.js && node scripts/check-commercial-consolidation.mjs"
+    "check:commercial-consolidation": "node --check admin-panel/commercial-consolidation-v2.js && node --check admin-panel/admin-commercial-privacy-v2.js && node --check admin-panel/seller-dynamic-navigation-v2.js && node scripts/check-commercial-consolidation.mjs"
   },
   "dependencies": {},
   "devDependencies": {
