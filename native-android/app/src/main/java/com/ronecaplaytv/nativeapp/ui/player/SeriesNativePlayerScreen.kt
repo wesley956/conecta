@@ -296,6 +296,8 @@ fun SeriesNativePlayerScreen(
             val advancing = positionMs > lastPositionMs + 250L
             if (advancing || player.isPlaying) {
                 stalledSinceMs = null
+                sameSourceRetries = 0
+                terminalFailureReported = false
                 lastPositionMs = positionMs
                 continue
             }
@@ -336,9 +338,7 @@ fun SeriesNativePlayerScreen(
                         playerMessage = "Carregando episódio..."
                     }
                     Player.STATE_READY -> {
-                        sameSourceRetries = 0
                         recoveryInProgress = false
-                        terminalFailureReported = false
                         playerMessage = null
                     }
                     Player.STATE_ENDED -> {
