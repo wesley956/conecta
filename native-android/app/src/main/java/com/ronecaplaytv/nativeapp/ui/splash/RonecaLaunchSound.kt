@@ -3,6 +3,8 @@ package com.ronecaplaytv.nativeapp.ui.splash
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
@@ -18,10 +20,10 @@ import kotlin.math.tanh
 internal class RonecaLaunchSound {
     private var audioTrack: AudioTrack? = null
 
-    fun play() {
+    suspend fun play() {
         release()
 
-        val samples = buildSignature()
+        val samples = withContext(Dispatchers.Default) { buildSignature() }
         val minimumBufferSize = AudioTrack.getMinBufferSize(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_OUT_MONO,
