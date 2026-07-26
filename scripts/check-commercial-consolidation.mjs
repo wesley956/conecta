@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 
 const files = {
-  ui: 'admin-panel/commercial-consolidation.js',
-  adminPrivacy: 'admin-panel/admin-commercial-privacy.js',
-  navigation: 'admin-panel/seller-dynamic-navigation.js',
+  ui: 'admin-panel/commercial-consolidation-v2.js',
+  adminPrivacy: 'admin-panel/admin-commercial-privacy-v2.js',
+  navigation: 'admin-panel/seller-dynamic-navigation-v2.js',
   css: 'admin-panel/commercial-consolidation.css',
   endpoint: 'supabase/functions/seller-commercial-panel/index.ts',
   baseMigration: 'supabase/migrations/2026072604_consolidated_commercial_credit_flow.sql',
@@ -63,18 +63,24 @@ const required = {
   ],
   loader: [
     'loadCommercialConsolidation',
-    'commercial-consolidation.css?v=1.0',
-    'commercial-consolidation.js?v=1.0',
+    'commercial-consolidation.css?v=1.1',
+    'commercial-consolidation-v2.js?v=2.0',
     'loadAdminCommercialPrivacy',
-    'admin-commercial-privacy.js?v=1.0',
+    'admin-commercial-privacy-v2.js?v=2.0',
     'loadSellerDynamicNavigation',
-    'seller-dynamic-navigation.js?v=1.0',
+    'seller-dynamic-navigation-v2.js?v=2.0',
   ],
 };
 
 for (const [group, snippets] of Object.entries(required)) {
   for (const snippet of snippets) {
     if (!source[group].includes(snippet)) throw new Error(`Proteção ausente em ${files[group]}: ${snippet}`);
+  }
+}
+
+for (const group of ['ui', 'adminPrivacy', 'navigation']) {
+  if (source[group].includes('MutationObserver')) {
+    throw new Error(`O módulo ${files[group]} não pode observar e reescrever a árvore inteira do painel.`);
   }
 }
 
@@ -86,4 +92,4 @@ if (source.loader.includes('loadSubscriptionModule')) {
   throw new Error('O módulo incompleto de assinaturas não deve ser carregado no painel publicado.');
 }
 
-console.log('✅ Fluxo comercial consolidado: privacidade, navegação, pacotes, preços, clientes e consumo FIFO único validados.');
+console.log('✅ Fluxo comercial V2 validado sem loops de DOM, com privacidade, navegação, pacotes, preços, clientes e FIFO único.');
