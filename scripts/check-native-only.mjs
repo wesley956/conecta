@@ -45,6 +45,10 @@ for (const path of nativePlayers) {
   if (!source.includes('PROGRESS_SAVE_INTERVAL_MS = 10_000L')) {
     throw new Error(`${path} deve limitar a gravação periódica de progresso.`);
   }
+  if (!source.includes('DisposableEffect(player, media3Controller)') ||
+      !source.includes('rememberUpdatedState(controlsVisible)')) {
+    throw new Error(`${path} não pode registrar novamente as teclas a cada mudança dos controles.`);
+  }
 }
 
 const performanceFiles = {
