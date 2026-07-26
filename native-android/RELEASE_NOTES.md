@@ -1,9 +1,15 @@
-# ronecaPlayerTV Native 2.3.3
+# ronecaPlayerTV Native 2.4.0
 
-Nova abertura com identidade sonora própria da marca.
+Atualização focada em desempenho, estabilidade e confiabilidade no Android TV.
 
-- abertura ampliada para o nome ronecaPlayer TV permanecer visível por mais tempo;
-- assinatura sonora original sincronizada com a aparição da marca;
-- sequência curta com notas ascendentes, brilho e impacto grave final;
-- som reproduzido pelo canal de mídia, respeitando o volume e o mudo do aparelho;
-- saída da abertura mais suave.
+- navegação e mudança de foco mais rápidas em catálogos grandes;
+- resposta imediata dos comandos Pause, Play e OK;
+- player otimizado para TVs com menos memória;
+- buffer limitado e gravações de progresso mais leves;
+- failover completo entre a lista principal e a lista reserva;
+- diagnóstico da lista ativa, última troca e motivo da falha;
+- catálogo preservado durante atualizações e recuperação da lista;
+- nova assinatura sonora marcante de 3 segundos;
+- opção para desligar o som de abertura nas Configurações;
+- busca, recomendações e Minha Lista otimizadas;
+- APK de produção reduzido e otimizado com R8.
