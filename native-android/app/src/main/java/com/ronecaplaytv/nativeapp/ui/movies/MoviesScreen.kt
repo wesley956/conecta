@@ -96,6 +96,10 @@ fun MoviesScreen(
         }
     }
 
+    val filteredMovieIds = remember(filtered) {
+        filtered.map(NativeMovie::id)
+    }
+
     val filterSignature = remember(query, selectedCategory, favoriteIds, startedIds) {
         buildString {
             append(query.trim().lowercase())
@@ -106,13 +110,13 @@ fun MoviesScreen(
         }
     }
 
-    LaunchedEffect(filterSignature, filtered.map(NativeMovie::id), isTelevision) {
-        val firstId = filtered.firstOrNull()?.id
+    LaunchedEffect(filterSignature, filteredMovieIds, isTelevision) {
+        val firstId = filteredMovieIds.firstOrNull()
         if (appliedFilterSignature != filterSignature) {
             appliedFilterSignature = filterSignature
             lastFocusedMovieId = firstId
             if (filtered.isNotEmpty()) gridState.scrollToItem(0)
-        } else if (lastFocusedMovieId !in filtered.map(NativeMovie::id)) {
+        } else if (lastFocusedMovieId !in filteredMovieIds) {
             lastFocusedMovieId = firstId
         }
 
@@ -345,14 +349,12 @@ private fun MoviePosterCard(
                 if (it.isFocused) onFocused()
             }
             .onPreviewKeyEvent { event ->
-                if (
-                    event.type == KeyEventType.KeyUp &&
-                    (event.key == Key.DirectionCenter ||
-                        event.key == Key.Enter ||
-                        event.key == Key.NumPadEnter ||
-                        event.key == Key.Spacebar)
-                ) {
-                    onClick()
+                val activationKey = event.key == Key.DirectionCenter ||
+                    event.key == Key.Enter ||
+                    event.key == Key.NumPadEnter ||
+                    event.key == Key.Spacebar
+                if (activationKey) {
+                    if (event.type == KeyEventType.KeyDown) onClick()
                     true
                 } else {
                     false
