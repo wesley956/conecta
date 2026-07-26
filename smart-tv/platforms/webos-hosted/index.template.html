@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>RonecaPlayTV</title>
+  <style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;background:#050505;color:#f7f4ec;font-family:Arial,sans-serif}
+    body{display:grid;place-items:center;text-align:center}.panel{width:min(680px,80vw);padding:42px;border:1px solid #302a1e;border-radius:20px;background:#11100f}
+    .mark{width:64px;height:64px;display:grid;place-items:center;margin:0 auto 22px;border:2px solid #e8c768;border-radius:50%;color:#e8c768;font-weight:900}
+    h1{margin:0 0 10px;font-size:32px}p{color:#aaa398;line-height:1.5}.status{color:#e8c768;font-size:12px;font-weight:800;letter-spacing:1.4px}
+    button{min-height:48px;margin-top:18px;padding:0 22px;border:1px solid #e8c768;border-radius:999px;background:#e8c768;color:#17130a;font-weight:900}
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <div class="mark">RP</div>
+    <p class="status" id="status">CARREGANDO VERSÃO ESTÁVEL</p>
+    <h1>RonecaPlayTV</h1>
+    <p id="message">Conectando sua TV à versão mais recente do aplicativo.</p>
+    <button id="retry" hidden>Tentar novamente</button>
+  </main>
+  <script>
+    (function () {
+      "use strict";
+      var target = "__RONECA_TV_HOSTED_URL__";
+      var status = document.getElementById("status");
+      var message = document.getElementById("message");
+      var retry = document.getElementById("retry");
+      var timeout;
+
+      function failed() {
+        window.clearTimeout(timeout);
+        status.textContent = "SERVIÇO TEMPORARIAMENTE INDISPONÍVEL";
+        message.textContent = "Verifique a internet da TV e tente novamente. Nenhuma configuração do aparelho foi apagada.";
+        retry.hidden = false;
+        retry.focus();
+      }
+
+      function openHostedApp() {
+        retry.hidden = true;
+        status.textContent = "CARREGANDO VERSÃO __RONECA_TV_CHANNEL_LABEL__";
+        message.textContent = "Conectando sua TV à versão mais recente do aplicativo.";
+        timeout = window.setTimeout(failed, 12000);
+        fetch(target + "version.json?ts=" + Date.now(), { cache: "no-store", mode: "no-cors" })
+          .then(function () {
+            window.clearTimeout(timeout);
+            window.location.replace(target);
+          })
+          .catch(failed);
+      }
+
+      retry.addEventListener("click", openHostedApp);
+      window.addEventListener("keydown", function (event) {
+        if (event.keyCode === 13 && !retry.hidden) openHostedApp();
+      });
+      openHostedApp();
+    }());
+  </script>
+</body>
+</html>
