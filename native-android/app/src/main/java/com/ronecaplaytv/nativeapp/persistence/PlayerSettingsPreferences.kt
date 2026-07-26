@@ -18,6 +18,7 @@ class PlayerSettingsPreferences(context: Context) {
         language = preferences.getString(KEY_LANGUAGE, "Português") ?: "Português",
         automaticReconnect = preferences.getBoolean(KEY_AUTOMATIC_RECONNECT, true),
         forceTvMode = preferences.getBoolean(KEY_FORCE_TV_MODE, false),
+        launchSoundEnabled = preferences.getBoolean(KEY_LAUNCH_SOUND_ENABLED, true),
     )
 
     fun save(state: PlayerSettingsState) {
@@ -27,6 +28,7 @@ class PlayerSettingsPreferences(context: Context) {
             .putString(KEY_LANGUAGE, state.language)
             .putBoolean(KEY_AUTOMATIC_RECONNECT, state.automaticReconnect)
             .putBoolean(KEY_FORCE_TV_MODE, state.forceTvMode)
+            .putBoolean(KEY_LAUNCH_SOUND_ENABLED, state.launchSoundEnabled)
             .apply()
     }
 
@@ -37,5 +39,6 @@ class PlayerSettingsPreferences(context: Context) {
         const val KEY_LANGUAGE = "language"
         const val KEY_AUTOMATIC_RECONNECT = "automatic_reconnect"
         const val KEY_FORCE_TV_MODE = "force_tv_mode"
+        const val KEY_LAUNCH_SOUND_ENABLED = "launch_sound_enabled"
     }
 }
