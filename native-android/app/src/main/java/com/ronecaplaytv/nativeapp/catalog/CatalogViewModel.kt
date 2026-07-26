@@ -16,6 +16,7 @@ class CatalogViewModel : ViewModel() {
     val state: StateFlow<NativeCatalogState> = mutableState.asStateFlow()
 
     private var loadedKey: String? = null
+    private var availablePlaylists: List<DevicePlaylistConfig> = emptyList()
 
     fun load(
         channelsUrl: String?,
@@ -24,88 +25,178 @@ class CatalogViewModel : ViewModel() {
         playlists: List<DevicePlaylistConfig> = emptyList(),
         force: Boolean = false,
     ) {
-        val candidates = buildList {
-            playlists.filter(DevicePlaylistConfig::hasCatalogParts).forEach(::add)
-            if (isEmpty() && (channelsUrl != null || moviesUrl != null || seriesUrl != null)) {
-                add(
-                    DevicePlaylistConfig(
-                        id = "selected",
-                        name = "Lista selecionada",
-                        priority = 1,
-                        role = "primary",
-                        channelsUrl = channelsUrl,
-                        moviesUrl = moviesUrl,
-                        seriesUrl = seriesUrl,
-                    ),
-                )
-            }
-        }.distinctBy(DevicePlaylistConfig::id).sortedBy(DevicePlaylistConfig::priority)
+        val candidates = playlistCandidates(channelsUrl, moviesUrl, seriesUrl, playlists)
         val key = candidates.joinToString("|") {
             listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl).joinToString(":")
         }
+        availablePlaylists = candidates
+
         if (!force && loadedKey == key && mutableState.value.loaded) return
         if (mutableState.value.isLoading) return
 
         viewModelScope.launch {
             mutableState.value = NativeCatalogState(loadingSection = "canais")
+            loadFirstAvailable(candidates, key)
+        }
+    }
 
-            runCatching {
-                if (candidates.isEmpty()) {
-                    error("O cache seguro das listas ainda não está disponível.")
-                }
+    fun failoverActivePlaylist(reason: String) {
+        if (mutableState.value.isLoading) return
 
-                var lastFailure: Throwable? = null
-                for ((candidateIndex, candidate) in candidates.withIndex()) {
-                    val prefix = if (candidateIndex == 0) "" else "lista reserva: "
-                    val result = runCatching {
-                        mutableState.update { it.copy(loadingSection = "${prefix}canais") }
-                        val channels = candidate.channelsUrl
-                            ?.let { client.loadChannels(it) }
-                            .orEmpty()
+        val activeId = mutableState.value.activePlaylistId ?: return
+        val activeIndex = availablePlaylists.indexOfFirst { it.id == activeId }
+        val backupCandidates = availablePlaylists.drop((activeIndex + 1).coerceAtLeast(0))
 
-                        mutableState.update {
-                            it.copy(channels = channels, loadingSection = "${prefix}filmes")
-                        }
-                        val movies = candidate.moviesUrl
-                            ?.let { client.loadMovies(it) }
-                            .orEmpty()
+        if (backupCandidates.isEmpty()) {
+            mutableState.update {
+                it.copy(
+                    error = "A lista ativa falhou e nenhuma lista reserva está disponível.",
+                    lastFailureReason = reason,
+                )
+            }
+            return
+        }
 
-                        mutableState.update {
-                            it.copy(movies = movies, loadingSection = "${prefix}séries")
-                        }
-                        val series = candidate.seriesUrl
-                            ?.let { client.loadSeries(it) }
-                            .orEmpty()
+        viewModelScope.launch {
+            mutableState.update {
+                it.copy(
+                    loadingSection = "ativando lista reserva",
+                    error = null,
+                    lastFailureReason = reason,
+                )
+            }
 
-                        Triple(channels, movies, series)
-                    }
-
-                    result.onSuccess { (channels, movies, series) ->
-                        loadedKey = key
-                        mutableState.value = NativeCatalogState(
-                            channels = channels,
-                            movies = movies,
-                            series = series,
-                            loaded = true,
-                            activePlaylistId = candidate.id,
-                            activePlaylistName = candidate.name,
-                            usingBackupPlaylist = candidateIndex > 0,
-                        )
-                        return@launch
-                    }.onFailure { error ->
-                        lastFailure = error
-                    }
-                }
-                throw lastFailure ?: IllegalStateException("Nenhuma lista pôde ser carregada.")
-            }.onFailure { error ->
-                mutableState.update {
-                    it.copy(
-                        loadingSection = null,
-                        loaded = false,
-                        error = error.message ?: "Não foi possível carregar o catálogo.",
+            var lastFailure: Throwable? = null
+            for (candidate in backupCandidates) {
+                val result = runCatching { loadCompleteCatalog(candidate, "lista reserva: ") }
+                result.onSuccess { catalog ->
+                    mutableState.value = catalog.toState(
+                        candidate = candidate,
+                        usingBackup = true,
+                        failoverNotice = "Lista principal indisponível. Catálogo substituído pela lista reserva.",
+                        lastFailureReason = reason,
                     )
-                }
+                    return@launch
+                }.onFailure { lastFailure = it }
+            }
+
+            mutableState.update {
+                it.copy(
+                    loadingSection = null,
+                    error = lastFailure?.message
+                        ?: "A lista principal e a lista reserva estão indisponíveis.",
+                    lastFailureReason = reason,
+                )
             }
         }
+    }
+
+    private suspend fun loadFirstAvailable(
+        candidates: List<DevicePlaylistConfig>,
+        key: String,
+    ) {
+        runCatching {
+            if (candidates.isEmpty()) {
+                error("O cache seguro das listas ainda não está disponível.")
+            }
+
+            var lastFailure: Throwable? = null
+            for ((candidateIndex, candidate) in candidates.withIndex()) {
+                val prefix = if (candidateIndex == 0) "" else "lista reserva: "
+                val result = runCatching { loadCompleteCatalog(candidate, prefix) }
+
+                result.onSuccess { catalog ->
+                    loadedKey = key
+                    mutableState.value = catalog.toState(
+                        candidate = candidate,
+                        usingBackup = candidateIndex > 0 || candidate.role.equals("backup", true),
+                        failoverNotice = if (candidateIndex > 0) {
+                            "Lista principal indisponível. Catálogo substituído pela lista reserva."
+                        } else {
+                            null
+                        },
+                    )
+                    return
+                }.onFailure { lastFailure = it }
+            }
+            throw lastFailure ?: IllegalStateException("Nenhuma lista pôde ser carregada.")
+        }.onFailure { error ->
+            mutableState.update {
+                it.copy(
+                    loadingSection = null,
+                    loaded = false,
+                    error = error.message ?: "Não foi possível carregar o catálogo.",
+                )
+            }
+        }
+    }
+
+    private suspend fun loadCompleteCatalog(
+        candidate: DevicePlaylistConfig,
+        prefix: String,
+    ): LoadedCatalog {
+        mutableState.update { it.copy(loadingSection = "${prefix}canais") }
+        val channels = candidate.channelsUrl?.let { client.loadChannels(it) }.orEmpty()
+
+        mutableState.update { it.copy(loadingSection = "${prefix}filmes") }
+        val movies = candidate.moviesUrl?.let { client.loadMovies(it) }.orEmpty()
+
+        mutableState.update { it.copy(loadingSection = "${prefix}séries") }
+        val series = candidate.seriesUrl?.let { client.loadSeries(it) }.orEmpty()
+
+        if (channels.isEmpty() && movies.isEmpty() && series.isEmpty()) {
+            throw CatalogLoadException("A lista retornou um catálogo vazio.")
+        }
+
+        return LoadedCatalog(channels, movies, series)
+    }
+
+    private fun playlistCandidates(
+        channelsUrl: String?,
+        moviesUrl: String?,
+        seriesUrl: String?,
+        playlists: List<DevicePlaylistConfig>,
+    ) = buildList {
+        playlists
+            .filter(DevicePlaylistConfig::hasCatalogParts)
+            .sortedBy(DevicePlaylistConfig::priority)
+            .forEach(::add)
+
+        if (isEmpty() && (channelsUrl != null || moviesUrl != null || seriesUrl != null)) {
+            add(
+                DevicePlaylistConfig(
+                    id = "selected",
+                    name = "Lista selecionada",
+                    priority = 1,
+                    role = "primary",
+                    channelsUrl = channelsUrl,
+                    moviesUrl = moviesUrl,
+                    seriesUrl = seriesUrl,
+                ),
+            )
+        }
+    }.distinctBy(DevicePlaylistConfig::id)
+
+    private data class LoadedCatalog(
+        val channels: List<NativeChannel>,
+        val movies: List<NativeMovie>,
+        val series: List<NativeSeries>,
+    ) {
+        fun toState(
+            candidate: DevicePlaylistConfig,
+            usingBackup: Boolean,
+            failoverNotice: String?,
+            lastFailureReason: String? = null,
+        ) = NativeCatalogState(
+            channels = channels,
+            movies = movies,
+            series = series,
+            loaded = true,
+            activePlaylistId = candidate.id,
+            activePlaylistName = candidate.name,
+            usingBackupPlaylist = usingBackup,
+            failoverNotice = failoverNotice,
+            lastFailureReason = lastFailureReason,
+        )
     }
 }
