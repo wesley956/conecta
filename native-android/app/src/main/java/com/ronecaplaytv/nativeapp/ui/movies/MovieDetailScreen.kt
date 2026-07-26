@@ -163,7 +163,7 @@ private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter ||
                         event.key == Key.Enter ||
                         event.key == Key.NumPadEnter)
@@ -308,7 +308,7 @@ private fun DetailActionButton(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    enabled && event.type == KeyEventType.KeyUp &&
+                    enabled && event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()
@@ -362,7 +362,7 @@ private fun RecommendationCard(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter)
                 ) {
                     onClick()
