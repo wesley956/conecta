@@ -9,6 +9,12 @@ const corsHeaders = {
 };
 
 type JsonBody = Record<string, unknown>;
+type SellerPlanPriceRow = {
+  plan_id: string;
+  default_sale_price_cents: number | string;
+  active: boolean;
+  updated_at: string | null;
+};
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -83,17 +89,21 @@ async function dashboard(supabase: any, sellerId: string) {
   if (pricesError) throw new Error(`Falha ao carregar preços: ${pricesError.message}`);
   if (customersError) throw new Error(`Falha ao carregar clientes: ${customersError.message}`);
 
-  const priceByPlan = new Map((prices || []).map((item: any) => [item.plan_id, item]));
+  const priceByPlan = new Map<string, SellerPlanPriceRow>(
+    ((prices || []) as SellerPlanPriceRow[]).map(item => [item.plan_id, item]),
+  );
   return {
     plans: (plans || []).map((plan: any) => {
-      const configured = priceByPlan.get(plan.id);
+      const configured = priceByPlan.get(String(plan.id));
       return {
         id: plan.id,
         name: plan.name,
         durationDays: Number(plan.duration_days || 30),
         creditCost: Number(plan.credit_cost || 1),
         maxDevices: Number(plan.max_devices || 1),
-        defaultSalePriceCents: configured?.active === false ? null : Number(configured?.default_sale_price_cents || 0) || null,
+        defaultSalePriceCents: configured?.active === false
+          ? null
+          : Number(configured?.default_sale_price_cents || 0) || null,
         priceUpdatedAt: configured?.updated_at || null,
       };
     }),
