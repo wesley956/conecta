@@ -64,6 +64,7 @@ private const val PLAYER_SEEK_STEP_MS = 10_000L
 private const val STARTUP_TIMEOUT_MS = 20_000L
 private const val LIVE_STALL_TIMEOUT_MS = 12_000L
 private const val VOD_STALL_TIMEOUT_MS = 25_000L
+private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -283,7 +284,7 @@ fun NativePlayerScreen(
 
     LaunchedEffect(player) {
         while (true) {
-            delay(2_000)
+            delay(PROGRESS_SAVE_INTERVAL_MS)
             val duration = player.duration
             val position = player.currentPosition
             if (duration > 0L && position > 0L) onProgress(position, duration)
@@ -326,6 +327,8 @@ fun NativePlayerScreen(
     DisposableEffect(player, controlsVisible, channelDrawerVisible, media3Controller) {
         val registration = NativePlaybackKeyRouter.register { event ->
             val actionUp = event.action == AndroidKeyEvent.ACTION_UP
+            val initialActionDown =
+                event.action == AndroidKeyEvent.ACTION_DOWN && event.repeatCount == 0
             val actionDown = event.action == AndroidKeyEvent.ACTION_DOWN
 
             when (event.keyCode) {
@@ -339,12 +342,12 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 AndroidKeyEvent.KEYCODE_HEADSETHOOK,
                 -> {
-                    if (actionUp) togglePlayPause()
+                    if (initialActionDown) togglePlayPause()
                     true
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    if (actionUp) {
+                    if (initialActionDown) {
                         player.play()
                         showPlayPauseControls()
                     }
@@ -352,7 +355,7 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    if (actionUp) {
+                    if (initialActionDown) {
                         player.pause()
                         showPlayPauseControls()
                     }
@@ -360,12 +363,12 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (actionUp) seekBy(PLAYER_SEEK_STEP_MS)
+                    if (initialActionDown) seekBy(PLAYER_SEEK_STEP_MS)
                     true
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (actionUp) seekBy(-PLAYER_SEEK_STEP_MS)
+                    if (initialActionDown) seekBy(-PLAYER_SEEK_STEP_MS)
                     true
                 }
 
@@ -377,7 +380,7 @@ fun NativePlayerScreen(
                     if (channelDrawerVisible || controlsVisible) {
                         false
                     } else {
-                        if (actionUp) togglePlayPause()
+                        if (initialActionDown) togglePlayPause()
                         true
                     }
                 }
