@@ -6,7 +6,8 @@ const files = {
   navigation: 'admin-panel/seller-dynamic-navigation.js',
   css: 'admin-panel/commercial-consolidation.css',
   endpoint: 'supabase/functions/seller-commercial-panel/index.ts',
-  migration: 'supabase/migrations/2026072604_consolidated_commercial_credit_flow.sql',
+  baseMigration: 'supabase/migrations/2026072604_consolidated_commercial_credit_flow.sql',
+  fifoFix: 'supabase/migrations/2026072605_single_fifo_credit_lot_consumption.sql',
   loader: 'scripts/generate-panel-config.mjs',
 };
 
@@ -49,11 +50,16 @@ const required = {
     "action === 'createCustomer'",
     "action === 'updateCustomer'",
   ],
-  migration: [
+  baseMigration: [
     'create table if not exists public.panel_seller_plan_prices',
     'perform public.expire_credit_lots(p_seller_id)',
-    "status = case when credits_remaining - v_lot_take = 0 then 'consumed'",
     'preservando o saldo legado',
+  ],
+  fifoFix: [
+    'panel_credit_ledger_consume_lots',
+    'única fonte de consumo',
+    'insert into public.panel_credit_ledger',
+    'avoitando desconto duplicado'.replace('avoitando', 'evitando'),
   ],
   loader: [
     'loadCommercialConsolidation',
@@ -72,8 +78,12 @@ for (const [group, snippets] of Object.entries(required)) {
   }
 }
 
+if (source.fifoFix.includes('for v_lot in') || source.fifoFix.includes('credits_remaining = credits_remaining -')) {
+  throw new Error('A função de ativação não pode consumir lotes diretamente; o gatilho do extrato é a única fonte FIFO.');
+}
+
 if (source.loader.includes('loadSubscriptionModule')) {
   throw new Error('O módulo incompleto de assinaturas não deve ser carregado no painel publicado.');
 }
 
-console.log('✅ Fluxo comercial consolidado: privacidade, navegação, pacotes, preços, clientes e consumo FIFO validados.');
+console.log('✅ Fluxo comercial consolidado: privacidade, navegação, pacotes, preços, clientes e consumo FIFO único validados.');
