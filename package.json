@@ -6,6 +6,7 @@
   "scripts": {
     "verify": "npm run check:m3u-parser && npm run check:panel-auth && npm run check:seller-provisioning && npm run check:playlist-failover && npm run check:inline-playlist-activation && npm run check:finance-module && npm run check:subscriptions && npm run check:app-release && npm run check:commercial-security",
     "panel:config": "node scripts/generate-panel-config.mjs",
+    "smart-tv:hosted": "npm ci --prefix smart-tv && npm run build --prefix smart-tv && node scripts/stage-hosted-tv.mjs",
     "serve:proxy": "node server.mjs",
     "check:m3u-parser": "node scripts/check-m3u-parser.mjs",
     "check:panel-auth": "node scripts/check-panel-auth-session.mjs",

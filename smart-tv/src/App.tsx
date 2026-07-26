@@ -338,7 +338,7 @@ export function App() {
     <section className={`content ${["Canais", "Filmes", "Séries"].includes(selected) ? "catalog-view" : ""}`}>
       {!online && <aside className="connection-banner" role="status"><b>Sem internet</b><span>O catálogo aberto continua disponível. A sincronização volta automaticamente quando a conexão retornar.</span></aside>}
       {appUpdate.update && <aside className="update-banner" role="status">
-        <span><b>Nova versão {appUpdate.update.versionName}</b><small>{platform === "webos" ? "Atualize pela LG Content Store ou pelo pacote IPK do painel." : "Atualize pela Samsung Apps ou pelo pacote WGT do painel."}</small></span>
+        <span><b>Nova versão {appUpdate.update.versionName}</b><small>{window.location.protocol === "https:" ? "A versão estável será carregada automaticamente na próxima abertura." : platform === "webos" ? "Atualize pela LG Content Store ou pelo pacote IPK do painel." : "Atualize pela Samsung Apps ou pelo pacote WGT do painel."}</small></span>
         <FocusableButton onClick={appUpdate.dismiss}>Agora não</FocusableButton>
       </aside>}
       <header><div><p className="eyebrow">RONECAPLAYTV</p><h1>{selected}</h1></div><div className="status"><i /> {session.clientName || "Aparelho ativo"} <span>•</span> <b>{catalog.usingBackupPlaylist ? "Reserva ativa" : "Ativo"}</b></div></header>
