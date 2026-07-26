@@ -4,41 +4,38 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 
 /**
- * Fonte única da política de buffer dos players de filmes, canais e episódios.
+ * Política única de buffer dos players de filmes, canais e episódios.
  *
- * TVs recebem uma reserva maior porque normalmente têm menos memória disponível
- * para o app, decoder mais lento e Wi-Fi menos estável que celulares modernos.
+ * TVs usam limites conservadores de tempo e bytes. Isso evita que o decoder
+ * ocupe a memória disponível e deixe a interface e o controle remoto lentos.
  */
 @UnstableApi
 internal fun ronecaLoadControl(
     isTelevision: Boolean,
     requestedBufferSeconds: Int,
 ): DefaultLoadControl {
-    val safeBufferSeconds = requestedBufferSeconds.coerceIn(2, 10)
+    val safeBufferSeconds = requestedBufferSeconds.coerceIn(2, 8)
     val playbackBufferMs = safeBufferSeconds * 1_000
-    val minimumBufferMs = maxOf(playbackBufferMs * 2, if (isTelevision) 15_000 else 8_000)
-    val maximumBufferMs = maxOf(
-        minimumBufferMs * 4,
-        if (isTelevision) 60_000 else 35_000,
+    val minimumBufferMs = maxOf(
+        playbackBufferMs,
+        if (isTelevision) 8_000 else 6_000,
     )
-    val startPlaybackMs = if (isTelevision) {
-        maxOf(playbackBufferMs, 4_000)
-    } else {
-        playbackBufferMs
-    }
-    val resumeAfterRebufferMs = if (isTelevision) {
-        maxOf(playbackBufferMs, 7_000)
-    } else {
-        playbackBufferMs
-    }
+    val maximumBufferMs = if (isTelevision) 30_000 else 25_000
+    val startPlaybackMs = maxOf(playbackBufferMs / 2, 2_000)
+    val resumeAfterRebufferMs = maxOf(playbackBufferMs, if (isTelevision) 4_500 else 3_000)
+    val targetBufferBytes = if (isTelevision) TV_TARGET_BUFFER_BYTES else MOBILE_TARGET_BUFFER_BYTES
 
     return DefaultLoadControl.Builder()
         .setBufferDurationsMs(
-            minimumBufferMs,
+            minimumBufferMs.coerceAtMost(maximumBufferMs),
             maximumBufferMs,
-            startPlaybackMs,
-            resumeAfterRebufferMs,
+            startPlaybackMs.coerceAtMost(minimumBufferMs),
+            resumeAfterRebufferMs.coerceAtMost(minimumBufferMs),
         )
-        .setPrioritizeTimeOverSizeThresholds(true)
+        .setTargetBufferBytes(targetBufferBytes)
+        .setPrioritizeTimeOverSizeThresholds(false)
         .build()
 }
+
+private const val TV_TARGET_BUFFER_BYTES = 24 * 1024 * 1024
+private const val MOBILE_TARGET_BUFFER_BYTES = 32 * 1024 * 1024
