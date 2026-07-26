@@ -5,6 +5,7 @@ const files = {
   migration: 'supabase/migrations/2026072401_protected_apk_distribution.sql',
   multiPlatformMigration: 'supabase/migrations/2026072402_multi_platform_app_releases.sql',
   workflow: '.github/workflows/release-native-android.yml',
+  webosWorkflow: '.github/workflows/build-lg-webos-installer.yml',
   android: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/update/AppUpdateManager.kt',
   auth: 'admin-panel/panel-auth-session.js',
   panel: 'admin-panel/app-release.js',
@@ -34,6 +35,11 @@ const required = [
   [source.edge, "downloadUrl", 'A função não entrega URL genérica para LG e Samsung.'],
   [source.panel, "LG webOS", 'O painel não oferece o aplicativo LG.'],
   [source.panel, "Samsung Tizen", 'O painel não oferece o aplicativo Samsung.'],
+  [source.webosWorkflow, "SUPABASE_SERVICE_ROLE_KEY", 'A publicação LG não usa o segredo protegido.'],
+  [source.webosWorkflow, "storage/v1/object/app-releases", 'O workflow LG não envia o IPK ao Storage.'],
+  [source.webosWorkflow, 'platform: "webos"', 'O workflow LG não registra a plataforma webOS.'],
+  [source.webosWorkflow, 'file_extension: "ipk"', 'O workflow LG não registra a extensão IPK.'],
+  [source.webosWorkflow, 'on_conflict=platform%2Cversion_code', 'A publicação LG não é idempotente por versão.'],
 ];
 
 for (const [haystack, needle, message] of required) {
