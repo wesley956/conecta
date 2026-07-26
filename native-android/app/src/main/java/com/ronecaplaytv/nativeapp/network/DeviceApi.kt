@@ -42,10 +42,29 @@ class DeviceApi(private val functionsBaseUrl: String) {
         deviceCode: String,
         deviceUuid: String,
         deviceCredential: String,
+        playlistHealthId: String? = null,
+        playlistHealthStatus: String? = null,
+        playlistHealthError: String? = null,
     ): DeviceConfigResponse = withContext(Dispatchers.IO) {
         val payload = JSONObject()
             .put("deviceCode", deviceCode)
             .put("deviceUuid", deviceUuid)
+            .apply {
+                if (!playlistHealthId.isNullOrBlank() && !playlistHealthStatus.isNullOrBlank()) {
+                    put(
+                        "playlistHealth",
+                        JSONObject()
+                            .put("playlistId", playlistHealthId)
+                            .put("status", playlistHealthStatus)
+                            .apply {
+                                playlistHealthError
+                                    ?.takeIf(String::isNotBlank)
+                                    ?.take(500)
+                                    ?.let { put("error", it) }
+                            },
+                    )
+                }
+            }
 
         val result = postJson(
             endpoint = "device-config",

@@ -41,6 +41,20 @@ class DeviceSessionRepository(context: Context) {
         return activate(isTelevision)
     }
 
+    suspend fun reportPlaylistFailure(playlistId: String, error: String) {
+        val deviceCode = identityStore.getDeviceCode() ?: return
+        val credential = credentialStore.load() ?: return
+
+        api.fetchConfig(
+            deviceCode = deviceCode,
+            deviceUuid = identityStore.getOrCreateDeviceUuid(),
+            deviceCredential = credential,
+            playlistHealthId = playlistId,
+            playlistHealthStatus = "failure",
+            playlistHealthError = error,
+        )
+    }
+
     private suspend fun activate(isTelevision: Boolean): DeviceSessionState {
         val deviceUuid = identityStore.getOrCreateDeviceUuid()
         val response = api.activate(
