@@ -60,6 +60,8 @@ type CatalogState = {
   activePlaylistId: string | null;
   activePlaylistName: string | null;
   usingBackupPlaylist: boolean;
+  lastSuccessfulSync: string | null;
+  lastFailure: string | null;
 };
 
 const emptyCatalog: Catalog = { channels: [], movies: [], series: [] };
@@ -69,7 +71,9 @@ const initialState: CatalogState = {
   message: null,
   activePlaylistId: null,
   activePlaylistName: null,
-  usingBackupPlaylist: false
+  usingBackupPlaylist: false,
+  lastSuccessfulSync: null,
+  lastFailure: null
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -86,15 +90,29 @@ function items<T>(payload: unknown, key: string): T[] {
 }
 
 async function download(url: string, signal: AbortSignal) {
-  const response = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-    redirect: "follow",
-    signal
-  });
-  if (!response.ok) throw new Error(`Não foi possível baixar o catálogo (${response.status}).`);
-  return response.json() as Promise<unknown>;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = window.setTimeout(abort, 15_000);
+  signal.addEventListener("abort", abort);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`Não foi possível baixar o catálogo (${response.status}).`);
+    return await response.json() as unknown;
+  } catch (error) {
+    if (!signal.aborted && controller.signal.aborted) {
+      throw new Error("O servidor demorou demais para entregar o catálogo.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+    signal.removeEventListener("abort", abort);
+  }
 }
 
 function candidates(session: DeviceSession): DevicePlaylist[] {
@@ -175,7 +193,9 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
               message: index > 0 ? "Lista principal indisponível. Catálogo substituído pela lista reserva." : null,
               activePlaylistId: candidate.id,
               activePlaylistName: candidate.name,
-              usingBackupPlaylist: index > 0 || candidate.role === "backup"
+              usingBackupPlaylist: index > 0 || candidate.role === "backup",
+              lastSuccessfulSync: new Date().toISOString(),
+              lastFailure: index > 0 ? "A lista principal não respondeu durante a sincronização." : null
             });
             return;
           } catch (error) {
@@ -185,10 +205,19 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
         throw lastError || new Error("Nenhuma lista pôde ser carregada.");
       } catch (error) {
         if (!controller.signal.aborted) {
-          setState({
-            ...initialState,
-            status: "error",
-            message: error instanceof Error ? error.message : "Falha ao carregar o catálogo."
+          const reason = error instanceof Error ? error.message : "Falha ao carregar o catálogo.";
+          setState(current => {
+            const hasValidCatalog = Boolean(
+              current.data.channels.length || current.data.movies.length || current.data.series.length
+            );
+            return hasValidCatalog
+              ? {
+                  ...current,
+                  status: "ready",
+                  message: "Não foi possível atualizar agora. O último catálogo válido continua disponível.",
+                  lastFailure: reason
+                }
+              : { ...initialState, status: "error", message: reason, lastFailure: reason };
           });
         }
       }
@@ -231,7 +260,9 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             message: "Lista principal indisponível. Catálogo substituído pela lista reserva.",
             activePlaylistId: candidate.id,
             activePlaylistName: candidate.name,
-            usingBackupPlaylist: true
+            usingBackupPlaylist: true,
+            lastSuccessfulSync: new Date().toISOString(),
+            lastFailure: reason
           });
           return true;
         } catch (error) {
@@ -240,10 +271,12 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
       }
       throw lastError || new Error("A lista principal e a lista reserva estão indisponíveis.");
     } catch (error) {
+      const failure = error instanceof Error ? error.message : "Falha ao ativar a lista reserva.";
       setState(current => ({
         ...current,
         status: "error",
-        message: error instanceof Error ? error.message : "Falha ao ativar a lista reserva."
+        message: failure,
+        lastFailure: failure
       }));
       return false;
     } finally {
