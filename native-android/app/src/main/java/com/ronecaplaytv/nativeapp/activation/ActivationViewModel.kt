@@ -33,6 +33,20 @@ class ActivationViewModel(application: Application) : AndroidViewModel(applicati
         load { repository.resetAndActivate(isTelevision) }
     }
 
+    fun reportPlaylistFailure(playlistId: String?, error: String) {
+        val normalizedId = playlistId?.trim().orEmpty()
+        if (normalizedId.isEmpty()) return
+
+        viewModelScope.launch {
+            runCatching {
+                repository.reportPlaylistFailure(
+                    playlistId = normalizedId,
+                    error = error,
+                )
+            }
+        }
+    }
+
     private fun load(block: suspend () -> DeviceSessionState) {
         if (mutableState.value.isRefreshing) return
 
