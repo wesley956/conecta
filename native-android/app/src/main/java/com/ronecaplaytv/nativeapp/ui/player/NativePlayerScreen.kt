@@ -259,6 +259,8 @@ fun NativePlayerScreen(
             val advancing = positionMs > lastPositionMs + 250L
             if (advancing || player.isPlaying) {
                 stalledSinceMs = null
+                sameSourceRetries = 0
+                terminalFailureReported = false
                 lastPositionMs = positionMs
                 continue
             }
@@ -296,9 +298,7 @@ fun NativePlayerScreen(
                         playerMessage = "Carregando transmissão..."
                     }
                     Player.STATE_READY -> {
-                        sameSourceRetries = 0
                         recoveryInProgress = false
-                        terminalFailureReported = false
                         playerMessage = null
                     }
                     Player.STATE_ENDED -> playerMessage = "Reprodução finalizada."
