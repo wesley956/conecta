@@ -82,6 +82,13 @@ export function useMediaLibrary() {
     write(HISTORY_KEY, []);
   }, []);
 
+  const clearAll = useCallback(() => {
+    setFavorites([]);
+    setHistory([]);
+    write(FAVORITES_KEY, []);
+    write(HISTORY_KEY, []);
+  }, []);
+
   const favoriteKeys = useMemo(
     () => new Set(favorites.map(item => `${item.kind}:${item.id}`)),
     [favorites]
@@ -93,6 +100,7 @@ export function useMediaLibrary() {
     isFavorite: (kind: LibraryKind, id: string) => favoriteKeys.has(`${kind}:${id}`),
     toggleFavorite,
     remember,
-    clearHistory
+    clearHistory,
+    clearAll
   };
 }

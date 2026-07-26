@@ -43,8 +43,27 @@ function getOrCreateDeviceUuid() {
 async function post(endpoint: "device-activate" | "device-config" | "series-detail" | "channel-epg", payload: Record<string, unknown>, credential?: string) {
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8" };
   if (credential) headers["x-device-credential"] = credential;
-  const response = await fetch(`${FUNCTIONS_URL}/${endpoint}`, { method: "POST", headers, body: JSON.stringify(payload), redirect: "error", cache: "no-store" });
-  return { response, body: (await response.json()) as DeviceResponse };
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(`${FUNCTIONS_URL}/${endpoint}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      redirect: "error",
+      cache: "no-store",
+      signal: controller.signal
+    });
+    let body: DeviceResponse = {};
+    try { body = await response.json() as DeviceResponse; }
+    catch { body = { message: "O servidor retornou uma resposta inválida." }; }
+    return { response, body };
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("O servidor demorou demais para responder.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 function validPlaylists(value: unknown): DevicePlaylist[] {
   if (!Array.isArray(value)) return [];

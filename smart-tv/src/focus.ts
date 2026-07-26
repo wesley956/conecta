@@ -7,13 +7,14 @@ function center(element: HTMLElement) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-export function moveFocus(direction: Direction): void {
+export function moveFocus(direction: Direction, root: ParentNode = document): void {
   const current = document.activeElement as HTMLElement | null;
-  const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>(selector));
   if (!candidates.length) return;
 
   if (!current || !candidates.includes(current)) {
     candidates[0].focus();
+    candidates[0].scrollIntoView({ block: "nearest", inline: "nearest" });
     return;
   }
 
@@ -36,5 +37,7 @@ export function moveFocus(direction: Direction): void {
     .filter(({ valid }) => valid)
     .sort((a, b) => a.score - b.score);
 
-  ranked[0]?.candidate.focus();
+  const next = ranked[0]?.candidate;
+  next?.focus();
+  next?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
