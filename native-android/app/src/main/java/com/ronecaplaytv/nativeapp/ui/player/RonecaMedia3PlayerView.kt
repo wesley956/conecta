@@ -94,6 +94,17 @@ internal fun RonecaMedia3PlayerView(
                     if (isTelevision) MEDIA3_CONTROLLER_TIMEOUT_TV_MS else MEDIA3_CONTROLLER_TIMEOUT_TOUCH_MS,
                 )
                 setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                setControllerVisibilityListener(
+                    PlayerView.ControllerVisibilityListener { visibility ->
+                        currentOnControllerVisibilityChanged(visibility == View.VISIBLE)
+                    },
+                )
+                findViewById<View>(R.id.roneca_media3_back)?.setOnClickListener {
+                    currentOnBack()
+                }
+                findViewById<TextView>(R.id.roneca_media3_drawer)?.setOnClickListener {
+                    currentOnOpenDrawer?.invoke()
+                }
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 isFocusable = true
                 isFocusableInTouchMode = true
@@ -112,28 +123,15 @@ internal fun RonecaMedia3PlayerView(
             playerView.setControllerShowTimeoutMs(
                 if (isTelevision) MEDIA3_CONTROLLER_TIMEOUT_TV_MS else MEDIA3_CONTROLLER_TIMEOUT_TOUCH_MS,
             )
-            playerView.setControllerVisibilityListener(
-                PlayerView.ControllerVisibilityListener { visibility ->
-                    currentOnControllerVisibilityChanged(visibility == View.VISIBLE)
-                },
-            )
-
             playerView.findViewById<TextView>(R.id.roneca_media3_eyebrow)?.text = eyebrow
             playerView.findViewById<TextView>(R.id.roneca_media3_title)?.text = title
             playerView.findViewById<TextView>(R.id.roneca_media3_live)?.visibility =
                 if (live) View.VISIBLE else View.GONE
 
-            playerView.findViewById<View>(R.id.roneca_media3_back)?.setOnClickListener {
-                currentOnBack()
-            }
-
             playerView.findViewById<TextView>(R.id.roneca_media3_drawer)?.apply {
                 val available = !drawerLabel.isNullOrBlank() && currentOnOpenDrawer != null
                 visibility = if (available) View.VISIBLE else View.GONE
                 text = drawerLabel?.let { "☰  $it" }.orEmpty()
-                setOnClickListener {
-                    currentOnOpenDrawer?.invoke()
-                }
             }
 
             if (drawerVisible) playerView.hideController()
