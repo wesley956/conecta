@@ -30,6 +30,7 @@ declare global {
 
 export class TizenPlayer implements PlayerAdapter {
   private avplay: AvPlay | null = null;
+  private tryingSource = false;
   constructor(private readonly update: SnapshotListener) {}
 
   mount() {
@@ -41,9 +42,10 @@ export class TizenPlayer implements PlayerAdapter {
       onbufferingcomplete: () => this.update({ buffering: false }),
       oncurrentplaytime: (milliseconds: never) => this.update({ currentTime: Number(milliseconds) / 1000 }),
       onstreamcompleted: () => this.update({ status: "ended", buffering: false }),
-      onerror: () => this.update({
-        status: "error", buffering: false, error: "A origem ativa parou de responder na Samsung."
-      })
+      onerror: () => {
+        if (this.tryingSource) return;
+        this.update({ status: "error", buffering: false, error: "A origem ativa parou de responder na Samsung." });
+      }
     });
   }
 
@@ -54,22 +56,27 @@ export class TizenPlayer implements PlayerAdapter {
         this.update({ sourceIndex: index, sourceCount: urls.length, error: null });
         await this.trySource(urls[index]);
         return;
-      } catch (error) { lastError = error; this.safeClose(); }
+      } catch (error) { lastError = error; this.tryingSource = false; this.safeClose(); }
     }
     throw lastError || new Error("Nenhuma origem de vídeo pôde ser aberta.");
   }
 
   private trySource(url: string) {
     const avplay = this.avplay!;
+    this.tryingSource = true;
     avplay.open(url);
     avplay.setDisplayRect(0, 0, 1920, 1080);
     avplay.setDisplayMethod("PLAYER_DISPLAY_MODE_LETTER_BOX");
     return new Promise<void>((resolve, reject) => {
       avplay.prepareAsync(() => {
+        this.tryingSource = false;
         this.update({ duration: Math.max(0, avplay.getDuration() / 1000) });
         this.publishTracks();
         resolve();
-      }, () => reject(new Error("Formato ou endereço não suportado nesta Samsung.")));
+      }, () => {
+        this.tryingSource = false;
+        reject(new Error("Formato ou endereço não suportado nesta Samsung."));
+      });
     });
   }
 
