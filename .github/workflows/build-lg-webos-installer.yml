@@ -2,6 +2,19 @@ name: Build LG webOS installer
 
 on:
   workflow_dispatch:
+    inputs:
+      hosted_url:
+        description: Endereço HTTPS da versão hospedada para o IPK de teste
+        required: false
+        default: https://conecta-five-iota.vercel.app/tv/
+      hosted_channel:
+        description: Canal do pacote hospedado
+        required: false
+        type: choice
+        options:
+          - stable
+          - test
+        default: stable
   pull_request:
     branches:
       - main
@@ -21,6 +34,9 @@ jobs:
     name: Generate LG IPK
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RONECA_TV_HOSTED_URL: ${{ inputs.hosted_url || 'https://conecta-five-iota.vercel.app/tv/' }}
+      RONECA_TV_HOSTED_CHANNEL: ${{ inputs.hosted_channel || 'stable' }}
 
     steps:
       - name: Checkout repository
@@ -41,6 +57,10 @@ jobs:
         working-directory: smart-tv
         run: npm run package:webos
 
+      - name: Generate hosted webOS IPK
+        working-directory: smart-tv
+        run: npm run package:webos:hosted
+
       - name: Validate generated installer
         shell: bash
         run: |
@@ -54,6 +74,15 @@ jobs:
           echo "Instalador: $(basename "${packages[0]}")" >> "$GITHUB_STEP_SUMMARY"
           echo "Tamanho: $(stat -c%s "${packages[0]}") bytes" >> "$GITHUB_STEP_SUMMARY"
           sha256sum "${packages[0]}" >> smart-tv/artifacts/SHA256SUMS
+          mapfile -t hosted_packages < <(find smart-tv/artifacts/hosted -maxdepth 1 -type f -name 'com.ronecaplaytv.app*_all.ipk' -print)
+          if [ "${#hosted_packages[@]}" -ne 1 ]; then
+            echo "::error::Esperado exatamente um instalador IPK hospedado; encontrados ${#hosted_packages[@]}."
+            exit 1
+          fi
+          test -s "${hosted_packages[0]}"
+          echo "Instalador hospedado: $(basename "${hosted_packages[0]}")" >> "$GITHUB_STEP_SUMMARY"
+          echo "Endereço hospedado: ${RONECA_TV_HOSTED_URL}" >> "$GITHUB_STEP_SUMMARY"
+          sha256sum "${hosted_packages[0]}" > smart-tv/artifacts/hosted/SHA256SUMS
 
       - name: Upload LG installer artifact
         uses: actions/upload-artifact@v4
@@ -62,5 +91,15 @@ jobs:
           path: |
             smart-tv/artifacts/*.ipk
             smart-tv/artifacts/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload LG hosted installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: roneca-play-tv-lg-hosted-ipk
+          path: |
+            smart-tv/artifacts/hosted/*.ipk
+            smart-tv/artifacts/hosted/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
