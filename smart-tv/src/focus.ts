@@ -7,9 +7,9 @@ function center(element: HTMLElement) {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
-export function moveFocus(direction: Direction): void {
+export function moveFocus(direction: Direction, root: ParentNode = document): void {
   const current = document.activeElement as HTMLElement | null;
-  const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+  const candidates = Array.from(root.querySelectorAll<HTMLElement>(selector));
   if (!candidates.length) return;
 
   if (!current || !candidates.includes(current)) {
