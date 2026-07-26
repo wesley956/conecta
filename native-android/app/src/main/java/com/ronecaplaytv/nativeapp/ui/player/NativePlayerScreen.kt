@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.ui.player
 
+import android.os.SystemClock
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -60,6 +61,9 @@ import kotlinx.coroutines.launch
 private const val IPTV_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
 private const val SAME_SOURCE_RETRY_LIMIT = 1
 private const val PLAYER_SEEK_STEP_MS = 10_000L
+private const val STARTUP_TIMEOUT_MS = 20_000L
+private const val LIVE_STALL_TIMEOUT_MS = 12_000L
+private const val VOD_STALL_TIMEOUT_MS = 25_000L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -75,6 +79,7 @@ fun NativePlayerScreen(
     automaticReconnect: Boolean = true,
     onProgress: (positionMs: Long, durationMs: Long) -> Unit = { _, _ -> },
     onSelectChannel: (NativeChannel) -> Unit = {},
+    onTerminalPlaybackFailure: (String) -> Unit = {},
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -92,6 +97,8 @@ fun NativePlayerScreen(
     var channelDrawerVisible by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var media3Controller by remember { mutableStateOf<RonecaMedia3Controller?>(null) }
+    var recoveryInProgress by remember(sources) { mutableStateOf(false) }
+    var terminalFailureReported by remember(sources) { mutableStateOf(false) }
     var playerMessage by remember(sources) {
         mutableStateOf(
             if (sources.isEmpty()) "Este conteúdo não possui uma fonte de reprodução válida." else null,
@@ -145,6 +152,50 @@ fun NativePlayerScreen(
             }
     }
 
+    fun recoverOrFail(diagnostic: String) {
+        if (!automaticReconnect) {
+            playerMessage = "Transmissão interrompida. Reconexão automática desativada."
+            return
+        }
+        if (recoveryInProgress || terminalFailureReported) return
+
+        recoveryInProgress = true
+        val currentPosition = sourceIndex + 1
+
+        if (sameSourceRetries < SAME_SOURCE_RETRY_LIMIT) {
+            sameSourceRetries += 1
+            playerMessage = "Reconectando à fonte $currentPosition/${sources.size}..."
+            coroutineScope.launch {
+                delay(1_200)
+                sources.getOrNull(sourceIndex)?.let { source ->
+                    player.setMediaItem(mediaItemFor(source))
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+                recoveryInProgress = false
+            }
+            return
+        }
+
+        val nextIndex = sourceIndex + 1
+        if (nextIndex < sources.size) {
+            sourceIndex = nextIndex
+            sameSourceRetries = 0
+            playerMessage =
+                "Fonte $currentPosition falhou ($diagnostic). Tentando ${nextIndex + 1}/${sources.size}..."
+            player.setMediaItem(mediaItemFor(sources[nextIndex]))
+            player.prepare()
+            player.playWhenReady = true
+            recoveryInProgress = false
+            return
+        }
+
+        recoveryInProgress = false
+        terminalFailureReported = true
+        playerMessage = "Lista ativa indisponível. Ativando a lista reserva..."
+        onTerminalPlaybackFailure(diagnostic)
+    }
+
     fun showPlayPauseControls() {
         controlsVisible = true
         media3Controller?.showAndFocusPlayPause()
@@ -192,6 +243,42 @@ fun NativePlayerScreen(
         }
     }
 
+    LaunchedEffect(player, sources, automaticReconnect, currentChannelId) {
+        var stalledSinceMs: Long? = null
+        var lastPositionMs = -1L
+
+        while (true) {
+            delay(1_000)
+            if (!player.playWhenReady || player.playbackState == Player.STATE_ENDED) {
+                stalledSinceMs = null
+                lastPositionMs = player.currentPosition
+                continue
+            }
+
+            val positionMs = player.currentPosition
+            val advancing = positionMs > lastPositionMs + 250L
+            if (advancing || player.isPlaying) {
+                stalledSinceMs = null
+                lastPositionMs = positionMs
+                continue
+            }
+
+            val now = SystemClock.elapsedRealtime()
+            val startedAt = stalledSinceMs ?: now.also { stalledSinceMs = it }
+            val timeoutMs = when {
+                positionMs <= 1_000L -> STARTUP_TIMEOUT_MS
+                currentChannelId != null -> LIVE_STALL_TIMEOUT_MS
+                else -> VOD_STALL_TIMEOUT_MS
+            }
+
+            if (now - startedAt >= timeoutMs) {
+                stalledSinceMs = now
+                recoverOrFail("tempo limite de carregamento")
+            }
+            lastPositionMs = positionMs
+        }
+    }
+
     LaunchedEffect(player) {
         while (true) {
             delay(2_000)
@@ -210,6 +297,8 @@ fun NativePlayerScreen(
                     }
                     Player.STATE_READY -> {
                         sameSourceRetries = 0
+                        recoveryInProgress = false
+                        terminalFailureReported = false
                         playerMessage = null
                     }
                     Player.STATE_ENDED -> playerMessage = "Reprodução finalizada."
@@ -218,39 +307,7 @@ fun NativePlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                val currentPosition = sourceIndex + 1
-                val diagnostic = error.errorCodeName
-
-                if (!automaticReconnect) {
-                    playerMessage = "Transmissão interrompida. Reconexão automática desativada."
-                    return
-                }
-
-                if (sameSourceRetries < SAME_SOURCE_RETRY_LIMIT) {
-                    sameSourceRetries += 1
-                    playerMessage = "Reconectando à fonte $currentPosition/${sources.size}..."
-                    coroutineScope.launch {
-                        delay(1_200)
-                        if (sourceIndex < sources.size) {
-                            player.setMediaItem(mediaItemFor(sources[sourceIndex]))
-                            player.prepare()
-                            player.playWhenReady = true
-                        }
-                    }
-                    return
-                }
-
-                val nextIndex = sourceIndex + 1
-                if (nextIndex < sources.size) {
-                    sourceIndex = nextIndex
-                    sameSourceRetries = 0
-                    playerMessage = "Fonte $currentPosition falhou ($diagnostic). Tentando ${nextIndex + 1}/${sources.size}..."
-                    player.setMediaItem(mediaItemFor(sources[nextIndex]))
-                    player.prepare()
-                    player.playWhenReady = true
-                } else {
-                    playerMessage = "Não foi possível reproduzir. Erro: $diagnostic"
-                }
+                recoverOrFail(error.errorCodeName)
             }
         }
 
