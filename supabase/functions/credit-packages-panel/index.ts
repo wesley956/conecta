@@ -9,12 +9,32 @@ const corsHeaders = {
 };
 
 type JsonBody = Record<string, unknown>;
-
 type Principal = {
   userId: string;
   email: string | null;
   role: 'owner' | 'admin' | 'seller';
   sellerId: string | null;
+};
+type MappedOrder = {
+  id: string;
+  sellerId: string | null;
+  sellerName: string | null;
+  packageName: string;
+  packageCode: string;
+  packageQuantity: number;
+  creditsTotal: number;
+  unitPackagePriceCents: number;
+  totalAmountCents: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  releasePolicy: string;
+  creditsStatus: string;
+  dueDate: string | null;
+  paidAt: string | null;
+  releasedAt: string | null;
+  expiresAt: string | null;
+  notes: string | null;
+  createdAt: string;
 };
 
 function json(data: unknown, status = 200) {
@@ -66,27 +86,27 @@ function dateOnly(value: unknown) {
   return result;
 }
 
-function mapOrder(row: any) {
+function mapOrder(row: any): MappedOrder {
   return {
-    id: row.id,
-    sellerId: row.seller_id,
+    id: String(row.id),
+    sellerId: row.seller_id || null,
     sellerName: row.seller?.name || null,
-    packageName: row.package_name_snapshot,
-    packageCode: row.package_code_snapshot,
-    packageQuantity: row.package_quantity,
-    creditsTotal: row.credits_total,
+    packageName: String(row.package_name_snapshot || ''),
+    packageCode: String(row.package_code_snapshot || ''),
+    packageQuantity: Number(row.package_quantity || 0),
+    creditsTotal: Number(row.credits_total || 0),
     unitPackagePriceCents: Number(row.unit_package_price_cents || 0),
     totalAmountCents: Number(row.total_amount_cents || 0),
-    paymentMethod: row.payment_method,
-    paymentStatus: row.payment_status,
-    releasePolicy: row.release_policy,
-    creditsStatus: row.credits_status,
-    dueDate: row.due_date,
-    paidAt: row.paid_at,
-    releasedAt: row.released_at,
-    expiresAt: row.expires_at,
-    notes: row.notes,
-    createdAt: row.created_at,
+    paymentMethod: String(row.payment_method || ''),
+    paymentStatus: String(row.payment_status || ''),
+    releasePolicy: String(row.release_policy || ''),
+    creditsStatus: String(row.credits_status || ''),
+    dueDate: row.due_date || null,
+    paidAt: row.paid_at || null,
+    releasedAt: row.released_at || null,
+    expiresAt: row.expires_at || null,
+    notes: row.notes || null,
+    createdAt: String(row.created_at || ''),
   };
 }
 
@@ -114,6 +134,7 @@ async function dashboard(supabase: any, principal: Principal) {
 
   const { data: orders, error: orderError } = await orderQuery;
   if (orderError) throw new Error(`Falha ao carregar compras: ${orderError.message}`);
+  const mappedOrders: MappedOrder[] = (orders || []).map((row: any) => mapOrder(row));
 
   if (principal.role === 'seller') {
     const { data: seller, error: sellerError } = await supabase
@@ -131,14 +152,14 @@ async function dashboard(supabase: any, principal: Principal) {
       .gt('credits_remaining', 0)
       .order('expires_at');
 
-    const openDebt = (orders || [])
-      .filter((item: any) => ['pending', 'overdue'].includes(item.payment_status))
-      .reduce((total: number, item: any) => total + Number(item.total_amount_cents || 0), 0);
+    const openDebt = mappedOrders
+      .filter((item: MappedOrder) => ['pending', 'overdue'].includes(item.paymentStatus))
+      .reduce((total: number, item: MappedOrder) => total + item.totalAmountCents, 0);
 
     return {
       role: 'seller',
       packages,
-      orders: (orders || []).map(mapOrder),
+      orders: mappedOrders,
       seller: {
         id: seller.id,
         name: seller.name,
@@ -157,11 +178,18 @@ async function dashboard(supabase: any, principal: Principal) {
     .order('name');
   if (sellerError) throw new Error(`Falha ao carregar vendedores: ${sellerError.message}`);
 
-  const mappedOrders = (orders || []).map(mapOrder);
-  const received = mappedOrders.filter(item => item.paymentStatus === 'paid').reduce((sum, item) => sum + item.totalAmountCents, 0);
-  const pending = mappedOrders.filter(item => item.paymentStatus === 'pending').reduce((sum, item) => sum + item.totalAmountCents, 0);
-  const overdue = mappedOrders.filter(item => item.paymentStatus === 'overdue').reduce((sum, item) => sum + item.totalAmountCents, 0);
-  const creditsSold = mappedOrders.filter(item => item.creditsStatus === 'released').reduce((sum, item) => sum + item.creditsTotal, 0);
+  const received = mappedOrders
+    .filter((item: MappedOrder) => item.paymentStatus === 'paid')
+    .reduce((sum: number, item: MappedOrder) => sum + item.totalAmountCents, 0);
+  const pending = mappedOrders
+    .filter((item: MappedOrder) => item.paymentStatus === 'pending')
+    .reduce((sum: number, item: MappedOrder) => sum + item.totalAmountCents, 0);
+  const overdue = mappedOrders
+    .filter((item: MappedOrder) => item.paymentStatus === 'overdue')
+    .reduce((sum: number, item: MappedOrder) => sum + item.totalAmountCents, 0);
+  const creditsSold = mappedOrders
+    .filter((item: MappedOrder) => item.creditsStatus === 'released')
+    .reduce((sum: number, item: MappedOrder) => sum + item.creditsTotal, 0);
 
   return {
     role: principal.role,
@@ -247,7 +275,6 @@ async function updatePayment(supabase: any, principal: Principal, body: JsonBody
     const { error: releaseError } = await supabase.rpc('release_credit_order', { p_order_id: orderId });
     if (releaseError) throw new Error(releaseError.message);
   }
-
   return { ok: true };
 }
 
