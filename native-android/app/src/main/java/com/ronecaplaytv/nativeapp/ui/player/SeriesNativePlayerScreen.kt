@@ -65,6 +65,7 @@ private const val SERIES_SOURCE_RETRY_LIMIT = 1
 private const val SERIES_SEEK_STEP_MS = 10_000L
 private const val SERIES_STARTUP_TIMEOUT_MS = 20_000L
 private const val SERIES_STALL_TIMEOUT_MS = 25_000L
+private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 
 private data class EpisodeEntry(
     val season: NativeSeason,
@@ -320,7 +321,7 @@ fun SeriesNativePlayerScreen(
 
     LaunchedEffect(player, currentIndex) {
         while (true) {
-            delay(2_000)
+            delay(PROGRESS_SAVE_INTERVAL_MS)
             val entry = entries.getOrNull(currentIndex) ?: continue
             val duration = player.duration
             val position = player.currentPosition
@@ -384,6 +385,8 @@ fun SeriesNativePlayerScreen(
     DisposableEffect(player, controlsVisible, episodeDrawerVisible, media3Controller) {
         val registration = NativePlaybackKeyRouter.register { event ->
             val actionUp = event.action == AndroidKeyEvent.ACTION_UP
+            val initialActionDown =
+                event.action == AndroidKeyEvent.ACTION_DOWN && event.repeatCount == 0
             val actionDown = event.action == AndroidKeyEvent.ACTION_DOWN
 
             when (event.keyCode) {
@@ -397,12 +400,12 @@ fun SeriesNativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 AndroidKeyEvent.KEYCODE_HEADSETHOOK,
                 -> {
-                    if (actionUp) togglePlayPause()
+                    if (initialActionDown) togglePlayPause()
                     true
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    if (actionUp) {
+                    if (initialActionDown) {
                         player.play()
                         showPlayPauseControls()
                     }
@@ -410,7 +413,7 @@ fun SeriesNativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    if (actionUp) {
+                    if (initialActionDown) {
                         player.pause()
                         showPlayPauseControls()
                     }
@@ -418,12 +421,12 @@ fun SeriesNativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (actionUp) seekBy(SERIES_SEEK_STEP_MS)
+                    if (initialActionDown) seekBy(SERIES_SEEK_STEP_MS)
                     true
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (actionUp) seekBy(-SERIES_SEEK_STEP_MS)
+                    if (initialActionDown) seekBy(-SERIES_SEEK_STEP_MS)
                     true
                 }
 
@@ -435,7 +438,7 @@ fun SeriesNativePlayerScreen(
                     if (episodeDrawerVisible || controlsVisible) {
                         false
                     } else {
-                        if (actionUp) togglePlayPause()
+                        if (initialActionDown) togglePlayPause()
                         true
                     }
                 }
