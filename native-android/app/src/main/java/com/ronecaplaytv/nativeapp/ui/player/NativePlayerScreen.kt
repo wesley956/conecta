@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +65,7 @@ private const val PLAYER_SEEK_STEP_MS = 10_000L
 private const val STARTUP_TIMEOUT_MS = 20_000L
 private const val LIVE_STALL_TIMEOUT_MS = 12_000L
 private const val VOD_STALL_TIMEOUT_MS = 25_000L
+private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -97,6 +99,8 @@ fun NativePlayerScreen(
     var channelDrawerVisible by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var media3Controller by remember { mutableStateOf<RonecaMedia3Controller?>(null) }
+    val currentControlsVisible = rememberUpdatedState(controlsVisible)
+    val currentChannelDrawerVisible = rememberUpdatedState(channelDrawerVisible)
     var recoveryInProgress by remember(sources) { mutableStateOf(false) }
     var terminalFailureReported by remember(sources) { mutableStateOf(false) }
     var playerMessage by remember(sources) {
@@ -283,7 +287,7 @@ fun NativePlayerScreen(
 
     LaunchedEffect(player) {
         while (true) {
-            delay(2_000)
+            delay(PROGRESS_SAVE_INTERVAL_MS)
             val duration = player.duration
             val position = player.currentPosition
             if (duration > 0L && position > 0L) onProgress(position, duration)
@@ -323,15 +327,17 @@ fun NativePlayerScreen(
         }
     }
 
-    DisposableEffect(player, controlsVisible, channelDrawerVisible, media3Controller) {
+    DisposableEffect(player, media3Controller) {
         val registration = NativePlaybackKeyRouter.register { event ->
             val actionUp = event.action == AndroidKeyEvent.ACTION_UP
+            val initialActionDown =
+                event.action == AndroidKeyEvent.ACTION_DOWN && event.repeatCount == 0
             val actionDown = event.action == AndroidKeyEvent.ACTION_DOWN
 
             when (event.keyCode) {
                 AndroidKeyEvent.KEYCODE_BACK -> {
                     if (actionUp) {
-                        if (channelDrawerVisible) closeDrawer() else onBack()
+                        if (currentChannelDrawerVisible.value) closeDrawer() else onBack()
                     }
                     true
                 }
@@ -339,12 +345,12 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
                 AndroidKeyEvent.KEYCODE_HEADSETHOOK,
                 -> {
-                    if (actionUp) togglePlayPause()
+                    if (initialActionDown) togglePlayPause()
                     true
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    if (actionUp) {
+                    if (initialActionDown) {
                         player.play()
                         showPlayPauseControls()
                     }
@@ -352,7 +358,7 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    if (actionUp) {
+                    if (initialActionDown) {
                         player.pause()
                         showPlayPauseControls()
                     }
@@ -360,12 +366,12 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (actionUp) seekBy(PLAYER_SEEK_STEP_MS)
+                    if (initialActionDown) seekBy(PLAYER_SEEK_STEP_MS)
                     true
                 }
 
                 AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (actionUp) seekBy(-PLAYER_SEEK_STEP_MS)
+                    if (initialActionDown) seekBy(-PLAYER_SEEK_STEP_MS)
                     true
                 }
 
@@ -374,16 +380,16 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
                 AndroidKeyEvent.KEYCODE_SPACE,
                 -> {
-                    if (channelDrawerVisible || controlsVisible) {
+                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
                         false
                     } else {
-                        if (actionUp) togglePlayPause()
+                        if (initialActionDown) togglePlayPause()
                         true
                     }
                 }
 
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (channelDrawerVisible || controlsVisible) {
+                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
                         false
                     } else {
                         if (actionDown) seekBy(-PLAYER_SEEK_STEP_MS)
@@ -392,7 +398,7 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (channelDrawerVisible || controlsVisible) {
+                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
                         false
                     } else {
                         if (actionDown) seekBy(PLAYER_SEEK_STEP_MS)
@@ -403,7 +409,7 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_DPAD_UP,
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 -> {
-                    if (channelDrawerVisible || controlsVisible) {
+                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
                         false
                     } else {
                         if (actionDown) showPlayPauseControls()

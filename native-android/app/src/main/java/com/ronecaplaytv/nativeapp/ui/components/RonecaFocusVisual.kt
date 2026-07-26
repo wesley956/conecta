@@ -1,7 +1,7 @@
 package com.ronecaplaytv.nativeapp.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -19,10 +19,7 @@ fun Modifier.ronecaFocusScale(
 ): Modifier {
     val scale by animateFloatAsState(
         targetValue = if (enabled && focused) focusedScale else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.78f,
-            stiffness = 520f,
-        ),
+        animationSpec = tween(durationMillis = 75),
         label = "roneca-focus-scale",
     )
     return graphicsLayer {

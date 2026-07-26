@@ -207,6 +207,12 @@ fun RonecaPlayTVApp(
     var favoriteSeriesIds by remember { mutableStateOf(playbackPreferences.favoriteSeries()) }
     var savedProgress by remember { mutableStateOf(playbackPreferences.startedProgress()) }
 
+    LaunchedEffect(destination) {
+        if (destination != NativeDestination.Player) {
+            savedProgress = playbackPreferences.startedProgress()
+        }
+    }
+
     val isWideLayout = naturallyWideLayout || settingsState.forceTvMode
 
     LaunchedEffect(isTelevision) {
@@ -742,7 +748,6 @@ fun RonecaPlayTVApp(
                         onProgress = { _, episode, positionMs, durationMs ->
                             val contentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
                             playbackPreferences.saveProgress(contentKey, positionMs, durationMs)
-                            savedProgress = playbackPreferences.startedProgress()
                         },
                         onTerminalPlaybackFailure = ::activateBackupPlaylist,
                         onBack = {
@@ -773,7 +778,6 @@ fun RonecaPlayTVApp(
                         onProgress = { positionMs, durationMs ->
                             if (selectedContentKey.startsWith("movie:") || selectedContentKey.startsWith("episode:")) {
                                 playbackPreferences.saveProgress(selectedContentKey, positionMs, durationMs)
-                                savedProgress = playbackPreferences.startedProgress()
                             }
                         },
                         onSelectChannel = ::selectChannelInsidePlayer,
