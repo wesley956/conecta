@@ -75,6 +75,7 @@ class CatalogViewModel : ViewModel() {
                         usingBackup = true,
                         failoverNotice = "Lista principal indisponível. Catálogo substituído pela lista reserva.",
                         lastFailureReason = reason,
+                        lastFailoverAtMillis = System.currentTimeMillis(),
                     )
                     return@launch
                 }.onFailure { lastFailure = it }
@@ -115,6 +116,8 @@ class CatalogViewModel : ViewModel() {
                         } else {
                             null
                         },
+                        lastFailureReason = if (candidateIndex > 0) lastFailure?.message else null,
+                        lastFailoverAtMillis = if (candidateIndex > 0) System.currentTimeMillis() else null,
                     )
                     return
                 }.onFailure { lastFailure = it }
@@ -187,6 +190,7 @@ class CatalogViewModel : ViewModel() {
             usingBackup: Boolean,
             failoverNotice: String?,
             lastFailureReason: String? = null,
+            lastFailoverAtMillis: Long? = null,
         ) = NativeCatalogState(
             channels = channels,
             movies = movies,
@@ -197,6 +201,7 @@ class CatalogViewModel : ViewModel() {
             usingBackupPlaylist = usingBackup,
             failoverNotice = failoverNotice,
             lastFailureReason = lastFailureReason,
+            lastFailoverAtMillis = lastFailoverAtMillis,
         )
     }
 }
