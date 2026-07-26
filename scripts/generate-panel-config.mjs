@@ -97,6 +97,13 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  script.src = './commercial-consolidation.js?v=1.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
+  `})();\n` +
+  `(function loadSellerDynamicNavigation(){\n` +
+  `  if (!/\\/seller\\.html$/.test(window.location.pathname)) return;\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './seller-dynamic-navigation.js?v=1.0';\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
   `})();\n`;
 
 const outputs = [
