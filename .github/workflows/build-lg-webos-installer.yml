@@ -1,6 +1,13 @@
 name: Build LG webOS installer
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'smart-tv/platforms/webos-hosted/**'
+      - 'smart-tv/scripts/stage-webos-hosted.mjs'
+      - '.github/workflows/build-lg-webos-installer.yml'
   workflow_dispatch:
     inputs:
       hosted_url:
@@ -103,3 +110,78 @@ jobs:
             smart-tv/artifacts/hosted/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish hosted IPK to protected panel storage
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.hosted_channel == 'stable')
+        env:
+          SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY secret}"
+
+          APPINFO="smart-tv/build/webos-hosted/appinfo.json"
+          VERSION=$(jq -r '.version' "$APPINFO")
+          if ! [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Versão webOS inválida: $VERSION"
+            exit 1
+          fi
+          VERSION_CODE=$((10#${BASH_REMATCH[1]} * 1000000 + 10#${BASH_REMATCH[2]} * 1000 + 10#${BASH_REMATCH[3]}))
+          if [ "$VERSION_CODE" -le 0 ]; then
+            echo "::error::O versionCode webOS precisa ser maior que zero."
+            exit 1
+          fi
+
+          mapfile -t hosted_packages < <(find smart-tv/artifacts/hosted -maxdepth 1 -type f -name 'com.ronecaplaytv.app_*_all.ipk' -print)
+          if [ "${#hosted_packages[@]}" -ne 1 ]; then
+            echo "::error::Esperado exatamente um IPK hospedado estável; encontrados ${#hosted_packages[@]}."
+            exit 1
+          fi
+          IPK_FILE="${hosted_packages[0]}"
+          IPK_SHA256=$(sha256sum "$IPK_FILE" | awk '{print $1}')
+          IPK_SIZE_BYTES=$(stat -c '%s' "$IPK_FILE")
+          STORAGE_PATH="webos/versions/v${VERSION}/ronecaPlayerTV-webos-v${VERSION}.ipk"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/octet-stream" \
+            --header "x-upsert: true" \
+            --data-binary "@${IPK_FILE}" \
+            "${SUPABASE_URL}/storage/v1/object/app-releases/${STORAGE_PATH}"
+
+          RELEASE_PAYLOAD="$RUNNER_TEMP/webos-app-release.json"
+          jq -n \
+            --argjson version_code "$VERSION_CODE" \
+            --arg version_name "$VERSION" \
+            --arg storage_path "$STORAGE_PATH" \
+            --arg sha256 "$IPK_SHA256" \
+            --argjson file_size_bytes "$IPK_SIZE_BYTES" \
+            --rawfile notes smart-tv/RELEASE_NOTES.md \
+            '{
+              platform: "webos",
+              file_extension: "ipk",
+              version_code: $version_code,
+              version_name: $version_name,
+              storage_path: $storage_path,
+              sha256: $sha256,
+              signer_sha256: null,
+              file_size_bytes: $file_size_bytes,
+              notes: $notes,
+              mandatory: false,
+              published: true
+            }' > "$RELEASE_PAYLOAD"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/json" \
+            --header "Prefer: resolution=merge-duplicates,return=minimal" \
+            --data-binary "@${RELEASE_PAYLOAD}" \
+            "${SUPABASE_URL}/rest/v1/app_releases?on_conflict=platform%2Cversion_code"
+
+          echo "IPK hospedado v${VERSION} publicado no painel protegido." >> "$GITHUB_STEP_SUMMARY"
+          echo "SHA-256: ${IPK_SHA256}" >> "$GITHUB_STEP_SUMMARY"
