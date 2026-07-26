@@ -98,6 +98,13 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
   `})();\n` +
+  `(function loadAdminCommercialPrivacy(){\n` +
+  `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './admin-commercial-privacy.js?v=1.0';\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
+  `})();\n` +
   `(function loadSellerDynamicNavigation(){\n` +
   `  if (!/\\/seller\\.html$/.test(window.location.pathname)) return;\n` +
   `  var script = document.createElement('script');\n` +
