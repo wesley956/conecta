@@ -1,0 +1,13 @@
+{
+  "id": "__RONECA_TV_APP_ID__",
+  "version": "0.5.0",
+  "vendor": "Roneca",
+  "type": "web",
+  "main": "index.html",
+  "title": "__RONECA_TV_TITLE__",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "backgroundColor": "#050505",
+  "transparent": false,
+  "disableBackHistoryAPI": true
+}
