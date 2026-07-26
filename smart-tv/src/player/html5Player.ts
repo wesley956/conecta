@@ -15,6 +15,7 @@ interface HtmlVideoWithTracks extends HTMLVideoElement {
 export class Html5Player implements PlayerAdapter {
   private video: HTMLVideoElement | null = null;
   private cleanups: Array<() => void> = [];
+  private tryingSource = false;
 
   constructor(private readonly update: SnapshotListener) {}
 
@@ -37,9 +38,10 @@ export class Html5Player implements PlayerAdapter {
     on("durationchange", () => this.update({ duration: Number.isFinite(video.duration) ? video.duration : 0 }));
     on("loadedmetadata", () => this.publishTracks());
     on("ended", () => this.update({ status: "ended", buffering: false }));
-    on("error", () => this.update({
-      status: "error", buffering: false, error: "A origem ativa parou de responder."
-    }));
+    on("error", () => {
+      if (this.tryingSource) return;
+      this.update({ status: "error", buffering: false, error: "A origem ativa parou de responder." });
+    });
   }
 
   async load(urls: string[]) {
@@ -50,18 +52,20 @@ export class Html5Player implements PlayerAdapter {
         this.update({ sourceIndex: index, sourceCount: urls.length, error: null });
         await this.trySource(urls[index]);
         return;
-      } catch (error) { lastError = error; }
+      } catch (error) { lastError = error; this.tryingSource = false; }
     }
     throw lastError || new Error("Nenhuma origem de vídeo pôde ser aberta.");
   }
 
   private trySource(url: string) {
     const video = this.video!;
+    this.tryingSource = true;
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       const done = (callback: () => void) => {
         if (settled) return;
         settled = true;
+        this.tryingSource = false;
         video.removeEventListener("canplay", ready);
         video.removeEventListener("error", failed);
         window.clearTimeout(timeout);
