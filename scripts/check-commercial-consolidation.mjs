@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const files = {
   ui: 'admin-panel/commercial-consolidation.js',
+  adminPrivacy: 'admin-panel/admin-commercial-privacy.js',
   navigation: 'admin-panel/seller-dynamic-navigation.js',
   css: 'admin-panel/commercial-consolidation.css',
   endpoint: 'supabase/functions/seller-commercial-panel/index.ts',
@@ -25,6 +26,12 @@ const required = {
     'sellerCommercialSavePrice',
     'sellerCommercialSaveCustomer',
     'data-subscription-tab',
+  ],
+  adminPrivacy: [
+    '.tab[data-tab="finance"]',
+    'section-finance',
+    "id.startsWith('finance-pending-')",
+    "id === 'finance-admin-renew'",
   ],
   navigation: [
     'seller-portal-section',
@@ -52,6 +59,8 @@ const required = {
     'loadCommercialConsolidation',
     'commercial-consolidation.css?v=1.0',
     'commercial-consolidation.js?v=1.0',
+    'loadAdminCommercialPrivacy',
+    'admin-commercial-privacy.js?v=1.0',
     'loadSellerDynamicNavigation',
     'seller-dynamic-navigation.js?v=1.0',
   ],
@@ -67,4 +76,4 @@ if (source.loader.includes('loadSubscriptionModule')) {
   throw new Error('O módulo incompleto de assinaturas não deve ser carregado no painel publicado.');
 }
 
-console.log('✅ Fluxo comercial consolidado: navegação, pacotes, preços, clientes e consumo FIFO validados.');
+console.log('✅ Fluxo comercial consolidado: privacidade, navegação, pacotes, preços, clientes e consumo FIFO validados.');
