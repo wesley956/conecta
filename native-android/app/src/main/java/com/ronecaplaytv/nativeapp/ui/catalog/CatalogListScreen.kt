@@ -193,7 +193,7 @@ private fun CatalogMediaCard(
             .then(focusModifier)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (playable && event.type == KeyEventType.KeyUp && (
+                if (playable && event.type == KeyEventType.KeyDown && (
                         event.key == Key.DirectionCenter ||
                             event.key == Key.Enter ||
                             event.key == Key.NumPadEnter
