@@ -95,10 +95,10 @@ fun HomeScreen(
     onOpenFeaturedSeries: (NativeSeries) -> Unit,
 ) {
     val firstFocusRequester = remember { FocusRequester() }
-    val movieRotation = remember(featuredMovies.map(NativeMovie::id)) {
+    val movieRotation = remember(featuredMovies) {
         featuredMovies.shuffled()
     }
-    val seriesRotation = remember(featuredSeries.map(NativeSeries::id)) {
+    val seriesRotation = remember(featuredSeries) {
         featuredSeries.shuffled()
     }
     var rotationIndex by remember(movieRotation, seriesRotation) { mutableStateOf(0) }
@@ -442,7 +442,7 @@ private fun HeroButton(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
                 ) {
                     onClick()
@@ -506,7 +506,7 @@ private fun MobileExploreItem(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
                 ) {
                     destination.action()
@@ -636,7 +636,7 @@ private fun FeaturedContentCard(
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
-                    event.type == KeyEventType.KeyUp &&
+                    event.type == KeyEventType.KeyDown &&
                     (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter)
                 ) {
                     onClick()
