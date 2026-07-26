@@ -66,6 +66,22 @@ const performanceFiles = {
     'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/splash/RonecaLaunchSound.kt',
   app:
     'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/RonecaPlayTVApp.kt',
+  settings:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/settings/SettingsScreen.kt',
+  settingsPreferences:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/persistence/PlayerSettingsPreferences.kt',
+  catalogModels:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/catalog/CatalogModels.kt',
+  catalogViewModel:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/catalog/CatalogViewModel.kt',
+  search:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/search/SearchScreen.kt',
+  home:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/home/HomeScreen.kt',
+  playback:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/playback/PlaybackScreen.kt',
+  build:
+    'native-android/app/build.gradle.kts',
 };
 
 const performanceSources = Object.fromEntries(
@@ -103,6 +119,37 @@ if (!performanceSources.launchSound.includes('DURATION_SECONDS = 3.0')) {
 }
 if (!performanceSources.app.includes('LaunchedEffect(destination)')) {
   throw new Error(`${performanceFiles.app} deve atualizar o progresso fora da reprodução.`);
+}
+for (const marker of ['launchSoundEnabled', 'PlaylistDiagnosticsState', 'DIAGNÓSTICO DAS LISTAS']) {
+  if (!performanceSources.settings.includes(marker)) {
+    throw new Error(`${performanceFiles.settings} perdeu o diagnóstico ou o controle do som: ${marker}`);
+  }
+}
+if (!performanceSources.settingsPreferences.includes('KEY_LAUNCH_SOUND_ENABLED')) {
+  throw new Error(`${performanceFiles.settingsPreferences} deve persistir a preferência do som.`);
+}
+if (!performanceSources.catalogModels.includes('lastFailoverAtMillis') ||
+    !performanceSources.catalogViewModel.includes('System.currentTimeMillis()')) {
+  throw new Error('O diagnóstico deve registrar o horário real da troca de lista.');
+}
+if (!performanceSources.launchSound.includes('withContext(Dispatchers.Default)')) {
+  throw new Error('A assinatura sonora não pode ser sintetizada na thread da interface.');
+}
+if (!performanceSources.search.includes('.asSequence()') ||
+    !performanceSources.search.includes('.take(20)\n            .toList()')) {
+  throw new Error('A busca deve parar após os resultados visíveis.');
+}
+if (!performanceSources.home.includes('remember(featuredMovies)') ||
+    performanceSources.home.includes('remember(featuredMovies.map')) {
+  throw new Error('A tela inicial não pode recriar IDs a cada recomposição.');
+}
+if (!performanceSources.playback.includes('latestProgressBySeriesId')) {
+  throw new Error('Minha Lista deve indexar o progresso de séries uma única vez.');
+}
+for (const marker of ['isMinifyEnabled = true', 'isShrinkResources = true']) {
+  if (!performanceSources.build.includes(marker)) {
+    throw new Error(`O APK de produção perdeu a otimização: ${marker}`);
+  }
 }
 
 const media3BridgePath =
