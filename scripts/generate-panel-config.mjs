@@ -111,6 +111,19 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  script.src = './seller-dynamic-navigation-v2.js?v=2.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
+  `})();\n` +
+  `(function loadAdminOperationsRedesign(){\n` +
+  `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
+  `  if (!document.querySelector('link[href*="admin-operations-redesign.css"]')) {\n` +
+  `    var style = document.createElement('link');\n` +
+  `    style.rel = 'stylesheet';\n` +
+  `    style.href = './admin-operations-redesign.css?v=1.0';\n` +
+  `    document.head.appendChild(style);\n` +
+  `  }\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './admin-operations-redesign.js?v=1.0';\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
   `})();\n`;
 
 const outputs = [
