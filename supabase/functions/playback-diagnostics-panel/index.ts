@@ -7,6 +7,8 @@ import {
   type PanelPrincipal,
 } from '../_shared/panelAuth.ts';
 
+type DiagnosticRow = Record<string, any>;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -14,8 +16,6 @@ const corsHeaders = {
 };
 
 const allowedStatuses = new Set(['open', 'investigating', 'resolved', 'ignored']);
-const allowedSeverities = new Set(['low', 'medium', 'high', 'critical']);
-const allowedSources = new Set(['content', 'network', 'playlist', 'app', 'device', 'unknown']);
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -62,27 +62,26 @@ function sourceLabel(source: string) {
   return labels[source] || labels.unknown;
 }
 
-function simpleMessage(row: any) {
+function simpleMessage(row: DiagnosticRow) {
   if (row.recovered) return 'A reprodução apresentou instabilidade, mas foi recuperada automaticamente.';
   if (row.player_exited) return 'A reprodução foi interrompida e voltou para a tela anterior.';
   if (row.backup_available) return 'A reprodução falhou e o sistema tentou usar a lista reserva.';
   return 'A reprodução apresentou uma falha e precisa ser verificada.';
 }
 
-function contentLabel(row: any) {
+function contentLabel(row: DiagnosticRow) {
   const title = text(row.content_title, 180) || 'Conteúdo não identificado';
-  if (row.content_type === 'episode') {
-    const season = numberValue(row.season_number, 0);
-    const episode = numberValue(row.episode_number, 0);
-    const suffix = [season > 0 ? `T${season}` : '', episode > 0 ? `E${episode}` : '']
-      .filter(Boolean)
-      .join(' ');
-    return suffix ? `${title} · ${suffix}` : title;
-  }
-  return title;
+  if (row.content_type !== 'episode') return title;
+
+  const season = numberValue(row.season_number, 0);
+  const episode = numberValue(row.episode_number, 0);
+  const suffix = [season > 0 ? `T${season}` : '', episode > 0 ? `E${episode}` : '']
+    .filter(Boolean)
+    .join(' ');
+  return suffix ? `${title} · ${suffix}` : title;
 }
 
-function groupTop(rows: any[], key: (row: any) => string, limit = 8) {
+function groupTop(rows: DiagnosticRow[], key: (row: DiagnosticRow) => string, limit = 8) {
   const grouped = new Map<string, number>();
   for (const row of rows) {
     const label = key(row);
@@ -95,26 +94,26 @@ function groupTop(rows: any[], key: (row: any) => string, limit = 8) {
     .map(([label, count]) => ({ label, count }));
 }
 
-function summary(rows: any[]) {
+function summary(rows: DiagnosticRow[]) {
   const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-  const recent = rows.filter(row => new Date(row.occurred_at).getTime() >= dayAgo);
+  const recent = rows.filter((row: DiagnosticRow) => new Date(row.occurred_at).getTime() >= dayAgo);
   return {
     last24Hours: recent.length,
-    affectedDevices: new Set(recent.map(row => row.device_id).filter(Boolean)).size,
+    affectedDevices: new Set(recent.map((row: DiagnosticRow) => row.device_id).filter(Boolean)).size,
     affectedContents: new Set(
       recent
-        .map(row => text(row.content_title, 180))
-        .filter(value => value && !value.toLocaleLowerCase('pt-BR').includes('não identificado')),
+        .map((row: DiagnosticRow) => text(row.content_title, 180))
+        .filter((value: string) => value && !value.toLocaleLowerCase('pt-BR').includes('não identificado')),
     ).size,
-    affectedPlaylists: new Set(recent.map(row => row.playlist_id).filter(Boolean)).size,
-    recovered: recent.filter(row => row.recovered === true).length,
-    playerExited: recent.filter(row => row.player_exited === true).length,
-    withoutBackup: recent.filter(row => row.backup_available !== true).length,
-    open: rows.filter(row => row.status === 'open' || row.status === 'investigating').length,
+    affectedPlaylists: new Set(recent.map((row: DiagnosticRow) => row.playlist_id).filter(Boolean)).size,
+    recovered: recent.filter((row: DiagnosticRow) => row.recovered === true).length,
+    playerExited: recent.filter((row: DiagnosticRow) => row.player_exited === true).length,
+    withoutBackup: recent.filter((row: DiagnosticRow) => row.backup_available !== true).length,
+    open: rows.filter((row: DiagnosticRow) => row.status === 'open' || row.status === 'investigating').length,
   };
 }
 
-function matchesFilters(row: any, body: Record<string, unknown>) {
+function matchesFilters(row: DiagnosticRow, body: Record<string, unknown>) {
   const search = normalize(body.search);
   const severity = text(body.severity, 30);
   const probableSource = text(body.probableSource, 30);
@@ -155,11 +154,10 @@ function matchesFilters(row: any, body: Record<string, unknown>) {
     const end = new Date(`${dateTo}T23:59:59.999Z`).getTime();
     if (Number.isFinite(end) && occurredAt > end) return false;
   }
-
   return true;
 }
 
-function adminRecord(row: any) {
+function adminRecord(row: DiagnosticRow) {
   return {
     id: row.id,
     deviceId: row.device_id,
@@ -197,7 +195,7 @@ function adminRecord(row: any) {
   };
 }
 
-function sellerRecord(row: any) {
+function sellerRecord(row: DiagnosticRow) {
   return {
     id: row.id,
     deviceId: row.device_id,
@@ -217,7 +215,7 @@ function sellerRecord(row: any) {
   };
 }
 
-async function loadRows(supabase: any, principal: PanelPrincipal) {
+async function loadRows(supabase: any, principal: PanelPrincipal): Promise<DiagnosticRow[]> {
   let query = supabase
     .from('panel_playback_diagnostics')
     .select('*')
@@ -230,7 +228,7 @@ async function loadRows(supabase: any, principal: PanelPrincipal) {
 
   const { data, error } = await query;
   if (error) throw new Error(`Falha ao consultar diagnósticos: ${error.message}`);
-  return data ?? [];
+  return (data ?? []) as DiagnosticRow[];
 }
 
 serve(async request => {
@@ -287,8 +285,8 @@ serve(async request => {
 
     if (action !== 'list') return json({ error: 'Ação inválida.' }, 400);
 
-    const rows = await loadRows(supabase, principal);
-    const filtered = rows.filter(row => matchesFilters(row, body as Record<string, unknown>));
+    const rows: DiagnosticRow[] = await loadRows(supabase, principal);
+    const filtered = rows.filter((row: DiagnosticRow) => matchesFilters(row, body as Record<string, unknown>));
     const page = Math.max(1, Math.trunc(numberValue((body as Record<string, unknown>).page, 1)));
     const pageSize = Math.min(100, Math.max(10, Math.trunc(numberValue((body as Record<string, unknown>).pageSize, 25))));
     const start = (page - 1) * pageSize;
@@ -308,24 +306,24 @@ serve(async request => {
       });
     }
 
-    const sellerOptions = [...new Map(rows
-      .filter(row => row.seller_id)
-      .map(row => [row.seller_id, row.seller_name_snapshot || 'Vendedor']))]
+    const sellerOptions = [...new Map<string, string>(rows
+      .filter((row: DiagnosticRow) => Boolean(row.seller_id))
+      .map((row: DiagnosticRow) => [String(row.seller_id), String(row.seller_name_snapshot || 'Vendedor')]))]
       .map(([id, name]) => ({ id, name }))
-      .sort((left, right) => String(left.name).localeCompare(String(right.name), 'pt-BR'));
-    const playlistOptions = [...new Map(rows
-      .filter(row => row.playlist_id)
-      .map(row => [row.playlist_id, row.playlist_name_snapshot || 'Lista']))]
+      .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+    const playlistOptions = [...new Map<string, string>(rows
+      .filter((row: DiagnosticRow) => Boolean(row.playlist_id))
+      .map((row: DiagnosticRow) => [String(row.playlist_id), String(row.playlist_name_snapshot || 'Lista')]))]
       .map(([id, name]) => ({ id, name }))
-      .sort((left, right) => String(left.name).localeCompare(String(right.name), 'pt-BR'));
+      .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 
     return json({
       audience: 'admin',
       summary: summary(filtered),
       records: pageRows.map(adminRecord),
-      topContents: groupTop(filtered, row => contentLabel(row)),
-      topDevices: groupTop(filtered, row => row.device_code_snapshot || '—'),
-      topPlaylists: groupTop(filtered, row => row.playlist_name_snapshot || '—'),
+      topContents: groupTop(filtered, (row: DiagnosticRow) => contentLabel(row)),
+      topDevices: groupTop(filtered, (row: DiagnosticRow) => row.device_code_snapshot || '—'),
+      topPlaylists: groupTop(filtered, (row: DiagnosticRow) => row.playlist_name_snapshot || '—'),
       filters: { sellers: sellerOptions, playlists: playlistOptions },
       pagination: {
         page,
