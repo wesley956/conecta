@@ -124,6 +124,20 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `  script.src = './admin-operations-redesign.js?v=1.0';\n` +
   `  script.async = false;\n` +
   `  document.head.appendChild(script);\n` +
+  `})();\n` +
+  `(function loadPlaybackDiagnostics(){\n` +
+  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
+  `  if (!document.querySelector('link[href*="playback-diagnostics-module.css"]')) {\n` +
+  `    var style = document.createElement('link');\n` +
+  `    style.rel = 'stylesheet';\n` +
+  `    style.href = './playback-diagnostics-module.css?v=1.0';\n` +
+  `    document.head.appendChild(style);\n` +
+  `  }\n` +
+  `  if (document.querySelector('script[src*="playback-diagnostics-module.js"]')) return;\n` +
+  `  var script = document.createElement('script');\n` +
+  `  script.src = './playback-diagnostics-module.js?v=1.0';\n` +
+  `  script.async = false;\n` +
+  `  document.head.appendChild(script);\n` +
   `})();\n`;
 
 const outputs = [
