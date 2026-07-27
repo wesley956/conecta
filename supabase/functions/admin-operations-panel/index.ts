@@ -45,7 +45,7 @@ serve(async request => {
     const action = String((body as Record<string, unknown>).action || 'dashboard');
     if (action !== 'dashboard') return json({ error: 'Ação inválida.' }, 400);
 
-    const [permissionsResult, financeResult] = await Promise.all([
+    const [permissionsResult, financeResult, creditOrdersResult] = await Promise.all([
       supabase
         .from('panel_seller_playlists')
         .select(`
@@ -89,10 +89,14 @@ serve(async request => {
         `)
         .order('created_at', { ascending: false })
         .limit(300),
+      supabase
+        .from('panel_credit_orders')
+        .select('total_amount_cents, payment_status, due_date'),
     ]);
 
     if (permissionsResult.error) throw new Error(`Falha ao consultar listas dos vendedores: ${permissionsResult.error.message}`);
     if (financeResult.error) throw new Error(`Falha ao consultar o financeiro da empresa: ${financeResult.error.message}`);
+    if (creditOrdersResult.error) throw new Error(`Falha ao consultar vendas de pacotes: ${creditOrdersResult.error.message}`);
 
     const access = new Map<string, { sellerIds: string[]; sellerNames: string[] }>();
     for (const permission of permissionsResult.data ?? []) {
@@ -116,7 +120,7 @@ serve(async request => {
     const records = (financeResult.data ?? []).map((record: any) => {
       const amountCents = Number(record.amount_cents || 0);
       const status = effectiveStatus(record.status, record.due_date);
-      if (record.record_type === 'income') {
+      if (record.record_type === 'income' && record.source !== 'credit_sale') {
         if (status === 'paid') paidIncomeCents += amountCents;
         if (status === 'pending') pendingIncomeCents += amountCents;
         if (status === 'overdue') overdueIncomeCents += amountCents;
@@ -153,15 +157,29 @@ serve(async request => {
       };
     });
 
+    let paidPackageCents = 0;
+    let pendingPackageCents = 0;
+    let overduePackageCents = 0;
+    for (const order of creditOrdersResult.data ?? []) {
+      const amount = Number((order as any).total_amount_cents || 0);
+      const status = effectiveStatus((order as any).payment_status, (order as any).due_date);
+      if (status === 'paid') paidPackageCents += amount;
+      if (status === 'pending') pendingPackageCents += amount;
+      if (status === 'overdue') overduePackageCents += amount;
+    }
+
     return json({
       playlistAccess: Array.from(access.entries()).map(([playlistId, row]) => ({ playlistId, ...row })),
       companyFinance: {
         summary: {
+          paidPackageCents,
+          pendingPackageCents,
+          overduePackageCents,
           paidIncomeCents,
           pendingIncomeCents,
           overdueIncomeCents,
           paidExpensesCents,
-          paidResultCents: paidIncomeCents - paidExpensesCents,
+          paidResultCents: paidPackageCents + paidIncomeCents - paidExpensesCents,
         },
         records,
       },
