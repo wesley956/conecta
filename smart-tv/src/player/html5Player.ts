@@ -1,4 +1,4 @@
-import type { PlayerAdapter, PlayerTrack, SnapshotListener } from "./types";
+import type { PlayerAdapter, PlayerLoadOptions, PlayerTrack, SnapshotListener } from "./types";
 
 interface HtmlAudioTrack {
   enabled: boolean;
@@ -25,6 +25,7 @@ export class Html5Player implements PlayerAdapter {
     video.autoplay = true;
     video.playsInline = true;
     video.preload = "auto";
+    video.setAttribute("webkit-playsinline", "true");
     document.body.prepend(video);
     this.video = video;
     const on = (name: keyof HTMLMediaElementEventMap, handler: EventListener) => {
@@ -34,30 +35,36 @@ export class Html5Player implements PlayerAdapter {
     on("playing", () => this.update({ status: "playing", buffering: false }));
     on("pause", () => { if (!video.ended) this.update({ status: "paused", buffering: false }); });
     on("waiting", () => this.update({ buffering: true }));
+    on("stalled", () => this.update({ buffering: true }));
+    on("canplay", () => this.update({ buffering: false }));
     on("timeupdate", () => this.update({ currentTime: video.currentTime || 0 }));
     on("durationchange", () => this.update({ duration: Number.isFinite(video.duration) ? video.duration : 0 }));
     on("loadedmetadata", () => this.publishTracks());
     on("ended", () => this.update({ status: "ended", buffering: false }));
     on("error", () => {
       if (this.tryingSource) return;
-      this.update({ status: "error", buffering: false, error: "A origem ativa parou de responder." });
+      const code = video.error?.code;
+      const detail = code === 3 ? "O formato de vídeo não pôde ser decodificado."
+        : code === 4 ? "O formato ou endereço não é suportado nesta LG."
+          : "A origem ativa parou de responder.";
+      this.update({ status: "error", buffering: false, error: detail });
     });
   }
 
-  async load(urls: string[]) {
+  async load(urls: string[], _live: boolean, options?: PlayerLoadOptions) {
     if (!this.video) throw new Error("Player não inicializado.");
     let lastError: unknown;
     for (let index = 0; index < urls.length; index += 1) {
       try {
         this.update({ sourceIndex: index, sourceCount: urls.length, error: null });
-        await this.trySource(urls[index]);
+        await this.trySource(urls[index], options?.bufferSeconds || 5);
         return;
       } catch (error) { lastError = error; this.tryingSource = false; }
     }
     throw lastError || new Error("Nenhuma origem de vídeo pôde ser aberta.");
   }
 
-  private trySource(url: string) {
+  private trySource(url: string, bufferSeconds: number) {
     const video = this.video!;
     this.tryingSource = true;
     return new Promise<void>((resolve, reject) => {
@@ -73,7 +80,8 @@ export class Html5Player implements PlayerAdapter {
       };
       const ready = () => done(resolve);
       const failed = () => done(() => reject(new Error("Formato ou endereço não suportado nesta TV.")));
-      const timeout = window.setTimeout(() => done(() => reject(new Error("Tempo esgotado ao abrir o vídeo."))), 20_000);
+      const timeoutMs = Math.max(20_000, Math.min(45_000, bufferSeconds * 4_000));
+      const timeout = window.setTimeout(() => done(() => reject(new Error("Tempo esgotado ao abrir o vídeo."))), timeoutMs);
       video.addEventListener("canplay", ready);
       video.addEventListener("error", failed);
       video.src = url;
