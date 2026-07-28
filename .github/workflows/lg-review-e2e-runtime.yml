@@ -1,4 +1,4 @@
-name: Blender Video Source Discovery
+name: Blender Video 480p Verification
 
 on:
   pull_request:
@@ -9,11 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  discover-official-video-files:
+  verify-official-480p-files:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Read official PeerTube API
+      - name: Resolve and probe official Blender MP4 files
         shell: bash
         run: |
           python - <<'PY'
@@ -27,37 +27,40 @@ jobs:
 
           output = {}
           for name, video_id in videos.items():
-              url = f'https://video.blender.org/api/v1/videos/{video_id}'
-              request = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0'})
-              with urllib.request.urlopen(request, timeout=60) as response:
+              api_url = f'https://video.blender.org/api/v1/videos/{video_id}'
+              req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0'})
+              with urllib.request.urlopen(req, timeout=60) as response:
                   payload = json.load(response)
-              output[name] = {
-                  'name': payload.get('name'),
-                  'licence': payload.get('licence'),
-                  'files': [
-                      {
-                          'resolution': item.get('resolution', {}).get('label'),
-                          'size': item.get('size'),
-                          'fileUrl': item.get('fileUrl'),
-                          'fileDownloadUrl': item.get('fileDownloadUrl'),
-                      }
-                      for item in payload.get('files', [])
-                  ],
-                  'streamingPlaylists': [
-                      {
-                          'playlistUrl': playlist.get('playlistUrl'),
-                          'files': [
-                              {
-                                  'resolution': item.get('resolution', {}).get('label'),
-                                  'size': item.get('size'),
-                                  'fileUrl': item.get('fileUrl'),
-                                  'fileDownloadUrl': item.get('fileDownloadUrl'),
-                              }
-                              for item in playlist.get('files', [])
-                          ],
-                      }
-                      for playlist in payload.get('streamingPlaylists', [])
-                  ],
-              }
+              files = payload.get('files', [])
+              selected = next((item for item in files if item.get('resolution', {}).get('label') == '480p'), None)
+              if selected is None:
+                  selected = next((item for item in files if item.get('resolution', {}).get('label') == '360p'), None)
+              assert selected and selected.get('fileUrl'), (name, files)
+
+              media_url = selected['fileUrl']
+              media_req = urllib.request.Request(
+                  media_url,
+                  headers={
+                      'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0',
+                      'Range': 'bytes=0-65535',
+                      'Accept': 'video/mp4,*/*',
+                  },
+              )
+              with urllib.request.urlopen(media_req, timeout=90) as response:
+                  data = response.read(65536)
+                  output[name] = {
+                      'title': payload.get('name'),
+                      'resolution': selected.get('resolution', {}).get('label'),
+                      'url': media_url,
+                      'http': response.status,
+                      'content_type': response.headers.get('content-type'),
+                      'content_range': response.headers.get('content-range'),
+                      'bytes': len(data),
+                      'mp4_signature': len(data) >= 8 and data[4:8] == b'ftyp',
+                  }
+
           print(json.dumps(output, indent=2, ensure_ascii=False))
+          assert all(item['http'] in {200, 206} for item in output.values()), output
+          assert all(item['bytes'] > 0 for item in output.values()), output
+          assert all(item['mp4_signature'] for item in output.values()), output
           PY
