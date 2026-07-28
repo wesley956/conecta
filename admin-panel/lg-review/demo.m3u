@@ -2,10 +2,10 @@
 #EXTINF:-1 tvg-id="lg-review-demo-live" tvg-name="HLS Demonstration Channel" tvg-logo="https://conecta-five-iota.vercel.app/lg-review/assets/live-demo.svg" group-title="LG Review Live 24h",HLS Demonstration Channel
 https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8
 #EXTINF:596 tvg-name="Big Buck Bunny" tvg-logo="https://conecta-five-iota.vercel.app/lg-review/assets/big-buck-bunny.svg" group-title="Movies | Open Movies",Big Buck Bunny (2008)
-https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+https://video.blender.org/object-storage/web_videos/bf1f3fb5-b119-4f9f-9930-8e20e892b898-480.mp4
 #EXTINF:888 tvg-name="Sintel" tvg-logo="https://conecta-five-iota.vercel.app/lg-review/assets/sintel.svg" group-title="Movies | Open Movies",Sintel (2010)
-https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4
+https://video.blender.org/object-storage/web_videos/0eb052d0-fd51-43e6-aa33-ecdbf77a5d40-480.mp4
 #EXTINF:596 tvg-name="RonecaPlayTV Review Series S01E01" tvg-logo="https://conecta-five-iota.vercel.app/lg-review/assets/big-buck-bunny.svg" group-title="Series | Demonstration",RonecaPlayTV Review Series S01E01 — Big Buck Bunny
-https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
+https://video.blender.org/object-storage/web_videos/bf1f3fb5-b119-4f9f-9930-8e20e892b898-480.mp4
 #EXTINF:888 tvg-name="RonecaPlayTV Review Series S01E02" tvg-logo="https://conecta-five-iota.vercel.app/lg-review/assets/sintel.svg" group-title="Series | Demonstration",RonecaPlayTV Review Series S01E02 — Sintel
-https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4
+https://video.blender.org/object-storage/web_videos/0eb052d0-fd51-43e6-aa33-ecdbf77a5d40-480.mp4
