@@ -1,10 +1,10 @@
 {
   "id": "com.ronecaplaytv.app",
   "version": "1.0.0",
-  "vendor": "Roneca",
+  "vendor": "RonecaPlayTV",
   "type": "web",
   "main": "index.html",
-  "title": "ronecaPlayer TV",
+  "title": "RonecaPlayTV",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "backgroundColor": "#050505",
