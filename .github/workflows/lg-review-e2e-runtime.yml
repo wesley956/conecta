@@ -17,9 +17,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --max-time 180 \
+          HTTP_STATUS=$(curl --silent --show-error --max-time 180 \
             'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-e2e-check?token=OziAmE_xcrplMVmrXER8lQj6NOrmxdTI' \
-            --output result.json
+            --output result.json \
+            --write-out '%{http_code}')
+          echo "HTTP ${HTTP_STATUS}"
           cat result.json
           python - <<'PY'
           import json
