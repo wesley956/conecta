@@ -1,0 +1,40 @@
+name: LG Review E2E Runtime Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-lg-review-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Execute isolated production flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 180 \
+            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-e2e-check?token=OziAmE_xcrplMVmrXER8lQj6NOrmxdTI' \
+            --output result.json
+          cat result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('result.json').read_text())
+          assert result.get('result') == 'PASS', result
+          assert result['deviceActivate']['http'] == 200, result
+          assert result['reviewStatus']['http'] == 200, result
+          assert result['reviewActivate']['http'] == 200, result
+          assert result['deviceConfig']['http'] == 200, result
+          assert result['deviceConfig']['active'] is True, result
+          assert result['catalogDownloads']['channels']['count'] == 1, result
+          assert result['catalogDownloads']['movies']['count'] == 2, result
+          assert result['catalogDownloads']['series']['count'] == 1, result
+          assert result['media']['hls']['validManifest'] is True, result
+          assert all(item['http'] in (200, 206) for item in result['media']['movies']), result
+          assert all(item['http'] in (200, 206) for item in result['media']['images']), result
+          PY
