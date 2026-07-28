@@ -1,0 +1,149 @@
+name: Build Samsung Tizen installer
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'smart-tv/**'
+      - '.github/workflows/build-samsung-tizen-installer.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'smart-tv/**'
+      - '.github/workflows/build-samsung-tizen-installer.yml'
+  workflow_dispatch:
+    inputs:
+      sign_and_publish:
+        description: Gerar WGT assinado em runner com Tizen Studio
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-samsung-tizen-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-tizen-structure:
+    name: Validate Samsung WGT structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smart-tv/package-lock.json
+      - name: Install dependencies
+        working-directory: smart-tv
+        run: npm ci
+      - name: Generate unsigned validation WGT
+        working-directory: smart-tv
+        run: npm run package:tizen
+      - name: Inspect package structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find smart-tv/artifacts -maxdepth 1 -type f -name '*-unsigned.wgt' -print)
+          test "${#packages[@]}" -eq 1
+          unzip -l "${packages[0]}" | grep -q 'config.xml'
+          unzip -l "${packages[0]}" | grep -q 'index.html'
+          test -s "${packages[0]}"
+          sha256sum "${packages[0]}" > smart-tv/artifacts/SHA256SUMS-tizen-unsigned
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roneca-play-tv-samsung-wgt-unsigned
+          path: |
+            smart-tv/artifacts/*-unsigned.wgt
+            smart-tv/artifacts/SHA256SUMS-tizen-unsigned
+          if-no-files-found: error
+          retention-days: 14
+
+  sign-and-publish:
+    name: Sign and publish Samsung WGT
+    if: github.event_name == 'workflow_dispatch' && inputs.sign_and_publish
+    runs-on: [self-hosted, tizen-studio]
+    timeout-minutes: 20
+    env:
+      TIZEN_CERT_PROFILE: ${{ secrets.TIZEN_CERT_PROFILE }}
+      SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: smart-tv/package-lock.json
+      - name: Validate signing environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v tizen >/dev/null
+          : "${TIZEN_CERT_PROFILE:?Missing TIZEN_CERT_PROFILE secret}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY secret}"
+      - name: Install dependencies
+        working-directory: smart-tv
+        run: npm ci
+      - name: Generate signed WGT
+        working-directory: smart-tv
+        run: npm run package:tizen:signed
+      - name: Validate and publish signed WGT
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONFIG=smart-tv/build/tizen/config.xml
+          VERSION=$(python - <<'PY'
+          import re
+          print(re.search(r'version="([0-9]+\.[0-9]+\.[0-9]+)"', open('smart-tv/build/tizen/config.xml', encoding='utf-8').read()).group(1))
+          PY
+          )
+          VERSION_CODE=$(python - <<PY
+          major, minor, patch = map(int, '${VERSION}'.split('.'))
+          print(major * 1000000 + minor * 1000 + patch)
+          PY
+          )
+          WGT="smart-tv/artifacts/ronecaPlayerTV-tizen-v${VERSION}.wgt"
+          test -s "$WGT"
+          unzip -l "$WGT" | grep -q 'author-signature.xml'
+          unzip -l "$WGT" | grep -q 'signature1.xml'
+          SHA256=$(sha256sum "$WGT" | awk '{print $1}')
+          SIZE=$(stat -c '%s' "$WGT")
+          STORAGE_PATH="tizen/versions/v${VERSION}/ronecaPlayerTV-tizen-v${VERSION}.wgt"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/octet-stream" \
+            --header "x-upsert: true" \
+            --data-binary "@${WGT}" \
+            "${SUPABASE_URL}/storage/v1/object/app-releases/${STORAGE_PATH}"
+          jq -n \
+            --argjson version_code "$VERSION_CODE" \
+            --arg version_name "$VERSION" \
+            --arg storage_path "$STORAGE_PATH" \
+            --arg sha256 "$SHA256" \
+            --argjson file_size_bytes "$SIZE" \
+            --rawfile notes smart-tv/RELEASE_NOTES.md \
+            '{platform:"tizen",file_extension:"wgt",version_code:$version_code,version_name:$version_name,storage_path:$storage_path,sha256:$sha256,signer_sha256:null,file_size_bytes:$file_size_bytes,notes:$notes,mandatory:false,published:true}' > "$RUNNER_TEMP/tizen-release.json"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/json" \
+            --header "Prefer: resolution=merge-duplicates,return=minimal" \
+            --data-binary "@$RUNNER_TEMP/tizen-release.json" \
+            "${SUPABASE_URL}/rest/v1/app_releases?on_conflict=platform%2Cversion_code"
+          sha256sum "$WGT" > smart-tv/artifacts/SHA256SUMS-tizen
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roneca-play-tv-samsung-wgt-signed
+          path: |
+            smart-tv/artifacts/ronecaPlayerTV-tizen-v*.wgt
+            smart-tv/artifacts/SHA256SUMS-tizen
+          if-no-files-found: error
+          retention-days: 30

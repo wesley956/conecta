@@ -75,6 +75,9 @@ verify_jwt = false
 [functions.app-release]
 verify_jwt = false
 
+[functions.playback-diagnostics-report]
+verify_jwt = false
+
 # Funções de painel usam Supabase Auth e papéis individuais.
 [functions.admin-panel]
 verify_jwt = true

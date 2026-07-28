@@ -1,4 +1,4 @@
-import type { PlayerAdapter, PlayerTrack, SnapshotListener } from "./types";
+import type { PlayerAdapter, PlayerLoadOptions, PlayerTrack, SnapshotListener } from "./types";
 
 interface AvPlayTrackInfo {
   index: number;
@@ -13,6 +13,7 @@ interface AvPlay {
   setDisplayRect(x: number, y: number, width: number, height: number): void;
   setDisplayMethod(method: string): void;
   setListener(listener: Record<string, (...args: never[]) => void>): void;
+  setBufferingParam?(option: string, unit: string, amount: number): void;
   play(): void;
   pause(): void;
   stop(): void;
@@ -49,34 +50,46 @@ export class TizenPlayer implements PlayerAdapter {
     });
   }
 
-  async load(urls: string[]) {
+  async load(urls: string[], _live: boolean, options?: PlayerLoadOptions) {
     let lastError: unknown;
     for (let index = 0; index < urls.length; index += 1) {
       try {
         this.update({ sourceIndex: index, sourceCount: urls.length, error: null });
-        await this.trySource(urls[index]);
+        await this.trySource(urls[index], options?.bufferSeconds || 5);
         return;
       } catch (error) { lastError = error; this.tryingSource = false; this.safeClose(); }
     }
     throw lastError || new Error("Nenhuma origem de vídeo pôde ser aberta.");
   }
 
-  private trySource(url: string) {
+  private trySource(url: string, bufferSeconds: number) {
     const avplay = this.avplay!;
     this.tryingSource = true;
     avplay.open(url);
     avplay.setDisplayRect(0, 0, 1920, 1080);
     avplay.setDisplayMethod("PLAYER_DISPLAY_MODE_LETTER_BOX");
+    try {
+      avplay.setBufferingParam?.("PLAYER_BUFFER_FOR_PLAY", "PLAYER_BUFFER_SIZE_IN_SECOND", bufferSeconds);
+      avplay.setBufferingParam?.("PLAYER_BUFFER_FOR_RESUME", "PLAYER_BUFFER_SIZE_IN_SECOND", Math.max(2, Math.min(10, bufferSeconds)));
+    } catch { /* modelos antigos continuam com o buffer padrão */ }
     return new Promise<void>((resolve, reject) => {
-      avplay.prepareAsync(() => {
+      let settled = false;
+      const done = (callback: () => void) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
         this.tryingSource = false;
+        callback();
+      };
+      const timeout = window.setTimeout(
+        () => done(() => reject(new Error("A Samsung demorou demais para preparar o vídeo."))),
+        Math.max(20_000, Math.min(45_000, bufferSeconds * 4_000))
+      );
+      avplay.prepareAsync(() => done(() => {
         this.update({ duration: Math.max(0, avplay.getDuration() / 1000) });
         this.publishTracks();
         resolve();
-      }, () => {
-        this.tryingSource = false;
-        reject(new Error("Formato ou endereço não suportado nesta Samsung."));
-      });
+      }), () => done(() => reject(new Error("Formato ou endereço não suportado nesta Samsung."))));
     });
   }
 

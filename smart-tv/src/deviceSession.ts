@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { platform } from "./platform";
 
 const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
-export const APP_VERSION = "0.5.0";
+export const APP_VERSION = "1.0.0";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }
@@ -19,6 +19,26 @@ interface DeviceResponse {
   active?: boolean; status?: string; deviceCode?: string; deviceCredential?: string; clientName?: string;
   expiresAt?: string; playlistName?: string; selectedPlaylistId?: string; cacheVersion?: string;
   cacheItemCount?: number; cacheError?: string; cacheParts?: CacheParts; playlists?: unknown; message?: string;
+}
+export interface PlaybackDiagnosticReport {
+  clientEventId: string;
+  playlistId?: string | null;
+  contentType: "channel" | "movie" | "series" | "episode" | "unknown";
+  contentTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  positionMs?: number;
+  durationMs?: number;
+  errorCode?: string;
+  errorMessage: string;
+  severity?: "low" | "medium" | "high" | "critical";
+  probableSource?: "content" | "network" | "playlist" | "app" | "device" | "unknown";
+  recoveryAction?: string;
+  recovered: boolean;
+  playerExited?: boolean;
+  backupAvailable?: boolean;
+  retryCount?: number;
+  occurredAt?: string;
 }
 const initialSession: DeviceSession = {
   status: "loading", deviceCode: null, clientName: null, expiresAt: null, playlistName: null,
@@ -40,7 +60,7 @@ function getOrCreateDeviceUuid() {
   const existing = readStored("deviceUuid"); if (existing) return existing;
   const created = randomDeviceId(); writeStored("deviceUuid", created); return created;
 }
-async function post(endpoint: "device-activate" | "device-config" | "series-detail" | "channel-epg", payload: Record<string, unknown>, credential?: string) {
+async function post(endpoint: "device-activate" | "device-config" | "series-detail" | "channel-epg" | "playback-diagnostics-report", payload: Record<string, unknown>, credential?: string) {
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8" };
   if (credential) headers["x-device-credential"] = credential;
   const controller = new AbortController();
@@ -116,7 +136,7 @@ export async function fetchConfiguration(): Promise<DeviceSession> {
   if (body.deviceCode && body.deviceCode !== deviceCode) writeStored("deviceCode", body.deviceCode);
   return mapResponse(response.status, body);
 }
-export async function reportPlaylistFailure(playlistId: string, error: string): Promise<void> {
+async function reportPlaylistHealth(playlistId: string, status: "success" | "failure", error?: string): Promise<void> {
   const deviceCode = readStored("deviceCode");
   const credential = readStored("deviceCredential");
   if (!deviceCode || !credential || !playlistId) return;
@@ -125,10 +145,29 @@ export async function reportPlaylistFailure(playlistId: string, error: string): 
     deviceUuid: getOrCreateDeviceUuid(),
     playlistHealth: {
       playlistId,
-      status: "failure",
-      error: error.slice(0, 500)
+      status,
+      ...(error ? { error: error.slice(0, 500) } : {})
     }
   }, credential);
+}
+export async function reportPlaylistFailure(playlistId: string, error: string): Promise<void> {
+  await reportPlaylistHealth(playlistId, "failure", error);
+}
+export async function reportPlaylistSuccess(playlistId: string): Promise<void> {
+  await reportPlaylistHealth(playlistId, "success");
+}
+export async function reportPlaybackDiagnostic(report: PlaybackDiagnosticReport): Promise<void> {
+  const deviceCode = readStored("deviceCode");
+  const credential = readStored("deviceCredential");
+  if (!deviceCode || !credential || !report.clientEventId) return;
+  const { response } = await post("playback-diagnostics-report", {
+    ...report,
+    deviceCode,
+    deviceUuid: getOrCreateDeviceUuid(),
+    platform: platform === "browser" ? "smart-tv-preview" : platform,
+    appVersion: APP_VERSION
+  }, credential);
+  if (!response.ok) throw new Error("Não foi possível registrar o diagnóstico.");
 }
 
 export interface SeriesEpisodeResponse {
