@@ -5,8 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'smart-tv/platforms/webos-hosted/**'
-      - 'smart-tv/scripts/stage-webos-hosted.mjs'
+      - 'smart-tv/**'
       - '.github/workflows/build-lg-webos-installer.yml'
   workflow_dispatch:
     inputs:
