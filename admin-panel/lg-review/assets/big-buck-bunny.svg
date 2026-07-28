@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" role="img" aria-label="Big Buck Bunny open movie">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#87b9d8"/><stop offset="1" stop-color="#285a42"/></linearGradient></defs>
+  <rect width="600" height="900" rx="28" fill="url(#g)"/>
+  <circle cx="300" cy="350" r="150" fill="#f5eee0" opacity=".92"/>
+  <ellipse cx="240" cy="160" rx="52" ry="165" fill="#f5eee0"/><ellipse cx="360" cy="160" rx="52" ry="165" fill="#f5eee0"/>
+  <circle cx="250" cy="330" r="16" fill="#1a1a1a"/><circle cx="350" cy="330" r="16" fill="#1a1a1a"/>
+  <path d="M285 380q15 20 30 0" stroke="#9c6170" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <text x="300" y="690" fill="#fff" font-family="Arial,sans-serif" font-size="56" font-weight="700" text-anchor="middle">BIG BUCK</text>
+  <text x="300" y="755" fill="#fff" font-family="Arial,sans-serif" font-size="56" font-weight="700" text-anchor="middle">BUNNY</text>
+  <text x="300" y="820" fill="#dcefe2" font-family="Arial,sans-serif" font-size="22" text-anchor="middle">OPEN MOVIE · QA DEMO</text>
+</svg>
