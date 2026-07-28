@@ -1,7 +1,7 @@
 export const CACHE_BUCKET = 'playlist-cache';
 export const DEMO_PLAYLIST_NAME = 'LG Review Demo';
 export const DEMO_PLAYLIST_URL = 'https://conecta-five-iota.vercel.app/lg-review/demo.m3u';
-export const DEMO_VERSION = 'lg-review-v1';
+export const DEMO_VERSION = 'lg-review-v2';
 const APP_ORIGIN = 'https://conecta-five-iota.vercel.app';
 
 async function uploadJson(supabase: any, path: string, payload: unknown) {
@@ -21,8 +21,8 @@ function buildDemoSnapshot(playlistId: string) {
   const bunnyCover = `${APP_ORIGIN}/lg-review/assets/big-buck-bunny.svg`;
   const sintelCover = `${APP_ORIGIN}/lg-review/assets/sintel.svg`;
   const hlsUrl = 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
-  const bunnyUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-  const sintelUrl = 'https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4';
+  const bunnyUrl = 'https://video.blender.org/object-storage/web_videos/bf1f3fb5-b119-4f9f-9930-8e20e892b898-480.mp4';
+  const sintelUrl = 'https://video.blender.org/object-storage/web_videos/0eb052d0-fd51-43e6-aa33-ecdbf77a5d40-480.mp4';
 
   const channels = [{
     id: `${playlistId}-ch-1`,
