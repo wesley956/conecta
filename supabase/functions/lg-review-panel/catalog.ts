@@ -192,7 +192,6 @@ export async function ensureDemoCache(supabase: any, playlistId: string, force =
     playlist_cache_size_bytes: sizeBytes,
     playlist_cache_error: null,
     playlist_updated_at: snapshot.generatedAt,
-    updated_at: snapshot.generatedAt,
   }).eq('id', playlistId);
   if (error) throw new Error(`Falha ao concluir catálogo de homologação: ${error.message}`);
 
