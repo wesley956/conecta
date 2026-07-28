@@ -45,6 +45,9 @@ check(edge.includes("from('panel_device_playlists').delete()"), 'A ativação n�
 check(!edge.match(/password\s*[:=]\s*['\"][^'\"]+/i), 'Uma senha parece ter sido incorporada à função.');
 check(catalog.includes('playlist_updated_at: snapshot.generatedAt'), 'O catálogo não atualiza a data real da playlist.');
 check(!/(^|\n)\s*updated_at\s*:/.test(catalog), 'O catálogo tenta gravar a coluna inexistente panel_playlists.updated_at.');
+check(catalog.includes("DEMO_VERSION = 'lg-review-v2'"), 'O catálogo de homologação não está na versão corrigida v2.');
+check(catalog.includes('video.blender.org/object-storage/web_videos'), 'O catálogo não usa os arquivos oficiais acessíveis da Blender.');
+check(!catalog.includes('storage.googleapis.com/gtv-videos-bucket'), 'O catálogo ainda contém links do Google bloqueados com HTTP 403.');
 check(migration.includes('enable row level security'), 'RLS não foi habilitado nas tabelas de homologação.');
 check(migration.includes('revoke all on table public.panel_review_accounts from public, anon, authenticated'), 'Privilégios públicos da conta de homologação não foram revogados.');
 check(portalHtml.includes('./lg-review-auth.js'), 'O portal LG não carrega a autenticação isolada.');
@@ -57,6 +60,8 @@ check(portal.includes("FUNCTION_NAME = 'lg-review-panel'"), 'O portal não usa a
 check(portal.includes('showLoggedOut'), 'O portal não volta ao estado seguro após falha de login.');
 check(portal.includes('authFlowVersion'), 'O portal não protege o login contra concorrência com restauração de sessão.');
 check(m3u.includes('devstreaming-cdn.apple.com'), 'O canal HLS oficial de teste não está no catálogo.');
+check(m3u.includes('video.blender.org/object-storage/web_videos'), 'A lista M3U não usa os MP4 oficiais da Blender.');
+check(!m3u.includes('storage.googleapis.com/gtv-videos-bucket'), 'A lista M3U ainda contém links bloqueados do Google.');
 check((m3u.match(/#EXTINF:/g) || []).length === 5, 'O catálogo M3U precisa conter exatamente cinco entradas de demonstração.');
 check(m3u.includes('S01E01') && m3u.includes('S01E02'), 'A série demonstrativa não possui dois episódios.');
 check(smartPackage.version === '1.0.0', 'O pacote Smart TV precisa estar na versão 1.0.0.');
