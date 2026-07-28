@@ -24,6 +24,8 @@ body {
 button, input { font: inherit; }
 button { cursor: pointer; }
 
+[hidden] { display: none !important; }
+
 .page-shell { width: min(1040px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 70px; }
 .brand-header { display: flex; align-items: center; gap: 22px; margin-bottom: 28px; }
 .brand-mark {
