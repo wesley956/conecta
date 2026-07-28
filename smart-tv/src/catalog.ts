@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { reportPlaylistFailure } from "./deviceSession";
+import { reportPlaylistFailure, reportPlaylistSuccess } from "./deviceSession";
 import type { CacheParts, DevicePlaylist, DeviceSession } from "./deviceSession";
 
 export interface Channel {
@@ -51,6 +51,12 @@ export interface Catalog {
   channels: Channel[];
   movies: Movie[];
   series: Series[];
+}
+
+export interface CatalogFailoverResult {
+  data: Catalog;
+  playlistId: string;
+  playlistName: string;
 }
 
 type CatalogState = {
@@ -197,6 +203,7 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
               lastSuccessfulSync: new Date().toISOString(),
               lastFailure: index > 0 ? "A lista principal não respondeu durante a sincronização." : null
             });
+            void reportPlaylistSuccess(candidate.id).catch(() => undefined);
             return;
           } catch (error) {
             lastError = error;
@@ -226,16 +233,15 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
     return () => controller.abort();
   }, [attempt, renewConfiguration, session.cacheVersion, session.status]);
 
-  const failover = useCallback(async (reason: string) => {
-    if (switching.current) return false;
+  const failover = useCallback(async (reason: string): Promise<CatalogFailoverResult | null> => {
+    if (switching.current) return null;
     const failedId = activePlaylistId.current;
-    if (!failedId) return false;
+    if (!failedId) return null;
 
     switching.current = true;
     setState(current => ({
       ...current,
-      status: "loading",
-      message: "Lista ativa indisponível. Ativando a lista reserva..."
+      message: "Lista ativa indisponível. Preparando a lista reserva..."
     }));
 
     try {
@@ -264,7 +270,8 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             lastSuccessfulSync: new Date().toISOString(),
             lastFailure: reason
           });
-          return true;
+          void reportPlaylistSuccess(candidate.id).catch(() => undefined);
+          return { data, playlistId: candidate.id, playlistName: candidate.name };
         } catch (error) {
           lastError = error;
         }
@@ -274,11 +281,11 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
       const failure = error instanceof Error ? error.message : "Falha ao ativar a lista reserva.";
       setState(current => ({
         ...current,
-        status: "error",
+        status: current.data.channels.length || current.data.movies.length || current.data.series.length ? "ready" : "error",
         message: failure,
         lastFailure: failure
       }));
-      return false;
+      return null;
     } finally {
       switching.current = false;
     }
