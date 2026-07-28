@@ -28,6 +28,7 @@ export interface PlaybackItem {
   seriesQueue?: PlaybackQueueItem[];
   seriesQueueIndex?: number;
   startTime?: number;
+  recoveryAttempt?: number;
 }
 
 export interface PlaybackSnapshot {
@@ -44,9 +45,13 @@ export interface PlaybackSnapshot {
   selectedTextTrack: number | null;
 }
 
+export interface PlayerLoadOptions {
+  bufferSeconds?: number;
+}
+
 export interface PlayerAdapter {
   mount(): void;
-  load(urls: string[], live: boolean): Promise<void>;
+  load(urls: string[], live: boolean, options?: PlayerLoadOptions): Promise<void>;
   play(): Promise<void>;
   pause(): void;
   seek(seconds: number): void;
