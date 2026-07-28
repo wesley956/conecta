@@ -1,7 +1,7 @@
 {
   "name": "@roneca/smart-tv",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "build": "tsc -b && vite build",
@@ -12,7 +12,9 @@
     "stage:tizen": "npm run build && node scripts/stage-platform.mjs tizen",
     "stage:webos:hosted": "npm run build && node scripts/stage-platform.mjs webos && node scripts/stage-webos-hosted.mjs",
     "package:webos": "npm run stage:webos && node scripts/package-webos.mjs",
-    "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs"
+    "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs",
+    "package:tizen": "npm run stage:tizen && node scripts/package-tizen.mjs",
+    "package:tizen:signed": "npm run stage:tizen && node scripts/package-tizen.mjs --signed"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",
