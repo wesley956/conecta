@@ -36,26 +36,46 @@ jobs:
           assert result['catalogDownloads']['series']['count'] == 1, result
           PY
 
-      - name: Verify media using the same GET method as the player
+      - name: Verify media directly with player-style GET requests
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error --max-time 180 \
-            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-media-get-check?token=lvv7j7HpfwXv5tXDEVCYHlpe1vxhkhl2' \
-            --output media-result.json
-          cat media-result.json
-          python - <<'PY'
-          import json
+
+          curl --fail --silent --show-error --location --max-time 60 \
+            'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8' \
+            --output hls.m3u8
+          grep -q '#EXTM3U' hls.m3u8
+
+          check_video() {
+            local name="$1"
+            local url="$2"
+            local output="${name}.bin"
+            local metrics
+            metrics=$(curl --silent --show-error --location --max-time 90 \
+              --range 0-65535 \
+              --header 'Accept: video/mp4,*/*' \
+              --output "$output" \
+              --write-out '%{http_code}|%{content_type}|%{size_download}' \
+              "$url")
+            echo "${name}: ${metrics}"
+            python - "$output" "$metrics" <<'PY'
+          import sys
           from pathlib import Path
-          result = json.loads(Path('media-result.json').read_text())
-          assert result.get('result') == 'PASS', result
-          checks = result['checks']
-          assert checks['hls']['validManifest'] is True, result
-          assert checks['bigBuckBunny']['http'] in (200, 206), result
-          assert checks['bigBuckBunny']['bytesReceived'] > 0, result
-          assert checks['sintel']['http'] in (200, 206), result
-          assert checks['sintel']['bytesReceived'] > 0, result
-          assert checks['liveLogo']['validSvg'] is True, result
-          assert checks['bunnyCover']['validSvg'] is True, result
-          assert checks['sintelCover']['validSvg'] is True, result
+          output = Path(sys.argv[1])
+          status, content_type, size = sys.argv[2].split('|')
+          assert status in {'200', '206'}, (status, content_type, size)
+          assert output.stat().st_size > 0, output.stat().st_size
           PY
+          }
+
+          check_video current_bunny 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+          check_video current_sintel 'https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
+          check_video alternate_bunny 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+          check_video alternate_sintel 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
+
+          for image in live-demo big-buck-bunny sintel; do
+            curl --fail --silent --show-error --location --max-time 30 \
+              "https://conecta-five-iota.vercel.app/lg-review/assets/${image}.svg" \
+              --output "${image}.svg"
+            grep -qi '<svg' "${image}.svg"
+          done
