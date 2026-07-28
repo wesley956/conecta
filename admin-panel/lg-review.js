@@ -11,6 +11,7 @@
   var devicesList = document.getElementById('devices-list');
   var loginButton = document.getElementById('login-button');
   var activateButton = document.getElementById('activate-button');
+  var authFlowVersion = 0;
 
   function setMessage(element, text, kind) {
     element.textContent = text;
@@ -31,6 +32,29 @@
     var date = new Date(value);
     if (Number.isNaN(date.getTime())) return '—';
     return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }
+
+  function friendlyAuthMessage(error) {
+    var message = String(error && error.message || 'Sign-in failed.');
+    if (/database error querying schema/i.test(message)) {
+      return 'The review account could not be validated. Please try again.';
+    }
+    if (/invalid login credentials/i.test(message)) {
+      return 'The review email or password is incorrect.';
+    }
+    return message;
+  }
+
+  function showLoggedOut(message, kind) {
+    reviewPanel.hidden = true;
+    loginCard.hidden = false;
+    document.getElementById('account-expiry').textContent = 'Loading account information…';
+    if (message) setMessage(loginMessage, message, kind || '');
+  }
+
+  function showReviewPanel() {
+    loginCard.hidden = true;
+    reviewPanel.hidden = false;
   }
 
   function getConfig() {
@@ -83,34 +107,40 @@
     document.getElementById('account-expiry').textContent = 'Access valid until ' + formatDate(result.account && result.account.expiresAt) +
       ' · ' + String(result.account && result.account.activeDevices || 0) + '/' + String(result.account && result.account.maxDevices || 0) + ' active review TVs';
     renderDevices(result.devices);
-    loginCard.hidden = true;
-    reviewPanel.hidden = false;
+    return result;
   }
 
   async function signOut() {
+    authFlowVersion += 1;
     await global.RonecaPanelAuth.signOut();
-    reviewPanel.hidden = true;
-    loginCard.hidden = false;
     loginForm.reset();
-    setMessage(loginMessage, 'Signed out. Enter the private review credentials to continue.', '');
+    showLoggedOut('Signed out. Enter the private review credentials to continue.', '');
   }
 
   loginForm.addEventListener('submit', async function (event) {
     event.preventDefault();
+    var currentFlow = ++authFlowVersion;
     loginButton.disabled = true;
-    setMessage(loginMessage, 'Signing in…', '');
+    showLoggedOut('Signing in…', '');
+
     try {
       await global.RonecaPanelAuth.signIn(
         document.getElementById('email').value,
         document.getElementById('password').value
       );
+      if (currentFlow !== authFlowVersion) return;
+
       await loadStatus();
+      if (currentFlow !== authFlowVersion) return;
+
       setMessage(loginMessage, 'Authenticated.', 'success');
+      showReviewPanel();
     } catch (error) {
+      if (currentFlow !== authFlowVersion) return;
       await global.RonecaPanelAuth.signOut();
-      setMessage(loginMessage, error && error.message ? error.message : 'Sign-in failed.', 'error');
+      showLoggedOut(friendlyAuthMessage(error), 'error');
     } finally {
-      loginButton.disabled = false;
+      if (currentFlow === authFlowVersion) loginButton.disabled = false;
     }
   });
 
@@ -154,19 +184,37 @@
 
   document.getElementById('signout-button').addEventListener('click', signOut);
   document.getElementById('refresh-button').addEventListener('click', async function () {
-    try { await loadStatus(); } catch (error) { setMessage(activationMessage, error.message || 'Refresh failed.', 'error'); }
+    try {
+      await loadStatus();
+    } catch (error) {
+      authFlowVersion += 1;
+      await global.RonecaPanelAuth.signOut();
+      showLoggedOut(error && error.message ? error.message : 'The review session has expired.', 'error');
+    }
   });
 
   document.getElementById('device-code').addEventListener('input', function (event) {
     event.target.value = String(event.target.value || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
   });
 
+  showLoggedOut('', '');
+
   (async function restoreSession() {
-    if (!global.RonecaPanelAuth || !global.RonecaPanelAuth.hasSession()) return;
+    if (!global.RonecaPanelAuth) {
+      showLoggedOut('The isolated review authentication module did not load.', 'error');
+      return;
+    }
+    if (!global.RonecaPanelAuth.hasSession()) return;
+
+    var currentFlow = authFlowVersion;
     try {
       await loadStatus();
+      if (currentFlow !== authFlowVersion) return;
+      showReviewPanel();
     } catch (_error) {
+      if (currentFlow !== authFlowVersion) return;
       await global.RonecaPanelAuth.signOut();
+      showLoggedOut('Your previous review session is no longer valid. Sign in again.', '');
     }
   })();
 })(window);
