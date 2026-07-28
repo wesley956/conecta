@@ -1,4 +1,4 @@
-name: Blender Video 480p Verification
+name: LG Review Final E2E Check
 
 on:
   pull_request:
@@ -9,58 +9,39 @@ permissions:
   contents: read
 
 jobs:
-  verify-official-480p-files:
+  verify-lg-review-final-flow:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Resolve and probe official Blender MP4 files
+      - name: Simulate LG activation, catalog loading and playback access
         shell: bash
         run: |
+          set -euo pipefail
+          HTTP_STATUS=$(curl --silent --show-error --max-time 240 \
+            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-e2e-check?token=OziAmE_xcrplMVmrXER8lQj6NOrmxdTI' \
+            --output result.json \
+            --write-out '%{http_code}')
+          echo "HTTP ${HTTP_STATUS}"
+          cat result.json
           python - <<'PY'
           import json
-          import urllib.request
-
-          videos = {
-              'big_buck_bunny': 'pAQiVCgv2CsLg79KKXUoMw',
-              'sintel': '2PcJe5aZqozRvH7MJ8BTmC',
-          }
-
-          output = {}
-          for name, video_id in videos.items():
-              api_url = f'https://video.blender.org/api/v1/videos/{video_id}'
-              req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0'})
-              with urllib.request.urlopen(req, timeout=60) as response:
-                  payload = json.load(response)
-              files = payload.get('files', [])
-              selected = next((item for item in files if item.get('resolution', {}).get('label') == '480p'), None)
-              if selected is None:
-                  selected = next((item for item in files if item.get('resolution', {}).get('label') == '360p'), None)
-              assert selected and selected.get('fileUrl'), (name, files)
-
-              media_url = selected['fileUrl']
-              media_req = urllib.request.Request(
-                  media_url,
-                  headers={
-                      'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0',
-                      'Range': 'bytes=0-65535',
-                      'Accept': 'video/mp4,*/*',
-                  },
-              )
-              with urllib.request.urlopen(media_req, timeout=90) as response:
-                  data = response.read(65536)
-                  output[name] = {
-                      'title': payload.get('name'),
-                      'resolution': selected.get('resolution', {}).get('label'),
-                      'url': media_url,
-                      'http': response.status,
-                      'content_type': response.headers.get('content-type'),
-                      'content_range': response.headers.get('content-range'),
-                      'bytes': len(data),
-                      'mp4_signature': len(data) >= 8 and data[4:8] == b'ftyp',
-                  }
-
-          print(json.dumps(output, indent=2, ensure_ascii=False))
-          assert all(item['http'] in {200, 206} for item in output.values()), output
-          assert all(item['bytes'] > 0 for item in output.values()), output
-          assert all(item['mp4_signature'] for item in output.values()), output
+          from pathlib import Path
+          result = json.loads(Path('result.json').read_text())
+          assert result.get('result') == 'PASS', result
+          assert result['deviceActivate']['http'] == 200, result
+          assert result['reviewStatus']['http'] == 200, result
+          assert result['reviewActivate']['http'] == 200, result
+          assert result['deviceConfig']['http'] == 200, result
+          assert result['deviceConfig']['active'] is True, result
+          assert result['deviceConfig']['playlistName'] == 'LG Review Demo', result
+          assert 'lg-review-v2' in result['deviceConfig']['cacheVersion'], result
+          assert result['catalogDownloads']['channels']['count'] == 1, result
+          assert result['catalogDownloads']['movies']['count'] == 2, result
+          assert result['catalogDownloads']['series']['count'] == 1, result
+          assert result['media']['hls']['validManifest'] is True, result
+          assert len(result['media']['videos']) == 2, result
+          assert all(item['http'] in (200, 206) for item in result['media']['videos']), result
+          assert all(item['bytesReceived'] == 65536 for item in result['media']['videos']), result
+          assert all(item['mp4Signature'] is True for item in result['media']['videos']), result
+          assert all(item['http'] == 200 and item['validSvg'] is True for item in result['media']['images']), result
           PY
