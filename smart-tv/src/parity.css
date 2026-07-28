@@ -1,0 +1,54 @@
+.settings-options {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.settings-options button,
+.settings-card > button {
+  min-width: 78px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #161616;
+  color: #bdb8ae;
+  outline: none;
+}
+.settings-options button.selected,
+.settings-card > button.selected {
+  border-color: var(--gold);
+  background: #211b0e;
+  color: var(--gold);
+}
+.player-error {
+  min-width: min(620px, 82vw);
+}
+.player-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+.player-error-actions button {
+  min-width: 170px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  outline: none;
+}
+.player-error-actions .primary {
+  border: 1px solid var(--gold);
+  background: var(--gold);
+  color: #111;
+}
+.player-error-actions .secondary {
+  border: 1px solid #ffffff42;
+  background: #151515;
+  color: #fff;
+}
+.player-error-actions button:focus,
+.settings-options button:focus,
+.settings-card > button:focus {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px #fff;
+}
