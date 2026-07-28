@@ -1,4 +1,4 @@
-name: LG Review Media Runtime Check
+name: Blender Video Source Discovery
 
 on:
   pull_request:
@@ -9,59 +9,55 @@ permissions:
   contents: read
 
 jobs:
-  verify-lg-review-media:
+  discover-official-video-files:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Probe every review media URL
+      - name: Read official PeerTube API
         shell: bash
         run: |
           python - <<'PY'
           import json
           import urllib.request
-          import urllib.error
 
-          targets = {
-              'hls': 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8',
-              'current_bunny': 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-              'current_sintel': 'https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-              'alternate_bunny': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-              'alternate_sintel': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-              'live_logo': 'https://conecta-five-iota.vercel.app/lg-review/assets/live-demo.svg',
-              'bunny_cover': 'https://conecta-five-iota.vercel.app/lg-review/assets/big-buck-bunny.svg',
-              'sintel_cover': 'https://conecta-five-iota.vercel.app/lg-review/assets/sintel.svg',
+          videos = {
+              'big_buck_bunny': 'pAQiVCgv2CsLg79KKXUoMw',
+              'sintel': '2PcJe5aZqozRvH7MJ8BTmC',
           }
 
-          results = {}
-          for name, url in targets.items():
-              headers = {'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0'}
-              if name not in {'hls', 'live_logo', 'bunny_cover', 'sintel_cover'}:
-                  headers['Range'] = 'bytes=0-65535'
-                  headers['Accept'] = 'video/mp4,*/*'
-              req = urllib.request.Request(url, headers=headers, method='GET')
-              try:
-                  with urllib.request.urlopen(req, timeout=60) as response:
-                      data = response.read(65536)
-                      results[name] = {
-                          'http': response.status,
-                          'content_type': response.headers.get('content-type'),
-                          'content_range': response.headers.get('content-range'),
-                          'bytes': len(data),
-                          'valid_hls': name != 'hls' or b'#EXTM3U' in data,
-                          'valid_svg': name not in {'live_logo', 'bunny_cover', 'sintel_cover'} or b'<svg' in data.lower(),
+          output = {}
+          for name, video_id in videos.items():
+              url = f'https://video.blender.org/api/v1/videos/{video_id}'
+              request = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0'})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  payload = json.load(response)
+              output[name] = {
+                  'name': payload.get('name'),
+                  'licence': payload.get('licence'),
+                  'files': [
+                      {
+                          'resolution': item.get('resolution', {}).get('label'),
+                          'size': item.get('size'),
+                          'fileUrl': item.get('fileUrl'),
+                          'fileDownloadUrl': item.get('fileDownloadUrl'),
                       }
-              except urllib.error.HTTPError as error:
-                  body = error.read(500).decode('utf-8', 'replace')
-                  results[name] = {'http': error.code, 'error': body}
-              except Exception as error:
-                  results[name] = {'http': 0, 'error': str(error)}
-
-          print(json.dumps(results, indent=2, ensure_ascii=False))
-
-          assert results['hls']['http'] == 200 and results['hls']['valid_hls'], results
-          assert results['current_bunny']['http'] in {200, 206} and results['current_bunny']['bytes'] > 0, results
-          assert results['current_sintel']['http'] in {200, 206} and results['current_sintel']['bytes'] > 0, results
-          assert results['live_logo']['http'] == 200 and results['live_logo']['valid_svg'], results
-          assert results['bunny_cover']['http'] == 200 and results['bunny_cover']['valid_svg'], results
-          assert results['sintel_cover']['http'] == 200 and results['sintel_cover']['valid_svg'], results
+                      for item in payload.get('files', [])
+                  ],
+                  'streamingPlaylists': [
+                      {
+                          'playlistUrl': playlist.get('playlistUrl'),
+                          'files': [
+                              {
+                                  'resolution': item.get('resolution', {}).get('label'),
+                                  'size': item.get('size'),
+                                  'fileUrl': item.get('fileUrl'),
+                                  'fileDownloadUrl': item.get('fileDownloadUrl'),
+                              }
+                              for item in playlist.get('files', [])
+                          ],
+                      }
+                      for playlist in payload.get('streamingPlaylists', [])
+                  ],
+              }
+          print(json.dumps(output, indent=2, ensure_ascii=False))
           PY
