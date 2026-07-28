@@ -1,0 +1,45 @@
+import fs from "node:fs";
+
+const read = path => fs.readFileSync(path, "utf8");
+const app = read("smart-tv/src/App.tsx");
+const player = read("smart-tv/src/player/PlayerScreen.tsx");
+const catalog = read("smart-tv/src/catalog.ts");
+const session = read("smart-tv/src/deviceSession.ts");
+const settings = read("smart-tv/src/playerSettings.ts");
+const tizenPlayer = read("smart-tv/src/player/tizenPlayer.ts");
+const html5Player = read("smart-tv/src/player/html5Player.ts");
+const smartPackage = JSON.parse(read("smart-tv/package.json"));
+const webos = JSON.parse(read("smart-tv/platforms/webos/appinfo.json"));
+const tizen = read("smart-tv/platforms/tizen/config.xml");
+const config = read("supabase/config.toml");
+const diagnostics = read("supabase/functions/playback-diagnostics-report/index.ts");
+const internalVersion = session.match(/APP_VERSION = "([^"]+)"/)?.[1];
+
+function requireCheck(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+requireCheck(internalVersion === "1.0.0", "A versão interna Smart TV precisa ser 1.0.0.");
+requireCheck(webos.version === internalVersion, "O appinfo.json da LG diverge da versão interna.");
+requireCheck(tizen.includes(`version="${internalVersion}"`), "O config.xml da Samsung diverge da versão interna.");
+requireCheck(smartPackage.scripts["package:tizen"], "O pacote estrutural Tizen não está configurado.");
+requireCheck(smartPackage.scripts["package:tizen:signed"], "O pacote assinado Tizen não está configurado.");
+requireCheck(app.includes("recoveredPlayback"), "O aplicativo não resolve conteúdo na lista reserva.");
+requireCheck(app.includes("diagnosticEventId"), "A recuperação não preserva o diagnóstico.");
+requireCheck(app.includes("useSmartTvPlayerSettings"), "As preferências avançadas não estão ligadas ao aplicativo.");
+requireCheck(player.includes('recovery === "failed"'), "O player não possui estado final recuperável.");
+requireCheck(player.includes("reportPlaybackDiagnostic"), "O player não envia diagnóstico detalhado.");
+requireCheck(player.includes("localRetries.current < 2"), "As tentativas locais controladas não estão configuradas.");
+requireCheck(!player.includes("onTerminalPlaybackFailure?.(snapshot.error"), "O fluxo antigo de saída automática ainda está presente.");
+requireCheck(catalog.includes("Promise<CatalogFailoverResult | null>"), "O failover não devolve o catálogo de recuperação.");
+requireCheck(catalog.includes("reportPlaylistSuccess"), "O sucesso da lista não zera as falhas acumuladas.");
+requireCheck(settings.includes("bufferSeconds"), "O buffer configurável está ausente.");
+requireCheck(tizenPlayer.includes("setBufferingParam"), "O AVPlay não aplica buffer configurável.");
+requireCheck(tizenPlayer.includes("demorou demais para preparar"), "O AVPlay não possui timeout de preparação.");
+requireCheck(html5Player.includes('on("stalled"'), "O player LG não monitora travamento HTML5.");
+requireCheck(config.includes("[functions.playback-diagnostics-report]"), "A função de diagnóstico não está configurada.");
+requireCheck(diagnostics.includes("x-device-credential"), "A função de diagnóstico não exige credencial do aparelho.");
+requireCheck(diagnostics.includes("panel_playback_diagnostics"), "A função de diagnóstico não grava na tabela correta.");
+requireCheck(fs.existsSync(".github/workflows/build-samsung-tizen-installer.yml"), "O workflow Samsung não existe.");
+
+console.log(`Paridade estrutural LG/Samsung validada na versão ${internalVersion}.`);
