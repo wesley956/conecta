@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
-  id="http://ronecaplaytv.com/app" version="0.5.0" viewmodes="maximized">
+  id="http://ronecaplaytv.com/app" version="1.0.0" viewmodes="maximized">
   <access origin="*" subdomains="true"/>
   <content src="index.html"/>
   <feature name="http://tizen.org/feature/screen.size.all"/>
   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+  <tizen:privilege name="http://developer.samsung.com/privilege/drmplay"/>
   <icon src="icon.png"/>
   <name>ronecaPlayer TV</name>
   <tizen:application id="RonecaTV.RonecaPlayer" package="RonecaTV" required_version="4.0"/>
