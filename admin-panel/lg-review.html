@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>RonecaPlayTV — LG App Review</title>
+  <link rel="stylesheet" href="./lg-review.css" />
+</head>
+<body>
+  <main class="page-shell">
+    <header class="brand-header">
+      <div class="brand-mark" aria-hidden="true"><span>RP</span></div>
+      <div>
+        <p class="eyebrow">OFFICIAL QUALITY-ASSURANCE ACCESS</p>
+        <h1>RonecaPlayTV — LG App Review</h1>
+        <p class="subtitle">Use this restricted portal only to activate the LG webOS TV used during application review.</p>
+      </div>
+    </header>
+
+    <section id="login-card" class="card auth-card">
+      <div class="section-heading">
+        <span class="step-number">1</span>
+        <div>
+          <h2>Sign in</h2>
+          <p>Enter the private review credentials supplied in LG Seller Lounge.</p>
+        </div>
+      </div>
+
+      <form id="login-form" autocomplete="on">
+        <label for="email">Review account email</label>
+        <input id="email" name="email" type="email" autocomplete="username" required />
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+
+        <button id="login-button" type="submit">Sign in securely</button>
+      </form>
+      <p id="login-message" class="message" aria-live="polite">This account cannot access customer, reseller, financial, or administrative data.</p>
+    </section>
+
+    <section id="review-panel" class="review-panel" hidden>
+      <section class="card account-card">
+        <div>
+          <p class="eyebrow">REVIEW SESSION</p>
+          <h2 id="account-name">LG Quality Assurance</h2>
+          <p id="account-expiry">Loading account information…</p>
+        </div>
+        <button id="signout-button" type="button" class="secondary-button">Sign out</button>
+      </section>
+
+      <section class="card activation-card">
+        <div class="section-heading">
+          <span class="step-number">2</span>
+          <div>
+            <h2>Activate the television</h2>
+            <p>Keep RonecaPlayTV open on the TV activation screen and enter the displayed code below.</p>
+          </div>
+        </div>
+
+        <form id="activation-form">
+          <label for="device-code">TV activation code</label>
+          <div class="activation-row">
+            <input id="device-code" name="deviceCode" type="text" inputmode="text" maxlength="80" placeholder="RPTV-XXXXXX" autocomplete="off" required />
+            <button id="activate-button" type="submit">Activate LG TV</button>
+          </div>
+        </form>
+        <p id="activation-message" class="message" aria-live="polite">After activation, return to the television. The demonstration catalog loads automatically.</p>
+      </section>
+
+      <section class="card catalog-card">
+        <div class="section-heading compact">
+          <span class="step-number">3</span>
+          <div>
+            <h2>Review catalog</h2>
+            <p>A small, isolated catalog prepared exclusively for QA.</p>
+          </div>
+        </div>
+        <div class="catalog-grid">
+          <article><strong>1</strong><span>HLS test channel</span></article>
+          <article><strong>2</strong><span>Open movies</span></article>
+          <article><strong>1</strong><span>Series / 2 episodes</span></article>
+        </div>
+        <p class="legal-note">Media is limited to an Apple developer HLS test stream and Blender Foundation open movies with attribution. No customer playlists are accessible.</p>
+      </section>
+
+      <section class="card devices-card">
+        <div class="devices-header">
+          <div>
+            <p class="eyebrow">ACTIVATION HISTORY</p>
+            <h2>Review televisions</h2>
+          </div>
+          <button id="refresh-button" type="button" class="secondary-button">Refresh</button>
+        </div>
+        <div id="devices-list" class="devices-list">
+          <p class="empty-state">No review television has been activated yet.</p>
+        </div>
+      </section>
+
+      <section class="support-box">
+        <strong>Test sequence</strong>
+        <span>Open a channel, a movie, and the series; test remote navigation, play/pause, seeking, favorites, search, Back, and automatic next episode.</span>
+      </section>
+    </section>
+  </main>
+
+  <script src="./panel-config.js"></script>
+  <script src="./panel-auth-session.js"></script>
+  <script src="./lg-review.js"></script>
+</body>
+</html>

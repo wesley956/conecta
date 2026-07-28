@@ -111,3 +111,6 @@ verify_jwt = true
 
 [functions.admin-operations-panel]
 verify_jwt = true
+
+[functions.lg-review-panel]
+verify_jwt = true

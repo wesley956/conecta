@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" role="img" aria-label="Sintel open movie">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#151a25"/><stop offset=".55" stop-color="#3e1f23"/><stop offset="1" stop-color="#b45d35"/></linearGradient></defs>
+  <rect width="600" height="900" rx="28" fill="url(#g)"/>
+  <path d="M105 560C160 390 220 225 300 130c86 92 146 254 195 430-66-42-129-56-195-56s-129 14-195 56z" fill="#f0b181" opacity=".24"/>
+  <path d="M170 490c82-96 176-96 260 0-40-17-84-24-130-24s-90 7-130 24z" fill="#ffe0c0" opacity=".55"/>
+  <circle cx="235" cy="405" r="13" fill="#fff3dc"/><circle cx="365" cy="405" r="13" fill="#fff3dc"/>
+  <text x="300" y="690" fill="#fff" font-family="Arial,sans-serif" font-size="72" font-weight="700" letter-spacing="8" text-anchor="middle">SINTEL</text>
+  <text x="300" y="760" fill="#f2c2ad" font-family="Arial,sans-serif" font-size="22" text-anchor="middle">OPEN MOVIE · QA DEMO</text>
+</svg>
