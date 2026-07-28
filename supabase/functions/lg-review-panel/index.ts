@@ -11,6 +11,17 @@ const corsHeaders = {
 };
 
 type JsonBody = Record<string, unknown>;
+type ReviewDeviceSummary = {
+  id: string;
+  deviceCode: string | null;
+  status: string;
+  platform: string | null;
+  appVersion: string | null;
+  lastSeenAt: string | null;
+  expiresAt: string | null;
+  activatedAt: string;
+  revokedAt: string | null;
+};
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -82,25 +93,25 @@ async function requireReviewAccount(request: Request, supabase: any) {
   return { error: null, account: account as ReviewAccount };
 }
 
-async function listDevices(supabase: any, accountId: string) {
+async function listDevices(supabase: any, accountId: string): Promise<ReviewDeviceSummary[]> {
   const { data, error } = await supabase.from('panel_review_devices').select(`
     id, activated_at, revoked_at,
     device:panel_devices(id, device_code, status, device_type, app_version, last_seen_at, subscription_expires_at)
   `).eq('review_account_id', accountId).order('activated_at', { ascending: false });
   if (error) throw new Error(`Could not load review devices: ${error.message}`);
 
-  return (data || []).map((entry: any) => {
+  return (data || []).map((entry: any): ReviewDeviceSummary => {
     const device = Array.isArray(entry.device) ? entry.device[0] : entry.device;
     return {
-      id: entry.id,
+      id: String(entry.id),
       deviceCode: device?.device_code || null,
       status: device?.status || 'unknown',
       platform: device?.device_type || null,
       appVersion: device?.app_version || null,
       lastSeenAt: device?.last_seen_at || null,
       expiresAt: device?.subscription_expires_at || null,
-      activatedAt: entry.activated_at,
-      revokedAt: entry.revoked_at,
+      activatedAt: String(entry.activated_at),
+      revokedAt: entry.revoked_at || null,
     };
   });
 }
