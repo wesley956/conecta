@@ -28,6 +28,7 @@ for (const path of required) check(fs.existsSync(path), `Arquivo obrigatório au
 const edge = read('supabase/functions/lg-review-panel/index.ts');
 const migration = read('supabase/migrations/20260728043000_lg_review_portal.sql');
 const portalHtml = read('admin-panel/lg-review.html');
+const portalCss = read('admin-panel/lg-review.css');
 const portalAuth = read('admin-panel/lg-review-auth.js');
 const portal = read('admin-panel/lg-review.js');
 const m3u = read('admin-panel/lg-review/demo.m3u');
@@ -44,6 +45,8 @@ check(migration.includes('enable row level security'), 'RLS não foi habilitado 
 check(migration.includes('revoke all on table public.panel_review_accounts from public, anon, authenticated'), 'Privilégios públicos da conta de homologação não foram revogados.');
 check(portalHtml.includes('./lg-review-auth.js'), 'O portal LG não carrega a autenticação isolada.');
 check(!portalHtml.includes('./panel-auth-session.js'), 'O portal LG ainda compartilha a sessão comercial.');
+check(portalHtml.includes('id="review-panel" class="review-panel" hidden'), 'O painel de ativação não começa oculto no HTML.');
+check(/\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/.test(portalCss), 'O CSS pode exibir elementos protegidos marcados como hidden.');
 check(portalAuth.includes("STORAGE_KEY = 'roneca-lg-review-auth-session-v1'"), 'A sessão LG não possui chave exclusiva.');
 check(portalAuth.includes('clearSession();\n    var session = await authRequest'), 'Uma tentativa de login LG não limpa a sessão anterior.');
 check(portal.includes("FUNCTION_NAME = 'lg-review-panel'"), 'O portal não usa a função de homologação dedicada.');
