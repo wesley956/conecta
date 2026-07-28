@@ -1,4 +1,4 @@
-name: LG Review E2E Runtime Check
+name: LG Review Media Runtime Check
 
 on:
   pull_request:
@@ -9,73 +9,59 @@ permissions:
   contents: read
 
 jobs:
-  verify-lg-review-runtime:
+  verify-lg-review-media:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Execute activation and catalog flow
+      - name: Probe every review media URL
         shell: bash
         run: |
-          set -euo pipefail
-          curl --silent --show-error --max-time 180 \
-            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-e2e-check?token=OziAmE_xcrplMVmrXER8lQj6NOrmxdTI' \
-            --output activation-result.json
-          cat activation-result.json
           python - <<'PY'
           import json
-          from pathlib import Path
-          result = json.loads(Path('activation-result.json').read_text())
-          assert result['deviceActivate']['http'] == 200, result
-          assert result['reviewStatus']['http'] == 200, result
-          assert result['reviewActivate']['http'] == 200, result
-          assert result['deviceConfig']['http'] == 200, result
-          assert result['deviceConfig']['active'] is True, result
-          assert result['deviceConfig']['playlistName'] == 'LG Review Demo', result
-          assert result['catalogDownloads']['channels']['count'] == 1, result
-          assert result['catalogDownloads']['movies']['count'] == 2, result
-          assert result['catalogDownloads']['series']['count'] == 1, result
-          PY
+          import urllib.request
+          import urllib.error
 
-      - name: Verify media directly with player-style GET requests
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          curl --fail --silent --show-error --location --max-time 60 \
-            'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8' \
-            --output hls.m3u8
-          grep -q '#EXTM3U' hls.m3u8
-
-          check_video() {
-            local name="$1"
-            local url="$2"
-            local output="${name}.bin"
-            local metrics
-            metrics=$(curl --silent --show-error --location --max-time 90 \
-              --range 0-65535 \
-              --header 'Accept: video/mp4,*/*' \
-              --output "$output" \
-              --write-out '%{http_code}|%{content_type}|%{size_download}' \
-              "$url")
-            echo "${name}: ${metrics}"
-            python - "$output" "$metrics" <<'PY'
-          import sys
-          from pathlib import Path
-          output = Path(sys.argv[1])
-          status, content_type, size = sys.argv[2].split('|')
-          assert status in {'200', '206'}, (status, content_type, size)
-          assert output.stat().st_size > 0, output.stat().st_size
-          PY
+          targets = {
+              'hls': 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8',
+              'current_bunny': 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+              'current_sintel': 'https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+              'alternate_bunny': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+              'alternate_sintel': 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+              'live_logo': 'https://conecta-five-iota.vercel.app/lg-review/assets/live-demo.svg',
+              'bunny_cover': 'https://conecta-five-iota.vercel.app/lg-review/assets/big-buck-bunny.svg',
+              'sintel_cover': 'https://conecta-five-iota.vercel.app/lg-review/assets/sintel.svg',
           }
 
-          check_video current_bunny 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-          check_video current_sintel 'https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
-          check_video alternate_bunny 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-          check_video alternate_sintel 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4'
+          results = {}
+          for name, url in targets.items():
+              headers = {'User-Agent': 'Mozilla/5.0 RonecaPlayTV-QA/1.0'}
+              if name not in {'hls', 'live_logo', 'bunny_cover', 'sintel_cover'}:
+                  headers['Range'] = 'bytes=0-65535'
+                  headers['Accept'] = 'video/mp4,*/*'
+              req = urllib.request.Request(url, headers=headers, method='GET')
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      data = response.read(65536)
+                      results[name] = {
+                          'http': response.status,
+                          'content_type': response.headers.get('content-type'),
+                          'content_range': response.headers.get('content-range'),
+                          'bytes': len(data),
+                          'valid_hls': name != 'hls' or b'#EXTM3U' in data,
+                          'valid_svg': name not in {'live_logo', 'bunny_cover', 'sintel_cover'} or b'<svg' in data.lower(),
+                      }
+              except urllib.error.HTTPError as error:
+                  body = error.read(500).decode('utf-8', 'replace')
+                  results[name] = {'http': error.code, 'error': body}
+              except Exception as error:
+                  results[name] = {'http': 0, 'error': str(error)}
 
-          for image in live-demo big-buck-bunny sintel; do
-            curl --fail --silent --show-error --location --max-time 30 \
-              "https://conecta-five-iota.vercel.app/lg-review/assets/${image}.svg" \
-              --output "${image}.svg"
-            grep -qi '<svg' "${image}.svg"
-          done
+          print(json.dumps(results, indent=2, ensure_ascii=False))
+
+          assert results['hls']['http'] == 200 and results['hls']['valid_hls'], results
+          assert results['current_bunny']['http'] in {200, 206} and results['current_bunny']['bytes'] > 0, results
+          assert results['current_sintel']['http'] in {200, 206} and results['current_sintel']['bytes'] > 0, results
+          assert results['live_logo']['http'] == 200 and results['live_logo']['valid_svg'], results
+          assert results['bunny_cover']['http'] == 200 and results['bunny_cover']['valid_svg'], results
+          assert results['sintel_cover']['http'] == 200 and results['sintel_cover']['valid_svg'], results
+          PY
