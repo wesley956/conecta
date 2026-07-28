@@ -29,6 +29,7 @@ export interface PlaybackItem {
   seriesQueueIndex?: number;
   startTime?: number;
   recoveryAttempt?: number;
+  diagnosticEventId?: string;
 }
 
 export interface PlaybackSnapshot {
