@@ -13,30 +13,49 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Execute isolated production flow
+      - name: Execute activation and catalog flow
         shell: bash
         run: |
           set -euo pipefail
-          HTTP_STATUS=$(curl --silent --show-error --max-time 180 \
+          curl --silent --show-error --max-time 180 \
             'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-e2e-check?token=OziAmE_xcrplMVmrXER8lQj6NOrmxdTI' \
-            --output result.json \
-            --write-out '%{http_code}')
-          echo "HTTP ${HTTP_STATUS}"
-          cat result.json
+            --output activation-result.json
+          cat activation-result.json
           python - <<'PY'
           import json
           from pathlib import Path
-          result = json.loads(Path('result.json').read_text())
-          assert result.get('result') == 'PASS', result
+          result = json.loads(Path('activation-result.json').read_text())
           assert result['deviceActivate']['http'] == 200, result
           assert result['reviewStatus']['http'] == 200, result
           assert result['reviewActivate']['http'] == 200, result
           assert result['deviceConfig']['http'] == 200, result
           assert result['deviceConfig']['active'] is True, result
+          assert result['deviceConfig']['playlistName'] == 'LG Review Demo', result
           assert result['catalogDownloads']['channels']['count'] == 1, result
           assert result['catalogDownloads']['movies']['count'] == 2, result
           assert result['catalogDownloads']['series']['count'] == 1, result
-          assert result['media']['hls']['validManifest'] is True, result
-          assert all(item['http'] in (200, 206) for item in result['media']['movies']), result
-          assert all(item['http'] in (200, 206) for item in result['media']['images']), result
+          PY
+
+      - name: Verify media using the same GET method as the player
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error --max-time 180 \
+            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/lg-review-media-get-check?token=lvv7j7HpfwXv5tXDEVCYHlpe1vxhkhl2' \
+            --output media-result.json
+          cat media-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('media-result.json').read_text())
+          assert result.get('result') == 'PASS', result
+          checks = result['checks']
+          assert checks['hls']['validManifest'] is True, result
+          assert checks['bigBuckBunny']['http'] in (200, 206), result
+          assert checks['bigBuckBunny']['bytesReceived'] > 0, result
+          assert checks['sintel']['http'] in (200, 206), result
+          assert checks['sintel']['bytesReceived'] > 0, result
+          assert checks['liveLogo']['validSvg'] is True, result
+          assert checks['bunnyCover']['validSvg'] is True, result
+          assert checks['sintelCover']['validSvg'] is True, result
           PY
