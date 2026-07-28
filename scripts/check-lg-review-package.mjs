@@ -12,6 +12,7 @@ const required = [
   'admin-panel/lg-review/assets/big-buck-bunny.svg',
   'admin-panel/lg-review/assets/sintel.svg',
   'supabase/functions/lg-review-panel/index.ts',
+  'supabase/functions/lg-review-panel/catalog.ts',
   'supabase/migrations/20260728043000_lg_review_portal.sql',
   'docs/lg-review/UX_SCENARIO_EN.md',
   'docs/lg-review/SELF_CHECKLIST_GUIDE.md',
@@ -26,6 +27,7 @@ function check(condition, message) {
 for (const path of required) check(fs.existsSync(path), `Arquivo obrigatório ausente: ${path}`);
 
 const edge = read('supabase/functions/lg-review-panel/index.ts');
+const catalog = read('supabase/functions/lg-review-panel/catalog.ts');
 const migration = read('supabase/migrations/20260728043000_lg_review_portal.sql');
 const portalHtml = read('admin-panel/lg-review.html');
 const portalCss = read('admin-panel/lg-review.css');
@@ -41,6 +43,8 @@ check(edge.includes('panel_review_accounts'), 'A conta de homologação não est
 check(edge.includes('panel_review_devices'), 'Os aparelhos de homologação não são rastreados.');
 check(edge.includes("from('panel_device_playlists').delete()"), 'A ativação não limpa atribuições anteriores com segurança.');
 check(!edge.match(/password\s*[:=]\s*['\"][^'\"]+/i), 'Uma senha parece ter sido incorporada à função.');
+check(catalog.includes('playlist_updated_at: snapshot.generatedAt'), 'O catálogo não atualiza a data real da playlist.');
+check(!/(^|\n)\s*updated_at\s*:/.test(catalog), 'O catálogo tenta gravar a coluna inexistente panel_playlists.updated_at.');
 check(migration.includes('enable row level security'), 'RLS não foi habilitado nas tabelas de homologação.');
 check(migration.includes('revoke all on table public.panel_review_accounts from public, anon, authenticated'), 'Privilégios públicos da conta de homologação não foram revogados.');
 check(portalHtml.includes('./lg-review-auth.js'), 'O portal LG não carrega a autenticação isolada.');
