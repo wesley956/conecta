@@ -180,6 +180,7 @@
           </div>
           <div class="actions" style="margin-top:0;">
             <button type="button" onclick="sellerListsRefreshCache('${esc(playlist.id)}')">Gerar cache</button>
+            <button class="red" type="button" onclick="sellerListsDelete('${esc(playlist.id)}')">Excluir</button>
           </div>
         </div>
       `).join('')
@@ -246,6 +247,29 @@
       if (typeof window.loadPortal === 'function') await window.loadPortal();
     } catch (err) {
       showListMsg(err.message || 'Erro ao gerar cache.', 'err');
+    }
+  };
+
+  window.sellerListsDelete = async function sellerListsDelete(playlistId) {
+    const playlist = (listsData?.playlists || []).find(item => item.id === playlistId);
+    if (!playlist) {
+      showListMsg('Lista não encontrada. Atualize a página e tente novamente.', 'err');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Excluir a lista "${playlist.name}" da sua conta? Esta ação não poderá ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      showListMsg('Excluindo lista...');
+      const result = await api('deleteSellerPlaylist', { playlistId });
+      showListMsg(result.message || 'Lista excluída com sucesso.', 'ok');
+      await loadLists();
+      if (typeof window.loadPortal === 'function') await window.loadPortal();
+    } catch (err) {
+      showListMsg(err.message || 'Erro ao excluir lista.', 'err');
     }
   };
 
