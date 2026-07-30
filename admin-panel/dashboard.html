@@ -2057,6 +2057,12 @@ function badge(status) {
 }
 
 function playlistCacheBadge(playlist) {
+  if (playlist?.accessMode === 'direct') {
+    return '<span class="badge active">Acesso direto</span>';
+  }
+  if (playlist?.accessMode === 'blocked') {
+    return '<span class="badge blocked">Lista bloqueada</span>';
+  }
   const status = String(playlist?.cacheStatus || 'missing');
   const labels = {
     ready: 'Cache pronto',
@@ -2067,6 +2073,17 @@ function playlistCacheBadge(playlist) {
   };
   const tone = status === 'ready' ? 'active' : (status === 'error' ? 'blocked' : 'pending');
   return `<span class="badge ${tone}">${esc(labels[status] || status)}</span>`;
+}
+
+function playlistCacheAttempts(playlist) {
+  const attempts = Array.isArray(playlist?.cacheAttempts) ? playlist.cacheAttempts : [];
+  const failures = attempts.filter(attempt => attempt?.status === 'error' && attempt?.error);
+  if (!failures.length) return '';
+
+  return failures.map(attempt => {
+    const label = attempt.method === 'xtream' ? 'Xtream' : 'M3U';
+    return `<div class="small muted" style="margin-top:4px;">${label}: ${esc(attempt.error)}</div>`;
+  }).join('');
 }
 
 function formatBytes(value) {
@@ -2176,7 +2193,10 @@ function renderPlaylists() {
         <td>
           ${playlistCacheBadge(p)}
           <div class="small muted" style="margin-top:6px;">${Number(p.cacheItemCount || 0).toLocaleString('pt-BR')} itens · ${formatBytes(p.cacheSizeBytes)}</div>
-          ${p.cacheError ? `<div class="small danger-text" style="margin-top:5px;">${esc(p.cacheError)}</div>` : ''}
+          ${p.accessMode === 'direct'
+            ? '<div class="small" style="margin-top:5px;">O aplicativo baixará esta lista diretamente no aparelho.</div>'
+            : (p.cacheError ? `<div class="small danger-text" style="margin-top:5px;">${esc(p.cacheError)}</div>` : '')}
+          ${playlistCacheAttempts(p)}
         </td>
         <td>${esc(p.devicesCount || 0)}</td>
         <td>
@@ -2775,6 +2795,10 @@ function showPlaylistDetails(id) {
           <small>Saúde do cache</small>
           <strong>${playlistCacheBadge(playlist)}</strong>
           <div class="small muted">${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')} itens · ${formatBytes(playlist.cacheSizeBytes)}</div>
+          ${playlist.accessMode === 'direct'
+            ? '<div class="small">O provedor bloqueia o servidor; o acesso será feito pela internet do aparelho.</div>'
+            : (playlist.cacheError ? `<div class="small danger-text">${esc(playlist.cacheError)}</div>` : '')}
+          ${playlistCacheAttempts(playlist)}
         </div>
         <div class="detail-box half">
           <small>Atualizada em</small>

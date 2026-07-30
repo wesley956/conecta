@@ -1,6 +1,10 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
+import {
+  classifyPlaylistCacheFailure,
+  type PlaylistCacheAttempt,
+} from '../_shared/playlistAccessMode.ts';
 
 const BUCKET = 'playlist-cache';
 
@@ -625,14 +629,73 @@ async function buildM3USnapshot(playlist: any) {
   return { channels, movies, series };
 }
 
+class PlaylistBuildError extends Error {
+  constructor(
+    message: string,
+    readonly attempts: PlaylistCacheAttempt[],
+  ) {
+    super(message);
+    this.name = 'PlaylistBuildError';
+  }
+}
+
+function attemptLabel(method: PlaylistCacheAttempt['method']) {
+  return method === 'm3u' ? 'M3U' : 'Xtream';
+}
+
 async function buildSnapshot(playlist: any) {
-  const xtream = await buildXtreamSnapshot(playlist).catch(() => null);
-  const content = xtream ?? await buildM3USnapshot(playlist);
+  const attempts: PlaylistCacheAttempt[] = [];
+  const playlistType = normalizeType(playlist.playlist_type);
+  const methods: PlaylistCacheAttempt['method'][] = playlistType === 'xtream'
+    ? ['xtream', 'm3u']
+    : ['m3u', 'xtream'];
+  let content: any = null;
+
+  for (const method of methods) {
+    try {
+      const result = method === 'xtream'
+        ? await buildXtreamSnapshot(playlist)
+        : await buildM3USnapshot(playlist);
+
+      if (!result) {
+        attempts.push({
+          method,
+          status: 'skipped',
+          error: method === 'xtream' ? 'A URL não contém credenciais Xtream reconhecíveis.' : null,
+        });
+        continue;
+      }
+
+      attempts.push({ method, status: 'success', error: null });
+      content = result;
+      break;
+    } catch (error) {
+      attempts.push({
+        method,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Falha desconhecida.',
+      });
+    }
+  }
+
+  if (!content) {
+    const details = attempts
+      .filter(attempt => attempt.status === 'error')
+      .map(attempt => `${attemptLabel(attempt.method)}: ${attempt.error}`)
+      .join(' | ');
+    throw new PlaylistBuildError(details || 'Nenhuma forma compatível de leitura foi encontrada.', attempts);
+  }
+
   const generatedAt = new Date().toISOString();
   const itemCount = content.channels.length + content.movies.length + content.series.length;
 
   if (itemCount === 0) {
-    throw new Error('A lista foi lida, mas nenhum canal, filme ou série foi encontrado.');
+    attempts.push({
+      method: methods.find(method => attempts.some(attempt => attempt.method === method && attempt.status === 'success')) || methods[0],
+      status: 'error',
+      error: 'A lista foi lida, mas nenhum canal, filme ou série foi encontrado.',
+    });
+    throw new PlaylistBuildError('A lista foi lida, mas nenhum canal, filme ou série foi encontrado.', attempts);
   }
 
   const playlistItem = {
@@ -657,6 +720,7 @@ async function buildSnapshot(playlist: any) {
     movies: content.movies,
     series: content.series,
     playlists: [playlistItem],
+    cacheAttempts: attempts,
   };
 }
 
@@ -686,6 +750,9 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
     .update({
       playlist_cache_status: 'building',
       playlist_cache_error: null,
+      playlist_cache_error_code: null,
+      playlist_cache_attempts: [],
+      playlist_access_mode: 'server_cache',
     })
     .eq('id', playlist.id);
 
@@ -780,6 +847,9 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
         playlist_cache_item_count: itemCount,
         playlist_cache_size_bytes: sizeBytes,
         playlist_cache_error: null,
+        playlist_cache_error_code: null,
+        playlist_cache_attempts: snapshot.cacheAttempts,
+        playlist_access_mode: 'server_cache',
       })
       .eq('id', playlist.id);
 
@@ -803,12 +873,19 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha desconhecida.';
+    const attempts = error instanceof PlaylistBuildError
+      ? error.attempts
+      : [{ method: 'm3u', status: 'error', error: message }] as PlaylistCacheAttempt[];
+    const failure = classifyPlaylistCacheFailure(attempts, playlist.playlist_type);
 
     await supabase
       .from('panel_playlists')
       .update({
         playlist_cache_status: 'error',
         playlist_cache_error: message,
+        playlist_cache_error_code: failure.code,
+        playlist_cache_attempts: attempts,
+        playlist_access_mode: failure.accessMode,
       })
       .eq('id', playlist.id);
 
@@ -817,6 +894,11 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       playlistId: playlist.id,
       playlistName: playlist.name,
       error: message,
+      errorCode: failure.code,
+      accessMode: failure.accessMode,
+      directEligible: failure.directEligible,
+      message: failure.message,
+      attempts,
       elapsedMs: Date.now() - startedAt,
     };
   }
