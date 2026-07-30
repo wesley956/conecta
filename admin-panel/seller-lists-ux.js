@@ -45,8 +45,25 @@
   }
 
   function cachePill(playlist) {
+    if (playlist.accessMode === 'direct') {
+      return '<span class="cache-pill ready">Acesso direto</span>';
+    }
+    if (playlist.accessMode === 'blocked') {
+      return '<span class="cache-pill error">Lista bloqueada</span>';
+    }
     const status = String(playlist.cacheStatus || 'pending');
     return `<span class="cache-pill ${esc(status)}">${esc(cacheText(status))}</span>`;
+  }
+
+  function cacheAttemptDetails(playlist) {
+    const attempts = Array.isArray(playlist.cacheAttempts) ? playlist.cacheAttempts : [];
+    const failures = attempts.filter(attempt => attempt?.status === 'error' && attempt?.error);
+    if (!failures.length) return '';
+
+    return failures.map(attempt => {
+      const label = attempt.method === 'xtream' ? 'Xtream' : 'M3U';
+      return `<div class="muted">${label}: ${esc(attempt.error)}</div>`;
+    }).join('');
   }
 
   function showListMsg(text, type = '') {
@@ -132,7 +149,10 @@
             <div class="muted">Tipo: ${esc(playlist.playlistType || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
             <div class="muted">Atualizado: ${formatDate(playlist.cacheUpdatedAt || playlist.playlistUpdatedAt)}</div>
             ${cachePill(playlist)}
-            ${playlist.cacheError ? `<div class="seller-msg err">${esc(playlist.cacheError)}</div>` : ''}
+            ${playlist.accessMode === 'direct'
+              ? '<div class="seller-msg ok">O provedor bloqueia servidores. O aplicativo baixará a lista pela internet do aparelho.</div>'
+              : (playlist.cacheError ? `<div class="seller-msg err">${esc(playlist.cacheError)}</div>` : '')}
+            ${cacheAttemptDetails(playlist)}
           </div>
           <div class="actions" style="margin-top:0;">
             <button type="button" onclick="sellerListsRefreshCache('${esc(playlist.id)}')">Gerar cache</button>
@@ -170,7 +190,11 @@
 
       const result = await api('createSellerPlaylist', { name, playlistUrl, playlistType });
       const cacheOk = Boolean(result.cache?.ok);
-      showListMsg(result.message || (cacheOk ? 'Lista salva e cache pronto.' : 'Lista salva. Cache ainda em processamento.'), cacheOk ? 'ok' : '');
+      const direct = result.cache?.accessMode === 'direct';
+      showListMsg(
+        result.message || (cacheOk ? 'Lista salva e cache pronto.' : 'Lista salva, mas não foi possível validá-la.'),
+        cacheOk || direct ? 'ok' : 'err',
+      );
 
       $('sellerPlaylistName').value = '';
       $('sellerPlaylistUrl').value = '';
@@ -187,7 +211,11 @@
     try {
       showListMsg('Gerando cache da lista...');
       const result = await api('refreshSellerPlaylistCache', { playlistId });
-      showListMsg(result.ok ? 'Cache atualizado com sucesso.' : 'Cache solicitado, mas ainda não ficou pronto.', result.ok ? 'ok' : '');
+      const direct = result.accessMode === 'direct' || result.cache?.accessMode === 'direct';
+      showListMsg(
+        result.message || (result.ok ? 'Cache atualizado com sucesso.' : 'Não foi possível validar a lista.'),
+        result.ok || direct ? 'ok' : 'err',
+      );
       await loadLists();
       if (typeof window.loadPortal === 'function') await window.loadPortal();
     } catch (err) {
