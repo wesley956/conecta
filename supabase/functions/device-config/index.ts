@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveActiveLabSession } from '../_shared/labSession.ts';
+import { resolvePlaylistAccessMode } from '../_shared/playlistAccessMode.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -88,7 +89,9 @@ const PLAYLIST_FIELDS = `
   playlist_cache_updated_at,
   playlist_cache_item_count,
   playlist_cache_size_bytes,
-  playlist_cache_error
+  playlist_cache_error,
+  playlist_cache_error_code,
+  playlist_access_mode
 `;
 
 serve(async request => {
@@ -348,6 +351,13 @@ serve(async request => {
       const playlist = assignment.playlist;
       let cacheSnapshotUrl: string | null = null;
       let cacheParts: Record<string, string | null> | null = null;
+      const accessMode = resolvePlaylistAccessMode(
+        playlist.playlist_cache_status,
+        playlist.playlist_access_mode,
+        playlist.playlist_cache_error_code,
+        playlist.playlist_cache_error,
+        playlist.playlist_type,
+      );
 
       if (playlist.playlist_cache_status === 'ready') {
         const [snapshotUrl, manifestUrl, channelsUrl, moviesUrl, seriesUrl] = await Promise.all([
@@ -367,8 +377,9 @@ serve(async request => {
         priority: Number(assignment.priority || 1),
         role: Number(assignment.priority || 1) === 1 ? 'primary' : 'backup',
         name: playlist.name,
-        url: directFallbackAllowed ? playlist.playlist_url : null,
+        url: directFallbackAllowed && accessMode === 'direct' ? playlist.playlist_url : null,
         type: playlist.playlist_type,
+        accessMode,
         updatedAt: playlist.playlist_updated_at,
         cacheStatus: playlist.playlist_cache_status,
         cacheVersion: playlist.playlist_cache_version,
@@ -376,6 +387,7 @@ serve(async request => {
         cacheItemCount: playlist.playlist_cache_item_count,
         cacheSizeBytes: playlist.playlist_cache_size_bytes,
         cacheError: playlist.playlist_cache_error,
+        cacheErrorCode: playlist.playlist_cache_error_code,
         cacheSnapshotUrl,
         cacheParts,
         cacheReady,
@@ -407,6 +419,7 @@ serve(async request => {
       playlistName: selected.name,
       playlistUrl: selected.url,
       playlistType: selected.type,
+      playlistAccessMode: selected.accessMode,
       playlistUpdatedAt: selected.updatedAt,
       cacheStatus: selected.cacheStatus,
       cacheVersion: selected.cacheVersion,
