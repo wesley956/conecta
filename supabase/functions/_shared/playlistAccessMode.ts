@@ -115,6 +115,7 @@ export function resolvePlaylistAccessMode(
 
   const mode = String(storedMode ?? '');
   if (mode === 'direct' || mode === 'blocked') return mode;
+  if (mode === 'server_cache' && !errorCode && !cacheError) return 'server_cache';
 
   const legacyAttempt: PlaylistCacheAttempt = {
     method: 'm3u',
