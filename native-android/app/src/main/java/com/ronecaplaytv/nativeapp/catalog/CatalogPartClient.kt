@@ -8,16 +8,27 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class CatalogPartClient {
-    suspend fun loadChannels(url: String): List<NativeChannel> = withContext(Dispatchers.IO) {
-        readPart(url, MAX_CHANNELS_BYTES, CatalogJsonParser::readChannels)
+    private val directM3uClient = DirectM3uClient()
+
+    suspend fun loadChannels(url: String): List<NativeChannel> {
+        if (DirectM3uClient.isDirectUrl(url)) return directM3uClient.load(url).channels
+        return withContext(Dispatchers.IO) {
+            readPart(url, MAX_CHANNELS_BYTES, CatalogJsonParser::readChannels)
+        }
     }
 
-    suspend fun loadMovies(url: String): List<NativeMovie> = withContext(Dispatchers.IO) {
-        readPart(url, MAX_MOVIES_BYTES, CatalogJsonParser::readMovies)
+    suspend fun loadMovies(url: String): List<NativeMovie> {
+        if (DirectM3uClient.isDirectUrl(url)) return directM3uClient.load(url).movies
+        return withContext(Dispatchers.IO) {
+            readPart(url, MAX_MOVIES_BYTES, CatalogJsonParser::readMovies)
+        }
     }
 
-    suspend fun loadSeries(url: String): List<NativeSeries> = withContext(Dispatchers.IO) {
-        readPart(url, MAX_SERIES_BYTES, CatalogJsonParser::readSeries)
+    suspend fun loadSeries(url: String): List<NativeSeries> {
+        if (DirectM3uClient.isDirectUrl(url)) return directM3uClient.load(url).series
+        return withContext(Dispatchers.IO) {
+            readPart(url, MAX_SERIES_BYTES, CatalogJsonParser::readSeries)
+        }
     }
 
     private fun <T> readPart(
