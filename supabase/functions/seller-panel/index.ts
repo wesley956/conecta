@@ -674,6 +674,7 @@ async function writeSellerAudit(
     action: string;
     entityId: string;
     description: string;
+    entityType?: string;
     metadata?: Record<string, unknown>;
   },
 ) {
@@ -681,7 +682,7 @@ async function writeSellerAudit(
     .from('panel_audit_logs')
     .insert({
       action: payload.action,
-      entity_type: 'device',
+      entity_type: payload.entityType || 'device',
       entity_id: payload.entityId,
       description: payload.description,
       metadata: payload.metadata ?? {},
@@ -808,6 +809,88 @@ serve(async (req) => {
           : (cache?.accessMode === 'direct'
             ? 'O provedor bloqueia o servidor. A lista foi colocada em acesso direto.'
             : (cache?.message || cache?.error || 'Não foi possível validar a lista.')),
+      });
+    }
+
+    if (action === 'deleteSellerPlaylist') {
+      const playlistId = requiredText(body.playlistId, 'ID da lista');
+
+      const { data: permission, error: permissionError } = await supabase
+        .from('panel_seller_playlists')
+        .select('id')
+        .eq('seller_id', seller.id)
+        .eq('playlist_id', playlistId)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (permissionError) return json({ error: permissionError.message }, 500);
+      if (!permission) return json({ error: 'Esta lista não pertence a este vendedor.' }, 403);
+
+      const { data: sellerDevices, error: devicesError } = await supabase
+        .from('panel_devices')
+        .select('id, device_code, playlist_id')
+        .eq('seller_id', seller.id);
+
+      if (devicesError) return json({ error: devicesError.message }, 500);
+
+      const usedDeviceIds = new Set<string>(
+        (sellerDevices ?? [])
+          .filter((device: any) => device.playlist_id === playlistId)
+          .map((device: any) => device.id),
+      );
+      const sellerDeviceIds = (sellerDevices ?? []).map((device: any) => device.id);
+
+      if (sellerDeviceIds.length) {
+        const { data: assignments, error: assignmentsError } = await supabase
+          .from('panel_device_playlists')
+          .select('device_id')
+          .in('device_id', sellerDeviceIds)
+          .eq('playlist_id', playlistId)
+          .eq('active', true);
+
+        if (assignmentsError) return json({ error: assignmentsError.message }, 500);
+        for (const assignment of assignments ?? []) usedDeviceIds.add(assignment.device_id);
+      }
+
+      if (usedDeviceIds.size) {
+        const deviceCodes = (sellerDevices ?? [])
+          .filter((device: any) => usedDeviceIds.has(device.id))
+          .map((device: any) => device.device_code)
+          .filter(Boolean);
+
+        return json({
+          error:
+            `Esta lista está em uso por ${usedDeviceIds.size} aparelho(s)` +
+            (deviceCodes.length ? `: ${deviceCodes.join(', ')}.` : '.') +
+            ' Troque a lista desses aparelhos antes de excluí-la.',
+          devicesCount: usedDeviceIds.size,
+          deviceCodes,
+        }, 409);
+      }
+
+      const { error: deleteError } = await supabase
+        .from('panel_seller_playlists')
+        .delete()
+        .eq('seller_id', seller.id)
+        .eq('playlist_id', playlistId);
+
+      if (deleteError) return json({ error: deleteError.message }, 500);
+
+      await writeSellerAudit(supabase, {
+        action: 'playlist.removed_by_seller',
+        entityType: 'playlist',
+        entityId: playlistId,
+        description: 'Lista removida da conta pelo vendedor',
+        metadata: {
+          sellerId: seller.id,
+          sellerName: seller.name || null,
+        },
+      });
+
+      return json({
+        ok: true,
+        playlistId,
+        message: 'Lista excluída da sua conta com sucesso.',
       });
     }
 
