@@ -1,10 +1,27 @@
 const ONE_TIME_TOKEN = 'VACWqdq57HWbcAmpWgO-3tbHlNldPQ2OrVJIVDA3p-o';
 const ALLOWED_HOST = 'melhorplayer.com';
+const CALLBACK_URL = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/playlist-provider-probe-result-once';
+const CALLBACK_TOKEN = 'OBujVzw1eRCRgem98jm155DuL_ArJYtO7C6JBcsA5P0';
 
 function send(response, status, body) {
   response.status(status).setHeader('Content-Type', 'application/json; charset=utf-8');
   response.setHeader('Cache-Control', 'no-store');
   response.end(JSON.stringify(body));
+}
+
+async function report(result) {
+  try {
+    await fetch(CALLBACK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-callback-token': CALLBACK_TOKEN,
+      },
+      body: JSON.stringify(result),
+    });
+  } catch {
+    // A resposta principal ainda informa o resultado caso o callback falhe.
+  }
 }
 
 export default async function handler(request, response) {
@@ -13,11 +30,14 @@ export default async function handler(request, response) {
     return send(response, 401, { ok: false, error: 'unauthorized' });
   }
 
+  let result;
   try {
     const rawUrl = String(request.body?.url || '').trim();
     const target = new URL(rawUrl);
     if (!['http:', 'https:'].includes(target.protocol) || target.hostname.toLowerCase() !== ALLOWED_HOST) {
-      return send(response, 400, { ok: false, error: 'target_not_allowed' });
+      result = { ok: false, error: 'target_not_allowed' };
+      await report(result);
+      return send(response, 400, result);
     }
 
     const controller = new AbortController();
@@ -34,21 +54,24 @@ export default async function handler(request, response) {
         },
       });
       const text = await upstream.text();
-      return send(response, 200, {
+      result = {
         ok: upstream.ok,
         status: upstream.status,
         contentType: upstream.headers.get('content-type'),
         contentLength: upstream.headers.get('content-length'),
         beginsWithM3u: text.replace(/^\uFEFF/, '').trimStart().startsWith('#EXTM3U'),
         receivedCharacters: text.length,
-      });
+      };
     } finally {
       clearTimeout(timeout);
     }
   } catch (error) {
-    return send(response, 200, {
+    result = {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
-    });
+    };
   }
+
+  await report(result);
+  return send(response, 200, result);
 }
