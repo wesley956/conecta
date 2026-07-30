@@ -1,6 +1,10 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { PanelAuthError, panelAuthErrorResponse, requirePanelPrincipal } from '../_shared/panelAuth.ts';
+import {
+  isPlaylistUsable,
+  resolvePlaylistAccessMode,
+} from '../_shared/playlistAccessMode.ts';
 
 const ADMIN_PANEL_AUDIT_BUILD = '2026-06-22T03:42:21.651747Z';
 
@@ -134,6 +138,31 @@ async function triggerPlaylistCache(playlistId: string) {
   return data;
 }
 
+async function getAdminUsablePlaylist(supabase: any, playlistId: string, label = 'Lista') {
+  const { data: playlist, error } = await supabase
+    .from('panel_playlists')
+    .select('id, name, active, playlist_type, playlist_cache_status, playlist_cache_error, playlist_cache_error_code, playlist_access_mode')
+    .eq('id', playlistId)
+    .maybeSingle();
+
+  if (error || !playlist) {
+    throw new Error(`${label} não encontrada: ${error?.message || 'não encontrada'}`);
+  }
+  if (!playlist.active) throw new Error(`${label} está inativa.`);
+  if (!isPlaylistUsable(
+    playlist.playlist_cache_status,
+    playlist.playlist_access_mode,
+    playlist.playlist_cache_error_code,
+    playlist.playlist_cache_error,
+    playlist.playlist_type,
+  )) {
+    const suffix = playlist.playlist_cache_error ? ` Erro: ${playlist.playlist_cache_error}` : '';
+    throw new Error(`${label} não pôde ser validada para uso no aparelho.${suffix}`);
+  }
+
+  return playlist;
+}
+
 async function setDeviceBackupPlaylist(
   supabase: any,
   deviceId: string,
@@ -153,13 +182,7 @@ async function setDeviceBackupPlaylist(
 
   if (!backupPlaylistId) return;
 
-  const { data: backup, error: playlistError } = await supabase
-    .from('panel_playlists')
-    .select('id, active')
-    .eq('id', backupPlaylistId)
-    .maybeSingle();
-  if (playlistError || !backup) throw new Error(`Lista reserva não encontrada: ${playlistError?.message || 'não encontrada'}`);
-  if (!backup.active) throw new Error('A lista reserva está inativa.');
+  await getAdminUsablePlaylist(supabase, backupPlaylistId, 'Lista reserva');
 
   const { error: insertError } = await supabase
     .from('panel_device_playlists')
@@ -487,17 +510,28 @@ serve(async (req) => {
       const id = requiredText(body.id || body.playlistId, 'ID da lista');
       const { error: stateError } = await supabase
         .from('panel_playlists')
-        .update({ playlist_cache_status: 'processing', playlist_cache_error: null })
+        .update({
+          playlist_cache_status: 'processing',
+          playlist_cache_error: null,
+          playlist_cache_error_code: null,
+          playlist_cache_attempts: [],
+          playlist_access_mode: 'server_cache',
+        })
         .eq('id', id)
         .eq('active', true);
       if (stateError) return json({ error: stateError.message }, 500);
 
       const cache = await triggerPlaylistCache(id);
+      const accepted = cache.ok === true || cache.accessMode === 'direct';
       return json({
-        ok: cache.ok === true,
+        ok: accepted,
         cache,
-        message: cache.ok ? 'Cache atualizado com sucesso.' : (cache.error || 'Não foi possível gerar o cache.'),
-      }, cache.ok ? 200 : 502);
+        message: cache.ok
+          ? 'Cache atualizado com sucesso.'
+          : (cache.accessMode === 'direct'
+            ? 'O provedor bloqueia o servidor. A lista foi colocada em acesso direto.'
+            : (cache.message || cache.error || 'Não foi possível validar a lista.')),
+      }, accepted ? 200 : 502);
     }
 
     if (action === 'addSellerCredits') {
@@ -922,6 +956,9 @@ serve(async (req) => {
           playlist_cache_item_count,
           playlist_cache_size_bytes,
           playlist_cache_error,
+          playlist_cache_error_code,
+          playlist_cache_attempts,
+          playlist_access_mode,
           created_at
         `)
         .order('created_at', { ascending: false });
@@ -942,21 +979,35 @@ serve(async (req) => {
       }
 
       return json({
-        playlists: (playlists ?? []).map((playlist: any) => ({
-          id: playlist.id,
-          name: playlist.name,
-          playlistUrl: playlist.playlist_url,
-          playlistType: playlist.playlist_type,
-          active: playlist.active,
-          playlistUpdatedAt: playlist.playlist_updated_at,
-          cacheStatus: playlist.playlist_cache_status || 'missing',
-          cacheUpdatedAt: playlist.playlist_cache_updated_at,
-          cacheItemCount: playlist.playlist_cache_item_count || 0,
-          cacheSizeBytes: playlist.playlist_cache_size_bytes || 0,
-          cacheError: playlist.playlist_cache_error || null,
-          createdAt: playlist.created_at,
-          devicesCount: counts.get(playlist.id) ?? 0,
-        })),
+        playlists: (playlists ?? []).map((playlist: any) => {
+          const accessMode = resolvePlaylistAccessMode(
+            playlist.playlist_cache_status,
+            playlist.playlist_access_mode,
+            playlist.playlist_cache_error_code,
+            playlist.playlist_cache_error,
+            playlist.playlist_type,
+          );
+
+          return {
+            id: playlist.id,
+            name: playlist.name,
+            playlistUrl: playlist.playlist_url,
+            playlistType: playlist.playlist_type,
+            active: playlist.active,
+            playlistUpdatedAt: playlist.playlist_updated_at,
+            cacheStatus: playlist.playlist_cache_status || 'missing',
+            cacheUpdatedAt: playlist.playlist_cache_updated_at,
+            cacheItemCount: playlist.playlist_cache_item_count || 0,
+            cacheSizeBytes: playlist.playlist_cache_size_bytes || 0,
+            cacheError: playlist.playlist_cache_error || null,
+            cacheErrorCode: playlist.playlist_cache_error_code || null,
+            cacheAttempts: playlist.playlist_cache_attempts || [],
+            accessMode,
+            usable: playlist.playlist_cache_status === 'ready' || accessMode === 'direct',
+            createdAt: playlist.created_at,
+            devicesCount: counts.get(playlist.id) ?? 0,
+          };
+        }),
       });
     }
 
@@ -1075,6 +1126,7 @@ serve(async (req) => {
         if (!nextPlaylistId) return json({ error: 'Escolha uma lista para ativar ou renovar.' }, 400);
         if (!nextExpiresAt) return json({ error: 'Informe a validade da assinatura.' }, 400);
 
+        await getAdminUsablePlaylist(supabase, nextPlaylistId, 'Lista principal');
         const idempotencyKey = requiredText(body.idempotencyKey, 'Chave de idempotência');
         const plan = await getActivePlanForCharge(supabase, nextPlanId);
 
@@ -1189,7 +1241,9 @@ serve(async (req) => {
         cache,
         message: cache.ok
           ? 'Lista criada e cache gerado.'
-          : `Lista criada, mas o cache ainda não ficou pronto. ${cache.error || ''}`.trim(),
+          : (cache.accessMode === 'direct'
+            ? 'Lista criada em acesso direto porque o provedor bloqueia o servidor.'
+            : `Lista criada, mas não foi possível validá-la. ${cache.error || ''}`.trim()),
       });
     }
 
@@ -1229,7 +1283,9 @@ serve(async (req) => {
         cache,
         message: cache.ok
           ? 'Lista atualizada e cache renovado.'
-          : `Lista atualizada, mas o cache ainda não ficou pronto. ${cache.error || ''}`.trim(),
+          : (cache.accessMode === 'direct'
+            ? 'Lista atualizada em acesso direto porque o provedor bloqueia o servidor.'
+            : `Lista atualizada, mas não foi possível validá-la. ${cache.error || ''}`.trim()),
       });
     }
 
