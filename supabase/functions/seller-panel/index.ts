@@ -69,6 +69,23 @@ function normalizePlaylistType(value: unknown) {
   return 'm3u';
 }
 
+function inferPlaylistType(playlistUrl: string, requestedType: unknown) {
+  try {
+    const url = new URL(playlistUrl);
+    const path = url.pathname.toLowerCase().replace(/\/+$/, '');
+    const hasXtreamCredentials = Boolean(
+      url.searchParams.get('username') && url.searchParams.get('password'),
+    );
+    const isXtreamEndpoint = path.endsWith('/get.php') || path.endsWith('/player_api.php');
+
+    if (hasXtreamCredentials && isXtreamEndpoint) return 'xtream';
+  } catch {
+    // A validação do cache exibirá a mensagem apropriada para URLs inválidas.
+  }
+
+  return normalizePlaylistType(requestedType);
+}
+
 function daysLeft(value: unknown) {
   if (!value) return null;
   const date = new Date(String(value));
@@ -704,7 +721,7 @@ serve(async (req) => {
     if (action === 'createSellerPlaylist') {
       const name = requiredText(body.name, 'Nome da lista');
       const playlistUrl = requiredText(body.playlistUrl, 'URL da lista');
-      const playlistType = normalizePlaylistType(body.playlistType);
+      const playlistType = inferPlaylistType(playlistUrl, body.playlistType);
       const now = new Date().toISOString();
 
       const { data: playlist, error: playlistError } = await supabase
