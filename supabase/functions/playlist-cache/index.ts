@@ -664,7 +664,8 @@ function attemptLabel(method: PlaylistCacheAttempt['method']) {
 async function buildSnapshot(playlist: any) {
   const attempts: PlaylistCacheAttempt[] = [];
   const playlistType = normalizeType(playlist.playlist_type);
-  const methods: PlaylistCacheAttempt['method'][] = playlistType === 'xtream'
+  const hasXtreamCredentials = Boolean(parseXtreamSource(playlist.playlist_url));
+  const methods: PlaylistCacheAttempt['method'][] = hasXtreamCredentials || playlistType === 'xtream'
     ? ['xtream', 'm3u']
     : ['m3u', 'xtream'];
   let content: any = null;
