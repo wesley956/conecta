@@ -35,6 +35,7 @@ jobs:
       - name: Validate parsers and panels
         run: |
           npm run check:m3u-parser
+          npm run check:outbound-fetch-security
           npm run check:panel-auth
           npm run check:seller-provisioning
           npm run check:playlist-failover
