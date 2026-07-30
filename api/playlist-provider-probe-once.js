@@ -1,4 +1,3 @@
-const ONE_TIME_TOKEN = 'VACWqdq57HWbcAmpWgO-3tbHlNldPQ2OrVJIVDA3p-o';
 const ALLOWED_HOST = 'melhorplayer.com';
 const CALLBACK_URL = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/playlist-provider-probe-result-once';
 const CALLBACK_TOKEN = 'OBujVzw1eRCRgem98jm155DuL_ArJYtO7C6JBcsA5P0';
@@ -20,15 +19,12 @@ async function report(result) {
       body: JSON.stringify(result),
     });
   } catch {
-    // A resposta principal ainda informa o resultado caso o callback falhe.
+    // O resultado principal ainda é devolvido caso o callback falhe.
   }
 }
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') return send(response, 405, { ok: false, error: 'method_not_allowed' });
-  if (request.headers['x-one-time-token'] !== ONE_TIME_TOKEN) {
-    return send(response, 401, { ok: false, error: 'unauthorized' });
-  }
 
   let result;
   try {
