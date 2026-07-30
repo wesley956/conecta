@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronecaplaytv.nativeapp.BuildConfig
+import com.ronecaplaytv.nativeapp.catalog.DirectXtreamClient
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import com.ronecaplaytv.nativeapp.network.DeviceApi
 import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
@@ -43,23 +44,34 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
             )
 
             val result = runCatching {
-                val deviceCode = identityStore.getDeviceCode()
-                    ?: error("Código do aparelho não encontrado.")
-                val credential = credentialStore.load()
-                    ?: error("Credencial segura do aparelho não encontrada.")
-                val deviceUuid = identityStore.getOrCreateDeviceUuid()
+                if (DirectXtreamClient.isDirectSeriesKey(normalizedId)) {
+                    val seasons = DirectXtreamClient.loadSeriesEpisodes(
+                        context = getApplication<Application>(),
+                        seriesKey = normalizedId,
+                    )
+                    DirectSeriesEpisodesResponse(seasons)
+                } else {
+                    val deviceCode = identityStore.getDeviceCode()
+                        ?: error("Código do aparelho não encontrado.")
+                    val credential = credentialStore.load()
+                        ?: error("Credencial segura do aparelho não encontrada.")
+                    val deviceUuid = identityStore.getOrCreateDeviceUuid()
 
-                val response = api.fetchSeriesEpisodes(
-                    deviceCode = deviceCode,
-                    deviceUuid = deviceUuid,
-                    deviceCredential = credential,
-                    seriesId = normalizedId,
-                    playlistId = playlistId,
-                )
-                if (!response.successful) {
-                    error(response.message ?: "Não foi possível carregar os episódios.")
+                    val response = api.fetchSeriesEpisodes(
+                        deviceCode = deviceCode,
+                        deviceUuid = deviceUuid,
+                        deviceCredential = credential,
+                        seriesId = normalizedId,
+                        playlistId = playlistId,
+                    )
+                    if (!response.successful) {
+                        error(response.message ?: "Não foi possível carregar os episódios.")
+                    }
+                    DirectSeriesEpisodesResponse(
+                        seasons = response.seasons,
+                        message = response.message,
+                    )
                 }
-                response
             }
 
             mutableState.value = result.fold(
@@ -88,6 +100,11 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
         mutableState.value = SeriesEpisodesState()
     }
 }
+
+private data class DirectSeriesEpisodesResponse(
+    val seasons: List<NativeSeason>,
+    val message: String? = null,
+)
 
 data class SeriesEpisodesState(
     val seriesId: String? = null,

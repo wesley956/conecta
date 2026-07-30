@@ -1,35 +1,83 @@
 package com.ronecaplaytv.nativeapp.catalog
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
-class CatalogPartClient {
+class CatalogPartClient(context: Context) {
     private val directM3uClient = DirectM3uClient()
+    private val directXtreamClient = DirectXtreamClient(context.applicationContext)
+    private val directM3uMutex = Mutex()
 
     suspend fun loadChannels(url: String): List<NativeChannel> {
-        if (DirectM3uClient.isDirectUrl(url)) return directM3uClient.load(url).channels
+        if (DirectM3uClient.isDirectUrl(url)) {
+            return loadDirect(
+                url = url,
+                xtreamLoader = directXtreamClient::loadChannels,
+                m3uSelector = DirectM3uCatalog::channels,
+            )
+        }
         return withContext(Dispatchers.IO) {
             readPart(url, MAX_CHANNELS_BYTES, CatalogJsonParser::readChannels)
         }
     }
 
     suspend fun loadMovies(url: String): List<NativeMovie> {
-        if (DirectM3uClient.isDirectUrl(url)) return directM3uClient.load(url).movies
+        if (DirectM3uClient.isDirectUrl(url)) {
+            return loadDirect(
+                url = url,
+                xtreamLoader = directXtreamClient::loadMovies,
+                m3uSelector = DirectM3uCatalog::movies,
+            )
+        }
         return withContext(Dispatchers.IO) {
             readPart(url, MAX_MOVIES_BYTES, CatalogJsonParser::readMovies)
         }
     }
 
     suspend fun loadSeries(url: String): List<NativeSeries> {
-        if (DirectM3uClient.isDirectUrl(url)) return directM3uClient.load(url).series
+        if (DirectM3uClient.isDirectUrl(url)) {
+            return loadDirect(
+                url = url,
+                xtreamLoader = directXtreamClient::loadSeries,
+                m3uSelector = DirectM3uCatalog::series,
+            )
+        }
         return withContext(Dispatchers.IO) {
             readPart(url, MAX_SERIES_BYTES, CatalogJsonParser::readSeries)
         }
     }
+
+    private suspend fun <T> loadDirect(
+        url: String,
+        xtreamLoader: suspend (String) -> List<T>,
+        m3uSelector: (DirectM3uCatalog) -> List<T>,
+    ): List<T> {
+        if (!DirectXtreamClient.supports(url)) {
+            return m3uSelector(loadM3uOnce(url))
+        }
+
+        val xtreamResult = runCatching { xtreamLoader(url) }
+        xtreamResult.getOrNull()?.let { return it }
+
+        return runCatching { m3uSelector(loadM3uOnce(url)) }.getOrElse { m3uFailure ->
+            val xtreamMessage = xtreamResult.exceptionOrNull()?.message
+                ?: "falha não identificada"
+            val m3uMessage = m3uFailure.message ?: "falha não identificada"
+            throw CatalogLoadException(
+                "API Xtream: $xtreamMessage M3U: $m3uMessage",
+            )
+        }
+    }
+
+    private suspend fun loadM3uOnce(url: String): DirectM3uCatalog =
+        directM3uMutex.withLock { directM3uClient.load(url) }
 
     private fun <T> readPart(
         signedUrl: String,

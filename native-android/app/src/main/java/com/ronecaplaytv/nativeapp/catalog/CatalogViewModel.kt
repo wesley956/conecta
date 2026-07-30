@@ -1,16 +1,19 @@
 package com.ronecaplaytv.nativeapp.catalog
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 
-class CatalogViewModel : ViewModel() {
-    private val client = CatalogPartClient()
+class CatalogViewModel(application: Application) : AndroidViewModel(application) {
+    private val client = CatalogPartClient(application)
     private val mutableState = MutableStateFlow(NativeCatalogState())
 
     val state: StateFlow<NativeCatalogState> = mutableState.asStateFlow()
@@ -37,7 +40,7 @@ class CatalogViewModel : ViewModel() {
         val previousState = mutableState.value
         viewModelScope.launch {
             mutableState.value = previousState.copy(
-                loadingSection = "canais",
+                loadingSection = "catálogo",
                 error = null,
             )
             loadFirstAvailable(candidates, key, previousState)
@@ -123,7 +126,7 @@ class CatalogViewModel : ViewModel() {
                         failoverNotice = if (candidateIndex > 0) {
                             "Lista principal indisponível. Catálogo substituído pela lista reserva."
                         } else {
-                            null
+                            catalog.warning
                         },
                         lastFailureReason = when {
                             candidateIndex > 0 && recordedSwitch -> lastFailure?.message
@@ -151,24 +154,58 @@ class CatalogViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Channels, movies and series are independent Xtream endpoints. Running them
+     * concurrently removes the old wait in which every section blocked the next.
+     * A provider may return one section late or unavailable; successful sections
+     * are kept instead of leaving the whole application at zero.
+     */
     private suspend fun loadCompleteCatalog(
         candidate: DevicePlaylistConfig,
         prefix: String,
-    ): LoadedCatalog {
-        mutableState.update { it.copy(loadingSection = "${prefix}canais") }
-        val channels = candidate.channelsUrl?.let { client.loadChannels(it) }.orEmpty()
+    ): LoadedCatalog = supervisorScope {
+        mutableState.update { it.copy(loadingSection = "${prefix}consultando API") }
 
-        mutableState.update { it.copy(loadingSection = "${prefix}filmes") }
-        val movies = candidate.moviesUrl?.let { client.loadMovies(it) }.orEmpty()
-
-        mutableState.update { it.copy(loadingSection = "${prefix}séries") }
-        val series = candidate.seriesUrl?.let { client.loadSeries(it) }.orEmpty()
-
-        if (channels.isEmpty() && movies.isEmpty() && series.isEmpty()) {
-            throw CatalogLoadException("A lista retornou um catálogo vazio.")
+        val channelsDeferred = async {
+            runCatching { candidate.channelsUrl?.let { client.loadChannels(it) }.orEmpty() }
+        }
+        val moviesDeferred = async {
+            runCatching { candidate.moviesUrl?.let { client.loadMovies(it) }.orEmpty() }
+        }
+        val seriesDeferred = async {
+            runCatching { candidate.seriesUrl?.let { client.loadSeries(it) }.orEmpty() }
         }
 
-        return LoadedCatalog(channels, movies, series)
+        val channelsResult = channelsDeferred.await()
+        val moviesResult = moviesDeferred.await()
+        val seriesResult = seriesDeferred.await()
+        val channels = channelsResult.getOrDefault(emptyList())
+        val movies = moviesResult.getOrDefault(emptyList())
+        val series = seriesResult.getOrDefault(emptyList())
+
+        if (channels.isEmpty() && movies.isEmpty() && series.isEmpty()) {
+            val failures = listOf(channelsResult, moviesResult, seriesResult)
+                .mapNotNull { it.exceptionOrNull()?.message }
+                .distinct()
+                .joinToString(" ")
+            throw CatalogLoadException(
+                failures.ifBlank { "A lista retornou um catálogo vazio." },
+            )
+        }
+
+        val unavailableSections = buildList {
+            if (channelsResult.isFailure) add("canais")
+            if (moviesResult.isFailure) add("filmes")
+            if (seriesResult.isFailure) add("séries")
+        }
+        LoadedCatalog(
+            channels = channels,
+            movies = movies,
+            series = series,
+            warning = unavailableSections.takeIf { it.isNotEmpty() }?.let {
+                "Catálogo carregado. Tentaremos atualizar ${it.joinToString(" e ")} novamente."
+            },
+        )
     }
 
     private fun playlistCandidates(
@@ -201,6 +238,7 @@ class CatalogViewModel : ViewModel() {
         val channels: List<NativeChannel>,
         val movies: List<NativeMovie>,
         val series: List<NativeSeries>,
+        val warning: String? = null,
     ) {
         fun toState(
             candidate: DevicePlaylistConfig,
