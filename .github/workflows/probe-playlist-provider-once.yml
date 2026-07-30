@@ -1,0 +1,78 @@
+name: Probe playlist provider once
+
+on:
+  push:
+    paths:
+      - .github/workflows/probe-playlist-provider-once.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Test provider connectivity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          URL_JSON="$(curl -fsS --max-time 20 \
+            -H 'x-one-time-token: cOEo7blsxNS1YR0kYD3UtObgcGgh1pNsOfmDnLMuArE' \
+            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/playlist-provider-url-once')"
+          ORIGINAL_URL="$(printf '%s' "$URL_JSON" | jq -r '.url // empty')"
+          if [[ -z "$ORIGINAL_URL" ]]; then
+            RESULT='{"source":"github-actions","ok":false,"error":"playlist_url_unavailable"}'
+          else
+            HTTPS_URL="${ORIGINAL_URL/http:\/\//https://}"
+            HTTP_URL="${ORIGINAL_URL/https:\/\//http://}"
+            OK=false
+            STATUS=0
+            RECEIVED=0
+            BEGINS=false
+            ERROR='provider_unreachable'
+
+            for TARGET in "$HTTPS_URL" "$HTTP_URL"; do
+              rm -f /tmp/probe-body /tmp/probe-error
+              set +e
+              STATUS="$(curl -L -sS --connect-timeout 12 --max-time 40 \
+                -A 'RonecaPlayTV-Native' \
+                -H 'Accept: */*' \
+                -H 'Range: bytes=0-2047' \
+                -o /tmp/probe-body \
+                -w '%{http_code}' \
+                "$TARGET" 2>/tmp/probe-error)"
+              CURL_EXIT=$?
+              set -e
+              RECEIVED="$(wc -c </tmp/probe-body 2>/dev/null || echo 0)"
+              if head -c 64 /tmp/probe-body 2>/dev/null | grep -q '#EXTM3U'; then
+                BEGINS=true
+              else
+                BEGINS=false
+              fi
+              if [[ "$CURL_EXIT" -eq 0 && ( "$STATUS" == '200' || "$STATUS" == '206' ) && "$BEGINS" == true ]]; then
+                OK=true
+                ERROR=''
+                break
+              fi
+              ERROR="curl_exit_${CURL_EXIT}_http_${STATUS}"
+            done
+
+            RESULT="$(jq -nc \
+              --arg source 'github-actions' \
+              --argjson ok "$OK" \
+              --arg status "$STATUS" \
+              --argjson beginsWithM3u "$BEGINS" \
+              --arg receivedCharacters "$RECEIVED" \
+              --arg error "$ERROR" \
+              '{source:$source,ok:$ok,status:($status|tonumber? // null),beginsWithM3u:$beginsWithM3u,receivedCharacters:($receivedCharacters|tonumber? // 0),error:($error|select(length>0))}')"
+          fi
+
+          curl -fsS --max-time 20 -X POST \
+            -H 'Content-Type: application/json' \
+            -H 'x-callback-token: OBujVzw1eRCRgem98jm155DuL_ArJYtO7C6JBcsA5P0' \
+            --data "$RESULT" \
+            'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/playlist-provider-probe-result-once' \
+            >/dev/null
