@@ -289,11 +289,30 @@ async function deleteRecord(supabase: any, principal: Principal, body: JsonBody)
   const id = uuidOrNull(body.id);
   if (!id) throw new Error('Movimentação inválida.');
   const current = await scopedRecord(supabase, principal, id);
-  if (current.source !== 'manual') throw new Error('Uma venda automática não pode ser excluída.');
   const { error } = await supabase.from('panel_financial_records').delete()
     .eq('id', id).eq('financial_scope', 'seller_private').eq('seller_id', principal.sellerId);
   if (error) throw new Error(`Falha ao excluir movimentação: ${error.message}`);
-  return { ok: true };
+
+  const { error: auditError } = await supabase.from('panel_audit_logs').insert({
+    action: 'finance.record_deleted_by_seller',
+    entity_type: 'financial_record',
+    entity_id: id,
+    description: 'Venda excluída do financeiro pelo vendedor',
+    metadata: {
+      sellerId: principal.sellerId,
+      source: current.source,
+      amountCents: Number(current.amount_cents || 0),
+      status: current.status,
+      customerId: current.customer_id,
+      deviceId: current.device_id,
+      planId: current.plan_id,
+      deviceCode: current.device_code_snapshot,
+      customerName: current.customer_name_snapshot,
+      description: current.description,
+    },
+  });
+  if (auditError) console.error('Falha ao auditar exclusão financeira.', auditError);
+  return { ok: true, source: current.source };
 }
 
 async function upsertSellerCustomer(supabase: any, sellerId: string, name: string, whatsapp: string) {

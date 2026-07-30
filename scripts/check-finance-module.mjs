@@ -28,6 +28,8 @@ const required = {
     'Registrar recebimento',
     'sellerFinanceRecords',
     'financeUpdateStatus',
+    "financeDeleteRecord('${esc(record.id)}','seller')",
+    'nenhum crédito será devolvido',
   ],
   financeCss: [
     '.finance-metrics',
@@ -55,7 +57,8 @@ const required = {
     ".eq('seller_id', principal.sellerId)",
     "financial_scope: 'seller_private'",
     "action === 'deleteRecord'",
-    'Uma venda automática não pode ser excluída',
+    "action: 'finance.record_deleted_by_seller'",
+    "entity_type: 'financial_record'",
   ],
   creditEdge: [
     "requirePanelPrincipal(request, supabase, ['owner', 'admin', 'seller'])",
