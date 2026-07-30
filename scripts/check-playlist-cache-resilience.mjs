@@ -15,6 +15,8 @@ for (const required of [
   'const moviesUpload = await uploadJsonCachePart',
   'const seriesUpload = await uploadJsonCachePart',
   'await mapInBatches',
+  'const hasXtreamCredentials = Boolean(parseXtreamSource(playlist.playlist_url))',
+  "hasXtreamCredentials || playlistType === 'xtream'",
 ]) {
   assert.ok(source.includes(required), `Proteção ausente: ${required}`);
 }
