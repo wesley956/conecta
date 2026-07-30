@@ -356,12 +356,15 @@
     }
   };
 
-  window.financeDeleteRecord = async function financeDeleteRecord(id) {
-    if (!confirm('Excluir definitivamente esta movimentação financeira?')) return;
+  window.financeDeleteRecord = async function financeDeleteRecord(id, role = 'admin') {
+    const message = role === 'seller'
+      ? 'Excluir esta venda do financeiro? Ela sairá do histórico e dos totais, mas o aparelho continuará ativo e nenhum crédito será devolvido.'
+      : 'Excluir definitivamente esta movimentação financeira?';
+    if (!confirm(message)) return;
     try {
       await panelApi(FINANCE_FUNCTION, { action: 'deleteRecord', id });
-      await loadAdminFinance();
-      showNotice('admin', 'Movimentação excluída.');
+      await (role === 'seller' ? loadSellerFinance() : loadAdminFinance());
+      showNotice(role, role === 'seller' ? 'Venda excluída do financeiro.' : 'Movimentação excluída.');
     } catch (error) {
       alert(error?.message || 'Não foi possível excluir a movimentação.');
     }
@@ -509,7 +512,7 @@
           ${record.source === 'manual' ? `<button class="btn" onclick="financeEditRecord('${esc(record.id)}','${role}')">Editar</button>` : ''}
           ${record.status !== 'paid' ? `<button class="btn green" onclick="financeUpdateStatus('${esc(record.id)}','paid','${role}')">Marcar pago</button>` : ''}
           ${record.status !== 'cancelled' ? `<button class="btn orange" onclick="financeUpdateStatus('${esc(record.id)}','cancelled','${role}')">Cancelar</button>` : ''}
-          ${role === 'admin' && record.source === 'manual' ? `<button class="btn red" onclick="financeDeleteRecord('${esc(record.id)}')">Excluir</button>` : ''}
+          ${role === 'admin' && record.source === 'manual' ? `<button class="btn red" onclick="financeDeleteRecord('${esc(record.id)}','admin')">Excluir</button>` : ''}
         </div></td>
       </tr>
     `).join('') : '<tr><td colspan="8" class="finance-empty">Nenhuma movimentação encontrada neste período.</td></tr>';
@@ -651,7 +654,7 @@
     $('sellerFinanceRecords').innerHTML = records.length ? records.map(record => `
       <div class="seller-finance-record">
         <div><h3>${esc(record.description)}</h3><p>${esc(record.customerName || 'Sem cliente')} · ${esc(record.deviceCode || 'Sem aparelho')}</p><p>${dateOnly(record.referenceDate)} · ${esc(paymentLabel(record.paymentMethod))} · <span class="finance-status ${esc(record.status)}">${esc(statusLabel(record.status))}</span></p></div>
-        <div class="seller-finance-value"><div class="finance-positive">${money(record.amountCents)}</div><div class="finance-actions" style="margin-top:8px;">${record.source === 'manual' ? `<button onclick="financeEditRecord('${esc(record.id)}','seller')">Editar</button>` : ''}${record.status !== 'paid' ? `<button onclick="financeUpdateStatus('${esc(record.id)}','paid','seller')">Pago</button>` : ''}</div></div>
+        <div class="seller-finance-value"><div class="finance-positive">${money(record.amountCents)}</div><div class="finance-actions" style="margin-top:8px;">${record.source === 'manual' ? `<button onclick="financeEditRecord('${esc(record.id)}','seller')">Editar</button>` : ''}${record.status !== 'paid' ? `<button onclick="financeUpdateStatus('${esc(record.id)}','paid','seller')">Pago</button>` : ''}<button class="danger" onclick="financeDeleteRecord('${esc(record.id)}','seller')">Excluir</button></div></div>
       </div>
     `).join('') : '<div class="finance-empty">Nenhuma movimentação financeira neste período.</div>';
   }
