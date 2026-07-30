@@ -392,9 +392,11 @@
     $('sellerActivationForm')?.classList.remove('open');
   };
 
-  window.sellerUxPrepareActivation = function sellerUxPrepareActivation(deviceCode) {
+  window.sellerUxPrepareActivation = async function sellerUxPrepareActivation(deviceCode) {
+    window.sellerPortalNavigate?.('activation');
     $('sellerDeviceCodeLookup').value = deviceCode;
-    window.sellerUxLookupDevice();
+    await window.sellerUxLookupDevice();
+    if (lookupDevice?.canActivate) window.sellerUxOpenActivationForm();
     document.getElementById('sellerActivationCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
