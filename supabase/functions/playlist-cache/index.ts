@@ -7,6 +7,8 @@ import {
 } from '../_shared/playlistAccessMode.ts';
 
 const BUCKET = 'playlist-cache';
+const CACHE_LOCK_ID = 'global';
+const CACHE_LOCK_TTL_MS = 3 * 60_000;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -230,6 +232,19 @@ function buildCategoryMap(items: any[]) {
   return map;
 }
 
+async function mapInBatches<T, R>(items: T[], mapper: (item: T) => R, batchSize = 500) {
+  const result: R[] = [];
+
+  for (let index = 0; index < items.length; index += 1) {
+    result.push(mapper(items[index]));
+    if ((index + 1) % batchSize === 0) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+
+  return result;
+}
+
 function liveExtension(source: ReturnType<typeof parseXtreamSource>) {
   return source?.output?.toLowerCase() === 'm3u8' ? 'm3u8' : 'ts';
 }
@@ -278,19 +293,14 @@ async function buildXtreamSnapshot(playlist: any) {
     fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries').catch(() => []),
   ]);
 
-  const [liveStreams, vodStreams, seriesItems] = await Promise.all([
-    fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais'),
-    fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes'),
-    fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries'),
-  ]);
-
   const liveCategoryMap = buildCategoryMap(liveCategories);
   const vodCategoryMap = buildCategoryMap(vodCategories);
   const seriesCategoryMap = buildCategoryMap(seriesCategories);
 
-  const channels = (Array.isArray(liveStreams) ? liveStreams : [])
-    .filter(item => item.stream_id)
-    .map(item => {
+  let liveStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais');
+  const channels = await mapInBatches(
+    (Array.isArray(liveStreams) ? liveStreams : []).filter(item => item.stream_id),
+    item => {
       const groupName = liveCategoryMap.get(String(item.category_id ?? '')) || 'Canais';
       const playbackUrls = alternateLiveUrls(source, item.stream_id);
       const url = playbackUrls[0];
@@ -305,11 +315,14 @@ async function buildXtreamSnapshot(playlist: any) {
         isFavorite: false,
         playbackUrls,
       };
-    });
+    },
+  );
+  liveStreams = null;
 
-  const movies = (Array.isArray(vodStreams) ? vodStreams : [])
-    .filter(item => item.stream_id)
-    .map(item => {
+  let vodStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes');
+  const movies = await mapInBatches(
+    (Array.isArray(vodStreams) ? vodStreams : []).filter(item => item.stream_id),
+    item => {
       const name = text(item.name, `Filme ${item.stream_id}`);
       const category = vodCategoryMap.get(String(item.category_id ?? '')) || 'Filmes';
       const url = movieUrl(source, item.stream_id, item.container_extension);
@@ -327,11 +340,14 @@ async function buildXtreamSnapshot(playlist: any) {
         progress: 0,
         playbackUrls: [url],
       };
-    });
+    },
+  );
+  vodStreams = null;
 
-  const series = (Array.isArray(seriesItems) ? seriesItems : [])
-    .filter(item => item.series_id)
-    .map(item => {
+  let seriesItems: any = await fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries');
+  const series = await mapInBatches(
+    (Array.isArray(seriesItems) ? seriesItems : []).filter(item => item.series_id),
+    item => {
       const seriesId = item.series_id;
       const category = seriesCategoryMap.get(String(item.category_id ?? '')) || 'Séries';
 
@@ -346,7 +362,9 @@ async function buildXtreamSnapshot(playlist: any) {
         progress: 0,
         xtreamSeriesId: seriesId,
       };
-    });
+    },
+  );
+  seriesItems = null;
 
   if (movies.length === 0) {
     throw new Error('API Xtream retornou 0 filmes; usando lista M3U completa como fallback.');
@@ -742,19 +760,77 @@ async function uploadJsonCachePart(supabase: any, storagePath: string, payload: 
   };
 }
 
+function hasUsableCache(playlist: any) {
+  return Boolean(
+    playlist.playlist_cache_manifest_path &&
+    playlist.playlist_cache_channels_path &&
+    playlist.playlist_cache_movies_path &&
+    playlist.playlist_cache_series_path &&
+    Number(playlist.playlist_cache_item_count) > 0
+  );
+}
+
+async function acquireCacheLock(supabase: any, playlistId: string) {
+  const staleBefore = new Date(Date.now() - CACHE_LOCK_TTL_MS).toISOString();
+  await supabase
+    .from('playlist_cache_generation_lock')
+    .delete()
+    .eq('id', CACHE_LOCK_ID)
+    .lt('started_at', staleBefore);
+
+  const token = crypto.randomUUID();
+  const { error } = await supabase
+    .from('playlist_cache_generation_lock')
+    .insert({
+      id: CACHE_LOCK_ID,
+      playlist_id: playlistId,
+      token,
+      started_at: new Date().toISOString(),
+    });
+
+  if (!error) return { acquired: true, token };
+  if (error.code === '23505') return { acquired: false, token: null };
+  throw new Error(`Não foi possível reservar a geração do cache: ${error.message}`);
+}
+
+async function releaseCacheLock(supabase: any, token: string | null) {
+  if (!token) return;
+  await supabase
+    .from('playlist_cache_generation_lock')
+    .delete()
+    .eq('id', CACHE_LOCK_ID)
+    .eq('token', token);
+}
+
 async function refreshPlaylistCache(supabase: any, playlist: any) {
   const startedAt = Date.now();
+  const previousCacheIsUsable = hasUsableCache(playlist);
+  const lock = await acquireCacheLock(supabase, playlist.id);
 
-  await supabase
-    .from('panel_playlists')
-    .update({
-      playlist_cache_status: 'building',
-      playlist_cache_error: null,
-      playlist_cache_error_code: null,
-      playlist_cache_attempts: [],
-      playlist_access_mode: 'server_cache',
-    })
-    .eq('id', playlist.id);
+  if (!lock.acquired) {
+    return {
+      ok: false,
+      busy: true,
+      playlistId: playlist.id,
+      playlistName: playlist.name,
+      errorCode: 'cache_generation_busy',
+      message: 'Outra lista já está gerando cache. Aguarde a conclusão e tente novamente.',
+      elapsedMs: Date.now() - startedAt,
+    };
+  }
+
+  if (!previousCacheIsUsable) {
+    await supabase
+      .from('panel_playlists')
+      .update({
+        playlist_cache_status: 'building',
+        playlist_cache_error: null,
+        playlist_cache_error_code: null,
+        playlist_cache_attempts: [],
+        playlist_access_mode: 'server_cache',
+      })
+      .eq('id', playlist.id);
+  }
 
   try {
     const snapshot = await buildSnapshot(playlist);
@@ -824,12 +900,10 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       series: snapshot.series,
     };
 
-    const [manifestUpload, channelsUpload, moviesUpload, seriesUpload] = await Promise.all([
-      uploadJsonCachePart(supabase, manifestPath, manifest),
-      uploadJsonCachePart(supabase, channelsPath, channelsPayload),
-      uploadJsonCachePart(supabase, moviesPath, moviesPayload),
-      uploadJsonCachePart(supabase, seriesPath, seriesPayload),
-    ]);
+    const manifestUpload = await uploadJsonCachePart(supabase, manifestPath, manifest);
+    const channelsUpload = await uploadJsonCachePart(supabase, channelsPath, channelsPayload);
+    const moviesUpload = await uploadJsonCachePart(supabase, moviesPath, moviesPayload);
+    const seriesUpload = await uploadJsonCachePart(supabase, seriesPath, seriesPayload);
 
     const sizeBytes = manifestUpload.sizeBytes + channelsUpload.sizeBytes + moviesUpload.sizeBytes + seriesUpload.sizeBytes;
 
@@ -881,11 +955,11 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
     await supabase
       .from('panel_playlists')
       .update({
-        playlist_cache_status: 'error',
+        playlist_cache_status: previousCacheIsUsable ? 'ready' : 'error',
         playlist_cache_error: message,
         playlist_cache_error_code: failure.code,
         playlist_cache_attempts: attempts,
-        playlist_access_mode: failure.accessMode,
+        playlist_access_mode: previousCacheIsUsable ? 'server_cache' : failure.accessMode,
       })
       .eq('id', playlist.id);
 
@@ -897,10 +971,15 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       errorCode: failure.code,
       accessMode: failure.accessMode,
       directEligible: failure.directEligible,
-      message: failure.message,
+      preservedPreviousCache: previousCacheIsUsable,
+      message: previousCacheIsUsable
+        ? 'A atualização falhou, mas o cache anterior continua ativo.'
+        : failure.message,
       attempts,
       elapsedMs: Date.now() - startedAt,
     };
+  } finally {
+    await releaseCacheLock(supabase, lock.token);
   }
 }
 
@@ -923,7 +1002,7 @@ serve(async req => {
 
       const { data: playlist, error } = await supabase
         .from('panel_playlists')
-        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at')
+        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_status, playlist_cache_manifest_path, playlist_cache_channels_path, playlist_cache_movies_path, playlist_cache_series_path, playlist_cache_item_count')
         .eq('id', playlistId)
         .single();
 
@@ -937,7 +1016,7 @@ serve(async req => {
 
       const { data: playlists, error } = await supabase
         .from('panel_playlists')
-        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_updated_at')
+        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_updated_at, playlist_cache_status, playlist_cache_manifest_path, playlist_cache_channels_path, playlist_cache_movies_path, playlist_cache_series_path, playlist_cache_item_count')
         .eq('active', true)
         .order('playlist_cache_updated_at', { ascending: true, nullsFirst: true })
         .limit(limit);
