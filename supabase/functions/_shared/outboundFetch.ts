@@ -1,10 +1,9 @@
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_BYTES = 80 * 1024 * 1024;
 const DEFAULT_MAX_REDIRECTS = 5;
-const BUILT_IN_ALLOWED_HOSTS = [
-  'melhorplayer.com',
-  'vanishtiswo.top',
-];
+
+type DnsRecordType = 'A' | 'AAAA';
+type DnsResolver = (hostname: string, recordType: DnsRecordType) => Promise<string[]>;
 
 function normalizeHostname(value: string) {
   return value.trim().toLowerCase().replace(/^\[|\]$/g, '');
@@ -16,7 +15,7 @@ function isPrivateIpv4(hostname: string) {
     return false;
   }
 
-  const [a, b] = parts;
+  const [a, b, c] = parts;
 
   return (
     a === 0 ||
@@ -25,28 +24,69 @@ function isPrivateIpv4(hostname: string) {
     (a === 100 && b >= 64 && b <= 127) ||
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0 && c === 0) ||
+    (a === 192 && b === 0 && c === 2) ||
+    (a === 192 && b === 88 && c === 99) ||
     (a === 192 && b === 168) ||
     (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
     a >= 224
   );
 }
 
 function isPrivateIpv6(hostname: string) {
   const normalized = normalizeHostname(hostname).split('%')[0];
+  if (!normalized.includes(':')) return false;
+  if (normalized.startsWith('::ffff:') && isPrivateIpv4(normalized.slice('::ffff:'.length))) {
+    return true;
+  }
+
+  const [head = '', tail = ''] = normalized.split('::');
+  const left = head ? head.split(':') : [];
+  const right = tail ? tail.split(':') : [];
+  const missing = 8 - left.length - right.length;
+  const words = [
+    ...left,
+    ...Array.from({ length: Math.max(0, missing) }, () => '0'),
+    ...right,
+  ].map(part => Number.parseInt(part || '0', 16));
+
+  if (
+    words.length !== 8 ||
+    words.some(word => !Number.isInteger(word) || word < 0 || word > 0xffff)
+  ) {
+    return false;
+  }
+
+  const allZero = words.every(word => word === 0);
+  const loopback = words.slice(0, 7).every(word => word === 0) && words[7] === 1;
+  const ipv4Mapped = words.slice(0, 5).every(word => word === 0) && words[5] === 0xffff;
+
+  if (ipv4Mapped) {
+    const mapped = [
+      words[6] >> 8,
+      words[6] & 0xff,
+      words[7] >> 8,
+      words[7] & 0xff,
+    ].join('.');
+    return isPrivateIpv4(mapped);
+  }
 
   return (
-    normalized === '::' ||
-    normalized === '::1' ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd') ||
-    normalized.startsWith('fe8') ||
-    normalized.startsWith('fe9') ||
-    normalized.startsWith('fea') ||
-    normalized.startsWith('feb') ||
-    normalized.startsWith('::ffff:127.') ||
-    normalized.startsWith('::ffff:10.') ||
-    normalized.startsWith('::ffff:192.168.')
+    allZero ||
+    loopback ||
+    (words[0] & 0xfe00) === 0xfc00 ||
+    (words[0] & 0xffc0) === 0xfe80 ||
+    (words[0] & 0xff00) === 0xff00 ||
+    (words[0] === 0x0100 && words.slice(1, 4).every(word => word === 0)) ||
+    (words[0] === 0x2001 && words[1] === 0x0db8)
   );
+}
+
+export function isPrivateIpAddress(hostname: string) {
+  const normalized = normalizeHostname(hostname);
+  return isPrivateIpv4(normalized) || isPrivateIpv6(normalized);
 }
 
 function isPrivateLiteralHost(hostname: string) {
@@ -56,27 +96,10 @@ function isPrivateLiteralHost(hostname: string) {
     normalized === 'localhost' ||
     normalized.endsWith('.localhost') ||
     normalized.endsWith('.local') ||
-    isPrivateIpv4(normalized) ||
-    isPrivateIpv6(normalized)
+    normalized.endsWith('.internal') ||
+    normalized === 'metadata.google.internal' ||
+    isPrivateIpAddress(normalized)
   );
-}
-
-function readAllowedHosts() {
-  return [...new Set([
-    ...BUILT_IN_ALLOWED_HOSTS,
-    ...String(Deno.env.get('PLAYLIST_ALLOWED_HOSTS') || '').split(','),
-  ]
-    .map(normalizeHostname)
-    .filter(Boolean))];
-}
-
-function hostnameMatchesRule(hostname: string, rule: string) {
-  if (rule.startsWith('*.')) {
-    const suffix = rule.slice(2);
-    return hostname.endsWith(`.${suffix}`) && hostname !== suffix;
-  }
-
-  return hostname === rule;
 }
 
 export function assertAllowedPlaylistUrl(rawUrl: string) {
@@ -100,20 +123,34 @@ export function assertAllowedPlaylistUrl(rawUrl: string) {
     throw new Error('Endereços privados, locais ou reservados não são permitidos.');
   }
 
-  const allowedHosts = readAllowedHosts();
-
-  if (allowedHosts.length === 0) {
-    throw new Error('PLAYLIST_ALLOWED_HOSTS não configurado. O acesso externo foi bloqueado por segurança.');
-  }
-
-  const hostname = normalizeHostname(parsed.hostname);
-  const allowed = allowedHosts.some(rule => hostnameMatchesRule(hostname, rule));
-
-  if (!allowed) {
-    throw new Error(`Host não permitido para listas: ${hostname}.`);
-  }
-
   return parsed;
+}
+
+async function defaultDnsResolver(hostname: string, recordType: DnsRecordType) {
+  return await Deno.resolveDns(hostname, recordType) as string[];
+}
+
+export async function assertPublicPlaylistTarget(
+  target: URL,
+  resolveDns: DnsResolver = defaultDnsResolver,
+) {
+  if (isPrivateLiteralHost(target.hostname)) {
+    throw new Error('Endereços privados, locais ou reservados não são permitidos.');
+  }
+
+  const results = await Promise.allSettled([
+    resolveDns(target.hostname, 'A'),
+    resolveDns(target.hostname, 'AAAA'),
+  ]);
+  const addresses = results.flatMap(result => result.status === 'fulfilled' ? result.value : []);
+
+  if (addresses.length === 0) {
+    throw new Error(`Não foi possível validar o DNS público do host: ${normalizeHostname(target.hostname)}.`);
+  }
+
+  if (addresses.some(isPrivateIpAddress)) {
+    throw new Error('O domínio informado aponta para um endereço privado, local ou reservado.');
+  }
 }
 
 interface SafeFetchTextOptions {
@@ -122,6 +159,7 @@ interface SafeFetchTextOptions {
   maxBytes?: number;
   headers?: HeadersInit;
   redirectsLeft?: number;
+  resolveDns?: DnsResolver;
 }
 
 async function readBoundedResponse(
@@ -184,6 +222,8 @@ export async function safeFetchPlaylistText(
   options: SafeFetchTextOptions,
 ) {
   const target = assertAllowedPlaylistUrl(rawUrl);
+  await assertPublicPlaylistTarget(target, options.resolveDns);
+
   const timeoutMs = Math.max(1_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const maxBytes = Math.max(1_024, options.maxBytes ?? DEFAULT_MAX_BYTES);
   const redirectsLeft = Math.max(0, options.redirectsLeft ?? DEFAULT_MAX_REDIRECTS);
