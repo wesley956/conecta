@@ -73,6 +73,23 @@ function normalizePlaylistType(value: unknown) {
   return 'm3u';
 }
 
+function inferPlaylistType(playlistUrl: string, requestedType: unknown) {
+  try {
+    const url = new URL(playlistUrl);
+    const path = url.pathname.toLowerCase().replace(/\/+$/, '');
+    const hasXtreamCredentials = Boolean(
+      url.searchParams.get('username') && url.searchParams.get('password'),
+    );
+    const isXtreamEndpoint = path.endsWith('/get.php') || path.endsWith('/player_api.php');
+
+    if (hasXtreamCredentials && isXtreamEndpoint) return 'xtream';
+  } catch {
+    // A validação do cache exibirá a mensagem apropriada para URLs inválidas.
+  }
+
+  return normalizePlaylistType(requestedType);
+}
+
 function normalizeWhatsapp(value: unknown) {
   return String(value ?? '')
     .replace(/[^\d+]/g, '')
@@ -1207,7 +1224,7 @@ serve(async (req) => {
     if (action === 'createPlaylist') {
       const name = requiredText(body.name, 'Nome da lista');
       const playlistUrl = requiredText(body.playlistUrl, 'URL da lista');
-      const playlistType = normalizePlaylistType(body.playlistType);
+      const playlistType = inferPlaylistType(playlistUrl, body.playlistType);
 
       const { data, error } = await supabase
         .from('panel_playlists')
@@ -1256,7 +1273,18 @@ serve(async (req) => {
 
       if ('name' in body) updates.name = requiredText(body.name, 'Nome da lista');
       if ('playlistUrl' in body) updates.playlist_url = requiredText(body.playlistUrl, 'URL da lista');
-      if ('playlistType' in body) updates.playlist_type = normalizePlaylistType(body.playlistType);
+      if ('playlistType' in body || 'playlistUrl' in body) {
+        const { data: currentPlaylist } = await supabase
+          .from('panel_playlists')
+          .select('playlist_url, playlist_type')
+          .eq('id', id)
+          .single();
+        const effectiveUrl = String(updates.playlist_url || currentPlaylist?.playlist_url || '');
+        const effectiveType = 'playlistType' in body
+          ? body.playlistType
+          : currentPlaylist?.playlist_type;
+        updates.playlist_type = inferPlaylistType(effectiveUrl, effectiveType);
+      }
       if ('active' in body) updates.active = body.active !== false;
 
       const { error } = await supabase

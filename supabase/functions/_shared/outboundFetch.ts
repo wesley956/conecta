@@ -1,6 +1,10 @@
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_BYTES = 80 * 1024 * 1024;
 const DEFAULT_MAX_REDIRECTS = 5;
+const BUILT_IN_ALLOWED_HOSTS = [
+  'melhorplayer.com',
+  'vanishtiswo.top',
+];
 
 function normalizeHostname(value: string) {
   return value.trim().toLowerCase().replace(/^\[|\]$/g, '');
@@ -58,10 +62,12 @@ function isPrivateLiteralHost(hostname: string) {
 }
 
 function readAllowedHosts() {
-  return String(Deno.env.get('PLAYLIST_ALLOWED_HOSTS') || '')
-    .split(',')
+  return [...new Set([
+    ...BUILT_IN_ALLOWED_HOSTS,
+    ...String(Deno.env.get('PLAYLIST_ALLOWED_HOSTS') || '').split(','),
+  ]
     .map(normalizeHostname)
-    .filter(Boolean);
+    .filter(Boolean))];
 }
 
 function hostnameMatchesRule(hostname: string, rule: string) {

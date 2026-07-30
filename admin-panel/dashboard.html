@@ -1271,10 +1271,10 @@ tbody tr:hover td {
           <label>Nome da lista</label>
           <input id="newPlaylistName" placeholder="Ex: Lista Premium 01" />
 
-          <label>URL M3U</label>
-          <input id="newPlaylistUrl" placeholder="https://.../lista.m3u" />
+          <label>URL da lista</label>
+          <input id="newPlaylistUrl" placeholder="https://..." oninput="syncPlaylistType('newPlaylistUrl', 'newPlaylistType')" />
 
-          <label>Tipo</label>
+          <label>Tipo (automático)</label>
           <select id="newPlaylistType">
             <option value="m3u">M3U</option>
             <option value="xtream">Xtream</option>
@@ -1564,10 +1564,10 @@ tbody tr:hover td {
             <label>Nome da lista</label>
             <input id="uxNewPlaylistName" placeholder="Ex: Lista Premium 01" />
 
-            <label>URL M3U</label>
-            <input id="uxNewPlaylistUrl" placeholder="https://.../lista.m3u" />
+            <label>URL da lista</label>
+            <input id="uxNewPlaylistUrl" placeholder="https://..." oninput="syncPlaylistType('uxNewPlaylistUrl', 'uxNewPlaylistType')" />
 
-            <label>Tipo</label>
+            <label>Tipo (automático)</label>
             <select id="uxNewPlaylistType">
               <option value="m3u">M3U</option>
               <option value="xtream">Xtream</option>
@@ -2176,7 +2176,7 @@ function renderPlaylists() {
     ? list.map(p => `
       <tr>
         <td><input class="table-input" id="pl-name-${esc(p.id)}" value="${esc(p.name)}"></td>
-        <td><input class="table-input" id="pl-url-${esc(p.id)}" value="${esc(p.playlistUrl)}"></td>
+        <td><input class="table-input" id="pl-url-${esc(p.id)}" value="${esc(p.playlistUrl)}" oninput="syncPlaylistType('pl-url-${esc(p.id)}', 'pl-type-${esc(p.id)}')"></td>
         <td>
           <select class="table-select" id="pl-type-${esc(p.id)}">
             <option value="m3u" ${p.playlistType === 'm3u' ? 'selected' : ''}>M3U</option>
@@ -2345,12 +2345,35 @@ async function deleteCustomer(id) {
   }
 }
 
+function inferPlaylistTypeFromUrl(rawUrl) {
+  try {
+    const url = new URL(String(rawUrl || '').trim());
+    const path = url.pathname.toLowerCase().replace(/\/+$/, '');
+    const hasCredentials = Boolean(
+      url.searchParams.get('username') && url.searchParams.get('password')
+    );
+    return hasCredentials && (path.endsWith('/get.php') || path.endsWith('/player_api.php'))
+      ? 'xtream'
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function syncPlaylistType(urlInputId, typeSelectId) {
+  const detected = inferPlaylistTypeFromUrl($(urlInputId)?.value);
+  if (detected && $(typeSelectId)) {
+    $(typeSelectId).value = detected;
+  }
+}
+
 async function createPlaylist() {
   try {
+    const playlistUrl = $('newPlaylistUrl').value.trim();
     const result = await api('createPlaylist', {
       name: $('newPlaylistName').value.trim(),
-      playlistUrl: $('newPlaylistUrl').value.trim(),
-      playlistType: $('newPlaylistType').value,
+      playlistUrl,
+      playlistType: inferPlaylistTypeFromUrl(playlistUrl) || $('newPlaylistType').value,
       active: true
     });
 
@@ -2367,11 +2390,12 @@ async function createPlaylist() {
 
 async function updatePlaylist(id) {
   try {
+    const playlistUrl = $('pl-url-' + id).value.trim();
     const result = await api('updatePlaylist', {
       id,
       name: $('pl-name-' + id).value.trim(),
-      playlistUrl: $('pl-url-' + id).value.trim(),
-      playlistType: $('pl-type-' + id).value,
+      playlistUrl,
+      playlistType: inferPlaylistTypeFromUrl(playlistUrl) || $('pl-type-' + id).value,
       active: $('pl-active-' + id).value === 'true'
     });
 

@@ -73,6 +73,29 @@
     msg.textContent = text || '';
   }
 
+  function inferPlaylistTypeFromUrl(rawUrl) {
+    try {
+      const url = new URL(String(rawUrl || '').trim());
+      const path = url.pathname.toLowerCase().replace(/\/+$/, '');
+      const hasCredentials = Boolean(
+        url.searchParams.get('username') && url.searchParams.get('password'),
+      );
+      return hasCredentials && (path.endsWith('/get.php') || path.endsWith('/player_api.php'))
+        ? 'xtream'
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function syncDetectedPlaylistType() {
+    const detected = inferPlaylistTypeFromUrl($('sellerPlaylistUrl')?.value);
+    if (detected && $('sellerPlaylistType')) {
+      $('sellerPlaylistType').value = detected;
+      showListMsg('Formato Xtream identificado automaticamente.');
+    }
+  }
+
   function ensureListsCard() {
     if ($('sellerListsCard')) return;
 
@@ -109,7 +132,7 @@
             <input id="sellerPlaylistName" placeholder="Ex: Minha lista premium" />
           </div>
           <div>
-            <label for="sellerPlaylistType">Tipo</label>
+            <label for="sellerPlaylistType">Tipo (automático)</label>
             <select id="sellerPlaylistType">
               <option value="m3u">M3U</option>
               <option value="xtream">Xtream</option>
@@ -132,6 +155,7 @@
     `;
 
     anchor.insertAdjacentElement('afterend', card);
+    $('sellerPlaylistUrl')?.addEventListener('input', syncDetectedPlaylistType);
     window.sellerPortalRefreshNavigation?.();
   }
 
@@ -181,7 +205,9 @@
     try {
       const name = $('sellerPlaylistName')?.value.trim() || '';
       const playlistUrl = $('sellerPlaylistUrl')?.value.trim() || '';
-      const playlistType = $('sellerPlaylistType')?.value || 'm3u';
+      const playlistType = inferPlaylistTypeFromUrl(playlistUrl)
+        || $('sellerPlaylistType')?.value
+        || 'm3u';
 
       if (!name) throw new Error('Digite o nome da lista.');
       if (!playlistUrl) throw new Error('Digite a URL da lista.');
