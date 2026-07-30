@@ -109,7 +109,7 @@ Deno.serve(async request => {
           const id = text(item?.id);
           const source = id ? sourceById.get(id) : null;
           const cacheReady = item?.cacheReady === true || Boolean(item?.cacheParts?.channelsUrl || item?.cacheSnapshotUrl);
-          if (!source || cacheReady) return item;
+          if (!source || cacheReady || item?.accessMode !== 'direct') return item;
 
           const markedUrl = `${source.url}${DIRECT_MARKER}`;
           return {
