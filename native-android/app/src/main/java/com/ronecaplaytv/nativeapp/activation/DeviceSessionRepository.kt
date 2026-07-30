@@ -4,6 +4,7 @@ import android.content.Context
 import com.ronecaplaytv.nativeapp.BuildConfig
 import com.ronecaplaytv.nativeapp.network.DeviceActivationResponse
 import com.ronecaplaytv.nativeapp.network.DeviceApi
+import com.ronecaplaytv.nativeapp.network.DeviceConfigDirectApi
 import com.ronecaplaytv.nativeapp.network.DeviceConfigResponse
 import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
 import com.ronecaplaytv.nativeapp.security.SecureCredentialStore
@@ -12,6 +13,7 @@ class DeviceSessionRepository(context: Context) {
     private val identityStore = DeviceIdentityStore(context)
     private val credentialStore = SecureCredentialStore(context)
     private val api = DeviceApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
+    private val directConfigApi = DeviceConfigDirectApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
 
     suspend fun bootstrap(isTelevision: Boolean): DeviceSessionState {
         val deviceCode = identityStore.getDeviceCode()
@@ -45,7 +47,7 @@ class DeviceSessionRepository(context: Context) {
         val deviceCode = identityStore.getDeviceCode() ?: return
         val credential = credentialStore.load() ?: return
 
-        api.fetchConfig(
+        directConfigApi.fetchConfig(
             deviceCode = deviceCode,
             deviceUuid = identityStore.getOrCreateDeviceUuid(),
             deviceCredential = credential,
@@ -90,7 +92,7 @@ class DeviceSessionRepository(context: Context) {
         deviceCode: String,
         credential: String,
     ): DeviceSessionState {
-        val response = api.fetchConfig(
+        val response = directConfigApi.fetchConfig(
             deviceCode = deviceCode,
             deviceUuid = identityStore.getOrCreateDeviceUuid(),
             deviceCredential = credential,
