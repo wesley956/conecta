@@ -396,11 +396,18 @@ async function activateOrRenew(supabase: any, principal: Principal, body: JsonBo
 
   const { data: playlist, error: playlistError } = await supabase
     .from('panel_playlists')
-    .select('id, name, active, playlist_cache_status')
+    .select('id, name, active, playlist_cache_status, playlist_access_mode')
     .eq('id', playlistId)
     .maybeSingle();
   if (playlistError || !playlist || playlist.active !== true) throw new Error('Lista inexistente ou inativa.');
-  if (playlist.playlist_cache_status !== 'ready') throw new Error('O cache da lista principal ainda não está pronto.');
+
+  const playlistAccessMode = String(playlist.playlist_access_mode || 'server_cache');
+  if (playlistAccessMode === 'blocked') {
+    throw new Error('Esta lista está bloqueada para ativação.');
+  }
+  if (playlist.playlist_cache_status !== 'ready' && playlistAccessMode !== 'direct') {
+    throw new Error('O cache da lista principal ainda não está pronto.');
+  }
 
   const expiresAt = timestamp(body.expiresAt, 'Validade');
   if (!expiresAt || new Date(expiresAt) <= new Date()) throw new Error('A validade precisa estar no futuro.');
@@ -475,6 +482,7 @@ async function activateOrRenew(supabase: any, principal: Principal, body: JsonBo
     planName: plan.name,
     playlistId,
     playlistName: playlist.name,
+    playlistAccessMode,
     backupPlaylistId,
     expiresAt: result.subscription_expires_at || expiresAt,
     ledgerId: result.ledger_id || null,
