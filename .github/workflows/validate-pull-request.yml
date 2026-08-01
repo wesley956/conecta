@@ -252,7 +252,29 @@ jobs:
             echo 'Nenhum teste de banco foi encontrado em supabase/tests.'
             exit 1
           fi
-          npx supabase test db --local
+          pgtap_log="${RUNNER_TEMP}/supabase-pgtap.log"
+          for attempt in 1 2 3; do
+            : > "${pgtap_log}"
+            set +e
+            npx supabase test db --local 2>&1 | tee "${pgtap_log}"
+            test_status=${PIPESTATUS[0]}
+            set -e
+
+            if [ "${test_status}" -eq 0 ]; then
+              exit 0
+            fi
+            if ! grep -Eqi 'toomanyrequests|Rate exceeded' "${pgtap_log}"; then
+              exit "${test_status}"
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo 'O registro continuou limitando o download do pg_prove após 3 tentativas.'
+              exit "${test_status}"
+            fi
+
+            retry_wait=$((attempt * 20))
+            echo "Registro do pg_prove temporariamente limitado; nova tentativa em ${retry_wait}s."
+            sleep "${retry_wait}"
+          done
 
       - name: Stop local Supabase
         if: always()
