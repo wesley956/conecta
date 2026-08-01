@@ -2,7 +2,7 @@ import fs from "node:fs";
 
 const read = path => fs.readFileSync(path, "utf8");
 const login = read("admin-panel/index.html");
-const dashboard = read("admin-panel/dashboard.html");
+const dashboard = `${read("admin-panel/dashboard.html")}\n${read("admin-panel/dashboard.js")}`;
 const panelCss = read("admin-panel/panel-redesign.css");
 const tvApp = read("smart-tv/src/App.tsx");
 const tvStyles = `${read("smart-tv/src/styles.css")}\n${read("smart-tv/src/experience.css")}`;

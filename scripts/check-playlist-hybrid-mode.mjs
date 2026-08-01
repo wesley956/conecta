@@ -25,7 +25,7 @@ const required = new Map([
   ['admin-panel/seller-lists-ux.js', [
     'Acesso direto',
   ]],
-  ['admin-panel/dashboard.html', [
+  ['admin-panel/dashboard.js', [
     'Acesso direto',
   ]],
 ]);

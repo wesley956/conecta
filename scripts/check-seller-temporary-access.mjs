@@ -8,7 +8,7 @@ const files = Object.fromEntries(await Promise.all([
   ['provision', 'supabase/functions/seller-provision/index.ts'],
   ['activation', 'supabase/functions/device-activate/index.ts'],
   ['ui', 'admin-panel/seller-provisioning.js'],
-  ['details', 'admin-panel/panel-ux.js'],
+  ['details', 'admin-panel/dashboard.js'],
 ].map(async ([key, path]) => [key, await readFile(path, 'utf8')])));
 
 for (const snippet of [

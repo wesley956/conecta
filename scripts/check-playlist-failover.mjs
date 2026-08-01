@@ -15,7 +15,7 @@ const files = {
   smartSession: 'smart-tv/src/deviceSession.ts',
   smartCatalog: 'smart-tv/src/catalog.ts',
   smartPlayer: 'smart-tv/src/player/PlayerScreen.tsx',
-  adminUi: 'admin-panel/dashboard.html',
+  adminUi: 'admin-panel/dashboard.js',
   sellerUi: 'admin-panel/seller-portal-ux.js',
   sellerDelete: 'supabase/functions/seller-delete/index.ts',
   redesign: 'admin-panel/panel-redesign.css',
