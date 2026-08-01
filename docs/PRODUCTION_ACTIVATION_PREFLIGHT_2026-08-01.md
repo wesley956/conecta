@@ -6,7 +6,8 @@
 - Plano atual: gratuito; nenhum recurso pago será criado.
 - PostgreSQL: `17.6.1.127`, estado `ACTIVE_HEALTHY` no inventário.
 - Esta preparação é somente leitura na produção. Nenhuma migration ou Edge Function foi aplicada.
-- A implantação só pode começar após backup lógico, CI verde e autorização explícita.
+- A implantação só pode começar após backup lógico e CI verde. A autorização geral já foi registrada;
+  o bloqueio operacional restante é disponibilizar a URL/senha do Session pooler de forma segura.
 
 ## Estado comprovado da produção
 
@@ -95,7 +96,7 @@ vazios ou não corresponderem ao `SHA256SUMS`.
 ## Ordem obrigatória das migrations
 
 Não usar `db push` nesta produção: o histórico remoto contém migrations antigas com nomes
-divergentes. Aplicar somente os quatro arquivos abaixo, um por vez, e executar a verificação de
+divergentes. Aplicar somente os cinco arquivos abaixo, um por vez, e executar a verificação de
 cada etapa antes de continuar.
 
 | Ordem | Migration | Motivo e condição para avançar |
@@ -104,19 +105,22 @@ cada etapa antes de continuar.
 | 2 | `20260801000935_seller_temporary_access_lifecycle.sql` | Colunas e RPCs existem; `pg_cron` é instalado; quatro vendedores existentes continuam sem vencimento. |
 | 3 | `20260801024610_playlist_cache_leases_and_manifests.sql` | Tabelas/RPCs de lease existem; o job está ativo; 11 caches antigos continuam válidos. |
 | 4 | `20260801032340_commercial_consistency_transactions.sql` | Somente após a correção preventiva passar no CI; saldos, aparelhos e vínculos permanecem iguais. |
+| 5 | `20260801060000_diagnostics_security_hardening.sql` | Somente após o lote 6 passar no CI; saneia diagnósticos/auditorias e cria a fila Auth com sete dias adicionais. |
 
 As migrations 2 e 3 devem permanecer nessa ordem: a segunda instala `pg_cron` e a terceira o
 reutiliza para o reconciliador de leases.
 
 ## Edge Functions a publicar depois do banco
 
-Publicar os arquivos finais da `main` somente depois das quatro migrations:
+Publicar os arquivos finais da `main` somente depois das cinco migrations:
 
 1. `admin-panel`, `seller-panel`, `seller-provision`;
 2. `device-activate`;
 3. `playlist-cache`;
 4. `admin-inline-playlist`, `device-config`;
 5. `channel-epg`, `series-detail`.
+6. `device-config-direct`, `playback-diagnostics-report`, `playback-diagnostics-panel`;
+7. `seller-auth-cleanup`, deixando sua execução agendada somente após validar a fila privada.
 
 Não publicar `subscription-panel`: ela não existe na produção e o módulo está desativado. Manter
 `subscription-playlist-edit` na versão atual até o domínio central de assinaturas ser planejado
@@ -139,6 +143,10 @@ em um lote próprio.
 Imediatamente antes do primeiro deploy, baixar novamente os pacotes atuais e confirmar que esses
 hashes não mudaram. Se mudarem, interromper e atualizar a referência de rollback.
 
+Antes das quatro funções acrescentadas pelo lote 6, registrar também versão e SHA-256 atualmente
+implantados. `seller-auth-cleanup` é nova e não possui pacote anterior; seu rollback é interromper
+a invocação e manter a fila, sem excluir seus registros.
+
 ## Smoke tests e critérios de parada
 
 Depois de cada migration, comparar as contagens com a linha de base. Depois das funções:
@@ -151,6 +159,8 @@ Depois de cada migration, comparar as contagens com a linha de base. Depois das 
 - refresh não remove o cache válido anterior;
 - retry comercial não cria novo débito;
 - os advisors de segurança e desempenho não apresentam novo aviso crítico.
+- uma falha de teste aparece no painel com correlação/failover/cache e sem URL ou credencial;
+- a fila Auth não libera nenhuma conta antes dos sete dias adicionais.
 
 Parar imediatamente se houver mudança inesperada em saldo, número de aparelhos, vínculos,
 vendedores ativos ou caches válidos. Não seguir para a próxima etapa apenas porque a migration
@@ -178,8 +188,8 @@ foi registrada como aplicada.
 Esse rollback é compatível porque as RPCs antigas mantêm a mesma assinatura e o schema novo é
 aditivo. O painel antigo simplesmente não chama as RPCs novas.
 
-## Autorizações ainda necessárias
+## Condição operacional ainda necessária
 
-1. Disponibilizar a senha/URL do Session pooler somente no momento do backup seguro.
-2. Validar e mesclar o PR de pré-implantação após CI verde.
-3. Autorizar separadamente a aplicação das migrations e o deploy das Edge Functions.
+Disponibilizar a senha/URL do Session pooler somente no momento do backup seguro. A autorização
+geral para continuar foi registrada, mas ela não substitui esse dado técnico nem permite gravar a
+senha em arquivo, Git, documentação ou saída de terminal.

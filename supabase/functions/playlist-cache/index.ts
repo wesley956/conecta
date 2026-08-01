@@ -18,6 +18,7 @@ import {
   type UploadedCachePart,
 } from '../_shared/cacheManifest.ts';
 import { runTasksWithConcurrency } from '../_shared/limitedConcurrency.ts';
+import { safeDiagnosticJson, safeDiagnosticText } from '../_shared/diagnosticSafety.ts';
 
 const BUCKET = 'playlist-cache';
 const CACHE_LEASE_SECONDS = 180;
@@ -938,6 +939,7 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       playlistId: playlist.id,
       playlistName: playlist.name,
       attemptId: lease.attemptId,
+      correlationId: `cache:${lease.attemptId}`,
       leaseExpiresAt: lease.leaseExpiresAt,
       errorCode: 'cache_generation_busy',
       message: 'Esta lista já possui uma geração de cache em andamento.',
@@ -1061,6 +1063,7 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
         playlistId: playlist.id,
         playlistName: playlist.name,
         attemptId: lease.attemptId,
+        correlationId: `cache:${lease.attemptId}`,
         errorCode: publication.reason,
         preservedPreviousCache: previousCacheIsUsable,
         message: publication.reason === 'source_changed'
@@ -1077,6 +1080,7 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       playlistId: playlist.id,
       playlistName: playlist.name,
       attemptId: lease.attemptId,
+      correlationId: `cache:${lease.attemptId}`,
       itemCount,
       channels: counts.channels,
       movies: counts.movies,
@@ -1092,10 +1096,14 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       version,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Falha desconhecida.';
-    const attempts = error instanceof PlaylistBuildError
+    const message = safeDiagnosticText(
+      error instanceof Error ? error.message : 'Falha desconhecida.',
+      800,
+    ) || 'Falha desconhecida.';
+    const rawAttempts = error instanceof PlaylistBuildError
       ? error.attempts
       : [{ method: 'm3u', status: 'error', error: message }] as PlaylistCacheAttempt[];
+    const attempts = safeDiagnosticJson(rawAttempts) as PlaylistCacheAttempt[];
     const failure = classifyPlaylistCacheFailure(attempts, playlist.playlist_type);
 
     if (uploadedPaths.length > 0 && await removeCacheObjects(supabase, uploadedPaths)) {
@@ -1121,6 +1129,7 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       playlistId: playlist.id,
       playlistName: playlist.name,
       attemptId: lease.attemptId,
+      correlationId: `cache:${lease.attemptId}`,
       error: message,
       errorCode: failure.code,
       accessMode: failure.accessMode,

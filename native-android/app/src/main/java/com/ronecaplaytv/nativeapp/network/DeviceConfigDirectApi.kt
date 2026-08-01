@@ -23,6 +23,8 @@ class DeviceConfigDirectApi(private val functionsBaseUrl: String) {
         playlistHealthId: String? = null,
         playlistHealthStatus: String? = null,
         playlistHealthError: String? = null,
+        correlationId: String? = null,
+        failoverAttemptId: String? = null,
     ): DeviceConfigResponse = withContext(Dispatchers.IO) {
         val payload = JSONObject()
             .put("deviceCode", deviceCode)
@@ -39,6 +41,14 @@ class DeviceConfigDirectApi(private val functionsBaseUrl: String) {
                                     ?.takeIf(String::isNotBlank)
                                     ?.take(500)
                                     ?.let { put("error", it) }
+                                correlationId
+                                    ?.takeIf(String::isNotBlank)
+                                    ?.take(180)
+                                    ?.let { put("correlationId", it) }
+                                failoverAttemptId
+                                    ?.takeIf(String::isNotBlank)
+                                    ?.take(180)
+                                    ?.let { put("failoverAttemptId", it) }
                             },
                     )
                 }

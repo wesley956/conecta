@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { resolveActiveLabSession } from '../_shared/labSession.ts';
 import { resolvePlaylistAccessMode } from '../_shared/playlistAccessMode.ts';
+import { safeDiagnosticIdentifier, safeDiagnosticText } from '../_shared/diagnosticSafety.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -258,6 +259,8 @@ serve(async request => {
           const now = new Date();
           const isSuccess = healthStatus === 'success';
           const failures = isSuccess ? 0 : Number(assignment.consecutive_failures || 0) + 1;
+          const correlationId = safeDiagnosticIdentifier(playlistHealth.correlationId);
+          const failoverAttemptId = safeDiagnosticIdentifier(playlistHealth.failoverAttemptId);
           const healthUpdate = isSuccess
             ? {
                 consecutive_failures: 0,
@@ -270,7 +273,9 @@ serve(async request => {
                 consecutive_failures: failures,
                 last_failure_at: now.toISOString(),
                 cooldown_until: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
-                last_error: textOrNull(playlistHealth.error)?.slice(0, 500) || 'Falha ao carregar a lista.',
+                last_error: safeDiagnosticText(playlistHealth.error, 500) || 'Falha ao carregar a lista.',
+                last_correlation_id: correlationId,
+                last_failover_attempt_id: failoverAttemptId,
                 updated_at: now.toISOString(),
               };
           await supabase.from('panel_device_playlists').update(healthUpdate).eq('id', assignment.id);

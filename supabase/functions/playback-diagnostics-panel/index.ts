@@ -135,6 +135,9 @@ function matchesFilters(row: DiagnosticRow, body: Record<string, unknown>) {
       row.error_message,
       row.platform,
       row.app_version,
+      row.correlation_id,
+      row.failover_attempt_id,
+      row.cache_attempt_id,
     ].join(' '));
     if (!haystack.includes(search)) return false;
   }
@@ -192,6 +195,9 @@ function adminRecord(row: DiagnosticRow) {
     occurredAt: row.occurred_at,
     resolvedAt: row.resolved_at,
     source: row.source,
+    correlationId: row.correlation_id,
+    failoverAttemptId: row.failover_attempt_id,
+    cacheAttemptId: row.cache_attempt_id,
   };
 }
 

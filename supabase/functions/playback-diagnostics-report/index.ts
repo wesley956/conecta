@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeDiagnosticIdentifier, safeDiagnosticText } from '../_shared/diagnosticSafety.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,7 +59,7 @@ serve(async request => {
     const deviceCode = text(payload.deviceCode, 80);
     const deviceUuid = text(payload.deviceUuid, 160);
     const credential = text(request.headers.get('x-device-credential'), 256);
-    const eventId = text(payload.clientEventId, 180);
+    const eventId = safeDiagnosticIdentifier(payload.clientEventId);
     if (!deviceCode || !deviceUuid || !credential || !eventId) {
       return json({ error: 'Identidade do aparelho ou evento não informado.' }, 400);
     }
@@ -118,6 +119,19 @@ serve(async request => {
     const severity = allowed(payload.severity, ['low', 'medium', 'high', 'critical'] as const, recovered ? 'medium' : 'high');
     const probableSource = allowed(payload.probableSource, ['content', 'network', 'playlist', 'app', 'device', 'unknown'] as const, 'unknown');
     const occurredAt = text(payload.occurredAt, 80) || new Date().toISOString();
+    const correlationId = safeDiagnosticIdentifier(payload.correlationId) || eventId;
+    const failoverAttemptId = safeDiagnosticIdentifier(payload.failoverAttemptId);
+    let cacheAttemptId: string | null = null;
+    if (playlist?.id) {
+      const { data: cacheAttempt } = await supabase
+        .from('playlist_cache_generation_attempts')
+        .select('id')
+        .eq('playlist_id', playlist.id)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      cacheAttemptId = cacheAttempt?.id ? String(cacheAttempt.id) : null;
+    }
 
     const record = {
       device_id: device.id,
@@ -130,16 +144,16 @@ serve(async request => {
       platform: text(payload.platform, 50) || text(device.device_type, 50),
       app_version: text(payload.appVersion, 50) || text(device.app_version, 50),
       content_type: contentType,
-      content_title: text(payload.contentTitle, 300) || 'Conteúdo não identificado',
+      content_title: safeDiagnosticText(payload.contentTitle, 300) || 'Conteúdo não identificado',
       season_number: integer(payload.seasonNumber),
       episode_number: integer(payload.episodeNumber),
       position_ms: integer(payload.positionMs),
       duration_ms: integer(payload.durationMs),
       error_code: text(payload.errorCode, 100) || (recovered ? 'PLAYBACK_RECOVERED' : 'PLAYBACK_FAILURE'),
-      error_message: text(payload.errorMessage, 800) || (recovered ? 'Reprodução recuperada automaticamente.' : 'Falha terminal de reprodução.'),
+      error_message: safeDiagnosticText(payload.errorMessage, 800) || (recovered ? 'Reprodução recuperada automaticamente.' : 'Falha terminal de reprodução.'),
       severity: severity,
       probable_source: probableSource,
-      recovery_action: text(payload.recoveryAction, 500),
+      recovery_action: safeDiagnosticText(payload.recoveryAction, 500),
       recovered,
       player_exited: Boolean(payload.playerExited),
       backup_available: backupAvailable,
@@ -149,6 +163,9 @@ serve(async request => {
       resolved_at: recovered ? new Date().toISOString() : null,
       source: 'smart_tv_client',
       client_event_id: eventId,
+      correlation_id: correlationId,
+      failover_attempt_id: failoverAttemptId,
+      cache_attempt_id: cacheAttemptId,
       updated_at: new Date().toISOString(),
     };
 
