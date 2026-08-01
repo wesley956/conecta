@@ -71,7 +71,7 @@ fun ActivationScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = "▣  RonecaPlayTV",
+                text = "▣  Roneca Player TV",
                 color = RonecaColors.TextPrimary,
                 fontSize = if (isTelevision) 20.sp else 17.sp,
                 fontWeight = FontWeight.Bold,
@@ -213,13 +213,13 @@ fun ActivationScreen(
 
 private fun copyCode(context: Context, code: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("Código RonecaPlayTV", code))
+    clipboard.setPrimaryClip(ClipData.newPlainText("Código Roneca Player TV", code))
 }
 
 private fun shareCode(context: Context, code: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, "Código de ativação RonecaPlayTV: $code")
+        putExtra(Intent.EXTRA_TEXT, "Código de ativação Roneca Player TV: $code")
     }
     context.startActivity(Intent.createChooser(intent, "Enviar código de ativação"))
 }

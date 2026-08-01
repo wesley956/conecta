@@ -442,7 +442,7 @@ fun NativePlayerScreen(
         RonecaMedia3PlayerView(
             player = player,
             title = title,
-            eyebrow = "RONECAPLAYTV",
+            eyebrow = "RONECA PLAYER TV",
             live = currentChannelId != null,
             isTelevision = isTelevision,
             drawerLabel = relatedChannels.takeIf { it.isNotEmpty() }?.let { "Canais" },

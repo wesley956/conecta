@@ -55,6 +55,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
+import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
@@ -203,6 +204,48 @@ fun HomeScreen(
                     )
                 }
             }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text(
+                                text = "Explorar",
+                                color = RonecaColors.TextPrimary,
+                                fontSize = if (isTelevision) 18.sp else 16.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = "Acesso direto ao seu catálogo",
+                                color = RonecaColors.TextSecondary,
+                                fontSize = if (isTelevision) 12.sp else 10.sp,
+                            )
+                        }
+                        AccentCut()
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(if (isTelevision) 104.dp else 94.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        destinations.forEach { destination ->
+                            FocusableActionCard(
+                                title = destination.title,
+                                subtitle = destination.count?.let { "${compactNumber(it)} disponíveis" }
+                                    ?: "Favoritos e progresso",
+                                enabled = true,
+                                isTelevision = isTelevision,
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                onClick = destination.action,
+                            )
+                        }
+                    }
+                }
+            }
         } else {
             item {
                 HomeHero(
@@ -266,7 +309,7 @@ private fun HomeHeader(
     ) {
         Column {
             Text(
-                text = "RONECAPLAYTV",
+                text = "RONECA PLAYER TV",
                 color = RonecaColors.Primary,
                 fontSize = if (isWideLayout) 10.sp else 9.sp,
                 fontWeight = FontWeight.Bold,
@@ -386,7 +429,7 @@ private fun HomeHero(
                 .padding(if (isWideLayout) 22.dp else 19.dp),
         ) {
             Text(
-                text = movie?.category?.uppercase() ?: "RONECAPLAYTV",
+                text = movie?.category?.uppercase() ?: "RONECA PLAYER TV",
                 color = RonecaColors.Primary,
                 fontSize = if (isWideLayout) 10.sp else 9.sp,
                 fontWeight = FontWeight.Bold,

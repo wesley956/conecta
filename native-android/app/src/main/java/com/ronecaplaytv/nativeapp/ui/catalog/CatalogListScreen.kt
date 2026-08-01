@@ -103,7 +103,7 @@ fun CatalogListScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "RonecaPlayTV",
+                    text = "Roneca Player TV",
                     color = RonecaColors.Primary,
                     fontSize = if (isTelevision) 14.sp else 11.sp,
                     fontWeight = FontWeight.Bold,
