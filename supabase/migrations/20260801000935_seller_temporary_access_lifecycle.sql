@@ -70,10 +70,10 @@ begin
     raise exception using errcode = '22023', message = 'Conta sem vencimento não pode ser excluída automaticamente.';
   end if;
 
-  select *
+  select seller.*
   into v_seller
-  from public.panel_sellers
-  where id = p_seller_id
+  from public.panel_sellers as seller
+  where seller.id = p_seller_id
   for update;
 
   if not found or v_seller.deleted_at is not null then
@@ -85,7 +85,7 @@ begin
     else now() + make_interval(hours => p_duration_hours)
   end;
 
-  update public.panel_sellers
+  update public.panel_sellers as seller
   set
     status = 'active',
     access_expires_at = v_expires_at,
@@ -95,11 +95,12 @@ begin
     scheduled_deletion_at = null,
     deletion_reason = null,
     updated_at = now()
-  where id = p_seller_id;
+  where seller.id = p_seller_id;
 
-  update public.panel_user_roles
+  update public.panel_user_roles as role_record
   set active = true, updated_at = now()
-  where seller_id = p_seller_id and role = 'seller';
+  where role_record.seller_id = p_seller_id
+    and role_record.role = 'seller';
 
   return query
   select
