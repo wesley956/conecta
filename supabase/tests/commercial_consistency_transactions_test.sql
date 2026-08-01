@@ -62,16 +62,15 @@ select ok(
   ),
   'service_role troca as listas do aparelho'
 );
-select like(
+select ok(
   pg_get_functiondef(
     'public.apply_device_subscription_complete_transaction(uuid,uuid,uuid,uuid,uuid,timestamp with time zone,text,text,text,uuid,text,boolean)'::regprocedure
-  ),
-  '%pg_advisory_xact_lock%',
+  ) like '%pg_advisory_xact_lock%',
   'Ativação participa da trava transacional por playlist'
 );
-select like(
-  pg_get_functiondef('public.delete_playlist_with_reassignment(uuid)'::regprocedure),
-  '%pg_advisory_xact_lock%',
+select ok(
+  pg_get_functiondef('public.delete_playlist_with_reassignment(uuid)'::regprocedure)
+    like '%pg_advisory_xact_lock%',
   'Exclusão participa da mesma trava por playlist'
 );
 
