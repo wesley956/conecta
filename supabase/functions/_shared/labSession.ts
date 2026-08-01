@@ -36,6 +36,8 @@ const PLAYLIST_SELECT = `
   playlist_cache_updated_at,
   playlist_cache_item_count,
   playlist_cache_size_bytes,
+  playlist_cache_manifest_sha256,
+  playlist_cache_manifest_size_bytes,
   playlist_cache_error
 `;
 

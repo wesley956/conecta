@@ -443,7 +443,7 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
       max_connections: maxConnections,
       source_fingerprint: fingerprint,
       playlist_updated_at: now,
-      playlist_cache_status: 'processing',
+      playlist_cache_status: 'missing',
       playlist_cache_error: null,
     })
     .select('id')

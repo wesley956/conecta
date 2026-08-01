@@ -146,7 +146,7 @@ serve(async request => {
         playlist_type: playlistType,
         active: true,
         playlist_updated_at: now,
-        playlist_cache_status: 'processing',
+        playlist_cache_status: 'missing',
         playlist_cache_error: null,
       })
       .select('id, name')
