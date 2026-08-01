@@ -54,10 +54,13 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun failoverActivePlaylist(reason: String) {
-        if (mutableState.value.isLoading) return
+    suspend fun failoverActivePlaylist(
+        reason: String,
+        attemptId: String,
+    ): NativeCatalogFailoverResult? {
+        if (mutableState.value.isLoading) return null
 
-        val activeId = mutableState.value.activePlaylistId ?: return
+        val activeId = mutableState.value.activePlaylistId ?: return null
         val activeIndex = availablePlaylists.indexOfFirst { it.id == activeId }
         val backupCandidates = availablePlaylists.drop((activeIndex + 1).coerceAtLeast(0))
 
@@ -66,43 +69,68 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                 it.copy(
                     error = "A lista ativa falhou e nenhuma lista reserva está disponível.",
                     lastFailureReason = reason,
+                    lastFailoverAttemptId = attemptId,
+                    lastFailoverOutcome = "no_backup",
                 )
             }
-            return
+            return null
         }
 
-        viewModelScope.launch {
-            mutableState.update {
-                it.copy(
-                    loadingSection = "ativando lista reserva",
-                    error = null,
+        mutableState.update {
+            it.copy(
+                loadingSection = "ativando lista reserva",
+                error = null,
+                lastFailureReason = reason,
+                lastFailoverAttemptId = attemptId,
+                lastFailoverOutcome = "switching",
+            )
+        }
+
+        var lastFailure: Throwable? = null
+        for (candidate in backupCandidates) {
+            val result = runCatching { loadCompleteCatalog(candidate, "lista reserva: ") }
+            val catalog = result.getOrNull()
+            if (catalog != null) {
+                val state = catalog.toState(
+                    candidate = candidate,
+                    usingBackup = true,
+                    failoverNotice = "Lista principal indisponível. Conteúdo retomado pela lista reserva.",
                     lastFailureReason = reason,
+                    lastFailoverAtMillis = System.currentTimeMillis(),
+                    lastFailoverAttemptId = attemptId,
+                    lastFailoverOutcome = "switched",
+                )
+                mutableState.value = state
+                return NativeCatalogFailoverResult(
+                    attemptId = attemptId,
+                    reason = reason,
+                    fromPlaylistId = activeId,
+                    toPlaylistId = candidate.id,
+                    state = state,
                 )
             }
+            lastFailure = result.exceptionOrNull()
+        }
 
-            var lastFailure: Throwable? = null
-            for (candidate in backupCandidates) {
-                val result = runCatching { loadCompleteCatalog(candidate, "lista reserva: ") }
-                result.onSuccess { catalog ->
-                    mutableState.value = catalog.toState(
-                        candidate = candidate,
-                        usingBackup = true,
-                        failoverNotice = "Lista principal indisponível. Catálogo substituído pela lista reserva.",
-                        lastFailureReason = reason,
-                        lastFailoverAtMillis = System.currentTimeMillis(),
-                    )
-                    return@launch
-                }.onFailure { lastFailure = it }
-            }
+        mutableState.update {
+            it.copy(
+                loadingSection = null,
+                error = lastFailure?.message
+                    ?: "A lista principal e a lista reserva estão indisponíveis.",
+                lastFailureReason = reason,
+                lastFailoverAttemptId = attemptId,
+                lastFailoverOutcome = "catalog_failed",
+            )
+        }
+        return null
+    }
 
-            mutableState.update {
-                it.copy(
-                    loadingSection = null,
-                    error = lastFailure?.message
-                        ?: "A lista principal e a lista reserva estão indisponíveis.",
-                    lastFailureReason = reason,
-                )
-            }
+    fun markFailoverContentMissing(attemptId: String) {
+        mutableState.update { current ->
+            if (current.lastFailoverAttemptId != attemptId) current else current.copy(
+                failoverNotice = "A lista reserva foi ativada, mas não possui o mesmo conteúdo.",
+                lastFailoverOutcome = "content_missing",
+            )
         }
     }
 
@@ -258,6 +286,8 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             failoverNotice: String?,
             lastFailureReason: String? = null,
             lastFailoverAtMillis: Long? = null,
+            lastFailoverAttemptId: String? = null,
+            lastFailoverOutcome: String? = null,
         ) = NativeCatalogState(
             channels = channels,
             movies = movies,
@@ -269,6 +299,8 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             failoverNotice = failoverNotice,
             lastFailureReason = lastFailureReason,
             lastFailoverAtMillis = lastFailoverAtMillis,
+            lastFailoverAttemptId = lastFailoverAttemptId,
+            lastFailoverOutcome = lastFailoverOutcome,
         )
     }
 }

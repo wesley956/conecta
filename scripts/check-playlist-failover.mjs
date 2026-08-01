@@ -76,7 +76,7 @@ const required = {
   smartSession: ['playlists: DevicePlaylist[]', 'validPlaylists', 'reportPlaylistFailure'],
   smartCatalog: [
     'Lista principal indisponível. Catálogo substituído pela lista reserva.',
-    'useCallback(async (reason: string)',
+    'useCallback(async (request: CatalogFailoverRequest)',
     '!data.channels.length && !data.movies.length && !data.series.length',
     'left.id === session.selectedPlaylistId',
   ],

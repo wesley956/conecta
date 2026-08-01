@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Season, Series } from "../catalog";
+import { episodeContentKey, seriesContentKey } from "../contentIdentity";
 import { fetchSeriesSeasons } from "../deviceSession";
 import { moveFocus } from "../focus";
 import { isBackKey } from "../platform";
@@ -40,6 +41,8 @@ export function SeriesDetailScreen({ series, playlistId, favorite, recommendatio
       .sort((a, b) => a.number - b.number)
       .map(episode => ({
         id: episode.id,
+        contentKey: episodeContentKey(series.name, season, episode),
+        seriesKey: seriesContentKey(series),
         name: `${series.name} • T${season.number}E${episode.number}`,
         urls: urls(episode.url, episode.playbackUrls),
         image: series.cover,
@@ -118,6 +121,7 @@ export function SeriesDetailScreen({ series, playlistId, favorite, recommendatio
         const queueIndex = episodeQueue.findIndex(item => item.id === episode.id);
         return <button key={episode.id} data-tv-focusable="true" className="episode-row" onClick={() => onPlay({
           id: episode.id,
+          contentKey: episodeContentKey(series.name, season, episode),
           name: `${series.name} • T${season.number}E${episode.number}`,
           urls: urls(episode.url, episode.playbackUrls),
           live: false,

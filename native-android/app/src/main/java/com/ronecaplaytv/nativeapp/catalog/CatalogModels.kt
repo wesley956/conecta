@@ -58,7 +58,17 @@ data class NativeCatalogState(
     val failoverNotice: String? = null,
     val lastFailureReason: String? = null,
     val lastFailoverAtMillis: Long? = null,
+    val lastFailoverAttemptId: String? = null,
+    val lastFailoverOutcome: String? = null,
 ) {
     val isLoading: Boolean
         get() = loadingSection != null
 }
+
+data class NativeCatalogFailoverResult(
+    val attemptId: String,
+    val reason: String,
+    val fromPlaylistId: String,
+    val toPlaylistId: String,
+    val state: NativeCatalogState,
+)

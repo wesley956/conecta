@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { Movie } from "../catalog";
+import { movieContentKey } from "../contentIdentity";
 import { moveFocus } from "../focus";
 import { isBackKey } from "../platform";
 import type { PlaybackItem } from "../player/types";
@@ -33,6 +34,7 @@ export function MovieDetailScreen({ movie, favorite, related, onBack, onFavorite
 
   const playback: PlaybackItem = {
     id: movie.id,
+    contentKey: movieContentKey(movie),
     name: movie.name,
     urls: urls(movie.url, movie.playbackUrls),
     live: false,

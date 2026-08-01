@@ -81,7 +81,7 @@ fun NativePlayerScreen(
     automaticReconnect: Boolean = true,
     onProgress: (positionMs: Long, durationMs: Long) -> Unit = { _, _ -> },
     onSelectChannel: (NativeChannel) -> Unit = {},
-    onTerminalPlaybackFailure: (String) -> Unit = {},
+    onTerminalPlaybackFailure: (reason: String, positionMs: Long, durationMs: Long) -> Unit = { _, _, _ -> },
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -165,6 +165,7 @@ fun NativePlayerScreen(
 
         recoveryInProgress = true
         val currentPosition = sourceIndex + 1
+        val resumePositionMs = if (currentChannelId == null) player.currentPosition.coerceAtLeast(0L) else 0L
 
         if (sameSourceRetries < SAME_SOURCE_RETRY_LIMIT) {
             sameSourceRetries += 1
@@ -173,6 +174,7 @@ fun NativePlayerScreen(
                 delay(1_200)
                 sources.getOrNull(sourceIndex)?.let { source ->
                     player.setMediaItem(mediaItemFor(source))
+                    if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
                     player.prepare()
                     player.playWhenReady = true
                 }
@@ -188,6 +190,7 @@ fun NativePlayerScreen(
             playerMessage =
                 "Fonte $currentPosition falhou ($diagnostic). Tentando ${nextIndex + 1}/${sources.size}..."
             player.setMediaItem(mediaItemFor(sources[nextIndex]))
+            if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
             player.prepare()
             player.playWhenReady = true
             recoveryInProgress = false
@@ -197,7 +200,11 @@ fun NativePlayerScreen(
         recoveryInProgress = false
         terminalFailureReported = true
         playerMessage = "Lista ativa indisponível. Ativando a lista reserva..."
-        onTerminalPlaybackFailure(diagnostic)
+        onTerminalPlaybackFailure(
+            diagnostic,
+            player.currentPosition.coerceAtLeast(0L),
+            player.duration.coerceAtLeast(0L),
+        )
     }
 
     fun showPlayPauseControls() {

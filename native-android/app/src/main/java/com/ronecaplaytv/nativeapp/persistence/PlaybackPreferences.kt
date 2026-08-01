@@ -20,6 +20,15 @@ class PlaybackPreferences(context: Context) {
     fun toggleFavoriteMovie(id: String): Set<String> = toggleSet(KEY_FAVORITE_MOVIES, id)
     fun toggleFavoriteSeries(id: String): Set<String> = toggleSet(KEY_FAVORITE_SERIES, id)
 
+    fun migrateFavoriteChannels(aliases: Map<String, String>): Set<String> =
+        migrateSet(KEY_FAVORITE_CHANNELS, aliases)
+
+    fun migrateFavoriteMovies(aliases: Map<String, String>): Set<String> =
+        migrateSet(KEY_FAVORITE_MOVIES, aliases)
+
+    fun migrateFavoriteSeries(aliases: Map<String, String>): Set<String> =
+        migrateSet(KEY_FAVORITE_SERIES, aliases)
+
     fun progressFor(contentKey: String): SavedProgress? {
         val record = preferences.getString(progressKey(contentKey), null) ?: return null
         val parts = record.split('|')
@@ -66,6 +75,34 @@ class PlaybackPreferences(context: Context) {
         .mapNotNull(::progressFor)
         .sortedByDescending(SavedProgress::updatedAt)
 
+    fun migrateProgress(aliases: Map<String, String>): List<SavedProgress> {
+        if (aliases.isEmpty()) return startedProgress()
+        val started = startedContentKeys().toMutableSet()
+        val editor = preferences.edit()
+        var changed = false
+
+        aliases.forEach { (legacyKey, stableKey) ->
+            if (legacyKey == stableKey || legacyKey !in started) return@forEach
+            val legacy = progressFor(legacyKey) ?: return@forEach
+            val stable = progressFor(stableKey)
+            if (stable == null || legacy.updatedAt > stable.updatedAt) {
+                editor.putString(
+                    progressKey(stableKey),
+                    "${legacy.positionMs}|${legacy.durationMs}|${legacy.updatedAt}",
+                )
+            }
+            editor.remove(progressKey(legacyKey))
+            started.remove(legacyKey)
+            started.add(stableKey)
+            changed = true
+        }
+
+        if (changed) {
+            editor.putStringSet(KEY_STARTED_CONTENT, started).apply()
+        }
+        return startedProgress()
+    }
+
     private fun startedContentKeys(): Set<String> = readSet(KEY_STARTED_CONTENT)
 
     private fun readSet(key: String): Set<String> =
@@ -77,6 +114,14 @@ class PlaybackPreferences(context: Context) {
         if (!current.add(id)) current.remove(id)
         preferences.edit().putStringSet(key, current).apply()
         return current.toSet()
+    }
+
+    private fun migrateSet(key: String, aliases: Map<String, String>): Set<String> {
+        val current = readSet(key)
+        if (current.isEmpty() || aliases.isEmpty()) return current
+        val migrated = current.mapTo(linkedSetOf()) { aliases[it] ?: it }
+        if (migrated != current) preferences.edit().putStringSet(key, migrated).apply()
+        return migrated
     }
 
     private fun progressKey(contentKey: String) = "progress_${contentKey.hashCode()}_${contentKey.length}"

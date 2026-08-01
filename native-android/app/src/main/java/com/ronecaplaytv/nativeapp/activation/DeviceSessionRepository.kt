@@ -57,6 +57,19 @@ class DeviceSessionRepository(context: Context) {
         )
     }
 
+    suspend fun reportPlaylistSuccess(playlistId: String) {
+        val deviceCode = identityStore.getDeviceCode() ?: return
+        val credential = credentialStore.load() ?: return
+
+        directConfigApi.fetchConfig(
+            deviceCode = deviceCode,
+            deviceUuid = identityStore.getOrCreateDeviceUuid(),
+            deviceCredential = credential,
+            playlistHealthId = playlistId,
+            playlistHealthStatus = "success",
+        )
+    }
+
     private suspend fun activate(isTelevision: Boolean): DeviceSessionState {
         val deviceUuid = identityStore.getOrCreateDeviceUuid()
         val response = api.activate(

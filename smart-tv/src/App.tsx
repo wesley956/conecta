@@ -4,6 +4,7 @@ import { useCatalog } from "./catalog";
 import type { CatalogFailoverResult, Channel, Movie, Series } from "./catalog";
 import type { DeviceSession, SeriesSeasonResponse } from "./deviceSession";
 import { APP_VERSION, fetchSeriesSeasons, useDeviceSession } from "./deviceSession";
+import { channelContentKey, episodeContentKey, movieContentKey, seriesContentKey } from "./contentIdentity";
 import { moveFocus } from "./focus";
 import { playLaunchSoundOnce } from "./launchSound";
 import { useMediaLibrary } from "./mediaLibrary";
@@ -25,9 +26,11 @@ const destinations = [
 ];
 const PAGE_SIZE = 60;
 type AppDialog = "privacy" | "support" | "unlink" | "clear-data" | null;
+type SuccessfulCatalogFailover = Extract<CatalogFailoverResult, { outcome: "switched" }>;
 
 type MediaCard = {
   id: string;
+  contentKey: string;
   kind: LibraryKind;
   name: string;
   image?: string;
@@ -80,10 +83,11 @@ function normalized(value: string) {
 }
 
 function channelCard(item: Channel): MediaCard {
+  const contentKey = channelContentKey(item);
   return {
-    id: item.id, kind: "channel", name: item.name, image: item.logo, meta: item.groupTitle || "TV ao vivo",
+    id: item.id, contentKey, kind: "channel", name: item.name, image: item.logo, meta: item.groupTitle || "TV ao vivo",
     playback: {
-      id: item.id, name: item.name, urls: playableUrls(item.url, item.playbackUrls), live: true,
+      id: item.id, contentKey, name: item.name, urls: playableUrls(item.url, item.playbackUrls), live: true,
       kind: "channel", image: item.logo, meta: item.groupTitle || "TV ao vivo"
     }
   };
@@ -91,18 +95,20 @@ function channelCard(item: Channel): MediaCard {
 
 function movieCard(item: Movie): MediaCard {
   return {
-    id: item.id, kind: "movie", name: item.name, image: item.cover,
+    id: item.id, contentKey: movieContentKey(item), kind: "movie", name: item.name, image: item.cover,
     meta: [item.category, item.year || ""].filter(Boolean).join(" • "), movie: item
   };
 }
 
 function seriesCard(item: Series): MediaCard {
-  return { id: item.id, kind: "series", name: item.name, image: item.cover, meta: item.category || "Séries", series: item };
+  return { id: item.id, contentKey: seriesContentKey(item), kind: "series", name: item.name, image: item.cover, meta: item.category || "Séries", series: item };
 }
 
 function queueFromSeasons(seriesName: string, image: string | undefined, seasons: SeriesSeasonResponse[]): PlaybackQueueItem[] {
   return seasons.flatMap(season => season.episodes.map(episode => ({
     id: episode.id,
+    contentKey: episodeContentKey(seriesName, season, episode),
+    seriesKey: seriesContentKey({ name: seriesName }),
     name: `${seriesName} • T${season.number}E${episode.number}`,
     urls: playableUrls(episode.url, episode.playbackUrls),
     image,
@@ -112,18 +118,21 @@ function queueFromSeasons(seriesName: string, image: string | undefined, seasons
   })));
 }
 
-async function recoveredPlayback(item: PlaybackItem, result: CatalogFailoverResult): Promise<PlaybackItem | null> {
+async function recoveredPlayback(item: PlaybackItem, result: SuccessfulCatalogFailover): Promise<PlaybackItem | null> {
   if (item.kind === "channel") {
-    const channel = result.data.channels.find(value => value.id === item.id)
+    const channel = result.data.channels.find(value => channelContentKey(value) === item.contentKey)
+      || result.data.channels.find(value => value.id === item.id)
       || result.data.channels.find(value => normalized(value.name) === normalized(item.name));
     return channel ? channelCard(channel).playback || null : null;
   }
   if (item.kind === "movie") {
-    const movie = result.data.movies.find(value => value.id === item.id)
+    const movie = result.data.movies.find(value => movieContentKey(value) === item.contentKey)
+      || result.data.movies.find(value => value.id === item.id)
       || result.data.movies.find(value => normalized(value.name) === normalized(item.name));
     if (!movie) return null;
     return {
       id: movie.id,
+      contentKey: movieContentKey(movie),
       name: movie.name,
       urls: playableUrls(movie.url, movie.playbackUrls),
       live: false,
@@ -134,9 +143,11 @@ async function recoveredPlayback(item: PlaybackItem, result: CatalogFailoverResu
   }
   if (item.kind !== "episode") return null;
   const current = item.seriesQueue?.[item.seriesQueueIndex ?? -1];
+  if (!current) return null;
   const seriesName = (item.meta || item.name).split(" • ")[0].trim();
-  const series = result.data.series.find(value => normalized(value.name) === normalized(seriesName));
-  if (!series || !current) return null;
+  const series = result.data.series.find(value => seriesContentKey(value) === current.seriesKey)
+    || result.data.series.find(value => normalized(value.name) === normalized(seriesName));
+  if (!series) return null;
   let seasons: SeriesSeasonResponse[] = (series.seasons || []).map(season => ({
     number: season.number,
     episodes: season.episodes.map(episode => ({ ...episode, playbackUrls: episode.playbackUrls || [episode.url] }))
@@ -150,6 +161,7 @@ async function recoveredPlayback(item: PlaybackItem, result: CatalogFailoverResu
   const episode = queue[index];
   return {
     id: episode.id,
+    contentKey: episode.contentKey,
     name: episode.name,
     urls: episode.urls,
     live: false,
@@ -199,6 +211,22 @@ export function App() {
   const library = useMediaLibrary();
   const { settings, update: updateSettings } = useSmartTvPlayerSettings();
 
+  useEffect(() => {
+    const identities: Array<Pick<LibraryItem, "id" | "kind" | "contentKey">> = [
+      ...catalog.data.channels.map(item => ({ id: item.id, kind: "channel" as const, contentKey: channelContentKey(item) })),
+      ...catalog.data.movies.map(item => ({ id: item.id, kind: "movie" as const, contentKey: movieContentKey(item) })),
+      ...catalog.data.series.map(item => ({ id: item.id, kind: "series" as const, contentKey: seriesContentKey(item) })),
+      ...catalog.data.series.flatMap(series => (series.seasons || []).flatMap(season =>
+        season.episodes.map(episode => ({
+          id: episode.id,
+          kind: "episode" as const,
+          contentKey: episodeContentKey(series.name, season, episode)
+        }))
+      ))
+    ];
+    library.reconcileIdentities(identities);
+  }, [catalog.data, library.reconcileIdentities]);
+
   useEffect(() => { void playLaunchSoundOnce(settings.launchSoundEnabled); }, [settings.launchSoundEnabled]);
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -238,17 +266,24 @@ export function App() {
   const counts = useMemo(() => ({ channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length }), [catalog.data]);
   const allCards = useMemo(() => [...catalog.data.channels.map(channelCard), ...catalog.data.movies.map(movieCard), ...catalog.data.series.map(seriesCard)], [catalog.data]);
   const resolveLibraryItem = useCallback((saved: LibraryItem): MediaCard | null => {
-    if (saved.kind === "channel") { const item = catalog.data.channels.find(value => value.id === saved.id); return item ? channelCard(item) : null; }
-    if (saved.kind === "movie") { const item = catalog.data.movies.find(value => value.id === saved.id); return item ? movieCard(item) : null; }
-    if (saved.kind === "series") { const item = catalog.data.series.find(value => value.id === saved.id); return item ? seriesCard(item) : null; }
+    if (saved.kind === "channel") { const item = catalog.data.channels.find(value => saved.contentKey ? channelContentKey(value) === saved.contentKey : value.id === saved.id); return item ? channelCard(item) : null; }
+    if (saved.kind === "movie") { const item = catalog.data.movies.find(value => saved.contentKey ? movieContentKey(value) === saved.contentKey : value.id === saved.id); return item ? movieCard(item) : null; }
+    if (saved.kind === "series") { const item = catalog.data.series.find(value => saved.contentKey ? seriesContentKey(value) === saved.contentKey : value.id === saved.id); return item ? seriesCard(item) : null; }
     for (const series of catalog.data.series) {
-      for (const season of series.seasons || []) {
-        const episode = season.episodes.find(value => value.id === saved.id);
-        if (episode) return {
-          id: episode.id, kind: "episode", name: saved.name, image: series.cover, meta: saved.meta || series.name,
-          playback: { id: episode.id, name: saved.name, urls: playableUrls(episode.url, episode.playbackUrls), live: false, kind: "episode", image: series.cover, meta: saved.meta }
-        };
-      }
+      const queue = queueFromSeasons(series.name, series.cover, series.seasons || []);
+      const queueIndex = queue.findIndex(value => saved.contentKey
+        ? value.contentKey === saved.contentKey
+        : value.id === saved.id);
+      const episode = queue[queueIndex];
+      if (episode) return {
+        id: episode.id, contentKey: episode.contentKey, kind: "episode", name: episode.name,
+        image: episode.image, meta: episode.meta || saved.meta || series.name,
+        playback: {
+          id: episode.id, contentKey: episode.contentKey, name: episode.name, urls: episode.urls,
+          live: false, kind: "episode", image: episode.image, meta: episode.meta,
+          seriesQueue: queue, seriesQueueIndex: queueIndex
+        }
+      };
     }
     return null;
   }, [catalog.data]);
@@ -274,11 +309,11 @@ export function App() {
     else if (selected === "Minha lista") source = libraryCards(library.favorites);
     else if (selected === "Buscar") source = allCards;
     const term = normalized(query.trim());
-    const historyIds = new Set(library.history.map(item => `${item.kind}:${item.id}`));
+    const historyIds = new Set(library.history.map(item => item.contentKey || `${item.kind}:${item.id}`));
     const filtered = source.filter(item => {
-      const saved = library.isFavorite(item.kind, item.id);
+      const saved = library.isFavorite(item.kind, item.id, item.contentKey);
       const matchesCategory = category === "Todos" || category === "A-Z" || (category === "Favoritos" && saved)
-        || (category === "Minha Lista" && saved) || (category === "Continuar" && historyIds.has(`${item.kind}:${item.id}`))
+        || (category === "Minha Lista" && saved) || (category === "Continuar" && (historyIds.has(item.contentKey) || historyIds.has(`${item.kind}:${item.id}`)))
         || item.meta.split(" • ")[0] === category;
       const matchesQuery = !term || normalized(`${item.name} ${item.meta}`).includes(term);
       return matchesCategory && matchesQuery;
@@ -287,7 +322,9 @@ export function App() {
   }, [allCards, catalog.data, category, library.favorites, library.history, libraryCards, query, selected]);
   const beginPlayback = useCallback((item: PlaybackItem) => {
     const kind = item.kind || (item.live ? "channel" : "movie");
-    const saved = library.history.find(value => value.id === item.id && value.kind === kind);
+    const saved = library.history.find(value =>
+      value.kind === kind && (value.contentKey === item.contentKey || (!value.contentKey && value.id === item.id))
+    );
     const canResume = !item.live && Boolean(saved?.currentTime && saved.currentTime >= 30) && Boolean(saved?.duration && saved.duration - (saved.currentTime || 0) > 60);
     setPlayback(canResume ? { ...item, startTime: saved?.currentTime } : item);
   }, [library.history]);
@@ -313,8 +350,12 @@ export function App() {
       onClose={() => setPlayback(null)}
       onProgress={(currentTime, duration) => library.remember(playback, currentTime, duration)}
       onTerminalPlaybackFailure={async (reason, currentTime, duration, diagnosticEventId) => {
-        const result = await catalog.failover(reason);
-        if (!result) return false;
+        const result = await catalog.failover({
+          attemptId: diagnosticEventId,
+          reason,
+          contentKey: playback.contentKey
+        });
+        if (result.outcome !== "switched") return false;
         const replacement = await recoveredPlayback(playback, result).catch(() => null);
         if (!replacement) return false;
         if (!playback.live && currentTime > 0) library.remember(playback, currentTime, duration);
@@ -328,8 +369,8 @@ export function App() {
       }}
     />;
   }
-  if (selectedMovie) return <MovieDetailScreen movie={selectedMovie} favorite={library.isFavorite("movie", selectedMovie.id)} onBack={() => setSelectedMovie(null)} onFavorite={() => library.toggleFavorite({ id: selectedMovie.id, kind: "movie", name: selectedMovie.name, image: selectedMovie.cover, meta: [selectedMovie.category, selectedMovie.year || ""].filter(Boolean).join(" • ") })} related={catalog.data.movies.filter(item => item.id !== selectedMovie.id && item.category === selectedMovie.category).slice(0, 5)} onOpenMovie={setSelectedMovie} onPlay={beginPlayback} />;
-  if (selectedSeries) return <SeriesDetailScreen series={selectedSeries} playlistId={catalog.activePlaylistId || session.selectedPlaylistId} favorite={library.isFavorite("series", selectedSeries.id)} recommendations={catalog.data.series.filter(item => item.id !== selectedSeries.id && item.category === selectedSeries.category).slice(0, 5)} onBack={() => setSelectedSeries(null)} onFavorite={() => library.toggleFavorite({ id: selectedSeries.id, kind: "series", name: selectedSeries.name, image: selectedSeries.cover, meta: selectedSeries.category || "Séries" })} onOpenRecommendation={setSelectedSeries} onPlay={beginPlayback} />;
+  if (selectedMovie) return <MovieDetailScreen movie={selectedMovie} favorite={library.isFavorite("movie", selectedMovie.id, movieContentKey(selectedMovie))} onBack={() => setSelectedMovie(null)} onFavorite={() => library.toggleFavorite({ id: selectedMovie.id, contentKey: movieContentKey(selectedMovie), kind: "movie", name: selectedMovie.name, image: selectedMovie.cover, meta: [selectedMovie.category, selectedMovie.year || ""].filter(Boolean).join(" • ") })} related={catalog.data.movies.filter(item => item.id !== selectedMovie.id && item.category === selectedMovie.category).slice(0, 5)} onOpenMovie={setSelectedMovie} onPlay={beginPlayback} />;
+  if (selectedSeries) return <SeriesDetailScreen series={selectedSeries} playlistId={catalog.activePlaylistId || session.selectedPlaylistId} favorite={library.isFavorite("series", selectedSeries.id, seriesContentKey(selectedSeries))} recommendations={catalog.data.series.filter(item => item.id !== selectedSeries.id && item.category === selectedSeries.category).slice(0, 5)} onBack={() => setSelectedSeries(null)} onFavorite={() => library.toggleFavorite({ id: selectedSeries.id, contentKey: seriesContentKey(selectedSeries), kind: "series", name: selectedSeries.name, image: selectedSeries.cover, meta: selectedSeries.category || "Séries" })} onOpenRecommendation={setSelectedSeries} onPlay={beginPlayback} />;
   if (session.status !== "active") return <ActivationScreen session={session} onRefresh={() => void refresh()} onReset={() => void reset()} />;
 
   const visibleCards = filteredCards.slice(0, visibleLimit);
@@ -355,7 +396,7 @@ export function App() {
       {catalog.status === "ready" && selected === "Buscar" && <section className="search-tools"><label><span>⌕</span><input data-tv-focusable="true" data-autofocus="true" value={query} onChange={event => { setQuery(event.target.value); setVisibleLimit(PAGE_SIZE); }} placeholder="Buscar canais, filmes e séries" /></label>{query && <FocusableButton className="clear-search" onClick={() => setQuery("")}>Limpar</FocusableButton>}<small>{query ? `${filteredCards.length.toLocaleString("pt-BR")} resultado(s)` : "Digite usando o teclado da TV ou do navegador"}</small></section>}
       {catalog.status === "ready" && ["Canais", "Filmes", "Séries"].includes(selected) && <section className="catalog-toolbar"><div><h2>{selected === "Canais" ? "TV ao vivo" : selected}</h2><small>{filteredCards.length.toLocaleString("pt-BR")} {selected === "Canais" ? "canais" : selected === "Filmes" ? "títulos" : "séries"}</small></div><label><span>⌕</span><input data-tv-focusable="true" value={query} onChange={event => { setQuery(event.target.value); setVisibleLimit(PAGE_SIZE); }} placeholder={`Buscar em ${selected.toLocaleLowerCase("pt-BR")}`} /></label></section>}
       {catalog.status === "ready" && ["Canais", "Filmes", "Séries"].includes(selected) && categories.length > 1 && <section className="category-row">{categories.map(item => <FocusableButton key={item} className={`category-chip ${category === item ? "selected" : ""}`} onClick={() => { setCategory(item); setVisibleLimit(PAGE_SIZE); }}>{item}</FocusableButton>)}</section>}
-      {catalog.status === "ready" && ["Buscar", "Canais", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length > 0 && <MediaGrid cards={visibleCards} total={filteredCards.length} onOpen={openCard} onMore={() => setVisibleLimit(value => value + PAGE_SIZE)} isFavorite={item => library.isFavorite(item.kind, item.id)} onFavorite={item => library.toggleFavorite({ id: item.id, kind: item.kind, name: item.name, image: item.image, meta: item.meta })} />}
+      {catalog.status === "ready" && ["Buscar", "Canais", "Filmes", "Séries", "Minha lista"].includes(selected) && filteredCards.length > 0 && <MediaGrid cards={visibleCards} total={filteredCards.length} onOpen={openCard} onMore={() => setVisibleLimit(value => value + PAGE_SIZE)} isFavorite={item => library.isFavorite(item.kind, item.id, item.contentKey)} onFavorite={item => library.toggleFavorite({ id: item.id, contentKey: item.contentKey, kind: item.kind, name: item.name, image: item.image, meta: item.meta })} />}
       {catalog.status === "ready" && selected === "Configurações" && <section className="settings-list">
         <div className="settings-heading"><p className="eyebrow">AJUSTES DO APP</p><h2>Configurações</h2><small>Preferências, diagnóstico e informações desta TV</small></div>
         <section className="settings-card"><span><strong>Atualizar conteúdo</strong><small>Sincronizar novamente a lista ativa sem apagar o último catálogo válido.</small></span><FocusableButton data-autofocus="true" onClick={catalog.retry}>ATUALIZAR</FocusableButton></section>

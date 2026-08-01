@@ -10,4 +10,7 @@ Atualização urgente de velocidade e compatibilidade para listas em acesso dire
 - preserva o fallback M3U para listas comuns ou APIs incompatíveis;
 - impede downloads M3U duplicados quando o fallback é necessário;
 - mantém o failover entre lista principal e reserva;
+- retoma automaticamente o mesmo canal, filme ou episódio na lista reserva;
+- preserva a posição ao alternar fonte ou lista durante filmes e episódios;
+- migra favoritos e progresso para identidades estáveis entre listas equivalentes;
 - exibe as áreas que responderam mesmo quando uma seção do provedor falha.

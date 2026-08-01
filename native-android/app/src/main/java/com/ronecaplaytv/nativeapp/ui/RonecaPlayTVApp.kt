@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -20,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronecaplaytv.nativeapp.activation.ActivationViewModel
 import com.ronecaplaytv.nativeapp.catalog.CatalogViewModel
+import com.ronecaplaytv.nativeapp.catalog.ContentIdentity
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
@@ -50,6 +52,8 @@ import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import java.text.Normalizer
 import java.util.Locale
+import java.util.UUID
+import kotlinx.coroutines.launch
 
 private enum class NativeDestination {
     Home,
@@ -69,6 +73,7 @@ private data class ActiveSeriesPlayback(
     val seasons: List<NativeSeason>,
     val seasonNumber: Int,
     val episodeId: String,
+    val episodeNumber: Int,
 )
 
 private val recommendationSeparators = Regex("[^a-z0-9]+")
@@ -188,6 +193,7 @@ fun RonecaPlayTVApp(
     val episodesState by seriesEpisodesViewModel.state.collectAsStateWithLifecycle()
     val playbackPreferences = remember { PlaybackPreferences(context) }
     val playerSettingsPreferences = remember { PlayerSettingsPreferences(context) }
+    val coroutineScope = rememberCoroutineScope()
     val destinationStateHolder = rememberSaveableStateHolder()
 
     var destination by remember { mutableStateOf(NativeDestination.Home) }
@@ -207,6 +213,66 @@ fun RonecaPlayTVApp(
     var favoriteMovieIds by remember { mutableStateOf(playbackPreferences.favoriteMovies()) }
     var favoriteSeriesIds by remember { mutableStateOf(playbackPreferences.favoriteSeries()) }
     var savedProgress by remember { mutableStateOf(playbackPreferences.startedProgress()) }
+    var failoverInProgress by remember { mutableStateOf(false) }
+
+    LaunchedEffect(
+        catalogState.activePlaylistId,
+        catalogState.channels,
+        catalogState.movies,
+        catalogState.series,
+    ) {
+        if (!catalogState.loaded) return@LaunchedEffect
+        favoriteChannelIds = playbackPreferences.migrateFavoriteChannels(
+            catalogState.channels.associate { it.id to ContentIdentity.channel(it) },
+        )
+        favoriteMovieIds = playbackPreferences.migrateFavoriteMovies(
+            catalogState.movies.associate { it.id to ContentIdentity.movie(it) },
+        )
+        favoriteSeriesIds = playbackPreferences.migrateFavoriteSeries(
+            catalogState.series.associate { it.id to ContentIdentity.series(it) },
+        )
+        val progressAliases = buildMap {
+            catalogState.movies.forEach { movie ->
+                put("movie:${movie.id}", ContentIdentity.movie(movie))
+            }
+            catalogState.series.forEach { series ->
+                series.seasons.forEach { season ->
+                    season.episodes.forEach { episode ->
+                        put(
+                            "episode:${series.id}:${episode.id}",
+                            ContentIdentity.episode(series, season, episode),
+                        )
+                    }
+                }
+            }
+        }
+        savedProgress = playbackPreferences.migrateProgress(progressAliases)
+    }
+
+    LaunchedEffect(
+        selectedSeries?.id,
+        episodesState.seriesId,
+        episodesState.playlistId,
+        episodesState.seasons,
+    ) {
+        val series = selectedSeries ?: return@LaunchedEffect
+        if (
+            episodesState.seasons.isEmpty() ||
+            episodesState.seriesId != series.xtreamSeriesId ||
+            episodesState.playlistId != catalogState.activePlaylistId
+        ) return@LaunchedEffect
+        val aliases = buildMap {
+            episodesState.seasons.forEach { season ->
+                season.episodes.forEach { episode ->
+                    put(
+                        "episode:${series.id}:${episode.id}",
+                        ContentIdentity.episode(series, season, episode),
+                    )
+                }
+            }
+        }
+        savedProgress = playbackPreferences.migrateProgress(aliases)
+    }
 
     LaunchedEffect(destination) {
         if (destination != NativeDestination.Player) {
@@ -269,14 +335,123 @@ fun RonecaPlayTVApp(
         )
     }
 
-    fun activateBackupPlaylist(reason: String) {
+    fun activateBackupPlaylist(reason: String, positionMs: Long, durationMs: Long) {
+        if (failoverInProgress) return
+        val attemptId = "android:${UUID.randomUUID()}"
+        val failedContentKey = selectedContentKey
+        val failedTitle = selectedTitle
+        val failedSeriesPlayback = activeSeriesPlayback
+        val failedPlaylistId = catalogState.activePlaylistId
+        if (durationMs > 0L && positionMs > 0L && !failedContentKey.startsWith("channel:")) {
+            playbackPreferences.saveProgress(failedContentKey, positionMs, durationMs)
+        }
         activationViewModel.reportPlaylistFailure(
-            playlistId = catalogState.activePlaylistId,
-            error = reason,
+            playlistId = failedPlaylistId,
+            error = "$reason • tentativa $attemptId",
         )
-        catalogViewModel.failoverActivePlaylist(reason)
-        destination = playerReturnDestination
-        activeSeriesPlayback = null
+
+        failoverInProgress = true
+        coroutineScope.launch {
+            val result = catalogViewModel.failoverActivePlaylist(reason, attemptId)
+            if (result == null) {
+                failoverInProgress = false
+                destination = playerReturnDestination
+                activeSeriesPlayback = null
+                return@launch
+            }
+
+            val recovered = when {
+                failedContentKey.startsWith("channel:") -> {
+                    val channel = result.state.channels.firstOrNull {
+                        ContentIdentity.channel(it) == failedContentKey
+                    } ?: result.state.channels.firstOrNull {
+                        ContentIdentity.token(it.name) == ContentIdentity.token(failedTitle)
+                    }
+                    channel?.let {
+                        selectedStreamUrls = it.playbackUrls.ifEmpty { listOf(it.primaryUrl) }
+                            .map(String::trim)
+                            .filter(String::isNotBlank)
+                            .distinct()
+                        selectedTitle = it.name
+                        selectedContentKey = ContentIdentity.channel(it)
+                        selectedInitialPositionMs = 0L
+                        selectedChannelGroup = it.groupTitle
+                    } != null
+                }
+
+                failedContentKey.startsWith("movie:") -> {
+                    val movie = result.state.movies.firstOrNull {
+                        ContentIdentity.movie(it) == failedContentKey
+                    } ?: result.state.movies.firstOrNull {
+                        ContentIdentity.token(it.name) == ContentIdentity.token(failedTitle)
+                    }
+                    movie?.let {
+                        selectedStreamUrls = it.playbackUrls.ifEmpty { listOf(it.primaryUrl) }
+                            .map(String::trim)
+                            .filter(String::isNotBlank)
+                            .distinct()
+                        selectedTitle = it.name
+                        selectedContentKey = ContentIdentity.movie(it)
+                        selectedInitialPositionMs = positionMs.coerceAtLeast(0L)
+                        selectedChannelGroup = null
+                        activeSeriesPlayback = null
+                    } != null
+                }
+
+                failedSeriesPlayback != null -> {
+                    val series = result.state.series.firstOrNull {
+                        ContentIdentity.series(it) == ContentIdentity.series(failedSeriesPlayback.series)
+                    }
+                    val seasons = when {
+                        series == null -> emptyList()
+                        series.seasons.isNotEmpty() -> series.seasons
+                        series.xtreamSeriesId.isNullOrBlank() -> emptyList()
+                        else -> runCatching {
+                            seriesEpisodesViewModel.fetchNow(
+                                series.xtreamSeriesId,
+                                result.toPlaylistId,
+                            )
+                        }.getOrDefault(emptyList())
+                    }
+                    val season = seasons.firstOrNull { it.number == failedSeriesPlayback.seasonNumber }
+                    val episode = season?.episodes?.firstOrNull {
+                        it.number == failedSeriesPlayback.episodeNumber
+                    }
+                    if (series != null && season != null && episode != null) {
+                        val resolvedSeries = series.copy(seasons = seasons)
+                        selectedSeries = resolvedSeries
+                        activeSeriesPlayback = ActiveSeriesPlayback(
+                            series = resolvedSeries,
+                            seasons = seasons,
+                            seasonNumber = season.number,
+                            episodeId = episode.id,
+                            episodeNumber = episode.number,
+                        )
+                        selectedStreamUrls = episode.playbackUrls.ifEmpty { listOf(episode.primaryUrl) }
+                        selectedTitle = "${series.name} • T${season.number} E${episode.number}"
+                        selectedContentKey = ContentIdentity.episode(resolvedSeries, season, episode)
+                        selectedInitialPositionMs = positionMs.coerceAtLeast(0L)
+                        selectedChannelGroup = null
+                        true
+                    } else {
+                        false
+                    }
+                }
+
+                else -> false
+            }
+
+            failoverInProgress = false
+            if (recovered && selectedStreamUrls.isNotEmpty()) {
+                activationViewModel.reportPlaylistSuccess(result.toPlaylistId)
+                savedProgress = playbackPreferences.startedProgress()
+                destination = NativeDestination.Player
+            } else {
+                catalogViewModel.markFailoverContentMissing(attemptId)
+                destination = playerReturnDestination
+                activeSeriesPlayback = null
+            }
+        }
     }
 
     fun openPlayer(
@@ -321,10 +496,11 @@ fun RonecaPlayTVApp(
             seasons = seasons,
             seasonNumber = season.number,
             episodeId = episode.id,
+            episodeNumber = episode.number,
         )
         selectedStreamUrls = playbackUrls
         selectedTitle = "${series.name} • T${season.number} E${episode.number}"
-        selectedContentKey = "episode:${series.id}:${episode.id}"
+        selectedContentKey = ContentIdentity.episode(resolvedSeries, season, episode)
         selectedInitialPositionMs = initialPositionOverrideMs
             ?: playbackPreferences.progressFor(selectedContentKey)?.positionMs
             ?: 0L
@@ -336,7 +512,7 @@ fun RonecaPlayTVApp(
         openPlayer(
             title = channel.name,
             playbackUrls = channel.playbackUrls.ifEmpty { listOf(channel.primaryUrl) },
-            contentKey = "channel:${channel.id}",
+            contentKey = ContentIdentity.channel(channel),
             channelGroup = channel.groupTitle,
         )
     }
@@ -345,7 +521,7 @@ fun RonecaPlayTVApp(
         openPlayer(
             title = movie.name,
             playbackUrls = movie.playbackUrls.ifEmpty { listOf(movie.primaryUrl) },
-            contentKey = "movie:${movie.id}",
+            contentKey = ContentIdentity.movie(movie),
         )
     }
 
@@ -379,7 +555,7 @@ fun RonecaPlayTVApp(
         if (validUrls.isEmpty()) return
         selectedStreamUrls = validUrls
         selectedTitle = channel.name
-        selectedContentKey = "channel:${channel.id}"
+        selectedContentKey = ContentIdentity.channel(channel)
         selectedInitialPositionMs = 0L
         selectedChannelGroup = channel.groupTitle
     }
@@ -412,11 +588,22 @@ fun RonecaPlayTVApp(
         }
         if (seasons.isEmpty()) return@LaunchedEffect
 
-        val episodeId = saved.contentKey.removePrefix("episode:${series.id}:")
-        val season = seasons.firstOrNull { candidate ->
-            candidate.episodes.any { it.id == episodeId }
+        val coordinates = ContentIdentity.episodeCoordinates(saved.contentKey)
+        val legacyEpisodeId = saved.contentKey
+            .takeIf { it.startsWith("episode:${series.id}:") }
+            ?.removePrefix("episode:${series.id}:")
+        val season = when {
+            coordinates != null -> seasons.firstOrNull { it.number == coordinates.first }
+            legacyEpisodeId != null -> seasons.firstOrNull { candidate ->
+                candidate.episodes.any { it.id == legacyEpisodeId }
+            }
+            else -> null
         }
-        val episode = season?.episodes?.firstOrNull { it.id == episodeId }
+        val episode = when {
+            coordinates != null -> season?.episodes?.firstOrNull { it.number == coordinates.second }
+            legacyEpisodeId != null -> season?.episodes?.firstOrNull { it.id == legacyEpisodeId }
+            else -> null
+        }
         pendingSeriesResume = null
 
         if (episode != null && season != null) {
@@ -430,18 +617,31 @@ fun RonecaPlayTVApp(
         }
     }
 
-    val startedMovieIds = remember(savedProgress) {
-        savedProgress.mapNotNull { entry ->
-            entry.contentKey.takeIf { it.startsWith("movie:") }?.removePrefix("movie:")
-        }.toSet()
+    val progressKeys = remember(savedProgress) { savedProgress.map(SavedProgress::contentKey).toSet() }
+    val startedMovieIds = remember(savedProgress, catalogState.movies) {
+        catalogState.movies.filterTo(linkedSetOf()) { movie ->
+            ContentIdentity.movie(movie) in progressKeys || "movie:${movie.id}" in progressKeys
+        }.mapTo(linkedSetOf(), NativeMovie::id)
     }
-    val startedSeriesIds = remember(savedProgress) {
-        savedProgress.mapNotNull { entry ->
-            entry.contentKey
-                .takeIf { it.startsWith("episode:") }
-                ?.removePrefix("episode:")
-                ?.substringBefore(':')
-        }.toSet()
+    val startedSeriesIds = remember(savedProgress, catalogState.series) {
+        catalogState.series.filterTo(linkedSetOf()) { series ->
+            savedProgress.any { ContentIdentity.episodeMatchesSeries(it.contentKey, series) }
+        }.mapTo(linkedSetOf(), NativeSeries::id)
+    }
+    val favoriteChannelDisplayIds = remember(favoriteChannelIds, catalogState.channels) {
+        catalogState.channels.filterTo(linkedSetOf()) { channel ->
+            ContentIdentity.channel(channel) in favoriteChannelIds || channel.id in favoriteChannelIds
+        }.mapTo(linkedSetOf(), NativeChannel::id)
+    }
+    val favoriteMovieDisplayIds = remember(favoriteMovieIds, catalogState.movies) {
+        catalogState.movies.filterTo(linkedSetOf()) { movie ->
+            ContentIdentity.movie(movie) in favoriteMovieIds || movie.id in favoriteMovieIds
+        }.mapTo(linkedSetOf(), NativeMovie::id)
+    }
+    val favoriteSeriesDisplayIds = remember(favoriteSeriesIds, catalogState.series) {
+        catalogState.series.filterTo(linkedSetOf()) { series ->
+            ContentIdentity.series(series) in favoriteSeriesIds || series.id in favoriteSeriesIds
+        }.mapTo(linkedSetOf(), NativeSeries::id)
     }
 
     val featuredMovies = remember(catalogState.movies) {
@@ -534,9 +734,11 @@ fun RonecaPlayTVApp(
                     NativeDestination.Channels -> ChannelsScreen(
                         channels = catalogState.channels,
                         isTelevision = isWideLayout,
-                        favoriteIds = favoriteChannelIds,
+                        favoriteIds = favoriteChannelDisplayIds,
                         onToggleFavorite = { channel ->
-                            favoriteChannelIds = playbackPreferences.toggleFavoriteChannel(channel.id)
+                            favoriteChannelIds = playbackPreferences.toggleFavoriteChannel(
+                                ContentIdentity.channel(channel),
+                            )
                         },
                         onPlay = ::openChannel,
                     )
@@ -544,7 +746,7 @@ fun RonecaPlayTVApp(
                     NativeDestination.Movies -> MoviesScreen(
                         movies = catalogState.movies,
                         isTelevision = isWideLayout,
-                        favoriteIds = favoriteMovieIds,
+                        favoriteIds = favoriteMovieDisplayIds,
                         startedIds = startedMovieIds,
                         onOpenDetails = { movie -> openMovieDetails(movie, NativeDestination.Movies) },
                     )
@@ -565,11 +767,14 @@ fun RonecaPlayTVApp(
                             MovieDetailScreen(
                                 movie = movie,
                                 recommendations = recommendations,
-                                isFavorite = movie.id in favoriteMovieIds,
+                                isFavorite = ContentIdentity.movie(movie) in favoriteMovieIds ||
+                                    movie.id in favoriteMovieIds,
                                 isTelevision = isWideLayout,
                                 onBack = { destination = detailReturnDestination },
                                 onToggleFavorite = {
-                                    favoriteMovieIds = playbackPreferences.toggleFavoriteMovie(movie.id)
+                                    favoriteMovieIds = playbackPreferences.toggleFavoriteMovie(
+                                        ContentIdentity.movie(movie),
+                                    )
                                 },
                                 onPlay = ::openMovie,
                                 onOpenRecommendation = { recommendation ->
@@ -582,7 +787,7 @@ fun RonecaPlayTVApp(
                     NativeDestination.Series -> SeriesScreen(
                         series = catalogState.series,
                         isTelevision = isWideLayout,
-                        favoriteIds = favoriteSeriesIds,
+                        favoriteIds = favoriteSeriesDisplayIds,
                         startedSeriesIds = startedSeriesIds,
                         onOpenDetails = { series -> openSeriesDetails(series, NativeDestination.Series) },
                     )
@@ -614,7 +819,8 @@ fun RonecaPlayTVApp(
                             SeriesDetailScreen(
                                 series = resolvedSeries,
                                 recommendations = recommendations,
-                                isFavorite = baseSeries.id in favoriteSeriesIds,
+                                isFavorite = ContentIdentity.series(baseSeries) in favoriteSeriesIds ||
+                                    baseSeries.id in favoriteSeriesIds,
                                 isTelevision = isWideLayout,
                                 episodesLoading = episodesState.seriesId == baseSeries.xtreamSeriesId &&
                                     episodesState.playlistId == catalogState.activePlaylistId &&
@@ -630,7 +836,9 @@ fun RonecaPlayTVApp(
                                     destination = detailReturnDestination
                                 },
                                 onToggleFavorite = {
-                                    favoriteSeriesIds = playbackPreferences.toggleFavoriteSeries(baseSeries.id)
+                                    favoriteSeriesIds = playbackPreferences.toggleFavoriteSeries(
+                                        ContentIdentity.series(baseSeries),
+                                    )
                                 },
                                 onRefreshEpisodes = {
                                     val xtreamId = baseSeries.xtreamSeriesId
@@ -759,22 +967,35 @@ fun RonecaPlayTVApp(
                         bufferSeconds = settingsState.bufferSeconds,
                         automaticReconnect = settingsState.automaticReconnect,
                         positionForEpisode = { episode ->
-                            playbackPreferences
-                                .progressFor("episode:${seriesPlayback.series.id}:${episode.id}")
-                                ?.positionMs
-                                ?: 0L
+                            val season = seriesPlayback.seasons.firstOrNull { candidate ->
+                                candidate.episodes.any { it.id == episode.id }
+                            }
+                            season?.let {
+                                playbackPreferences.progressFor(
+                                    ContentIdentity.episode(seriesPlayback.series, it, episode),
+                                )?.positionMs
+                            } ?: 0L
                         },
                         onEpisodeChanged = { season, episode ->
                             activeSeriesPlayback = seriesPlayback.copy(
                                 seasonNumber = season.number,
                                 episodeId = episode.id,
+                                episodeNumber = episode.number,
                             )
                             selectedTitle = "${seriesPlayback.series.name} • T${season.number} E${episode.number}"
-                            selectedContentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
+                            selectedContentKey = ContentIdentity.episode(
+                                seriesPlayback.series,
+                                season,
+                                episode,
+                            )
                             selectedInitialPositionMs = 0L
                         },
-                        onProgress = { _, episode, positionMs, durationMs ->
-                            val contentKey = "episode:${seriesPlayback.series.id}:${episode.id}"
+                        onProgress = { season, episode, positionMs, durationMs ->
+                            val contentKey = ContentIdentity.episode(
+                                seriesPlayback.series,
+                                season,
+                                episode,
+                            )
                             playbackPreferences.saveProgress(contentKey, positionMs, durationMs)
                         },
                         onTerminalPlaybackFailure = ::activateBackupPlaylist,
