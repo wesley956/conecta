@@ -283,6 +283,17 @@
 
       <div id="sellerOverviewCard" class="card seller-v2-overview seller-portal-section" data-seller-section="home">
         <div class="grid" id="statsGrid"></div>
+        <section class="seller-today-section" aria-labelledby="sellerTodayTitle">
+          <div class="section-title">
+            <div>
+              <h2 id="sellerTodayTitle">Ações de hoje</h2>
+              <p class="muted">Atalhos calculados com a situação atual da sua operação.</p>
+            </div>
+          </div>
+          <div id="sellerTodayActions" class="seller-today-actions" aria-live="polite">
+            <p class="muted">Carregando prioridades…</p>
+          </div>
+        </section>
       </div>
 
       <div id="sellerDevicesCard" class="card seller-v2-devices seller-portal-section" data-seller-section="devices" hidden>
@@ -417,7 +428,16 @@
     function fmtDate(value) {
       if (!value) return '—';
       const d = new Date(value);
-      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
+      return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function formatWhatsapp(value) {
+      const digits = String(value || '').replace(/\D/g, '');
+      if (!digits) return '';
+      const local = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
+      if (local.length === 11) return '(' + local.slice(0, 2) + ') ' + local.slice(2, 7) + '-' + local.slice(7);
+      if (local.length === 10) return '(' + local.slice(0, 2) + ') ' + local.slice(2, 6) + '-' + local.slice(6);
+      return value;
     }
 
     function badge(status) {
@@ -546,7 +566,8 @@
     function renderDevicesTable() {
       const devices = filteredDevices();
       const total = ((currentPortalData && currentPortalData.devices) || []).length;
-      $('resultCount').textContent = devices.length + ' de ' + total + ' aparelho(s) exibido(s).';
+      const deviceUnit = total === 1 ? 'aparelho exibido.' : 'aparelhos exibidos.';
+      $('resultCount').textContent = devices.length + ' de ' + total + ' ' + deviceUnit;
 
       $('devicesBody').innerHTML = devices.length
         ? devices.map(device => {
@@ -562,7 +583,7 @@
 
           return ''
             + '<article class="seller-device-card" data-status="' + esc(device.status) + '">'
-            + '<div class="seller-device-head"><div><div class="mono seller-device-code">' + esc(device.deviceCode) + '</div><strong>' + esc(device.customerName || 'Sem cliente') + '</strong><div class="small muted">' + esc(device.customerWhatsapp || device.deviceUuid || 'Contato não informado') + '</div></div>' + badge(device.status) + '</div>'
+            + '<div class="seller-device-head"><div><div class="mono seller-device-code">' + esc(device.deviceCode) + '</div><strong>' + esc(device.customerName || 'Sem cliente') + '</strong><div class="small muted">' + esc(formatWhatsapp(device.customerWhatsapp) || 'Contato não informado') + '</div></div>' + badge(device.status) + '</div>'
             + '<div class="seller-device-meta"><div><small>Plano</small><span>' + esc(device.planName || 'Sem plano') + '</span></div><div><small>Validade</small><span>' + fmtDate(device.expiresAt) + '</span>' + validity + '</div><div><small>Último acesso</small><span>' + fmtDate(device.lastSeenAt) + '</span></div><div><small>Créditos</small><span>' + esc(device.planCreditCost ? String(device.planCreditCost) : '—') + '</span></div></div>'
             + '<div class="seller-device-actions">' + (wa ? '<a class="btn" href="' + esc(wa) + '" target="_blank" rel="noreferrer">WhatsApp</a>' : '') + '</div>'
             + '</article>';
@@ -579,7 +600,7 @@
       const balance = Number(seller.creditBalance || 0);
 
       $('sellerName').textContent = seller.name || 'Portal do Vendedor';
-      $('sellerSub').textContent = (seller.whatsapp || '') + (seller.email ? ' · ' + seller.email : '');
+      $('sellerSub').textContent = (formatWhatsapp(seller.whatsapp) || '') + (seller.email ? ' · ' + seller.email : '');
 
       $('statsGrid').innerHTML = ''
         + '<div class="metric"><small>Saldo atual</small><strong class="' + (balance < 0 ? 'negative' : 'positive') + '">' + number(balance) + '</strong></div>'
