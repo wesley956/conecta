@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeDiagnosticText } from '../_shared/diagnosticSafety.ts';
 
 const DIRECT_MARKER = '#roneca-direct-m3u';
 const corsHeaders = {
@@ -144,7 +145,10 @@ Deno.serve(async request => {
     return json({
       active: false,
       status: 'pending',
-      message: error instanceof Error ? error.message : 'Falha temporária ao carregar a configuração.',
+      message: safeDiagnosticText(
+        error instanceof Error ? error.message : 'Falha temporária ao carregar a configuração.',
+        500,
+      ) || 'Falha temporária ao carregar a configuração.',
     }, 500);
   }
 });

@@ -13,4 +13,6 @@ Atualização urgente de velocidade e compatibilidade para listas em acesso dire
 - retoma automaticamente o mesmo canal, filme ou episódio na lista reserva;
 - preserva a posição ao alternar fonte ou lista durante filmes e episódios;
 - migra favoritos e progresso para identidades estáveis entre listas equivalentes;
+- registra um ID seguro que liga aparelho, failover, cache e painel sem expor a URL da lista;
+- remove URLs, usuários, senhas e tokens das mensagens de diagnóstico;
 - exibe as áreas que responderam mesmo quando uma seção do provedor falha.

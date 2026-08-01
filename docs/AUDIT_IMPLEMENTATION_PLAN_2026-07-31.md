@@ -138,7 +138,7 @@ Rollback: restaurar primeiro as duas Edge Functions anteriores. As RPCs novas po
 
 ### Lote 5 — continuidade no aparelho
 
-Status: implementado na branch `agent/failover-continuity`; validações locais aprovadas e build Android pendente do CI.
+Status: concluído e mesclado no PR #185; Android, LG, Samsung, banco e Vercel aprovados no CI.
 
 - Recuperar automaticamente o mesmo canal, filme ou episódio depois da troca de lista no Android.
 - Padronizar motivo, tentativa e resultado do failover entre Android, LG e Samsung.
@@ -146,10 +146,16 @@ Status: implementado na branch `agent/failover-continuity`; validações locais 
 
 ### Lote 6 — diagnóstico e saneamento
 
+Status: implementado na branch `agent/diagnostics-security`; PostgreSQL/pgTAP, Deno e Android pendentes do CI.
+
 - Adicionar identificadores de correlação e tentativa entre painel, cache e aparelho.
 - Criar diagnóstico dirigido sem registrar URL completa, usuário ou senha.
 - Sanear auditorias históricas que possam conter credenciais de listas.
 - Decidir se contas autoexcluídas também terão o usuário do Supabase Auth removido depois de uma janela adicional.
+
+Decisão: a exclusão lógica cria uma fila privada e concede mais sete dias de recuperação. Depois
+desse prazo, uma Edge Function idempotente remove o usuário pelo Admin API; a migration nunca
+executa `delete` direto em `auth.users`.
 
 ### Diagnóstico visual — obrigatório antes do lote 7
 
@@ -175,3 +181,5 @@ Status: implementado na branch `agent/failover-continuity`; validações locais 
 - Lote 4: `npm run verify`, typecheck/build da Smart TV, versões únicas de migration e `git diff --check` aprovados localmente.
 - Lote 4: PRs #183 e #184 mesclados com reset das 43 migrations, lint e 320 testes pgTAP aprovados.
 - Lote 5: `npm run verify`, typecheck/build da Smart TV e `git diff --check` aprovados localmente.
+- Lote 5: PR #185 mesclado com todos os 10 checks aprovados, incluindo os dois builds Android.
+- Lote 6: `npm run verify`, 44 migrations únicas, typecheck/build da Smart TV e saneador Deno aprovados localmente.

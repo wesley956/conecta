@@ -33,7 +33,12 @@ class ActivationViewModel(application: Application) : AndroidViewModel(applicati
         load { repository.resetAndActivate(isTelevision) }
     }
 
-    fun reportPlaylistFailure(playlistId: String?, error: String) {
+    fun reportPlaylistFailure(
+        playlistId: String?,
+        error: String,
+        correlationId: String,
+        failoverAttemptId: String,
+    ) {
         val normalizedId = playlistId?.trim().orEmpty()
         if (normalizedId.isEmpty()) return
 
@@ -42,6 +47,8 @@ class ActivationViewModel(application: Application) : AndroidViewModel(applicati
                 repository.reportPlaylistFailure(
                     playlistId = normalizedId,
                     error = error,
+                    correlationId = correlationId,
+                    failoverAttemptId = failoverAttemptId,
                 )
             }
         }

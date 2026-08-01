@@ -43,7 +43,12 @@ class DeviceSessionRepository(context: Context) {
         return activate(isTelevision)
     }
 
-    suspend fun reportPlaylistFailure(playlistId: String, error: String) {
+    suspend fun reportPlaylistFailure(
+        playlistId: String,
+        error: String,
+        correlationId: String,
+        failoverAttemptId: String,
+    ) {
         val deviceCode = identityStore.getDeviceCode() ?: return
         val credential = credentialStore.load() ?: return
 
@@ -54,6 +59,8 @@ class DeviceSessionRepository(context: Context) {
             playlistHealthId = playlistId,
             playlistHealthStatus = "failure",
             playlistHealthError = error,
+            correlationId = correlationId,
+            failoverAttemptId = failoverAttemptId,
         )
     }
 

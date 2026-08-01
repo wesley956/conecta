@@ -22,6 +22,8 @@ interface DeviceResponse {
 }
 export interface PlaybackDiagnosticReport {
   clientEventId: string;
+  correlationId?: string;
+  failoverAttemptId?: string;
   playlistId?: string | null;
   contentType: "channel" | "movie" | "series" | "episode" | "unknown";
   contentTitle?: string;
@@ -136,7 +138,17 @@ export async function fetchConfiguration(): Promise<DeviceSession> {
   if (body.deviceCode && body.deviceCode !== deviceCode) writeStored("deviceCode", body.deviceCode);
   return mapResponse(response.status, body);
 }
-async function reportPlaylistHealth(playlistId: string, status: "success" | "failure", error?: string): Promise<void> {
+interface PlaylistHealthContext {
+  correlationId?: string;
+  failoverAttemptId?: string;
+}
+
+async function reportPlaylistHealth(
+  playlistId: string,
+  status: "success" | "failure",
+  error?: string,
+  context: PlaylistHealthContext = {}
+): Promise<void> {
   const deviceCode = readStored("deviceCode");
   const credential = readStored("deviceCredential");
   if (!deviceCode || !credential || !playlistId) return;
@@ -146,12 +158,18 @@ async function reportPlaylistHealth(playlistId: string, status: "success" | "fai
     playlistHealth: {
       playlistId,
       status,
-      ...(error ? { error: error.slice(0, 500) } : {})
+      ...(error ? { error: error.slice(0, 500) } : {}),
+      ...(context.correlationId ? { correlationId: context.correlationId } : {}),
+      ...(context.failoverAttemptId ? { failoverAttemptId: context.failoverAttemptId } : {})
     }
   }, credential);
 }
-export async function reportPlaylistFailure(playlistId: string, error: string): Promise<void> {
-  await reportPlaylistHealth(playlistId, "failure", error);
+export async function reportPlaylistFailure(
+  playlistId: string,
+  error: string,
+  context: PlaylistHealthContext = {}
+): Promise<void> {
+  await reportPlaylistHealth(playlistId, "failure", error, context);
 }
 export async function reportPlaylistSuccess(playlistId: string): Promise<void> {
   await reportPlaylistHealth(playlistId, "success");

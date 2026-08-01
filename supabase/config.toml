@@ -94,6 +94,9 @@ verify_jwt = true
 [functions.seller-delete]
 verify_jwt = true
 
+[functions.seller-auth-cleanup]
+verify_jwt = true
+
 [functions.seller-panel]
 verify_jwt = true
 

@@ -347,7 +347,9 @@ fun RonecaPlayTVApp(
         }
         activationViewModel.reportPlaylistFailure(
             playlistId = failedPlaylistId,
-            error = "$reason • tentativa $attemptId",
+            error = reason,
+            correlationId = attemptId,
+            failoverAttemptId = attemptId,
         )
 
         failoverInProgress = true

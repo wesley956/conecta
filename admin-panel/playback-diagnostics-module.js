@@ -161,7 +161,7 @@
           </div>
           <div id="pdAdminStats" class="pd-stats"></div>
           <div class="pd-filters">
-            <div><label for="pdAdminSearch">Buscar</label><input id="pdAdminSearch" placeholder="Aparelho, cliente, conteúdo, lista ou erro" /></div>
+            <div><label for="pdAdminSearch">Buscar</label><input id="pdAdminSearch" placeholder="Aparelho, conteúdo, erro ou ID de correlação" /></div>
             <div><label for="pdAdminSeverity">Gravidade</label><select id="pdAdminSeverity"><option value="">Todas</option><option value="critical">Crítica</option><option value="high">Alta</option><option value="medium">Média</option><option value="low">Baixa</option></select></div>
             <div><label for="pdAdminSource">Origem provável</label><select id="pdAdminSource"><option value="">Todas</option><option value="content">Conteúdo</option><option value="network">Conexão</option><option value="playlist">Lista</option><option value="app">Aplicativo</option><option value="device">Aparelho</option><option value="unknown">Não identificada</option></select></div>
             <div><label for="pdAdminStatus">Situação</label><select id="pdAdminStatus"><option value="">Todas</option><option value="open">Aberto</option><option value="investigating">Investigando</option><option value="resolved">Resolvido</option><option value="ignored">Ignorado</option></select></div>
@@ -293,6 +293,9 @@
         <div class="pd-detail-box"><small>Origem provável</small><strong>${esc(record.probableSourceLabel || 'Não identificada')}</strong></div>
         <div class="pd-detail-box"><small>Tentativas</small><strong>${Number(record.retryCount || 0)}</strong></div>
         <div class="pd-detail-box"><small>Lista reserva</small><strong>${record.backupAvailable ? 'Disponível' : 'Não configurada'}</strong></div>
+        <div class="pd-detail-box wide"><small>ID de correlação</small><strong>${esc(record.correlationId || 'Não informado')}</strong></div>
+        <div class="pd-detail-box wide"><small>Tentativa de failover</small><strong>${esc(record.failoverAttemptId || 'Não informada')}</strong></div>
+        <div class="pd-detail-box wide"><small>Tentativa de cache</small><strong>${esc(record.cacheAttemptId || 'Não informada')}</strong></div>
         <div class="pd-detail-box wide"><small>Erro registrado</small><strong>${esc(record.errorCode || 'PLAYBACK_ERROR')} · ${esc(record.errorMessage || 'Sem mensagem')}</strong></div>
         <div class="pd-detail-box wide"><small>Resposta do aplicativo</small><strong>${esc(record.recoveryAction || 'Nenhuma ação informada')}</strong></div>
         <div class="pd-detail-box wide"><small>Observação administrativa</small><strong>${esc(record.adminNotes || 'Sem observação')}</strong></div>

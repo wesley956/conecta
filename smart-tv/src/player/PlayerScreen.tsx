@@ -86,6 +86,8 @@ export function PlayerScreen({
     playerExited = false
   ): PlaybackDiagnosticReport => ({
     clientEventId: activeDiagnosticEvent.current,
+    correlationId: activeDiagnosticEvent.current,
+    failoverAttemptId: activeDiagnosticEvent.current,
     playlistId,
     contentType: item.kind ?? (item.live ? "channel" : "unknown"),
     contentTitle: item.name,

@@ -285,7 +285,10 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
     }));
 
     try {
-      await reportPlaylistFailure(failedId, reason);
+      await reportPlaylistFailure(failedId, reason, {
+        correlationId: attemptId,
+        failoverAttemptId: attemptId
+      });
       const freshSession = await renewConfiguration();
       const available = candidates(freshSession);
       const currentIndex = available.findIndex(item => item.id === failedId);
