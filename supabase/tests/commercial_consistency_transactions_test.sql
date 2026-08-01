@@ -263,6 +263,10 @@ select is(
   'Falha de reserva preserva o saldo'
 );
 
+update public.panel_devices
+set seller_id = '00000000-0000-0000-0000-00000000c001'
+where id = '00000000-0000-0000-0000-00000000c402';
+
 select lives_ok(
   $$select * from public.set_device_playlists_transaction(
     '00000000-0000-0000-0000-00000000c402',
