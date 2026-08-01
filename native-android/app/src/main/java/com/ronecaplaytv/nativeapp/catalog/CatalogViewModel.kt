@@ -25,10 +25,17 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         channelsUrl: String?,
         moviesUrl: String?,
         seriesUrl: String?,
+        selectedPlaylistId: String? = null,
         playlists: List<DevicePlaylistConfig> = emptyList(),
         force: Boolean = false,
     ) {
-        val candidates = playlistCandidates(channelsUrl, moviesUrl, seriesUrl, playlists)
+        val candidates = playlistCandidates(
+            channelsUrl,
+            moviesUrl,
+            seriesUrl,
+            selectedPlaylistId,
+            playlists,
+        )
         val key = candidates.joinToString("|") {
             listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl).joinToString(":")
         }
@@ -212,17 +219,22 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         channelsUrl: String?,
         moviesUrl: String?,
         seriesUrl: String?,
+        selectedPlaylistId: String?,
         playlists: List<DevicePlaylistConfig>,
     ) = buildList {
         playlists
             .filter(DevicePlaylistConfig::hasCatalogParts)
-            .sortedBy(DevicePlaylistConfig::priority)
+            .sortedWith(
+                compareBy<DevicePlaylistConfig> {
+                    if (it.id == selectedPlaylistId) 0 else 1
+                }.thenBy(DevicePlaylistConfig::priority),
+            )
             .forEach(::add)
 
         if (isEmpty() && (channelsUrl != null || moviesUrl != null || seriesUrl != null)) {
             add(
                 DevicePlaylistConfig(
-                    id = "selected",
+                    id = selectedPlaylistId ?: "selected",
                     name = "Lista selecionada",
                     priority = 1,
                     role = "primary",

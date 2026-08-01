@@ -97,7 +97,7 @@ export async function requirePanelPrincipal(
 
     const { data: seller, error: sellerError } = await supabase
       .from('panel_sellers')
-      .select('id, status')
+      .select('id, status, access_expires_at, deleted_at')
       .eq('id', sellerId)
       .maybeSingle();
 
@@ -110,8 +110,15 @@ export async function requirePanelPrincipal(
       throw new PanelAuthError('Falha ao validar acesso do vendedor.', 500);
     }
 
-    if (!seller || seller.status !== 'active') {
+    if (!seller || seller.deleted_at || seller.status !== 'active') {
       throw new PanelAuthError('Vendedor bloqueado ou inativo.', 403);
+    }
+
+    if (
+      seller.access_expires_at &&
+      new Date(seller.access_expires_at).getTime() <= Date.now()
+    ) {
+      throw new PanelAuthError('O período de acesso desta conta terminou. Solicite a renovação.', 403);
     }
   }
 

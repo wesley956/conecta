@@ -1,5 +1,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
+import { buildXtreamApiUrl, parseXtreamSource } from '../_shared/xtreamSource.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,61 +57,22 @@ function timingSafeEqual(left: string, right: string) {
   return difference === 0;
 }
 
-function privateHost(host: string) {
-  const normalized = host.trim().toLowerCase().replace(/^\[|\]$/g, '').split('%')[0];
-  if (
-    normalized === 'localhost' || normalized.endsWith('.local') || normalized === '::1' ||
-    normalized.startsWith('fc') || normalized.startsWith('fd') ||
-    /^fe[89ab]/.test(normalized)
-  ) return true;
-  const parts = normalized.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(value => !Number.isInteger(value) || value < 0 || value > 255)) {
-    return false;
-  }
-  const [a, b] = parts;
-  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
-}
-
-function xtreamSource(raw: string) {
-  try {
-    const url = new URL(raw);
-    const username = url.searchParams.get('username') || '';
-    const password = url.searchParams.get('password') || '';
-    if (!['http:', 'https:'].includes(url.protocol) || privateHost(url.hostname) || !username || !password) {
-      return null;
-    }
-    return { origin: url.origin, hostname: url.hostname, username, password };
-  } catch {
-    return null;
-  }
-}
-
-async function providerJson(url: string, allowedHost: string) {
+async function providerJson(url: string, allowedOrigin: string) {
   const target = new URL(url);
-  if (target.hostname.toLowerCase() !== allowedHost.toLowerCase() || privateHost(target.hostname)) {
+  if (target.origin !== allowedOrigin) {
     throw new Error('UPSTREAM_BLOCKED');
   }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
-  try {
-    const response = await fetch(target, {
-      redirect: 'error',
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/json, text/plain, */*',
-        'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
-      },
-    });
-    const declared = Number(response.headers.get('content-length') || 0);
-    if (declared > 2 * 1024 * 1024) throw new Error('UPSTREAM_TOO_LARGE');
-    const raw = await response.text();
-    if (new TextEncoder().encode(raw).byteLength > 2 * 1024 * 1024) throw new Error('UPSTREAM_TOO_LARGE');
-    if (!response.ok) throw new Error(`UPSTREAM_HTTP_${response.status}`);
-    return JSON.parse(raw);
-  } finally {
-    clearTimeout(timeout);
-  }
+  const raw = await safeFetchPlaylistText(target.toString(), {
+    label: 'Programação do canal',
+    timeoutMs: 20_000,
+    maxBytes: 2 * 1024 * 1024,
+    allowedOrigins: [allowedOrigin],
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+      'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
+    },
+  });
+  return JSON.parse(raw);
 }
 
 function decoded(value: unknown) {
@@ -216,17 +179,14 @@ serve(async req => {
   }
 
   for (const assignment of assignments) {
-    const source = xtreamSource(assignment.playlist.playlist_url);
+    const source = parseXtreamSource(assignment.playlist.playlist_url);
     if (!source) continue;
-    const query = new URLSearchParams({
-      username: source.username,
-      password: source.password,
-      action: 'get_short_epg',
-      stream_id: streamId,
-      limit: '4',
-    });
     try {
-      const listing = programs(await providerJson(`${source.origin}/player_api.php?${query}`, source.hostname));
+      const target = buildXtreamApiUrl(source, 'get_short_epg', {
+        stream_id: streamId,
+        limit: '4',
+      });
+      const listing = programs(await providerJson(target, source.origin));
       return json({
         available: listing.length > 0,
         programs: listing,

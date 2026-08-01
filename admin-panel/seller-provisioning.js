@@ -89,7 +89,11 @@
       .forEach(function (id) { var field = byId(id); if (field) field.value = ''; });
     ['newSellerInitialCredits','uxNewSellerInitialCredits']
       .forEach(function (id) { var field = byId(id); if (field) field.value = '0'; });
-    ['newSellerCanGoNegative','uxNewSellerCanGoNegative']
+    ['newSellerAccessDurationHours','uxNewSellerAccessDurationHours']
+      .forEach(function (id) { var field = byId(id); if (field) field.value = '0'; });
+    ['newSellerAutoDeleteGraceHours','uxNewSellerAutoDeleteGraceHours']
+      .forEach(function (id) { var field = byId(id); if (field) field.value = '36'; });
+    ['newSellerCanGoNegative','uxNewSellerCanGoNegative','newSellerAutoDeleteAfterExpiry','uxNewSellerAutoDeleteAfterExpiry']
       .forEach(function (id) { var field = byId(id); if (field) field.checked = false; });
   }
 
@@ -151,6 +155,9 @@
         password: password,
         initialCredits: Number(byId('newSellerInitialCredits')?.value || 0),
         canGoNegative: Boolean(byId('newSellerCanGoNegative')?.checked),
+        accessDurationHours: Number(byId('newSellerAccessDurationHours')?.value || 0),
+        autoDeleteAfterExpiry: Boolean(byId('newSellerAutoDeleteAfterExpiry')?.checked),
+        autoDeleteGraceHours: Number(byId('newSellerAutoDeleteGraceHours')?.value || 36),
       });
       clearSellerFields();
       if (typeof global.loadAll === 'function') await global.loadAll();
@@ -194,6 +201,8 @@
       ['newSellerName','uxNewSellerName'], ['newSellerWhatsapp','uxNewSellerWhatsapp'],
       ['newSellerEmail','uxNewSellerEmail'], ['newSellerPassword','uxNewSellerPassword'],
       ['newSellerInitialCredits','uxNewSellerInitialCredits'],
+      ['newSellerAccessDurationHours','uxNewSellerAccessDurationHours'],
+      ['newSellerAutoDeleteGraceHours','uxNewSellerAutoDeleteGraceHours'],
     ];
     pairs.forEach(function (pair) {
       var target = byId(pair[0]); var source = byId(pair[1]);
@@ -202,9 +211,42 @@
     var targetCheck = byId('newSellerCanGoNegative');
     var sourceCheck = byId('uxNewSellerCanGoNegative');
     if (targetCheck && sourceCheck) targetCheck.checked = sourceCheck.checked;
+    var targetAutoDelete = byId('newSellerAutoDeleteAfterExpiry');
+    var sourceAutoDelete = byId('uxNewSellerAutoDeleteAfterExpiry');
+    if (targetAutoDelete && sourceAutoDelete) targetAutoDelete.checked = sourceAutoDelete.checked;
     var created = await global.createSeller();
     if (created && typeof global.closeCommercialActionModal === 'function') global.closeCommercialActionModal();
     return created;
+  };
+
+  global.configureSellerTemporaryAccess = async function configureSellerTemporaryAccess(sellerId) {
+    try {
+      var durationHours = Number(byId('seller-access-duration-' + sellerId)?.value || 0);
+      var graceHours = Number(byId('seller-access-grace-' + sellerId)?.value || 36);
+      if (!Number.isFinite(durationHours) || durationHours < 0 || durationHours > 8760) {
+        throw new Error('Informe uma validade entre 0 e 8760 horas.');
+      }
+      if (!Number.isFinite(graceHours) || graceHours < 1 || graceHours > 720) {
+        throw new Error('Informe uma tolerância entre 1 e 720 horas.');
+      }
+      var autoDelete = durationHours > 0 && Boolean(byId('seller-access-auto-delete-' + sellerId)?.checked);
+
+      if (typeof global.show === 'function') global.show('Atualizando a validade da conta...');
+      var result = await callProtectedFunction('admin-panel', {
+        action: 'configureSellerTemporaryAccess',
+        sellerId: sellerId,
+        durationHours: Math.floor(durationHours),
+        autoDeleteAfterExpiry: autoDelete,
+        autoDeleteGraceHours: Math.floor(graceHours),
+      });
+      if (typeof global.closeDetails === 'function') global.closeDetails();
+      if (typeof global.loadAll === 'function') await global.loadAll();
+      if (typeof global.show === 'function') global.show(result.message || 'Validade da conta atualizada.');
+      return true;
+    } catch (error) {
+      if (typeof global.show === 'function') global.show(error?.message || 'Falha ao atualizar a validade.', true);
+      return false;
+    }
   };
 
   global.deleteSellerAccount = async function deleteSellerAccount(sellerId) {

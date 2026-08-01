@@ -5,6 +5,7 @@ dist/
 .env.local
 .env.*.local
 *.log
+*.tsbuildinfo
 
 # Configuração pública gerada no deploy do painel
 admin-panel/panel-config.js

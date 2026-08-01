@@ -66,6 +66,8 @@
       const creditsAdded = ledger.filter(entry => Number(entry.amount || 0) > 0).reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
       const creditsConsumed = Math.abs(ledger.filter(entry => Number(entry.amount || 0) < 0).reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
       const balance = Number(seller.creditBalance || 0);
+      const accessExpiry = seller.accessExpiresAt ? fmtDate(seller.accessExpiresAt) : 'Sem vencimento';
+      const scheduledDeletion = seller.scheduledDeletionAt ? fmtDate(seller.scheduledDeletionAt) : 'Não agendada';
 
       const recentLedger = ledger.slice(0, 8).map(entry => {
         const amount = Number(entry.amount || 0);
@@ -128,6 +130,24 @@
                 </div>
               </div>
             ` : ''}
+
+            <div class="seller-detail-section">
+              <h3>Validade da conta</h3>
+              <p class="muted">Vencimento atual: <strong>${esc(accessExpiry)}</strong></p>
+              <p class="muted">Exclusão automática: <strong>${seller.autoDeleteAfterExpiry ? 'Ativada' : 'Desativada'}</strong> · ${esc(scheduledDeletion)}</p>
+              <label for="seller-access-duration-${esc(seller.id)}">Nova validade a partir de agora (horas)</label>
+              <input class="table-input" id="seller-access-duration-${esc(seller.id)}" type="number" min="0" max="8760" value="${seller.accessExpiresAt ? '24' : '0'}">
+              <p class="muted small" style="margin-top:6px;">Use 24 para renovar por 24 horas ou 0 para liberar sem vencimento.</p>
+              <label class="ux-check-row" style="margin-top:12px;">
+                <input id="seller-access-auto-delete-${esc(seller.id)}" type="checkbox" ${seller.autoDeleteAfterExpiry ? 'checked' : ''}>
+                Excluir automaticamente se não renovar
+              </label>
+              <label for="seller-access-grace-${esc(seller.id)}" style="margin-top:12px;">Tolerância depois do bloqueio (horas)</label>
+              <input class="table-input" id="seller-access-grace-${esc(seller.id)}" type="number" min="1" max="720" value="${Number(seller.autoDeleteGraceHours || 36)}">
+              <div class="actions" style="margin-top:12px;">
+                <button class="btn green" onclick="configureSellerTemporaryAccess('${esc(seller.id)}')">Salvar validade / renovar</button>
+              </div>
+            </div>
 
             <div class="seller-detail-section">
               <h3>Ações</h3>

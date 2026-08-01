@@ -124,7 +124,11 @@ async function download(url: string, signal: AbortSignal) {
 function candidates(session: DeviceSession): DevicePlaylist[] {
   const configured = session.playlists
     .filter(item => item.cacheParts)
-    .sort((left, right) => left.priority - right.priority);
+    .sort((left, right) =>
+      (left.id === session.selectedPlaylistId ? 0 : 1) -
+        (right.id === session.selectedPlaylistId ? 0 : 1) ||
+      left.priority - right.priority
+    );
   if (configured.length) return configured;
   if (!session.cacheParts) return [];
   return [{
@@ -193,15 +197,16 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             const data = await loadCatalog(candidate.cacheParts, controller.signal);
             if (controller.signal.aborted) return;
             activePlaylistId.current = candidate.id;
+            const usingBackup = index > 0 || candidate.role === "backup";
             setState({
               status: "ready",
               data,
-              message: index > 0 ? "Lista principal indisponível. Catálogo substituído pela lista reserva." : null,
+              message: usingBackup ? "Lista principal indisponível. Catálogo substituído pela lista reserva." : null,
               activePlaylistId: candidate.id,
               activePlaylistName: candidate.name,
-              usingBackupPlaylist: index > 0 || candidate.role === "backup",
+              usingBackupPlaylist: usingBackup,
               lastSuccessfulSync: new Date().toISOString(),
-              lastFailure: index > 0 ? "A lista principal não respondeu durante a sincronização." : null
+              lastFailure: usingBackup ? "O servidor selecionou a lista reserva para esta sincronização." : null
             });
             void reportPlaylistSuccess(candidate.id).catch(() => undefined);
             return;

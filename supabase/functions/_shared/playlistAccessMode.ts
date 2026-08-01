@@ -69,10 +69,10 @@ export function classifyPlaylistCacheFailure(
   const allHttp404 = messages.length > 0 && messages.every(message => /http 404/.test(message));
   if (supportsDirect && allHttp404 && allApplicableFailed) {
     return {
-      accessMode: 'direct',
-      code: 'DATACENTER_HTTP_404',
-      message: 'O provedor devolveu HTTP 404 ao servidor. O aparelho usará acesso direto.',
-      directEligible: true,
+      accessMode: 'blocked',
+      code: 'PROVIDER_ENDPOINT_NOT_FOUND',
+      message: 'O provedor não encontrou o endpoint solicitado. Confira o endereço antes de usar acesso direto.',
+      directEligible: false,
     };
   }
 

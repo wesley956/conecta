@@ -9,7 +9,7 @@ const files = {
   creditEdge: 'supabase/functions/credit-packages-panel/index.ts',
   financeMigration: 'supabase/migrations/2026072101_financial_module.sql',
   packageMigration: 'supabase/migrations/2026072601_credit_packages_private_finance.sql',
-  scopeGuardMigration: 'supabase/migrations/2026072602_financial_scope_guard.sql',
+  scopeGuardMigration: 'supabase/migrations/20260726125413_financial_scope_guard.sql',
   test: 'supabase/tests/financial_module_test.sql',
   loader: 'scripts/generate-panel-config.mjs',
 };

@@ -60,6 +60,9 @@ file_size_limit = "50MiB"
 [functions.device-config]
 verify_jwt = false
 
+[functions.device-config-direct]
+verify_jwt = false
+
 [functions.device-activate]
 verify_jwt = false
 

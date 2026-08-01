@@ -116,7 +116,7 @@ async function findSellerByCode(supabase: any, sellerCode: string | null) {
 
   const { data, error } = await supabase
     .from('panel_sellers')
-    .select('id, name, status, public_code')
+    .select('id, name, status, public_code, access_expires_at, deleted_at')
     .eq('public_code', sellerCode.toLowerCase())
     .maybeSingle();
 
@@ -126,7 +126,9 @@ async function findSellerByCode(supabase: any, sellerCode: string | null) {
 
   if (!data) return null;
 
-  if (data.status !== 'active') {
+  const accessExpired = data.access_expires_at &&
+    new Date(data.access_expires_at).getTime() <= Date.now();
+  if (data.deleted_at || data.status !== 'active' || accessExpired) {
     throw new Error('Código de vendedor bloqueado ou inativo.');
   }
 
@@ -139,44 +141,47 @@ async function upsertBasicCustomer(
   customerWhatsapp: string | null,
   sellerId: string | null,
 ) {
-  if (!customerName && !customerWhatsapp) return null;
+  if (!customerWhatsapp) return null;
 
   const safeName = customerName || 'Cliente sem nome';
-  const safeWhatsapp = customerWhatsapp || 'sem-whatsapp';
+  const safeWhatsapp = customerWhatsapp;
 
-  if (customerWhatsapp) {
-    const { data: existing, error: findError } = await supabase
+  const normalizedWhatsapp = customerWhatsapp.replace(/\D/g, '');
+  let existingQuery = supabase
       .from('panel_customers')
       .select('id, name, whatsapp, seller_id')
-      .eq('whatsapp', customerWhatsapp)
+      .eq('whatsapp_normalized', normalizedWhatsapp);
+  existingQuery = sellerId
+    ? existingQuery.eq('seller_id', sellerId)
+    : existingQuery.is('seller_id', null);
+
+  const { data: existing, error: findError } = await existingQuery
       .limit(1)
       .maybeSingle();
 
-    if (findError) {
-      throw new Error(`Falha ao buscar cliente: ${findError.message}`);
-    }
+  if (findError) {
+    throw new Error(`Falha ao buscar cliente: ${findError.message}`);
+  }
 
-    if (existing) {
-      const updates: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
+  if (existing) {
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
 
-      if (customerName && existing.name !== customerName) updates.name = customerName;
-      if (sellerId && !existing.seller_id) updates.seller_id = sellerId;
+    if (customerName && existing.name !== customerName) updates.name = customerName;
 
-      if (Object.keys(updates).length > 1) {
-        const { error: updateError } = await supabase
-          .from('panel_customers')
-          .update(updates)
-          .eq('id', existing.id);
+    if (Object.keys(updates).length > 1) {
+      const { error: updateError } = await supabase
+        .from('panel_customers')
+        .update(updates)
+        .eq('id', existing.id);
 
-        if (updateError) {
-          throw new Error(`Falha ao atualizar cliente: ${updateError.message}`);
-        }
+      if (updateError) {
+        throw new Error(`Falha ao atualizar cliente: ${updateError.message}`);
       }
-
-      return existing.id;
     }
+
+    return existing.id;
   }
 
   const { data: created, error: createError } = await supabase

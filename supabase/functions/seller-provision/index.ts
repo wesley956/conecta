@@ -63,6 +63,27 @@ function intOrDefault(value: unknown, fallback: number, minimum = 0) {
   return Math.max(minimum, Math.floor(parsed));
 }
 
+function accessDurationHours(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+    throw new Error('A validade deve ser informada em horas inteiras entre 0 e 8760.');
+  }
+  if (parsed === 0) return null;
+  if (parsed > 8760) throw new Error('A validade da conta não pode ultrapassar 1 ano.');
+  return parsed;
+}
+
+function graceHours(value: unknown) {
+  if (value === null || value === undefined || value === '') return 36;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    throw new Error('A tolerância deve ser informada em horas inteiras entre 1 e 720.');
+  }
+  if (parsed > 720) throw new Error('A tolerância para exclusão não pode ultrapassar 720 horas.');
+  return parsed;
+}
+
 function createLegacySellerAccessToken() {
   return crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
 }
@@ -94,6 +115,9 @@ serve(async request => {
     const password = normalizePassword(body.password);
     const initialCredits = intOrDefault(body.initialCredits, 0, 0);
     const canGoNegative = body.canGoNegative === true;
+    const durationHours = accessDurationHours(body.accessDurationHours);
+    const autoDelete = durationHours !== null && body.autoDeleteAfterExpiry === true;
+    const deleteGraceHours = graceHours(body.autoDeleteGraceHours);
     existingSellerId = String(body.existingSellerId ?? '').trim() || null;
 
     if (existingSellerId) {
@@ -167,6 +191,14 @@ serve(async request => {
     });
     if (roleError) throw new Error(`Não foi possível liberar o portal do vendedor: ${roleError.message}.`);
 
+    const { error: accessError } = await supabase.rpc('configure_seller_temporary_access', {
+      p_seller_id: createdSellerId,
+      p_duration_hours: durationHours,
+      p_auto_delete: autoDelete,
+      p_grace_hours: deleteGraceHours,
+    });
+    if (accessError) throw new Error(`Não foi possível configurar a validade do vendedor: ${accessError.message}.`);
+
     if (!existingSellerId && initialCredits > 0) {
       const { error: ledgerError } = await supabase.from('panel_credit_ledger').insert({
         seller_id: createdSellerId,
@@ -189,7 +221,17 @@ serve(async request => {
       entity_type: 'seller',
       entity_id: createdSellerId,
       description: auditDescription,
-      metadata: { email, whatsapp, initialCredits, authUserId: createdUserId, performedByUserId: principal.userId, migrated: Boolean(existingSellerId) },
+      metadata: {
+        email,
+        whatsapp,
+        initialCredits,
+        authUserId: createdUserId,
+        performedByUserId: principal.userId,
+        migrated: Boolean(existingSellerId),
+        accessDurationHours: durationHours,
+        autoDeleteAfterExpiry: autoDelete,
+        autoDeleteGraceHours: deleteGraceHours,
+      },
     });
     if (auditError) throw new Error(`Não foi possível registrar a auditoria: ${auditError.message}.`);
 
@@ -199,6 +241,9 @@ serve(async request => {
       userId: createdUserId,
       email,
       migrated: Boolean(existingSellerId),
+      accessDurationHours: durationHours,
+      autoDeleteAfterExpiry: autoDelete,
+      autoDeleteGraceHours: deleteGraceHours,
       message: existingSellerId
         ? 'Login do vendedor antigo liberado sem alterar saldo, aparelhos ou movimentações.'
         : 'Vendedor cadastrado e acesso ao portal liberado.',
