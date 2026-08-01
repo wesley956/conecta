@@ -20,6 +20,8 @@ for (const required of [
   'pg_advisory_xact_lock',
   "set search_path = ''",
   'for update',
+  "pg_catalog.to_regclass('public.panel_subscriptions')",
+  "pg_catalog.to_regclass('public.panel_subscription_playlists')",
   'from public, anon, authenticated',
   'to service_role',
 ]) {
@@ -33,6 +35,8 @@ for (const required of [
   'Vendedor não remove lista usada',
   'Aparelho promove a reserva na mesma transação',
   'Exclusão sem reserva é bloqueada',
+  'Legado sem domínio de assinaturas exclui a lista atomicamente',
+  'Legado sem domínio de assinaturas preserva a reserva promovida',
 ]) {
   assert.ok(source.test.includes(required), `Cobertura pgTAP ausente: ${required}`);
 }
