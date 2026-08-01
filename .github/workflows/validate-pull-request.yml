@@ -57,6 +57,49 @@ jobs:
           npm run check:commercial-security
           npm run check:responsive-operations
 
+  browser-e2e:
+    name: Browser E2E — admin, seller and Smart TV
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            smart-tv/package-lock.json
+
+      - name: Install browser test dependencies
+        run: |
+          npm ci
+          npm ci --prefix smart-tv
+
+      - name: Run isolated end-to-end stories
+        shell: bash
+        run: |
+          set -euo pipefail
+          chrome_path="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          if [ -z "${chrome_path}" ]; then
+            echo '::error::Chrome ou Chromium não está disponível no runner.'
+            exit 1
+          fi
+          CHROME_PATH="${chrome_path}" npm run check:end-to-end
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-evidence
+          path: artifacts/e2e
+          if-no-files-found: warn
+          retention-days: 7
+
   smart-tv:
     name: LG webOS and Samsung Tizen
     runs-on: ubuntu-latest
