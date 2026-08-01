@@ -45,6 +45,7 @@ jobs:
           npm run check:subscriptions
           npm run check:app-release
           npm run check:layout-foundations
+          npm run check:tv-experience
 
       - name: Validate native-only architecture
         run: node scripts/check-native-only.mjs

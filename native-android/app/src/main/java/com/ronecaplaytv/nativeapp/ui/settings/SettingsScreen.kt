@@ -170,7 +170,7 @@ fun SettingsScreen(
         }
         item {
             InfoSettingRow(
-                title = "RonecaPlayTV Native",
+                title = "Roneca Player TV",
                 subtitle = "Versão ${BuildConfig.VERSION_NAME} • Android TV, TV Box, celular e tablet",
                 value = "NATIVO",
                 isTelevision = isTelevision,

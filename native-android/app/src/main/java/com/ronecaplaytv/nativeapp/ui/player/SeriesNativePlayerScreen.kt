@@ -505,7 +505,7 @@ fun SeriesNativePlayerScreen(
         RonecaMedia3PlayerView(
             player = player,
             title = chromeTitle,
-            eyebrow = "RONECAPLAYTV • SÉRIE",
+            eyebrow = "RONECA PLAYER TV • SÉRIE",
             live = false,
             isTelevision = isTelevision,
             drawerLabel = "Episódios",
