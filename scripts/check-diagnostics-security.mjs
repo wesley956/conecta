@@ -12,6 +12,7 @@ const migration = read('supabase/migrations/20260801060000_diagnostics_security_
 const safety = read('supabase/functions/_shared/diagnosticSafety.ts');
 const report = read('supabase/functions/playback-diagnostics-report/index.ts');
 const deviceConfig = read('supabase/functions/device-config/index.ts');
+const deviceActivate = read('supabase/functions/device-activate/index.ts');
 const cache = read('supabase/functions/playlist-cache/index.ts');
 const cleanup = read('supabase/functions/seller-auth-cleanup/index.ts');
 const panel = read('supabase/functions/playback-diagnostics-panel/index.ts');
@@ -35,6 +36,8 @@ expect(!migration.includes('delete from auth.users'), 'Migration não pode exclu
 for (const source of [safety, report, deviceConfig, cache]) {
   expect(source.includes('safeDiagnostic'), 'Entrada ou saída diagnóstica sem saneamento compartilhado.');
 }
+expect(!deviceConfig.includes("supabase-js@2'"), 'device-config não pode depender de versão flutuante do SDK.');
+expect(!deviceActivate.includes("supabase-js@2'"), 'device-activate não pode depender de versão flutuante do SDK.');
 expect(report.includes('cache_attempt_id'), 'Relatório não liga falha à tentativa de cache.');
 expect(report.includes('failover_attempt_id'), 'Relatório não liga falha ao failover.');
 expect(deviceConfig.includes('last_correlation_id'), 'Saúde da lista não persiste correlação.');

@@ -107,14 +107,15 @@ select ok(
 
 insert into public.panel_playback_diagnostics (
   device_id, playlist_id, device_code_snapshot, content_title,
-  error_message, client_event_id
+  error_message, client_event_id, source
 ) values (
   '00000000-0000-0000-0000-000000009602',
   '00000000-0000-0000-0000-000000009601',
   'RPTV-CORRELATION',
   'Filme de teste',
   'Erro em https://provider.invalid/movie/alice/secret/42.mp4',
-  'smart-tv:webos:diagnostic:1'
+  'smart-tv:webos:diagnostic:1',
+  'smart_tv_client'
 );
 select is(
   (select correlation_id from public.panel_playback_diagnostics where client_event_id = 'smart-tv:webos:diagnostic:1'),
