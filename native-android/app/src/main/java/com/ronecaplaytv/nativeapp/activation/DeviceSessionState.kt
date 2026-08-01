@@ -15,6 +15,7 @@ data class DeviceSessionState(
     val clientName: String? = null,
     val expiresAt: String? = null,
     val playlistName: String? = null,
+    val selectedPlaylistId: String? = null,
     val cacheSnapshotUrl: String? = null,
     val channelsUrl: String? = null,
     val moviesUrl: String? = null,

@@ -90,6 +90,14 @@ function inferPlaylistType(playlistUrl: string, requestedType: unknown) {
   return normalizePlaylistType(requestedType);
 }
 
+function playlistAuditHost(playlistUrl: string) {
+  try {
+    return new URL(playlistUrl).host.toLowerCase();
+  } catch {
+    return 'invalid-url';
+  }
+}
+
 function normalizeWhatsapp(value: unknown) {
   return String(value ?? '')
     .replace(/[^\d+]/g, '')
@@ -123,6 +131,17 @@ function intOrDefault(value: unknown, fallback: number, min = 0) {
   if (!Number.isFinite(num)) return fallback;
 
   return Math.max(min, Math.floor(num));
+}
+
+function temporaryAccessDuration(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+    throw new Error('A validade deve ser informada em horas inteiras entre 0 e 8760.');
+  }
+  if (parsed === 0) return null;
+  if (parsed > 8760) throw new Error('A validade da conta não pode ultrapassar 1 ano.');
+  return parsed;
 }
 
 
@@ -352,7 +371,8 @@ serve(async (req) => {
     if (action === 'listCommercialData') {
       const { data: sellers, error: sellersError } = await supabase
         .from('panel_sellers')
-        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, created_at, updated_at, public_code')
+        .select('id, name, whatsapp, email, status, credit_balance, can_go_negative, access_token, created_at, updated_at, public_code, access_expires_at, auto_delete_after_expiry, auto_delete_grace_hours, blocked_at, scheduled_deletion_at')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (sellersError) return json({ error: sellersError.message }, 500);
@@ -398,6 +418,11 @@ serve(async (req) => {
           canGoNegative: seller.can_go_negative,
           accessToken: seller.access_token || null,
           publicCode: seller.public_code || null,
+          accessExpiresAt: seller.access_expires_at || null,
+          autoDeleteAfterExpiry: seller.auto_delete_after_expiry === true,
+          autoDeleteGraceHours: Number(seller.auto_delete_grace_hours || 36),
+          blockedAt: seller.blocked_at || null,
+          scheduledDeletionAt: seller.scheduled_deletion_at || null,
           createdAt: seller.created_at,
           updatedAt: seller.updated_at,
         })),
@@ -521,6 +546,45 @@ serve(async (req) => {
       });
 
       return json({ ok: true });
+    }
+
+    if (action === 'configureSellerTemporaryAccess') {
+      const sellerId = requiredText(body.sellerId || body.id, 'ID do vendedor');
+      if (!('durationHours' in body)) return json({ error: 'Informe a nova validade da conta.' }, 400);
+      const durationHours = temporaryAccessDuration(body.durationHours);
+      const autoDelete = durationHours !== null && body.autoDeleteAfterExpiry === true;
+      const graceHours = intOrDefault(body.autoDeleteGraceHours, 36, 1);
+      if (graceHours > 720) return json({ error: 'A tolerância não pode ultrapassar 720 horas.' }, 400);
+
+      const { data, error } = await supabase.rpc('configure_seller_temporary_access', {
+        p_seller_id: sellerId,
+        p_duration_hours: durationHours,
+        p_auto_delete: autoDelete,
+        p_grace_hours: graceHours,
+      });
+      if (error) return json({ error: error.message }, 400);
+
+      await writeAudit(supabase, {
+        action: 'seller.temporary_access_configured',
+        entityType: 'seller',
+        entityId: sellerId,
+        description: durationHours === null
+          ? 'Conta do vendedor liberada sem vencimento'
+          : `Conta do vendedor liberada por ${durationHours} hora(s)`,
+        metadata: {
+          durationHours,
+          autoDeleteAfterExpiry: autoDelete,
+          autoDeleteGraceHours: graceHours,
+        },
+      });
+
+      return json({
+        ok: true,
+        access: Array.isArray(data) ? data[0] : data,
+        message: durationHours === null
+          ? 'Conta renovada e liberada sem vencimento.'
+          : `Conta renovada por ${durationHours} hora(s).`,
+      });
     }
 
     if (action === 'refreshPlaylistCache') {
@@ -1249,7 +1313,11 @@ serve(async (req) => {
         entityType: 'playlist',
         entityId: data?.id ?? null,
         description: `Lista criada: ${name}`,
-        metadata: { name, playlistUrl, playlistType },
+        metadata: {
+          name,
+          playlistType,
+          playlistHost: playlistAuditHost(playlistUrl),
+        },
       });
 
       return json({
@@ -1303,7 +1371,17 @@ serve(async (req) => {
         entityType: 'playlist',
         entityId: id,
         description: 'Lista atualizada',
-        metadata: { updates },
+        metadata: {
+          changedFields: Object.keys(updates)
+            .filter(field => field !== 'playlist_updated_at')
+            .map(field => field === 'playlist_url' ? 'playlist_credentials' : field),
+          ...('playlist_url' in updates
+            ? { playlistHost: playlistAuditHost(String(updates.playlist_url)) }
+            : {}),
+          ...('playlist_type' in updates
+            ? { playlistType: String(updates.playlist_type) }
+            : {}),
+        },
       });
 
       return json({

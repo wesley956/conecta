@@ -119,6 +119,7 @@ class DeviceSessionRepository(context: Context) {
         clientName = clientName,
         expiresAt = expiresAt,
         playlistName = playlistName,
+        selectedPlaylistId = selectedPlaylistId,
         cacheSnapshotUrl = cacheSnapshotUrl,
         channelsUrl = channelsUrl,
         moviesUrl = moviesUrl,

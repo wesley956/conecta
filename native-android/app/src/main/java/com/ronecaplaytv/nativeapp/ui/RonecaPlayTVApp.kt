@@ -225,6 +225,7 @@ fun RonecaPlayTVApp(
         sessionState.channelsUrl,
         sessionState.moviesUrl,
         sessionState.seriesUrl,
+        sessionState.selectedPlaylistId,
         sessionState.playlists,
     ) {
         if (sessionState.isActive) {
@@ -232,6 +233,7 @@ fun RonecaPlayTVApp(
                 channelsUrl = sessionState.channelsUrl,
                 moviesUrl = sessionState.moviesUrl,
                 seriesUrl = sessionState.seriesUrl,
+                selectedPlaylistId = sessionState.selectedPlaylistId,
                 playlists = sessionState.playlists,
             )
         }
@@ -261,6 +263,7 @@ fun RonecaPlayTVApp(
             channelsUrl = sessionState.channelsUrl,
             moviesUrl = sessionState.moviesUrl,
             seriesUrl = sessionState.seriesUrl,
+            selectedPlaylistId = sessionState.selectedPlaylistId,
             playlists = sessionState.playlists,
             force = true,
         )

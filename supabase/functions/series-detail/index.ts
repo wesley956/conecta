@@ -1,5 +1,12 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
+import {
+  buildXtreamApiUrl,
+  buildXtreamStreamUrl,
+  parseXtreamSource,
+  type XtreamSource,
+} from '../_shared/xtreamSource.ts';
 
 const CACHE_BUCKET = 'playlist-cache';
 const PROVIDER_HEADERS = {
@@ -22,8 +29,6 @@ type EpisodeResult = {
 };
 
 type SeasonResult = { number: number; episodes: EpisodeResult[] };
-type XtreamSource = { origin: string; username: string; password: string };
-
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -68,113 +73,38 @@ function timingSafeEqual(a: string, b: string) {
   return difference === 0;
 }
 
-function parseSource(raw: string): XtreamSource | null {
-  try {
-    const url = new URL(raw);
-    const username = url.searchParams.get('username') || '';
-    const password = url.searchParams.get('password') || '';
-    if (!username || !password) return null;
-    return { origin: url.origin, username, password };
-  } catch {
-    return null;
-  }
-}
-
 function apiUrl(source: XtreamSource, action: string, params: Record<string, string>) {
-  const query = new URLSearchParams({
-    username: source.username,
-    password: source.password,
-    action,
-    ...params,
-  });
-  return `${source.origin}/player_api.php?${query.toString()}`;
+  return buildXtreamApiUrl(source, action, params);
 }
 
 function streamUrl(source: XtreamSource, id: string, extension: unknown) {
   const ext = String(extension || 'mp4').replace('.', '').replace(/[^a-z0-9]/gi, '') || 'mp4';
-  return `${source.origin}/series/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${id}.${ext}`;
-}
-
-function normalizedHost(value: string) {
-  return value.trim().toLowerCase().replace(/^\[|\]$/g, '');
-}
-
-function privateHost(host: string) {
-  const normalized = normalizedHost(host).split('%')[0];
-  if (
-    normalized === 'localhost' || normalized.endsWith('.local') || normalized === '::1' ||
-    normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe8') ||
-    normalized.startsWith('fe9') || normalized.startsWith('fea') || normalized.startsWith('feb')
-  ) return true;
-  const parts = normalized.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(v => !Number.isInteger(v) || v < 0 || v > 255)) return false;
-  const [a, b] = parts;
-  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
-}
-
-async function boundedText(response: Response, limit: number) {
-  const declared = Number(response.headers.get('content-length') || 0);
-  if (declared > limit) throw new Error('UPSTREAM_TOO_LARGE');
-  if (!response.body) return '';
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > limit) {
-      await reader.cancel('too large');
-      throw new Error('UPSTREAM_TOO_LARGE');
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(bytes).replace(/^\uFEFF/, '');
+  return buildXtreamStreamUrl(source, 'series', id, ext);
 }
 
 async function providerText(
   rawUrl: string,
   allowedOrigin: string,
-  redirects = 4,
 ): Promise<string> {
   const target = new URL(rawUrl);
   const allowed = new URL(allowedOrigin);
-  if (!['http:', 'https:'].includes(target.protocol) || privateHost(target.hostname)) {
-    throw new Error('UPSTREAM_BLOCKED');
-  }
-  if (normalizedHost(target.hostname) !== normalizedHost(allowed.hostname)) {
+  if (target.origin !== allowed.origin) {
     throw new Error('UPSTREAM_HOST_MISMATCH');
   }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
-    const response = await fetch(target, {
-      redirect: 'manual',
-      signal: controller.signal,
+    return await safeFetchPlaylistText(target.toString(), {
+      label: 'Detalhes da série',
+      timeoutMs: 45_000,
+      maxBytes: 40 * 1024 * 1024,
+      allowedOrigins: [allowed.origin],
       headers: PROVIDER_HEADERS,
     });
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location');
-      if (!location || redirects <= 0) throw new Error('UPSTREAM_REDIRECT');
-      return await providerText(new URL(location, target).toString(), allowedOrigin, redirects - 1);
-    }
-    const raw = await boundedText(response, 40 * 1024 * 1024);
-    if (!response.ok) throw new Error(`UPSTREAM_HTTP_${response.status}`);
-    return raw;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('UPSTREAM_TIMEOUT');
+    const message = error instanceof Error ? error.message : String(error);
+    if (/tempo limite/i.test(message)) throw new Error('UPSTREAM_TIMEOUT');
+    const httpStatus = message.match(/HTTP\s+(\d{3})/i)?.[1];
+    if (httpStatus) throw new Error(`UPSTREAM_HTTP_${httpStatus}`);
     throw error;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
@@ -374,7 +304,7 @@ serve(async req => {
 
   for (const assignment of assignments) {
     const playlist = assignment.playlist;
-    const source = parseSource(playlist.playlist_url);
+    const source = parseXtreamSource(playlist.playlist_url);
     if (!source) {
       failure = new Error('UPSTREAM_INVALID_SOURCE');
       continue;

@@ -1082,6 +1082,18 @@ tbody tr:hover td {
           <label>Créditos iniciais</label>
           <input id="newSellerInitialCredits" type="number" min="0" value="0" />
 
+          <label>Validade da conta em horas</label>
+          <input id="newSellerAccessDurationHours" type="number" min="0" max="8760" value="0" />
+          <p class="muted small">Use 0 para deixar a conta sem vencimento ou 24 para um teste de 24 horas.</p>
+
+          <label>
+            <input id="newSellerAutoDeleteAfterExpiry" type="checkbox" />
+            Excluir automaticamente se não renovar
+          </label>
+
+          <label>Tolerância após o bloqueio (horas)</label>
+          <input id="newSellerAutoDeleteGraceHours" type="number" min="1" max="720" value="36" />
+
           <label>
             <input id="newSellerCanGoNegative" type="checkbox" />
             Permitir saldo negativo
@@ -1476,6 +1488,18 @@ tbody tr:hover td {
 
             <label>Créditos iniciais</label>
             <input id="uxNewSellerInitialCredits" type="number" min="0" value="0" />
+
+            <label>Validade da conta em horas</label>
+            <input id="uxNewSellerAccessDurationHours" type="number" min="0" max="8760" value="0" />
+            <p class="muted small">Use 0 para não vencer ou 24 para liberar um teste de 24 horas.</p>
+
+            <label class="ux-check-row">
+              <input id="uxNewSellerAutoDeleteAfterExpiry" type="checkbox" />
+              Excluir automaticamente se não renovar
+            </label>
+
+            <label>Tolerância após o bloqueio (horas)</label>
+            <input id="uxNewSellerAutoDeleteGraceHours" type="number" min="1" max="720" value="36" />
 
             <label class="ux-check-row">
               <input id="uxNewSellerCanGoNegative" type="checkbox" />
@@ -2679,10 +2703,19 @@ async function copyText(text) {
       document.execCommand('copy');
       area.remove();
     }
-    show('Copiado: ' + text);
+    show('Conteúdo copiado.');
   } catch {
     show('Não consegui copiar automaticamente.', true);
   }
+}
+
+async function copyPlaylistUrl(id) {
+  const playlist = playlists.find(item => item.id === id);
+  if (!playlist?.playlistUrl) {
+    show('Lista não encontrada.', true);
+    return;
+  }
+  await copyText(playlist.playlistUrl);
 }
 
 function deviceMiniRows(list) {
@@ -2843,7 +2876,7 @@ function showPlaylistDetails(id) {
       </div>
 
       <div class="detail-actions">
-        <button class="btn" onclick="copyText('${esc(playlist.playlistUrl)}')">Copiar URL</button>
+        <button class="btn" onclick="copyPlaylistUrl('${esc(playlist.id)}')">Copiar URL</button>
         <button class="btn orange" onclick="closeDetails(); refreshPlaylistCache('${esc(playlist.id)}')">Gerar cache</button>
         <button class="btn" onclick="setTab('playlists'); closeDetails()">Editar na tabela</button>
         <button class="btn" onclick="setTab('devices'); closeDetails()">Ver aparelhos</button>

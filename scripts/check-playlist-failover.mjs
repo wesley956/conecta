@@ -41,7 +41,7 @@ const required = {
   sellerBackend: ['setSellerDeviceBackupPlaylist', 'backupPlaylistId', 'panel_device_playlists'],
   deviceBackend: ['playlistHealth', 'cooldown_until', 'selectedPlaylistId', 'playlists: playlistConfigs'],
   seriesDetail: ['device_playlists:panel_device_playlists', 'requestedPlaylistId', 'attemptedPlaylistIds', 'sourcePlaylistId'],
-  nativeDeviceApi: ['playlistId: String?', 'put("playlistId", it)'],
+  nativeDeviceApi: ['selectedPlaylistId: String?', 'json.optNullableString("selectedPlaylistId")', 'playlistId: String?', 'put("playlistId", it)'],
   nativeSeriesViewModel: ['current.playlistId == playlistId', 'playlistId = playlistId'],
   nativeCatalogViewModel: [
     'failoverActivePlaylist',
@@ -49,6 +49,7 @@ const required = {
     'Catálogo substituído pela lista reserva',
     'channels.isEmpty() && movies.isEmpty() && series.isEmpty()',
     'lastFailoverAtMillis = System.currentTimeMillis()',
+    'if (it.id == selectedPlaylistId) 0 else 1',
   ],
   nativePlayer: [
     'onTerminalPlaybackFailure',
@@ -67,6 +68,7 @@ const required = {
     'Lista principal indisponível. Catálogo substituído pela lista reserva.',
     'useCallback(async (reason: string)',
     '!data.channels.length && !data.movies.length && !data.series.length',
+    'left.id === session.selectedPlaylistId',
   ],
   smartPlayer: ['onTerminalPlaybackFailure', '20_000', '12_000', '25_000'],
   adminUi: ['dev-backup-playlist-', 'pend-backup-playlist-', 'refreshPlaylistCache'],

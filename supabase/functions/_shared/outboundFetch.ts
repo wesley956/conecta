@@ -160,6 +160,15 @@ interface SafeFetchTextOptions {
   headers?: HeadersInit;
   redirectsLeft?: number;
   resolveDns?: DnsResolver;
+  allowedOrigins?: string[];
+}
+
+export function assertAllowedOutboundOrigin(target: URL, allowedOrigins?: string[]) {
+  if (!allowedOrigins?.length) return;
+  const normalized = new Set(allowedOrigins.map(origin => new URL(origin).origin));
+  if (!normalized.has(target.origin)) {
+    throw new Error('Redirecionamento para outro domínio não permitido.');
+  }
 }
 
 async function readBoundedResponse(
@@ -222,6 +231,7 @@ export async function safeFetchPlaylistText(
   options: SafeFetchTextOptions,
 ) {
   const target = assertAllowedPlaylistUrl(rawUrl);
+  assertAllowedOutboundOrigin(target, options.allowedOrigins);
   await assertPublicPlaylistTarget(target, options.resolveDns);
 
   const timeoutMs = Math.max(1_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
@@ -258,7 +268,7 @@ export async function safeFetchPlaylistText(
     const raw = decodeResponse(bytes, response.headers.get('content-type') || '');
 
     if (!response.ok) {
-      throw new Error(`${options.label}: HTTP ${response.status}. ${raw.slice(0, 160)}`.trim());
+      throw new Error(`${options.label}: HTTP ${response.status}.`);
     }
 
     return raw;

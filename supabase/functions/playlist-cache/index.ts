@@ -2,6 +2,12 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
 import {
+  buildXtreamApiUrl,
+  buildXtreamStreamUrl,
+  parseXtreamSource,
+  type XtreamSource,
+} from '../_shared/xtreamSource.ts';
+import {
   classifyPlaylistCacheFailure,
   type PlaylistCacheAttempt,
 } from '../_shared/playlistAccessMode.ts';
@@ -143,48 +149,12 @@ function cleanMovieName(name: string) {
   return cleaned || name.trim() || 'Filme sem nome';
 }
 
-function parseXtreamSource(rawUrl: string) {
-  try {
-    const url = new URL(rawUrl.trim());
-    const username = url.searchParams.get('username') || '';
-    const password = url.searchParams.get('password') || '';
-    const output = url.searchParams.get('output') || 'mpegts';
-
-    if (!username || !password) return null;
-
-    return {
-      origin: url.origin,
-      username,
-      password,
-      output,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function buildXtreamApiUrl(source: ReturnType<typeof parseXtreamSource>, action?: string, extra: Record<string, string | number> = {}) {
-  if (!source) throw new Error('Fonte Xtream inválida.');
-
-  const params = new URLSearchParams({
-    username: source.username,
-    password: source.password,
-  });
-
-  if (action) params.set('action', action);
-
-  for (const [key, value] of Object.entries(extra)) {
-    params.set(key, String(value));
-  }
-
-  return `${source.origin}/player_api.php?${params.toString()}`;
-}
-
-async function fetchJson(url: string, label: string) {
+async function fetchJson(url: string, label: string, allowedOrigin?: string) {
   const raw = await safeFetchPlaylistText(url, {
     label,
     timeoutMs: 45_000,
     maxBytes: 30 * 1024 * 1024,
+    allowedOrigins: allowedOrigin ? [allowedOrigin] : undefined,
     headers: {
       Accept: 'application/json, text/plain, */*',
       'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
@@ -194,7 +164,7 @@ async function fetchJson(url: string, label: string) {
   try {
     return JSON.parse(raw);
   } catch {
-    throw new Error(`${label}: resposta não é JSON. Início: ${raw.slice(0, 120)}`);
+    throw new Error(`${label}: resposta não é JSON.`);
   }
 }
 
@@ -245,42 +215,36 @@ async function mapInBatches<T, R>(items: T[], mapper: (item: T) => R, batchSize 
   return result;
 }
 
-function liveExtension(source: ReturnType<typeof parseXtreamSource>) {
+function liveExtension(source: XtreamSource) {
   return source?.output?.toLowerCase() === 'm3u8' ? 'm3u8' : 'ts';
 }
 
-function liveUrl(source: ReturnType<typeof parseXtreamSource>, streamId: string | number, extension = liveExtension(source)) {
-  if (!source) throw new Error('Fonte Xtream inválida.');
-  return `${source.origin}/live/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${extension}`;
+function liveUrl(source: XtreamSource, streamId: string | number, extension = liveExtension(source)) {
+  return buildXtreamStreamUrl(source, 'live', streamId, extension);
 }
 
-function alternateLiveUrls(source: ReturnType<typeof parseXtreamSource>, streamId: string | number) {
-  if (!source) throw new Error('Fonte Xtream inválida.');
-
+function alternateLiveUrls(source: XtreamSource, streamId: string | number) {
   const primaryExt = liveExtension(source);
   const fallbackExt = primaryExt === 'm3u8' ? 'ts' : 'm3u8';
-  const username = encodeURIComponent(source.username);
-  const password = encodeURIComponent(source.password);
 
   return [
-    `${source.origin}/live/${username}/${password}/${streamId}.${primaryExt}`,
-    `${source.origin}/live/${username}/${password}/${streamId}.${fallbackExt}`,
-    `${source.origin}/${username}/${password}/${streamId}.${primaryExt}`,
-    `${source.origin}/${username}/${password}/${streamId}.${fallbackExt}`,
+    buildXtreamStreamUrl(source, 'live', streamId, primaryExt),
+    buildXtreamStreamUrl(source, 'live', streamId, fallbackExt),
+    buildXtreamStreamUrl(source, null, streamId, primaryExt),
+    buildXtreamStreamUrl(source, null, streamId, fallbackExt),
   ];
 }
 
-function movieUrl(source: ReturnType<typeof parseXtreamSource>, streamId: string | number, extension?: string) {
-  if (!source) throw new Error('Fonte Xtream inválida.');
+function movieUrl(source: XtreamSource, streamId: string | number, extension?: string) {
   const ext = text(extension, 'mp4').replace('.', '') || 'mp4';
-  return `${source.origin}/movie/${encodeURIComponent(source.username)}/${encodeURIComponent(source.password)}/${streamId}.${ext}`;
+  return buildXtreamStreamUrl(source, 'movie', streamId, ext);
 }
 
 async function buildXtreamSnapshot(playlist: any) {
   const source = parseXtreamSource(playlist.playlist_url);
   if (!source) return null;
 
-  const profile = await fetchJson(buildXtreamApiUrl(source), 'Login Xtream');
+  const profile = await fetchJson(buildXtreamApiUrl(source), 'Login Xtream', source.origin);
   const userInfo = profile?.user_info ?? {};
 
   if (String(userInfo.auth) !== '1') {
@@ -288,16 +252,16 @@ async function buildXtreamSnapshot(playlist: any) {
   }
 
   const [liveCategories, vodCategories, seriesCategories] = await Promise.all([
-    fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais').catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes').catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries').catch(() => []),
+    fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais', source.origin).catch(() => []),
+    fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes', source.origin).catch(() => []),
+    fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries', source.origin).catch(() => []),
   ]);
 
   const liveCategoryMap = buildCategoryMap(liveCategories);
   const vodCategoryMap = buildCategoryMap(vodCategories);
   const seriesCategoryMap = buildCategoryMap(seriesCategories);
 
-  let liveStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais');
+  let liveStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais', source.origin);
   const channels = await mapInBatches(
     (Array.isArray(liveStreams) ? liveStreams : []).filter(item => item.stream_id),
     item => {
@@ -319,7 +283,7 @@ async function buildXtreamSnapshot(playlist: any) {
   );
   liveStreams = null;
 
-  let vodStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes');
+  let vodStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes', source.origin);
   const movies = await mapInBatches(
     (Array.isArray(vodStreams) ? vodStreams : []).filter(item => item.stream_id),
     item => {
@@ -344,7 +308,7 @@ async function buildXtreamSnapshot(playlist: any) {
   );
   vodStreams = null;
 
-  let seriesItems: any = await fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries');
+  let seriesItems: any = await fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries', source.origin);
   const series = await mapInBatches(
     (Array.isArray(seriesItems) ? seriesItems : []).filter(item => item.series_id),
     item => {
@@ -365,10 +329,6 @@ async function buildXtreamSnapshot(playlist: any) {
     },
   );
   seriesItems = null;
-
-  if (movies.length === 0) {
-    throw new Error('API Xtream retornou 0 filmes; usando lista M3U completa como fallback.');
-  }
 
   return { channels, movies, series };
 }
@@ -721,7 +681,6 @@ async function buildSnapshot(playlist: any) {
     id: playlist.id,
     name: playlist.name,
     type: normalizeType(playlist.playlist_type),
-    url: playlist.playlist_url,
     status: 'active',
     channelCount: content.channels.length,
     movieCount: content.movies.length,
@@ -734,7 +693,6 @@ async function buildSnapshot(playlist: any) {
     generatedAt,
     playlistId: playlist.id,
     playlistName: playlist.name,
-    playlistUrl: playlist.playlist_url,
     channels: content.channels,
     movies: content.movies,
     series: content.series,
@@ -809,6 +767,18 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
   const lock = await acquireCacheLock(supabase, playlist.id);
 
   if (!lock.acquired) {
+    await supabase
+      .from('panel_playlists')
+      .update({
+        playlist_cache_status: previousCacheIsUsable ? 'ready' : 'error',
+        playlist_cache_error: previousCacheIsUsable
+          ? null
+          : 'Já existe uma geração de cache em andamento. Tente novamente em instantes.',
+        playlist_cache_error_code: previousCacheIsUsable ? null : 'CACHE_GENERATION_BUSY',
+        playlist_access_mode: previousCacheIsUsable ? 'server_cache' : 'blocked',
+      })
+      .eq('id', playlist.id);
+
     return {
       ok: false,
       busy: true,
@@ -857,7 +827,6 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
-      playlistUrl: snapshot.playlistUrl,
       version,
       counts: {
         channels: snapshot.channels.length,
@@ -878,7 +847,6 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
-      playlistUrl: snapshot.playlistUrl,
       playlists: snapshot.playlists,
       channels: snapshot.channels,
     };
@@ -888,7 +856,6 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
-      playlistUrl: snapshot.playlistUrl,
       movies: snapshot.movies,
     };
 
@@ -897,7 +864,6 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
-      playlistUrl: snapshot.playlistUrl,
       series: snapshot.series,
     };
 
