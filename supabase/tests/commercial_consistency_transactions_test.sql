@@ -435,5 +435,62 @@ select ok(
   'Bloqueio preserva a lista principal sem reserva'
 );
 
+-- A produção legada ainda não possui o domínio central de assinaturas. A RPC
+-- precisa continuar excluindo e promovendo aparelhos sem exigir essas tabelas.
+alter table public.panel_subscription_playlists
+  rename to panel_subscription_playlists_preflight_test;
+alter table public.panel_subscriptions
+  rename to panel_subscriptions_preflight_test;
+
+insert into public.panel_playlists (
+  id, name, playlist_url, playlist_type, active
+) values
+  ('00000000-0000-0000-0000-00000000c309', 'Legado para Excluir', 'https://example.invalid/c309.m3u', 'm3u', true),
+  ('00000000-0000-0000-0000-00000000c310', 'Reserva do Legado', 'https://example.invalid/c310.m3u', 'm3u', true);
+
+insert into public.panel_devices (
+  id, device_code, status, playlist_id
+) values (
+  '00000000-0000-0000-0000-00000000c404',
+  'RPTV-COM004',
+  'active',
+  '00000000-0000-0000-0000-00000000c309'
+);
+
+insert into public.panel_device_playlists (
+  device_id, playlist_id, priority, active
+) values (
+  '00000000-0000-0000-0000-00000000c404',
+  '00000000-0000-0000-0000-00000000c310',
+  2,
+  true
+);
+
+create temporary table commercial_legacy_delete_result on commit drop as
+select * from public.delete_playlist_with_reassignment(
+  '00000000-0000-0000-0000-00000000c309'
+);
+
+select is(
+  (select deleted from commercial_legacy_delete_result),
+  true,
+  'Legado sem domínio de assinaturas exclui a lista atomicamente'
+);
+select is(
+  (select devices_reassigned from commercial_legacy_delete_result),
+  1,
+  'Legado sem domínio de assinaturas promove o aparelho'
+);
+select is(
+  (select subscriptions_reassigned from commercial_legacy_delete_result),
+  0,
+  'Legado sem domínio de assinaturas não inventa vínculos'
+);
+select is(
+  (select playlist_id from public.panel_devices where id = '00000000-0000-0000-0000-00000000c404'),
+  '00000000-0000-0000-0000-00000000c310'::uuid,
+  'Legado sem domínio de assinaturas preserva a reserva promovida'
+);
+
 select * from finish();
 rollback;

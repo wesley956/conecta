@@ -4,10 +4,12 @@ Este documento transforma a auditoria técnica em lotes publicáveis, com depend
 
 ## Estado atual
 
-Branch do lote 4: `agent/commercial-consistency`
-Base: `main` no commit `f491a81`
+Branch de pré-implantação: `agent/production-activation-preflight`
+Base: `main` no commit `ff4f992`
 
-Os lotes 1 e 2 foram mesclados pelo PR #180; o workflow redundante do GitHub Pages foi removido pelo PR #181; e o lote 3 foi aprovado e mesclado pelo PR #182. O Vercel permanece como hospedagem oficial do painel. O lote 4 está isolado nesta branch para validação local e pelo CI. Nenhuma migration ou Edge Function deste plano foi aplicada manualmente ao Supabase de produção.
+Os lotes 1 e 2 foram mesclados pelo PR #180; o workflow redundante do GitHub Pages foi removido pelo PR #181; o lote 3 foi mesclado pelo PR #182; e o lote 4 foi mesclado pelo PR #183. O Vercel permanece como hospedagem oficial do painel. Nenhuma migration ou Edge Function desses lotes foi aplicada manualmente ao Supabase de produção.
+
+O inventário de produção de 01/08/2026 encontrou o schema legado sem o domínio central de assinaturas e sem o limitador público de ativações. A ativação deve seguir o plano detalhado em `docs/PRODUCTION_ACTIVATION_PREFLIGHT_2026-08-01.md`. A branch atual prepara uma compatibilidade do lote 4 com esse schema e ainda depende do CI antes de qualquer implantação.
 
 ## Lote 1 — segurança, Xtream e continuidade
 
@@ -113,7 +115,7 @@ Rollback: restaurar primeiro as Edge Functions anteriores. A tabela de trava glo
 
 ### Lote 4 — consistência comercial
 
-Status: implementado na branch `agent/commercial-consistency`; aguarda reset completo, lint e pgTAP do CI antes de revisão.
+Status: mesclado na `main` pelo PR #183, com reset completo, lint e pgTAP aprovados. A pré-implantação encontrou uma dependência opcional ausente no schema legado; a compatibilidade está sendo validada separadamente antes de produção.
 
 - Ativar/renovar, debitar crédito e gravar principal/reserva numa única RPC idempotente.
 - Trocar o par principal/reserva sem a janela intermediária de `delete` seguido de `insert`.

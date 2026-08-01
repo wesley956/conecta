@@ -309,6 +309,7 @@ declare
   v_playlist public.panel_playlists%rowtype;
   v_device record;
   v_subscription record;
+  v_has_subscription_domain boolean;
   v_devices_reassigned integer := 0;
   v_subscriptions_reassigned integer := 0;
 begin
@@ -325,6 +326,13 @@ begin
     raise exception using errcode = 'P0002', message = 'Lista não encontrada.';
   end if;
 
+  -- Instalações legadas ainda podem operar somente com os vínculos por aparelho.
+  -- O domínio de assinaturas é opcional e não deve ser criado implicitamente por
+  -- esta migration de consistência comercial.
+  v_has_subscription_domain :=
+    pg_catalog.to_regclass('public.panel_subscriptions') is not null
+    and pg_catalog.to_regclass('public.panel_subscription_playlists') is not null;
+
   perform 1
     from public.panel_devices device
    where device.playlist_id = p_playlist_id
@@ -337,34 +345,36 @@ begin
    order by device.id
    for update;
 
-  perform 1
-    from public.panel_subscriptions subscription
-   where exists (
-     select 1
-       from public.panel_subscription_playlists assignment
-      where assignment.subscription_id = subscription.id
-        and assignment.playlist_id = p_playlist_id
-   )
-   order by subscription.id
-   for update;
+  if v_has_subscription_domain then
+    perform 1
+      from public.panel_subscriptions subscription
+     where exists (
+       select 1
+         from public.panel_subscription_playlists assignment
+        where assignment.subscription_id = subscription.id
+          and assignment.playlist_id = p_playlist_id
+     )
+     order by subscription.id
+     for update;
 
-  if exists (
-    select 1
-      from public.panel_subscription_playlists primary_assignment
-     where primary_assignment.playlist_id = p_playlist_id
-       and primary_assignment.priority = 1
-       and primary_assignment.active is true
-       and not exists (
-         select 1
-           from public.panel_subscription_playlists backup_assignment
-          where backup_assignment.subscription_id = primary_assignment.subscription_id
-            and backup_assignment.priority = 2
-            and backup_assignment.active is true
-       )
-  ) then
-    raise exception using
-      errcode = 'P0001',
-      message = 'A lista é principal de uma assinatura sem reserva e não pode ser excluída.';
+    if exists (
+      select 1
+        from public.panel_subscription_playlists primary_assignment
+       where primary_assignment.playlist_id = p_playlist_id
+         and primary_assignment.priority = 1
+         and primary_assignment.active is true
+         and not exists (
+           select 1
+             from public.panel_subscription_playlists backup_assignment
+            where backup_assignment.subscription_id = primary_assignment.subscription_id
+              and backup_assignment.priority = 2
+              and backup_assignment.active is true
+         )
+    ) then
+      raise exception using
+        errcode = 'P0001',
+        message = 'A lista é principal de uma assinatura sem reserva e não pode ser excluída.';
+    end if;
   end if;
 
   for v_device in
@@ -395,39 +405,41 @@ begin
     v_devices_reassigned := v_devices_reassigned + 1;
   end loop;
 
-  for v_subscription in
-    select
-      primary_assignment.subscription_id,
-      backup_assignment.id as backup_assignment_id
-    from public.panel_subscription_playlists primary_assignment
-    join public.panel_subscription_playlists backup_assignment
-      on backup_assignment.subscription_id = primary_assignment.subscription_id
-     and backup_assignment.priority = 2
-     and backup_assignment.active is true
-   where primary_assignment.playlist_id = p_playlist_id
-     and primary_assignment.priority = 1
-     and primary_assignment.active is true
-   order by primary_assignment.subscription_id
-  loop
-    update public.panel_subscription_playlists assignment
-       set active = false,
-           archived_at = pg_catalog.now(),
-           archived_reason = 'playlist_deleted',
-           updated_at = pg_catalog.now()
-     where assignment.subscription_id = v_subscription.subscription_id
-       and assignment.playlist_id = p_playlist_id
-       and assignment.active is true;
+  if v_has_subscription_domain then
+    for v_subscription in
+      select
+        primary_assignment.subscription_id,
+        backup_assignment.id as backup_assignment_id
+      from public.panel_subscription_playlists primary_assignment
+      join public.panel_subscription_playlists backup_assignment
+        on backup_assignment.subscription_id = primary_assignment.subscription_id
+       and backup_assignment.priority = 2
+       and backup_assignment.active is true
+     where primary_assignment.playlist_id = p_playlist_id
+       and primary_assignment.priority = 1
+       and primary_assignment.active is true
+     order by primary_assignment.subscription_id
+    loop
+      update public.panel_subscription_playlists assignment
+         set active = false,
+             archived_at = pg_catalog.now(),
+             archived_reason = 'playlist_deleted',
+             updated_at = pg_catalog.now()
+       where assignment.subscription_id = v_subscription.subscription_id
+         and assignment.playlist_id = p_playlist_id
+         and assignment.active is true;
 
-    update public.panel_subscription_playlists assignment
-       set priority = 1,
-           updated_at = pg_catalog.now()
-     where assignment.id = v_subscription.backup_assignment_id;
+      update public.panel_subscription_playlists assignment
+         set priority = 1,
+             updated_at = pg_catalog.now()
+       where assignment.id = v_subscription.backup_assignment_id;
 
-    v_subscriptions_reassigned := v_subscriptions_reassigned + 1;
-  end loop;
+      v_subscriptions_reassigned := v_subscriptions_reassigned + 1;
+    end loop;
 
-  delete from public.panel_subscription_playlists assignment
-   where assignment.playlist_id = p_playlist_id;
+    delete from public.panel_subscription_playlists assignment
+     where assignment.playlist_id = p_playlist_id;
+  end if;
 
   delete from public.panel_playlists playlist
    where playlist.id = p_playlist_id;
