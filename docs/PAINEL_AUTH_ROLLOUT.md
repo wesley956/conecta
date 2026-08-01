@@ -7,7 +7,7 @@ Este procedimento migra o painel administrativo e o portal do vendedor de tokens
 - Não publique o novo frontend antes de aplicar a migration e implantar as Edge Functions.
 - Nunca salve `SUPABASE_SERVICE_ROLE_KEY`, senha do banco ou senha de usuário no Git.
 - Use primeiro um ambiente de staging ou uma janela controlada de manutenção.
-- Mantenha `ENABLE_PANEL_AUTO_DEPLOY` diferente de `true` até o teste completo terminar.
+- Valide o frontend no preview do pull request e só mescle na `main` depois dos testes completos.
 
 ## 1. Validar no CI
 
@@ -86,20 +86,19 @@ Implante as versões validadas de:
 
 Nesta etapa, `verify_jwt` ainda pode permanecer desabilitado no gateway, porque as duas funções validam o Bearer JWT e o papel internamente. A ativação no gateway será feita depois pelo PR específico.
 
-## 6. Configurar o GitHub Pages
+## 6. Configurar o Vercel
 
-Configure no repositório:
+Configure no projeto do Vercel:
 
 - `SUPABASE_URL`: variável ou segredo com a URL HTTPS do projeto;
 - `SUPABASE_ANON_KEY`: segredo ou variável pública com a chave pública do projeto.
 
-A chave `anon` é pública por definição, mas nunca use a `service_role` no frontend ou no workflow de Pages.
+A chave `anon` é pública por definição, mas nunca use a `service_role` no frontend ou na configuração do Vercel.
 
-## 7. Publicar manualmente
+## 7. Publicar pelo Vercel
 
-Execute manualmente o workflow `Deploy Admin Panel to GitHub Pages`.
-
-O deploy automático permanece bloqueado enquanto `ENABLE_PANEL_AUTO_DEPLOY` não for exatamente `true`.
+O painel é publicado automaticamente pelo Vercel quando uma alteração validada é mesclada na `main`.
+Use os previews de pull request para validar o frontend antes da mesclagem.
 
 ## 8. Testes obrigatórios
 
@@ -128,13 +127,10 @@ O deploy automático permanece bloqueado enquanto `ENABLE_PANEL_AUTO_DEPLOY` nã
 - JWT não é enviado a domínio diferente da origem Supabase configurada;
 - refresh token funciona e uma sessão revogada volta para a tela de login.
 
-## 9. Liberar deploy automático
+## 9. Liberar o painel em produção
 
-Somente depois dos testes, configure:
-
-```text
-ENABLE_PANEL_AUTO_DEPLOY=true
-```
+Somente depois dos testes, mescle o pull request validado na `main`. A integração Git do Vercel
+publicará o mesmo conteúdo testado no preview.
 
 ## 10. Ativar verificação JWT no gateway
 
@@ -144,8 +140,8 @@ Depois que o fluxo estiver estável, integre o PR que define `verify_jwt=true` p
 
 Em caso de falha antes da ativação do gateway:
 
-1. desative `ENABLE_PANEL_AUTO_DEPLOY`;
-2. restaure a versão anterior do GitHub Pages;
+1. reverta o commit problemático na `main` ou promova novamente a implantação anterior no Vercel;
+2. confirme que o domínio de produção voltou a apontar para a versão estável;
 3. mantenha as Edge Functions com validação interna;
 4. revogue papéis problemáticos com `revoke_panel_role`;
 5. corrija e repita os testes antes de nova publicação.
