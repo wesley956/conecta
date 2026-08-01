@@ -231,7 +231,7 @@ select is(
 select is(
   (select status from public.playlist_cache_generation_attempts
    where playlist_id = '00000000-0000-0000-0000-000000009101'
-   order by started_at desc limit 1),
+     and owner_id = '00000000-0000-0000-0000-000000009203'),
   'abandoned',
   'Tentativa sem heartbeat fica abandonada'
 );
@@ -275,7 +275,7 @@ select is(
 select is(
   (select status from public.playlist_cache_generation_attempts
    where playlist_id = '00000000-0000-0000-0000-000000009102'
-   order by started_at desc limit 1),
+     and owner_id = '00000000-0000-0000-0000-000000009204'),
   'failed',
   'Histórico registra a tentativa com falha'
 );
