@@ -737,7 +737,9 @@ grant execute on function public.complete_playlist_cache_generation(uuid, uuid, 
 grant execute on function public.fail_playlist_cache_generation(uuid, uuid, uuid, text, text, text, jsonb) to service_role;
 grant execute on function public.reconcile_playlist_cache_generation_leases() to service_role;
 
-create extension if not exists pg_cron with schema pg_catalog;
+-- pg_cron já é criado pela migration de ciclo temporário dos vendedores.
+-- Repetir CREATE EXTENSION ... WITH SCHEMA tenta mover uma extensão existente
+-- no PostgreSQL local e falha quando os privilégios do cron já estão definidos.
 grant usage on schema cron to postgres;
 grant all privileges on all tables in schema cron to postgres;
 
