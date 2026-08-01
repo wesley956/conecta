@@ -402,7 +402,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
@@ -449,7 +449,7 @@ private fun ChannelItem(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(10.dp),
             )
             .onFocusChanged {

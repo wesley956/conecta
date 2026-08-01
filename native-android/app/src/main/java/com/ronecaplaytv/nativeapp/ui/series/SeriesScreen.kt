@@ -290,7 +290,7 @@ private fun SeriesCategoryChip(label: String, selected: Boolean, onClick: () -> 
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
@@ -338,7 +338,7 @@ private fun SeriesPosterCard(
             .background(RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged {

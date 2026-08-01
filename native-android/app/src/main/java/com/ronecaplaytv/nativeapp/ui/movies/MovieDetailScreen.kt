@@ -157,7 +157,7 @@ private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(999.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -299,7 +299,7 @@ private fun DetailActionButton(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
                     !enabled -> RonecaColors.Border
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     primary -> RonecaColors.PrimaryStrong
                     else -> RonecaColors.Border
                 },
@@ -356,7 +356,7 @@ private fun RecommendationCard(
             .background(RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged { focused = it.isFocused }

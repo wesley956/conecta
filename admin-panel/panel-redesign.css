@@ -67,7 +67,7 @@ body.admin-v2 a.btn,
 body.seller-v2 button,
 body.seller-v2 .btn,
 body.seller-v2 a.btn {
-  min-height: 40px;
+  min-height: 44px;
   padding: 9px 13px !important;
   border: 1px solid var(--panel-line) !important;
   border-radius: 11px !important;
@@ -129,7 +129,7 @@ body.admin-v2 textarea,
 body.seller-v2 input,
 body.seller-v2 select,
 body.seller-v2 textarea {
-  min-height: 42px;
+  min-height: 44px;
   border: 1px solid rgba(255, 255, 255, .11) !important;
   border-radius: 11px !important;
   background: #101012 !important;
@@ -870,6 +870,49 @@ body.admin-v2.admin-login-v2 .screen .logo img {
 
 body.admin-v2.admin-login-v2 .screen h1 {
   font-size: clamp(34px, 6vw, 52px) !important;
+}
+
+body.admin-v2.admin-login-v2 .login-primary {
+  border-color: rgba(255, 81, 77, .58) !important;
+  background: linear-gradient(135deg, #ff514d, #991b1b) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 30px rgba(229, 57, 53, .22) !important;
+}
+
+body.admin-v2.admin-login-v2 .ghost {
+  border-color: var(--panel-line) !important;
+  background: transparent !important;
+  color: var(--panel-muted) !important;
+}
+
+@media (max-width: 760px) {
+  body.admin-v2 button,
+  body.admin-v2 .btn,
+  body.admin-v2 a.btn,
+  body.admin-v2 input,
+  body.admin-v2 select,
+  body.seller-v2 button,
+  body.seller-v2 .btn,
+  body.seller-v2 a.btn,
+  body.seller-v2 input,
+  body.seller-v2 select {
+    min-height: 44px !important;
+  }
+
+  body.admin-v2 .actions,
+  body.admin-v2 .seller-inline-actions,
+  body.seller-v2 .actions,
+  body.seller-v2 .seller-device-actions {
+    gap: 8px !important;
+  }
+
+  body.admin-v2 .icon-btn,
+  body.seller-v2 .icon-btn {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
 }
 
 /* Vendedor — shell e navegação */

@@ -41,7 +41,7 @@ private val DarkRonecaColors = RonecaColorScheme(
     textPrimary = RonecaColors.TextPrimary,
     textBody = RonecaColors.BodyText,
     textSecondary = RonecaColors.TextSecondary,
-    textDisabled = RonecaColors.TextMuted,
+    textDisabled = RonecaColors.TextDisabled,
 )
 
 private val LocalRonecaColors = staticCompositionLocalOf { DarkRonecaColors }

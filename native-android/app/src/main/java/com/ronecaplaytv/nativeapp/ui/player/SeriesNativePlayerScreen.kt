@@ -669,7 +669,7 @@ private fun EpisodeDrawerRow(
             .border(
                 width = if (focused || active) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     active -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },

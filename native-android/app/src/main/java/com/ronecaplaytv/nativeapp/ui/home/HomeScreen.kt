@@ -457,7 +457,7 @@ private fun HeroButton(
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     primary -> RonecaColors.PrimaryStrong
                     else -> RonecaColors.Border
                 },
@@ -525,14 +525,14 @@ private fun MobileExploreItem(
                 .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
                 .border(
                     width = if (focused) 2.dp else 1.dp,
-                    color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                    color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                     shape = CircleShape,
                 ),
             contentAlignment = Alignment.Center,
         ) {
             QuickGlyph(
                 kind = destination.kind,
-                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Primary,
                 modifier = Modifier.size(24.dp),
             )
             Box(
@@ -647,7 +647,7 @@ private fun FeaturedContentCard(
             .background(RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(13.dp),
             )
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
@@ -680,7 +680,7 @@ private fun FeaturedContentCard(
         ) {
             Text(
                 text = eyebrow,
-                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Primary,
                 fontSize = if (isTelevision) 9.sp else 8.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.1.sp,
