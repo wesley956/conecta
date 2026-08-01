@@ -53,11 +53,31 @@ export interface Catalog {
   series: Series[];
 }
 
-export interface CatalogFailoverResult {
+export interface CatalogFailoverRequest {
+  attemptId: string;
+  reason: string;
+  contentKey: string;
+}
+
+export type CatalogFailoverResult = {
+  outcome: "switched";
+  attemptId: string;
+  reason: string;
+  contentKey: string;
+  fromPlaylistId: string;
   data: Catalog;
   playlistId: string;
   playlistName: string;
-}
+} | {
+  outcome: "busy" | "no_active_playlist" | "no_backup" | "catalog_failed";
+  attemptId: string;
+  reason: string;
+  contentKey: string;
+  fromPlaylistId: string | null;
+  data: null;
+  playlistId: null;
+  playlistName: null;
+};
 
 type CatalogState = {
   status: "idle" | "loading" | "ready" | "error";
@@ -68,6 +88,8 @@ type CatalogState = {
   usingBackupPlaylist: boolean;
   lastSuccessfulSync: string | null;
   lastFailure: string | null;
+  lastFailoverAttemptId: string | null;
+  lastFailoverOutcome: CatalogFailoverResult["outcome"] | "switching" | null;
 };
 
 const emptyCatalog: Catalog = { channels: [], movies: [], series: [] };
@@ -79,7 +101,9 @@ const initialState: CatalogState = {
   activePlaylistName: null,
   usingBackupPlaylist: false,
   lastSuccessfulSync: null,
-  lastFailure: null
+  lastFailure: null,
+  lastFailoverAttemptId: null,
+  lastFailoverOutcome: null
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -206,7 +230,9 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
               activePlaylistName: candidate.name,
               usingBackupPlaylist: usingBackup,
               lastSuccessfulSync: new Date().toISOString(),
-              lastFailure: usingBackup ? "O servidor selecionou a lista reserva para esta sincronização." : null
+              lastFailure: usingBackup ? "O servidor selecionou a lista reserva para esta sincronização." : null,
+              lastFailoverAttemptId: null,
+              lastFailoverOutcome: null
             });
             void reportPlaylistSuccess(candidate.id).catch(() => undefined);
             return;
@@ -238,15 +264,24 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
     return () => controller.abort();
   }, [attempt, renewConfiguration, session.cacheVersion, session.status]);
 
-  const failover = useCallback(async (reason: string): Promise<CatalogFailoverResult | null> => {
-    if (switching.current) return null;
+  const failover = useCallback(async (request: CatalogFailoverRequest): Promise<CatalogFailoverResult> => {
+    const { attemptId, reason, contentKey } = request;
+    if (switching.current) return {
+      outcome: "busy", attemptId, reason, contentKey, fromPlaylistId: activePlaylistId.current,
+      data: null, playlistId: null, playlistName: null
+    };
     const failedId = activePlaylistId.current;
-    if (!failedId) return null;
+    if (!failedId) return {
+      outcome: "no_active_playlist", attemptId, reason, contentKey, fromPlaylistId: null,
+      data: null, playlistId: null, playlistName: null
+    };
 
     switching.current = true;
     setState(current => ({
       ...current,
-      message: "Lista ativa indisponível. Preparando a lista reserva..."
+      message: "Lista ativa indisponível. Preparando a lista reserva...",
+      lastFailoverAttemptId: attemptId,
+      lastFailoverOutcome: "switching"
     }));
 
     try {
@@ -273,10 +308,21 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             activePlaylistName: candidate.name,
             usingBackupPlaylist: true,
             lastSuccessfulSync: new Date().toISOString(),
-            lastFailure: reason
+            lastFailure: reason,
+            lastFailoverAttemptId: attemptId,
+            lastFailoverOutcome: "switched"
           });
           void reportPlaylistSuccess(candidate.id).catch(() => undefined);
-          return { data, playlistId: candidate.id, playlistName: candidate.name };
+          return {
+            outcome: "switched" as const,
+            attemptId,
+            reason,
+            contentKey,
+            fromPlaylistId: failedId,
+            data,
+            playlistId: candidate.id,
+            playlistName: candidate.name
+          };
         } catch (error) {
           lastError = error;
         }
@@ -284,13 +330,19 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
       throw lastError || new Error("A lista principal e a lista reserva estão indisponíveis.");
     } catch (error) {
       const failure = error instanceof Error ? error.message : "Falha ao ativar a lista reserva.";
+      const outcome = /nenhuma lista reserva/i.test(failure) ? "no_backup" as const : "catalog_failed" as const;
       setState(current => ({
         ...current,
         status: current.data.channels.length || current.data.movies.length || current.data.series.length ? "ready" : "error",
         message: failure,
-        lastFailure: failure
+        lastFailure: failure,
+        lastFailoverAttemptId: attemptId,
+        lastFailoverOutcome: outcome
       }));
-      return null;
+      return {
+        outcome, attemptId, reason, contentKey, fromPlaylistId: failedId,
+        data: null, playlistId: null, playlistName: null
+      };
     } finally {
       switching.current = false;
     }

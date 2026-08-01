@@ -47,6 +47,15 @@ class ActivationViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun reportPlaylistSuccess(playlistId: String?) {
+        val normalizedId = playlistId?.trim().orEmpty()
+        if (normalizedId.isEmpty()) return
+
+        viewModelScope.launch {
+            runCatching { repository.reportPlaylistSuccess(normalizedId) }
+        }
+    }
+
     private fun load(block: suspend () -> DeviceSessionState) {
         if (mutableState.value.isRefreshing) return
 

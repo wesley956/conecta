@@ -33,7 +33,7 @@ function probableSource(reason: string, offline: boolean): PlaybackDiagnosticRep
 
 function eventId(item: PlaybackItem) {
   const random = Math.random().toString(36).slice(2, 10);
-  return `smart-tv:${platform}:${item.kind || "unknown"}:${item.id}:${Date.now()}:${random}`.slice(0, 180);
+  return `smart-tv:${platform}:${item.contentKey}:${Date.now()}:${random}`.slice(0, 180);
 }
 
 export function PlayerScreen({
@@ -109,7 +109,7 @@ export function PlayerScreen({
     const entry = seriesQueue[index];
     if (!entry || !onChangePlayback) return;
     onChangePlayback({
-      id: entry.id, name: entry.name, urls: entry.urls, live: false, kind: "episode",
+      id: entry.id, contentKey: entry.contentKey, name: entry.name, urls: entry.urls, live: false, kind: "episode",
       image: entry.image, meta: entry.meta, seriesQueue, seriesQueueIndex: index
     });
   }, [onChangePlayback, seriesQueue]);

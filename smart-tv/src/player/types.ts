@@ -9,6 +9,8 @@ export interface PlayerTrack {
 
 export interface PlaybackQueueItem {
   id: string;
+  contentKey: string;
+  seriesKey: string;
   name: string;
   urls: string[];
   image?: string;
@@ -19,6 +21,7 @@ export interface PlaybackQueueItem {
 
 export interface PlaybackItem {
   id: string;
+  contentKey: string;
   name: string;
   urls: string[];
   live: boolean;

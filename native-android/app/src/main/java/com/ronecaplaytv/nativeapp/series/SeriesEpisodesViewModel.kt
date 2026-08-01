@@ -43,36 +43,7 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
                 loading = true,
             )
 
-            val result = runCatching {
-                if (DirectXtreamClient.isDirectSeriesKey(normalizedId)) {
-                    val seasons = DirectXtreamClient.loadSeriesEpisodes(
-                        context = getApplication<Application>(),
-                        seriesKey = normalizedId,
-                    )
-                    DirectSeriesEpisodesResponse(seasons)
-                } else {
-                    val deviceCode = identityStore.getDeviceCode()
-                        ?: error("Código do aparelho não encontrado.")
-                    val credential = credentialStore.load()
-                        ?: error("Credencial segura do aparelho não encontrada.")
-                    val deviceUuid = identityStore.getOrCreateDeviceUuid()
-
-                    val response = api.fetchSeriesEpisodes(
-                        deviceCode = deviceCode,
-                        deviceUuid = deviceUuid,
-                        deviceCredential = credential,
-                        seriesId = normalizedId,
-                        playlistId = playlistId,
-                    )
-                    if (!response.successful) {
-                        error(response.message ?: "Não foi possível carregar os episódios.")
-                    }
-                    DirectSeriesEpisodesResponse(
-                        seasons = response.seasons,
-                        message = response.message,
-                    )
-                }
-            }
+            val result = runCatching { requestEpisodes(normalizedId, playlistId) }
 
             mutableState.value = result.fold(
                 onSuccess = { response ->
@@ -96,8 +67,47 @@ class SeriesEpisodesViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    suspend fun fetchNow(seriesId: String, playlistId: String?): List<NativeSeason> {
+        val normalizedId = seriesId.trim()
+        require(normalizedId.isNotEmpty()) { "Série não informada." }
+        return requestEpisodes(normalizedId, playlistId).seasons
+    }
+
     fun clear() {
         mutableState.value = SeriesEpisodesState()
+    }
+
+    private suspend fun requestEpisodes(
+        seriesId: String,
+        playlistId: String?,
+    ): DirectSeriesEpisodesResponse {
+        if (DirectXtreamClient.isDirectSeriesKey(seriesId)) {
+            return DirectSeriesEpisodesResponse(
+                DirectXtreamClient.loadSeriesEpisodes(
+                    context = getApplication<Application>(),
+                    seriesKey = seriesId,
+                ),
+            )
+        }
+
+        val deviceCode = identityStore.getDeviceCode()
+            ?: error("Código do aparelho não encontrado.")
+        val credential = credentialStore.load()
+            ?: error("Credencial segura do aparelho não encontrada.")
+        val response = api.fetchSeriesEpisodes(
+            deviceCode = deviceCode,
+            deviceUuid = identityStore.getOrCreateDeviceUuid(),
+            deviceCredential = credential,
+            seriesId = seriesId,
+            playlistId = playlistId,
+        )
+        if (!response.successful) {
+            error(response.message ?: "Não foi possível carregar os episódios.")
+        }
+        return DirectSeriesEpisodesResponse(
+            seasons = response.seasons,
+            message = response.message,
+        )
     }
 }
 

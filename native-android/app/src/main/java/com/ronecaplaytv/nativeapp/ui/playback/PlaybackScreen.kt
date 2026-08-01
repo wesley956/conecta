@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
+import com.ronecaplaytv.nativeapp.catalog.ContentIdentity
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.persistence.SavedProgress
@@ -82,7 +83,7 @@ fun PlaybackScreen(
     val progressByKey = remember(progress) { progress.associateBy(SavedProgress::contentKey) }
     val startedMovieCards = remember(movies, progressByKey) {
         movies.mapNotNull { movie ->
-            progressByKey["movie:${movie.id}"]?.let { saved ->
+            (progressByKey[ContentIdentity.movie(movie)] ?: progressByKey["movie:${movie.id}"])?.let { saved ->
                 PlaybackCardItem(
                     key = "started-movie-${movie.id}",
                     title = movie.name,
@@ -97,10 +98,11 @@ fun PlaybackScreen(
     val latestProgressBySeriesId = remember(progress) {
         buildMap<String, SavedProgress> {
             progress.forEach { saved ->
-                val seriesId = saved.contentKey
-                    .takeIf { it.startsWith("episode:") }
-                    ?.removePrefix("episode:")
-                    ?.substringBefore(':')
+                val seriesId = ContentIdentity.episodeSeriesToken(saved.contentKey)
+                    ?: saved.contentKey
+                        .takeIf { it.startsWith("episode:") }
+                        ?.removePrefix("episode:")
+                        ?.substringBefore(':')
                     ?.takeIf(String::isNotBlank)
                     ?: return@forEach
                 val current = get(seriesId)
@@ -112,7 +114,8 @@ fun PlaybackScreen(
     }
     val startedSeriesCards = remember(series, latestProgressBySeriesId) {
         series.mapNotNull { item ->
-            latestProgressBySeriesId[item.id]?.let { saved ->
+            (latestProgressBySeriesId[ContentIdentity.token(item.name)]
+                ?: latestProgressBySeriesId[item.id])?.let { saved ->
                 PlaybackCardItem(
                     key = "started-series-${item.id}",
                     title = item.name,
@@ -125,22 +128,31 @@ fun PlaybackScreen(
         }
     }
     val favoriteChannels = remember(channels, favoriteChannelIds) {
-        channels.filter { it.id in favoriteChannelIds }
+        channels.filter {
+            ContentIdentity.channel(it) in favoriteChannelIds || it.id in favoriteChannelIds
+        }
     }
     val favoriteMovieCards = remember(movies, favoriteMovieIds, progressByKey) {
-        movies.filter { it.id in favoriteMovieIds }.map { movie ->
+        movies.filter {
+            ContentIdentity.movie(it) in favoriteMovieIds || it.id in favoriteMovieIds
+        }.map { movie ->
             PlaybackCardItem(
                 key = "favorite-movie-${movie.id}",
                 title = movie.name,
                 imageUrl = movie.coverUrl,
-                progress = progressByKey["movie:${movie.id}"]?.fraction ?: 0f,
+                progress = (
+                    progressByKey[ContentIdentity.movie(movie)]
+                        ?: progressByKey["movie:${movie.id}"]
+                    )?.fraction ?: 0f,
                 badge = "FAVORITO",
                 onClick = { onOpenMovie(movie) },
             )
         }
     }
     val favoriteSeriesCards = remember(series, favoriteSeriesIds) {
-        series.filter { it.id in favoriteSeriesIds }.map { item ->
+        series.filter {
+            ContentIdentity.series(it) in favoriteSeriesIds || it.id in favoriteSeriesIds
+        }.map { item ->
             PlaybackCardItem(
                 key = "favorite-series-${item.id}",
                 title = item.name,

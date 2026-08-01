@@ -138,6 +138,8 @@ Rollback: restaurar primeiro as duas Edge Functions anteriores. As RPCs novas po
 
 ### Lote 5 — continuidade no aparelho
 
+Status: implementado na branch `agent/failover-continuity`; validações locais aprovadas e build Android pendente do CI.
+
 - Recuperar automaticamente o mesmo canal, filme ou episódio depois da troca de lista no Android.
 - Padronizar motivo, tentativa e resultado do failover entre Android, LG e Samsung.
 - Persistir progresso e favoritos com chaves estáveis entre listas equivalentes.
@@ -148,6 +150,13 @@ Rollback: restaurar primeiro as duas Edge Functions anteriores. As RPCs novas po
 - Criar diagnóstico dirigido sem registrar URL completa, usuário ou senha.
 - Sanear auditorias históricas que possam conter credenciais de listas.
 - Decidir se contas autoexcluídas também terão o usuário do Supabase Auth removido depois de uma janela adicional.
+
+### Diagnóstico visual — obrigatório antes do lote 7
+
+- Auditar painel administrativo e portal do vendedor em computador e celular.
+- Auditar Android TV, LG webOS e Samsung Tizen com foco real de controle remoto.
+- Verificar alinhamento, hierarquia, legibilidade, densidade, estados vazios, erros e consistência visual.
+- Produzir relatório priorizado antes de alterar layout; as correções aprovadas entram no lote 7.
 
 ### Lote 7 — painel e testes ponta a ponta
 
@@ -164,4 +173,5 @@ Rollback: restaurar primeiro as duas Edge Functions anteriores. As RPCs novas po
 - Builds Android, LG e Samsung dos lotes 1 e 2: aprovados no CI do PR #180 e após a mesclagem.
 - Lote 3: reset de 42 migrations, lint e 39 testes pgTAP aprovados no PR #182.
 - Lote 4: `npm run verify`, typecheck/build da Smart TV, versões únicas de migration e `git diff --check` aprovados localmente.
-- Lote 4: reset das 43 migrations, lint e pgTAP dependem do PostgreSQL local do CI e permanecem pendentes até o PR.
+- Lote 4: PRs #183 e #184 mesclados com reset das 43 migrations, lint e 320 testes pgTAP aprovados.
+- Lote 5: `npm run verify`, typecheck/build da Smart TV e `git diff --check` aprovados localmente.

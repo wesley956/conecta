@@ -31,7 +31,7 @@ requireCheck(player.includes('recovery === "failed"'), "O player não possui est
 requireCheck(player.includes("reportPlaybackDiagnostic"), "O player não envia diagnóstico detalhado.");
 requireCheck(player.includes("localRetries.current < 2"), "As tentativas locais controladas não estão configuradas.");
 requireCheck(!player.includes("onTerminalPlaybackFailure?.(snapshot.error"), "O fluxo antigo de saída automática ainda está presente.");
-requireCheck(catalog.includes("Promise<CatalogFailoverResult | null>"), "O failover não devolve o catálogo de recuperação.");
+requireCheck(catalog.includes("Promise<CatalogFailoverResult>"), "O failover não devolve o resultado padronizado da recuperação.");
 requireCheck(catalog.includes("reportPlaylistSuccess"), "O sucesso da lista não zera as falhas acumuladas.");
 requireCheck(settings.includes("bufferSeconds"), "O buffer configurável está ausente.");
 requireCheck(tizenPlayer.includes("setBufferingParam"), "O AVPlay não aplica buffer configurável.");

@@ -87,7 +87,7 @@ fun SeriesNativePlayerScreen(
     positionForEpisode: (NativeEpisode) -> Long = { 0L },
     onEpisodeChanged: (NativeSeason, NativeEpisode) -> Unit = { _, _ -> },
     onProgress: (NativeSeason, NativeEpisode, positionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
-    onTerminalPlaybackFailure: (String) -> Unit = {},
+    onTerminalPlaybackFailure: (reason: String, positionMs: Long, durationMs: Long) -> Unit = { _, _, _ -> },
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -179,6 +179,7 @@ fun SeriesNativePlayerScreen(
         if (recoveryInProgress || terminalFailureReported) return
 
         recoveryInProgress = true
+        val resumePositionMs = player.currentPosition.coerceAtLeast(0L)
         if (sameSourceRetries < SERIES_SOURCE_RETRY_LIMIT) {
             sameSourceRetries += 1
             playerMessage = "Reconectando ao episódio..."
@@ -186,6 +187,7 @@ fun SeriesNativePlayerScreen(
                 delay(1_200)
                 currentSources.getOrNull(sourceIndex)?.let { source ->
                     player.setMediaItem(mediaItemForSeries(source))
+                    if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
                     player.prepare()
                     player.playWhenReady = true
                 }
@@ -198,6 +200,7 @@ fun SeriesNativePlayerScreen(
         if (nextSourceIndex < currentSources.size) {
             sourceIndex = nextSourceIndex
             sameSourceRetries = 0
+            pendingSeekMs = resumePositionMs
             playerMessage = "Tentando fonte ${nextSourceIndex + 1}/${currentSources.size}..."
             recoveryInProgress = false
             return
@@ -206,7 +209,11 @@ fun SeriesNativePlayerScreen(
         recoveryInProgress = false
         terminalFailureReported = true
         playerMessage = "Lista ativa indisponível. Ativando a lista reserva..."
-        onTerminalPlaybackFailure(diagnostic)
+        onTerminalPlaybackFailure(
+            diagnostic,
+            player.currentPosition.coerceAtLeast(0L),
+            player.duration.coerceAtLeast(0L),
+        )
     }
 
     fun showPlayPauseControls() {
