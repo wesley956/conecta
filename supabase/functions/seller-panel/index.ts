@@ -259,37 +259,6 @@ async function getAllowedSellerPlaylist(supabase: any, sellerId: string, playlis
   };
 }
 
-async function setSellerDeviceBackupPlaylist(
-  supabase: any,
-  sellerId: string,
-  deviceId: string,
-  primaryPlaylistId: string,
-  backupPlaylistId: string | null,
-) {
-  if (backupPlaylistId === primaryPlaylistId) {
-    throw new Error('A lista reserva deve ser diferente da lista principal.');
-  }
-
-  if (backupPlaylistId) {
-    await getAllowedSellerPlaylist(supabase, sellerId, backupPlaylistId);
-  }
-
-  const { error: deleteError } = await supabase
-    .from('panel_device_playlists')
-    .delete()
-    .eq('device_id', deviceId)
-    .eq('priority', 2);
-
-  if (deleteError) throw new Error(`Falha ao atualizar lista reserva: ${deleteError.message}`);
-  if (!backupPlaylistId) return;
-
-  const { error: insertError } = await supabase
-    .from('panel_device_playlists')
-    .insert({ device_id: deviceId, playlist_id: backupPlaylistId, priority: 2, active: true });
-
-  if (insertError) throw new Error(`Falha ao salvar lista reserva: ${insertError.message}`);
-}
-
 async function triggerPlaylistCache(playlistId: string) {
   const adminToken = Deno.env.get('ADMIN_PANEL_TOKEN') || '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -331,16 +300,18 @@ async function applySellerDeviceSubscription(
     planId: string;
     planName?: string | null;
     playlistId: string;
+    backupPlaylistId?: string | null;
     expiresAt: string;
     type: 'activation' | 'renewal';
     idempotencyKey: string;
   },
 ) {
-  const { data, error } = await supabase.rpc('apply_device_subscription_transaction', {
+  const { data, error } = await supabase.rpc('apply_device_subscription_complete_transaction', {
     p_seller_id: seller.id,
     p_device_id: payload.deviceId,
     p_plan_id: payload.planId,
     p_playlist_id: payload.playlistId,
+    p_backup_playlist_id: payload.backupPlaylistId || null,
     p_expires_at: payload.expiresAt,
     p_operation_type: payload.type,
     p_performed_by: `seller:${seller.id}`,
@@ -804,66 +775,26 @@ serve(async (req) => {
     if (action === 'deleteSellerPlaylist') {
       const playlistId = requiredText(body.playlistId, 'ID da lista');
 
-      const { data: permission, error: permissionError } = await supabase
-        .from('panel_seller_playlists')
-        .select('id')
-        .eq('seller_id', seller.id)
-        .eq('playlist_id', playlistId)
-        .eq('active', true)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('remove_seller_playlist_transaction', {
+        p_seller_id: seller.id,
+        p_playlist_id: playlistId,
+      });
 
-      if (permissionError) return json({ error: permissionError.message }, 500);
-      if (!permission) return json({ error: 'Esta lista não pertence a este vendedor.' }, 403);
-
-      const { data: sellerDevices, error: devicesError } = await supabase
-        .from('panel_devices')
-        .select('id, device_code, playlist_id')
-        .eq('seller_id', seller.id);
-
-      if (devicesError) return json({ error: devicesError.message }, 500);
-
-      const usedDeviceIds = new Set<string>(
-        (sellerDevices ?? [])
-          .filter((device: any) => device.playlist_id === playlistId)
-          .map((device: any) => device.id),
-      );
-      const sellerDeviceIds = (sellerDevices ?? []).map((device: any) => device.id);
-
-      if (sellerDeviceIds.length) {
-        const { data: assignments, error: assignmentsError } = await supabase
-          .from('panel_device_playlists')
-          .select('device_id')
-          .in('device_id', sellerDeviceIds)
-          .eq('playlist_id', playlistId)
-          .eq('active', true);
-
-        if (assignmentsError) return json({ error: assignmentsError.message }, 500);
-        for (const assignment of assignments ?? []) usedDeviceIds.add(assignment.device_id);
-      }
-
-      if (usedDeviceIds.size) {
-        const deviceCodes = (sellerDevices ?? [])
-          .filter((device: any) => usedDeviceIds.has(device.id))
-          .map((device: any) => device.device_code)
-          .filter(Boolean);
+      if (error) return json({ error: error.message }, 500);
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.removed) {
+        const devicesCount = Number(result?.devices_count || 0);
+        const deviceCodes = Array.isArray(result?.device_codes) ? result.device_codes : [];
 
         return json({
           error:
-            `Esta lista está em uso por ${usedDeviceIds.size} aparelho(s)` +
+            `Esta lista está em uso por ${devicesCount} aparelho(s)` +
             (deviceCodes.length ? `: ${deviceCodes.join(', ')}.` : '.') +
             ' Troque a lista desses aparelhos antes de excluí-la.',
-          devicesCount: usedDeviceIds.size,
+          devicesCount,
           deviceCodes,
         }, 409);
       }
-
-      const { error: deleteError } = await supabase
-        .from('panel_seller_playlists')
-        .delete()
-        .eq('seller_id', seller.id)
-        .eq('playlist_id', playlistId);
-
-      if (deleteError) return json({ error: deleteError.message }, 500);
 
       await writeSellerAudit(supabase, {
         action: 'playlist.removed_by_seller',
@@ -954,12 +885,11 @@ serve(async (req) => {
         planId: plan.id,
         planName: plan.name,
         playlistId: playlist.id,
+        backupPlaylistId,
         expiresAt,
         type: 'activation',
         idempotencyKey,
       });
-      await setSellerDeviceBackupPlaylist(supabase, seller.id, device.id, playlist.id, backupPlaylistId);
-
       return json({
         ok: true,
         deviceId: device.id,
@@ -1008,12 +938,11 @@ serve(async (req) => {
         planId: plan.id,
         planName: plan.name,
         playlistId: playlist.id,
+        backupPlaylistId,
         expiresAt,
         type: 'renewal',
         idempotencyKey,
       });
-      await setSellerDeviceBackupPlaylist(supabase, seller.id, device.id, playlist.id, backupPlaylistId);
-
       return json({
         ok: true,
         deviceId,

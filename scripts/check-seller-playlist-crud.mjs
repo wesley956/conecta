@@ -19,10 +19,10 @@ const requiredFrontend = [
 
 const requiredBackend = [
   "action === 'deleteSellerPlaylist'",
-  ".eq('seller_id', seller.id)",
-  ".eq('playlist_id', playlistId)",
-  ".from('panel_device_playlists')",
-  'usedDeviceIds.size',
+  "rpc('remove_seller_playlist_transaction'",
+  'p_seller_id: seller.id',
+  'p_playlist_id: playlistId',
+  'devices_count',
   "action: 'playlist.removed_by_seller'",
   "entityType: 'playlist'",
 ];
@@ -39,7 +39,7 @@ if (!deleteAction) throw new Error('Ação deleteSellerPlaylist não encontrada.
 if (deleteAction.includes(".from('panel_playlists')\n        .delete()")) {
   throw new Error('O vendedor não pode excluir globalmente uma lista compartilhada.');
 }
-if (!deleteAction.includes("return json({\n          error:") || !deleteAction.includes('}, 409);')) {
+if (!deleteAction.includes('if (!result?.removed)') || !deleteAction.includes('}, 409);')) {
   throw new Error('Lista em uso precisa ser bloqueada com HTTP 409.');
 }
 

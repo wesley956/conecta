@@ -4,10 +4,10 @@ Este documento transforma a auditoria técnica em lotes publicáveis, com depend
 
 ## Estado atual
 
-Branch do lote 3: `agent/cache-concurrency`
-Base: `main` no commit `332a177`
+Branch do lote 4: `agent/commercial-consistency`
+Base: `main` no commit `f491a81`
 
-Os lotes 1 e 2 foram revisados, aprovados por todos os checks e mesclados pelo PR #180. O deploy automático do GitHub Pages, redundante e desabilitado no repositório, foi removido pelo PR #181; o Vercel permanece como hospedagem oficial do painel. O lote 3 está implementado nesta branch e aguarda validação do banco/pgTAP no CI. Nenhuma migration ou Edge Function deste plano foi aplicada manualmente ao Supabase de produção.
+Os lotes 1 e 2 foram mesclados pelo PR #180; o workflow redundante do GitHub Pages foi removido pelo PR #181; e o lote 3 foi aprovado e mesclado pelo PR #182. O Vercel permanece como hospedagem oficial do painel. O lote 4 está isolado nesta branch para validação local e pelo CI. Nenhuma migration ou Edge Function deste plano foi aplicada manualmente ao Supabase de produção.
 
 ## Lote 1 — segurança, Xtream e continuidade
 
@@ -87,7 +87,7 @@ O frontend não deve ser publicado antes da migration e das Edge Functions, porq
 
 ### Lote 3 — cache e concorrência
 
-Status: implementado na branch `agent/cache-concurrency`; aguarda CI e revisão antes de mesclagem.
+Status: mesclado na `main` pelo PR #182, com todos os checks aprovados.
 
 - Substituir a trava global por lease renovável por `playlist_id`, permitindo listas independentes em paralelo.
 - Persistir cada tentativa com `attempt_id`, proprietário, fase, heartbeat, validade e resultado, sem guardar URL ou credencial da origem.
@@ -113,9 +113,26 @@ Rollback: restaurar primeiro as Edge Functions anteriores. A tabela de trava glo
 
 ### Lote 4 — consistência comercial
 
-- Consolidar operações de crédito, ativação e renovação em RPCs transacionais.
-- Corrigir fluxos de exclusão manual que hoje dependem de várias operações separadas.
-- Criar testes de concorrência e idempotência no Postgres.
+Status: implementado na branch `agent/commercial-consistency`; aguarda reset completo, lint e pgTAP do CI antes de revisão.
+
+- Ativar/renovar, debitar crédito e gravar principal/reserva numa única RPC idempotente.
+- Trocar o par principal/reserva sem a janela intermediária de `delete` seguido de `insert`.
+- Serializar ativação, troca, remoção e exclusão com trava transacional por playlist.
+- Remover a permissão do vendedor somente depois de confirmar, dentro da mesma transação, que nenhum aparelho usa a lista.
+- Excluir uma lista administrativa promovendo reservas de aparelhos e assinaturas na mesma transação.
+- Bloquear a exclusão quando uma assinatura usa a lista como principal e não possui reserva.
+- Restringir todas as novas funções ao `service_role`, com `search_path` vazio.
+- Cobrir retries, fingerprint divergente, rollback, permissões, promoção e bloqueios em pgTAP.
+
+### Ordem de implantação do lote 4
+
+| Ordem | Entrega | Verificação antes de avançar |
+|---|---|---|
+| 1 | Migration `20260801032340_commercial_consistency_transactions.sql` | RPCs, privilégios e testes pgTAP aprovados; saldos e vínculos existentes inalterados |
+| 2 | Edge Functions `admin-panel` e `seller-panel` | Ativação/renovação cria um débito e as duas listas; retry não altera saldo |
+| 3 | Monitoramento gratuito | Conferir erros de idempotência, exclusões bloqueadas e promoções de reserva |
+
+Rollback: restaurar primeiro as duas Edge Functions anteriores. As RPCs novas podem permanecer sem chamadas; não remover extrato, vínculos ou histórico durante um incidente.
 
 ### Lote 5 — continuidade no aparelho
 
@@ -143,5 +160,6 @@ Rollback: restaurar primeiro as Edge Functions anteriores. A tabela de trava glo
 - `npm run build --prefix smart-tv`: aprovado.
 - `git diff --check`: aprovado.
 - Builds Android, LG e Samsung dos lotes 1 e 2: aprovados no CI do PR #180 e após a mesclagem.
-- Teste estrutural e comportamental de integridade SHA-256/limite de concorrência do lote 3: aprovado localmente.
-- Teste pgTAP do lote 3: criado; será executado pelo CI porque o Supabase CLI local não consegue usar seu diretório de configuração neste ambiente restrito.
+- Lote 3: reset de 42 migrations, lint e 39 testes pgTAP aprovados no PR #182.
+- Lote 4: `npm run verify`, typecheck/build da Smart TV, versões únicas de migration e `git diff --check` aprovados localmente.
+- Lote 4: reset das 43 migrations, lint e pgTAP dependem do PostgreSQL local do CI e permanecem pendentes até o PR.
