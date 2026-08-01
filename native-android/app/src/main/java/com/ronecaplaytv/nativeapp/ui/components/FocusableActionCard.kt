@@ -54,6 +54,7 @@ object RonecaColors {
     val Red = Color(0xFFC62828)
     val RedStrong = Color(0xFFFF3B30)
     val RedSoft = Color(0x33C62828)
+    val Focus = RedStrong
     val Purple = Color(0xFFC9AE68)
     val Orange = Color(0xFFE9A44F)
     val Green = Color(0xFF73C98C)
@@ -66,7 +67,8 @@ object RonecaColors {
     val TextPrimary = Color(0xFFF7F4EC)
     val BodyText = Color(0xFFD8D2C5)
     val TextSecondary = Color(0xFFA39D91)
-    val TextMuted = Color(0xFF69645B)
+    val TextMuted = Color(0xFFA39D91)
+    val TextDisabled = Color(0xFF69645B)
 }
 
 private val CardShape = RoundedCornerShape(14.dp)
@@ -120,7 +122,7 @@ fun FocusableActionCard(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
                     !enabled -> RonecaColors.Border.copy(alpha = 0.42f)
-                    focused -> accentColor
+                    focused -> RonecaColors.Focus
                     else -> RonecaColors.Border
                 },
                 shape = CardShape,
@@ -194,7 +196,7 @@ fun FocusableActionCard(
                 modifier = Modifier
                     .width(34.dp)
                     .height(3.dp)
-                    .background(if (focused) RonecaColors.PrimaryStrong else RonecaColors.Primary),
+                    .background(if (focused) RonecaColors.Focus else RonecaColors.Primary),
             )
             Box(
                 modifier = Modifier

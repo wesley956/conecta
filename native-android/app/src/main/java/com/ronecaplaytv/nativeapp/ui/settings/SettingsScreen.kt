@@ -273,7 +273,7 @@ private fun AppUpdateCard(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.RedStrong else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(14.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -352,7 +352,7 @@ private fun RefreshCard(
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     refreshing -> RonecaColors.Primary
                     else -> RonecaColors.Primary.copy(alpha = 0.72f)
                 },
@@ -490,7 +490,7 @@ private fun SettingChip(label: String, active: Boolean, onClick: () -> Unit) {
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     active -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
@@ -504,7 +504,11 @@ private fun SettingChip(label: String, active: Boolean, onClick: () -> Unit) {
     ) {
         Text(
             text = label,
-            color = if (active || focused) RonecaColors.Primary else RonecaColors.TextSecondary,
+            color = when {
+                focused -> RonecaColors.TextPrimary
+                active -> RonecaColors.Primary
+                else -> RonecaColors.TextSecondary
+            },
             fontSize = 12.sp,
             fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
         )
@@ -530,7 +534,7 @@ private fun ToggleSettingRow(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.RedStrong else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(14.dp),
             )
             .onFocusChanged { focused = it.isFocused }

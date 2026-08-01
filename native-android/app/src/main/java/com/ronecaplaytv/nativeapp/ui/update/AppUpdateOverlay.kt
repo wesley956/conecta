@@ -374,14 +374,18 @@ private fun UpdateButton(
             .clip(RoundedCornerShape(12.dp))
             .background(
                 when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     primary -> RonecaColors.Primary
                     else -> RonecaColors.BackgroundSoft
                 },
             )
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused || primary) RonecaColors.Primary else RonecaColors.Border,
+                color = when {
+                    focused -> RonecaColors.Focus
+                    primary -> RonecaColors.Primary
+                    else -> RonecaColors.Border
+                },
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged { focused = it.isFocused }

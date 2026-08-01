@@ -292,7 +292,7 @@ internal fun NativePlayerAction(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
                     !enabled -> RonecaColors.Border.copy(alpha = 0.45f)
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     emphasized -> RonecaColors.Primary
                     else -> RonecaColors.Primary.copy(alpha = 0.55f)
                 },

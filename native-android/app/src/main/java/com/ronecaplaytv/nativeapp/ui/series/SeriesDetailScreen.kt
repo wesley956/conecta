@@ -213,7 +213,7 @@ private fun BackControl(isTelevision: Boolean, onBack: () -> Unit) {
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.PrimaryStrong else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(999.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -326,7 +326,7 @@ private fun DetailActionButton(label: String, isTelevision: Boolean, onClick: ()
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.RedStrong else RonecaColors.Primary,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Primary,
                 shape = RoundedCornerShape(999.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -418,7 +418,7 @@ private fun SeasonChip(seasonNumber: Int, selected: Boolean, onClick: () -> Unit
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
-                    focused -> RonecaColors.RedStrong
+                    focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
@@ -473,7 +473,7 @@ private fun EpisodeRow(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -540,7 +540,7 @@ private fun RecommendationCard(
             .background(RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged { focused = it.isFocused }

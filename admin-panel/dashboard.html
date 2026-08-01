@@ -1070,19 +1070,19 @@ tbody tr:hover td {
           <h2>Novo Vendedor</h2>
           <p class="sub">Crie revendedores e controle saldo por crédito.</p>
 
-          <label>Nome</label>
+          <label for="newSellerName">Nome</label>
           <input id="newSellerName" placeholder="Ex: Revendedor João" />
 
-          <label>WhatsApp</label>
+          <label for="newSellerWhatsapp">WhatsApp</label>
           <input id="newSellerWhatsapp" placeholder="Ex: 19999999999" />
 
-          <label>E-mail opcional</label>
+          <label for="newSellerEmail">E-mail opcional</label>
           <input id="newSellerEmail" placeholder="email@exemplo.com" />
 
-          <label>Créditos iniciais</label>
+          <label for="newSellerInitialCredits">Créditos iniciais</label>
           <input id="newSellerInitialCredits" type="number" min="0" value="0" />
 
-          <label>Validade da conta em horas</label>
+          <label for="newSellerAccessDurationHours">Validade da conta em horas</label>
           <input id="newSellerAccessDurationHours" type="number" min="0" max="8760" value="0" />
           <p class="muted small">Use 0 para deixar a conta sem vencimento ou 24 para um teste de 24 horas.</p>
 
@@ -1091,7 +1091,7 @@ tbody tr:hover td {
             Excluir automaticamente se não renovar
           </label>
 
-          <label>Tolerância após o bloqueio (horas)</label>
+          <label for="newSellerAutoDeleteGraceHours">Tolerância após o bloqueio (horas)</label>
           <input id="newSellerAutoDeleteGraceHours" type="number" min="1" max="720" value="36" />
 
           <label>
@@ -1107,16 +1107,16 @@ tbody tr:hover td {
           <h2>Novo Plano</h2>
           <p class="sub">Defina duração e custo em créditos.</p>
 
-          <label>Nome do plano</label>
+          <label for="newPlanName">Nome do plano</label>
           <input id="newPlanName" placeholder="Ex: Mensal 1 tela" />
 
-          <label>Duração em dias</label>
+          <label for="newPlanDurationDays">Duração em dias</label>
           <input id="newPlanDurationDays" type="number" min="1" value="30" />
 
-          <label>Custo em créditos</label>
+          <label for="newPlanCreditCost">Custo em créditos</label>
           <input id="newPlanCreditCost" type="number" min="1" value="1" />
 
-          <label>Máx. aparelhos</label>
+          <label for="newPlanMaxDevices">Máx. aparelhos</label>
           <input id="newPlanMaxDevices" type="number" min="1" value="1" />
 
           <br><br>
@@ -1127,13 +1127,13 @@ tbody tr:hover td {
           <h2>Adicionar Créditos</h2>
           <p class="sub">Toda entrada vira extrato/auditoria.</p>
 
-          <label>Vendedor</label>
+          <label for="sellerCreditSeller">Vendedor</label>
           <select id="sellerCreditSeller"></select>
 
-          <label>Quantidade</label>
+          <label for="sellerCreditAmount">Quantidade</label>
           <input id="sellerCreditAmount" type="number" min="1" value="1" />
 
-          <label>Descrição</label>
+          <label for="sellerCreditDescription">Descrição</label>
           <input id="sellerCreditDescription" placeholder="Ex: Pagamento recebido" />
 
           <br><br>
@@ -1477,19 +1477,19 @@ tbody tr:hover td {
 
         <div class="panel-ux-body">
           <section class="panel-ux-form active" data-ux-form="seller">
-            <label>Nome</label>
+            <label for="uxNewSellerName">Nome</label>
             <input id="uxNewSellerName" placeholder="Ex: Revendedor João" />
 
-            <label>WhatsApp</label>
+            <label for="uxNewSellerWhatsapp">WhatsApp</label>
             <input id="uxNewSellerWhatsapp" placeholder="Ex: 19999999999" />
 
-            <label>E-mail opcional</label>
+            <label for="uxNewSellerEmail">E-mail opcional</label>
             <input id="uxNewSellerEmail" placeholder="email@exemplo.com" />
 
-            <label>Créditos iniciais</label>
+            <label for="uxNewSellerInitialCredits">Créditos iniciais</label>
             <input id="uxNewSellerInitialCredits" type="number" min="0" value="0" />
 
-            <label>Validade da conta em horas</label>
+            <label for="uxNewSellerAccessDurationHours">Validade da conta em horas</label>
             <input id="uxNewSellerAccessDurationHours" type="number" min="0" max="8760" value="0" />
             <p class="muted small">Use 0 para não vencer ou 24 para liberar um teste de 24 horas.</p>
 
@@ -1498,7 +1498,7 @@ tbody tr:hover td {
               Excluir automaticamente se não renovar
             </label>
 
-            <label>Tolerância após o bloqueio (horas)</label>
+            <label for="uxNewSellerAutoDeleteGraceHours">Tolerância após o bloqueio (horas)</label>
             <input id="uxNewSellerAutoDeleteGraceHours" type="number" min="1" max="720" value="36" />
 
             <label class="ux-check-row">
@@ -1512,16 +1512,16 @@ tbody tr:hover td {
           </section>
 
           <section class="panel-ux-form" data-ux-form="plan">
-            <label>Nome do plano</label>
+            <label for="uxNewPlanName">Nome do plano</label>
             <input id="uxNewPlanName" placeholder="Ex: Mensal 1 tela" />
 
-            <label>Duração em dias</label>
+            <label for="uxNewPlanDurationDays">Duração em dias</label>
             <input id="uxNewPlanDurationDays" type="number" min="1" value="30" />
 
-            <label>Custo em créditos</label>
+            <label for="uxNewPlanCreditCost">Custo em créditos</label>
             <input id="uxNewPlanCreditCost" type="number" min="1" value="1" />
 
-            <label>Máx. aparelhos</label>
+            <label for="uxNewPlanMaxDevices">Máx. aparelhos</label>
             <input id="uxNewPlanMaxDevices" type="number" min="1" value="1" />
 
             <div class="panel-ux-actions">
@@ -1530,13 +1530,13 @@ tbody tr:hover td {
           </section>
 
           <section class="panel-ux-form" data-ux-form="credits">
-            <label>Vendedor</label>
+            <label for="uxSellerCreditSeller">Vendedor</label>
             <select id="uxSellerCreditSeller"></select>
 
-            <label>Quantidade</label>
+            <label for="uxSellerCreditAmount">Quantidade</label>
             <input id="uxSellerCreditAmount" type="number" min="1" value="1" />
 
-            <label>Descrição</label>
+            <label for="uxSellerCreditDescription">Descrição</label>
             <input id="uxSellerCreditDescription" placeholder="Ex: Pagamento recebido" />
 
             <div class="panel-ux-actions">
@@ -1559,10 +1559,10 @@ tbody tr:hover td {
 
         <div class="panel-ux-body">
           <section class="panel-ux-form active">
-            <label>Nome</label>
+            <label for="uxNewCustomerName">Nome</label>
             <input id="uxNewCustomerName" placeholder="Ex: João Silva" />
 
-            <label>WhatsApp</label>
+            <label for="uxNewCustomerWhatsapp">WhatsApp</label>
             <input id="uxNewCustomerWhatsapp" placeholder="Ex: 19999999999" />
 
             <div class="panel-ux-actions">
@@ -3142,19 +3142,19 @@ function renderCommercial() {
       ? sellers.map(seller => `
         <tr>
           <td>
-            <input id="seller-name-${esc(seller.id)}" value="${esc(seller.name)}" />
+            <input id="seller-name-${esc(seller.id)}" aria-label="Nome do vendedor ${esc(seller.name)}" value="${esc(seller.name)}" />
             <div class="small muted">${esc(seller.email || 'Sem e-mail')}</div>
           </td>
-          <td><input id="seller-whats-${esc(seller.id)}" value="${esc(seller.whatsapp)}" /></td>
+          <td><input id="seller-whats-${esc(seller.id)}" aria-label="WhatsApp do vendedor ${esc(seller.name)}" value="${esc(seller.whatsapp)}" /></td>
           <td><strong>${Number(seller.creditBalance || 0)}</strong><br><span class="small muted">crédito(s)</span></td>
           <td>
-            <select id="seller-status-${esc(seller.id)}">
+            <select id="seller-status-${esc(seller.id)}" aria-label="Status do vendedor ${esc(seller.name)}">
               ${sellerStatusOptions(seller.status)}
             </select>
           </td>
           <td>
             <label class="small">
-              <input id="seller-negative-${esc(seller.id)}" type="checkbox" ${seller.canGoNegative ? 'checked' : ''} />
+              <input id="seller-negative-${esc(seller.id)}" type="checkbox" aria-label="Permitir saldo negativo para ${esc(seller.name)}" ${seller.canGoNegative ? 'checked' : ''} />
               permitir
             </label>
           </td>
@@ -3175,11 +3175,11 @@ function renderCommercial() {
     plansBody.innerHTML = plans.length
       ? plans.map(plan => `
         <tr>
-          <td><input id="plan-name-${esc(plan.id)}" value="${esc(plan.name)}" /></td>
-          <td><input id="plan-days-${esc(plan.id)}" type="number" min="1" value="${Number(plan.durationDays || 30)}" /></td>
-          <td><input id="plan-cost-${esc(plan.id)}" type="number" min="1" value="${Number(plan.creditCost || 1)}" /></td>
+          <td><input id="plan-name-${esc(plan.id)}" aria-label="Nome do plano ${esc(plan.name)}" value="${esc(plan.name)}" /></td>
+          <td><input id="plan-days-${esc(plan.id)}" aria-label="Duração em dias do plano ${esc(plan.name)}" type="number" min="1" value="${Number(plan.durationDays || 30)}" /></td>
+          <td><input id="plan-cost-${esc(plan.id)}" aria-label="Custo em créditos do plano ${esc(plan.name)}" type="number" min="1" value="${Number(plan.creditCost || 1)}" /></td>
           <td>
-            <select id="plan-status-${esc(plan.id)}">
+            <select id="plan-status-${esc(plan.id)}" aria-label="Status do plano ${esc(plan.name)}">
               ${planStatusOptions(plan.status)}
             </select>
           </td>

@@ -369,7 +369,7 @@ private fun MediaCard(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(13.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -459,7 +459,7 @@ private fun CompactChannelCard(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -472,7 +472,7 @@ private fun CompactChannelCard(
             modifier = Modifier
                 .width(3.dp)
                 .height(34.dp)
-                .background(if (focused) RonecaColors.RedStrong else RonecaColors.Primary),
+                .background(if (focused) RonecaColors.Focus else RonecaColors.Primary),
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {

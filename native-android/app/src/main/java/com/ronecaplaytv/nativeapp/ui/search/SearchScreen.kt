@@ -260,7 +260,7 @@ private fun SearchResultRow(
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
             .border(
                 width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Primary else RonecaColors.Border,
+                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
                 shape = RoundedCornerShape(12.dp),
             )
             .onFocusChanged { focused = it.isFocused }

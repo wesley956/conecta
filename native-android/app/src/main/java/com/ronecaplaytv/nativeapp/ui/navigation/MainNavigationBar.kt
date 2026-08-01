@@ -189,7 +189,11 @@ private fun RailItem(
             )
             .border(
                 width = if (active) 1.dp else 0.dp,
-                color = if (active) RonecaColors.Primary.copy(alpha = 0.68f) else Color.Transparent,
+                color = when {
+                    focused -> RonecaColors.Focus
+                    selected -> RonecaColors.Primary.copy(alpha = 0.68f)
+                    else -> Color.Transparent
+                },
                 shape = RoundedCornerShape(11.dp),
             )
             .onFocusChanged { focused = it.isFocused }
@@ -230,7 +234,7 @@ private fun RailItem(
                 Text(
                     text = tab.label,
                     color = RonecaColors.TextPrimary,
-                    fontSize = if (isTelevision) 8.sp else 7.sp,
+                    fontSize = if (isTelevision) 11.sp else 10.sp,
                     maxLines = 1,
                 )
             }
@@ -266,7 +270,7 @@ private fun BottomItem(
         Text(
             text = tab.label,
             color = if (selected) RonecaColors.TextPrimary else RonecaColors.TextMuted,
-            fontSize = 8.sp,
+            fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
         )
