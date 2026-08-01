@@ -36,9 +36,13 @@ const cache = await readFile(
 );
 assert.ok(!cache.includes('if (movies.length === 0)'), 'VOD vazio não pode invalidar TV ou séries válidas.');
 assert.ok(!cache.includes('playlistUrl: snapshot.playlistUrl'), 'O cache não deve duplicar a URL secreta da fonte.');
-assert.ok(!cache.includes('raw.slice('), 'Respostas inválidas do provedor não devem vazar conteúdo no erro.');
+const fetchJsonSource = cache.slice(cache.indexOf('async function fetchJson'), cache.indexOf('async function fetchText'));
+assert.ok(fetchJsonSource.includes('resposta não é JSON.'), 'JSON inválido deve usar uma mensagem redigida.');
+assert.ok(!fetchJsonSource.includes('raw.slice('), 'Respostas inválidas do provedor não devem vazar conteúdo no erro.');
+assert.ok(!fetchJsonSource.includes('${raw}'), 'O corpo inválido não pode ser interpolado no erro.');
 assert.ok(cache.includes("'Login Xtream', source.origin"), 'Chamadas Xtream devem bloquear redirecionamento de credenciais para outro domínio.');
-assert.ok(cache.includes("playlist_cache_error_code: previousCacheIsUsable ? null : 'CACHE_GENERATION_BUSY'"));
+assert.ok(cache.includes("errorCode: 'cache_generation_busy'"));
+assert.ok(cache.includes("rpc('claim_playlist_cache_generation'"));
 
 const accessMode = await readFile(
   new URL('../supabase/functions/_shared/playlistAccessMode.ts', import.meta.url),

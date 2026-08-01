@@ -733,7 +733,7 @@ serve(async (req) => {
           playlist_type: playlistType,
           active: true,
           playlist_updated_at: now,
-          playlist_cache_status: 'processing',
+          playlist_cache_status: 'missing',
           playlist_cache_error: null,
           playlist_cache_error_code: null,
           playlist_cache_attempts: [],
@@ -787,17 +787,6 @@ serve(async (req) => {
 
       if (permissionError) return json({ error: permissionError.message }, 500);
       if (!permission) return json({ error: 'Esta lista não pertence a este vendedor.' }, 403);
-
-      await supabase
-        .from('panel_playlists')
-        .update({
-          playlist_cache_status: 'processing',
-          playlist_cache_error: null,
-          playlist_cache_error_code: null,
-          playlist_cache_attempts: [],
-          playlist_access_mode: 'server_cache',
-        })
-        .eq('id', playlistId);
 
       const cache = await triggerPlaylistCache(playlistId);
       return json({

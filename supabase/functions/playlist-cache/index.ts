@@ -11,10 +11,30 @@ import {
   classifyPlaylistCacheFailure,
   type PlaylistCacheAttempt,
 } from '../_shared/playlistAccessMode.ts';
+import {
+  buildCacheManifest,
+  encodeJsonCachePart,
+  sha256Hex,
+  type UploadedCachePart,
+} from '../_shared/cacheManifest.ts';
+import { runTasksWithConcurrency } from '../_shared/limitedConcurrency.ts';
 
 const BUCKET = 'playlist-cache';
-const CACHE_LOCK_ID = 'global';
-const CACHE_LOCK_TTL_MS = 3 * 60_000;
+const CACHE_LEASE_SECONDS = 180;
+const XTREAM_FETCH_CONCURRENCY = 2;
+const CACHE_GENERATIONS_TO_KEEP = 2;
+
+type ProgressReporter = (phase: string) => Promise<void>;
+
+type CacheLease = {
+  acquired: boolean;
+  attemptId: string;
+  leaseExpiresAt: string;
+  manifestPath: string;
+  channelsPath: string;
+  moviesPath: string;
+  seriesPath: string;
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -180,16 +200,6 @@ async function fetchText(url: string, label: string) {
   });
 }
 
-async function sha256Short(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
-
-  return [...new Uint8Array(hash)]
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, 20);
-}
-
 function buildCategoryMap(items: any[]) {
   const map = new Map<string, string>();
 
@@ -202,11 +212,16 @@ function buildCategoryMap(items: any[]) {
   return map;
 }
 
-async function mapInBatches<T, R>(items: T[], mapper: (item: T) => R, batchSize = 500) {
+async function mapDefinedInBatches<T, R>(
+  items: T[],
+  mapper: (item: T) => R | null,
+  batchSize = 500,
+) {
   const result: R[] = [];
 
   for (let index = 0; index < items.length; index += 1) {
-    result.push(mapper(items[index]));
+    const mapped = mapper(items[index]);
+    if (mapped !== null) result.push(mapped);
     if ((index + 1) % batchSize === 0) {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -240,10 +255,11 @@ function movieUrl(source: XtreamSource, streamId: string | number, extension?: s
   return buildXtreamStreamUrl(source, 'movie', streamId, ext);
 }
 
-async function buildXtreamSnapshot(playlist: any) {
+async function buildXtreamSnapshot(playlist: any, reportProgress: ProgressReporter) {
   const source = parseXtreamSource(playlist.playlist_url);
   if (!source) return null;
 
+  await reportProgress('xtream_profile');
   const profile = await fetchJson(buildXtreamApiUrl(source), 'Login Xtream', source.origin);
   const userInfo = profile?.user_info ?? {};
 
@@ -251,20 +267,23 @@ async function buildXtreamSnapshot(playlist: any) {
     throw new Error('A conta Xtream não autorizou o acesso.');
   }
 
-  const [liveCategories, vodCategories, seriesCategories] = await Promise.all([
-    fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais', source.origin).catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes', source.origin).catch(() => []),
-    fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries', source.origin).catch(() => []),
-  ]);
+  await reportProgress('xtream_categories');
+  const [liveCategories, vodCategories, seriesCategories] = await runTasksWithConcurrency([
+    () => fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais', source.origin).catch(() => []),
+    () => fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes', source.origin).catch(() => []),
+    () => fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries', source.origin).catch(() => []),
+  ], XTREAM_FETCH_CONCURRENCY);
 
   const liveCategoryMap = buildCategoryMap(liveCategories);
   const vodCategoryMap = buildCategoryMap(vodCategories);
   const seriesCategoryMap = buildCategoryMap(seriesCategories);
 
+  await reportProgress('xtream_live');
   let liveStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais', source.origin);
-  const channels = await mapInBatches(
-    (Array.isArray(liveStreams) ? liveStreams : []).filter(item => item.stream_id),
+  const channels = await mapDefinedInBatches(
+    Array.isArray(liveStreams) ? liveStreams : [],
     item => {
+      if (!item.stream_id) return null;
       const groupName = liveCategoryMap.get(String(item.category_id ?? '')) || 'Canais';
       const playbackUrls = alternateLiveUrls(source, item.stream_id);
       const url = playbackUrls[0];
@@ -283,10 +302,12 @@ async function buildXtreamSnapshot(playlist: any) {
   );
   liveStreams = null;
 
+  await reportProgress('xtream_movies');
   let vodStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes', source.origin);
-  const movies = await mapInBatches(
-    (Array.isArray(vodStreams) ? vodStreams : []).filter(item => item.stream_id),
+  const movies = await mapDefinedInBatches(
+    Array.isArray(vodStreams) ? vodStreams : [],
     item => {
+      if (!item.stream_id) return null;
       const name = text(item.name, `Filme ${item.stream_id}`);
       const category = vodCategoryMap.get(String(item.category_id ?? '')) || 'Filmes';
       const url = movieUrl(source, item.stream_id, item.container_extension);
@@ -308,10 +329,12 @@ async function buildXtreamSnapshot(playlist: any) {
   );
   vodStreams = null;
 
+  await reportProgress('xtream_series');
   let seriesItems: any = await fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries', source.origin);
-  const series = await mapInBatches(
-    (Array.isArray(seriesItems) ? seriesItems : []).filter(item => item.series_id),
+  const series = await mapDefinedInBatches(
+    Array.isArray(seriesItems) ? seriesItems : [],
     item => {
+      if (!item.series_id) return null;
       const seriesId = item.series_id;
       const category = seriesCategoryMap.get(String(item.category_id ?? '')) || 'Séries';
 
@@ -329,6 +352,8 @@ async function buildXtreamSnapshot(playlist: any) {
     },
   );
   seriesItems = null;
+
+  await reportProgress('snapshot_ready');
 
   return { channels, movies, series };
 }
@@ -376,14 +401,16 @@ function isPlayableUrl(url: string) {
   return /^https?:\/\//i.test(url) || /^rtmp:\/\//i.test(url);
 }
 
-function findNextPlayableUrl(lines: string[], startIndex: number): { url: string; index: number } | null {
-  for (let index = startIndex + 1; index < lines.length; index += 1) {
-    const candidate = lines[index]?.trim() ?? '';
-    if (!candidate) continue;
-    if (candidate.startsWith('#EXTINF')) return null;
-    if (isPlayableUrl(candidate)) return { url: candidate, index };
+function* iterateNonEmptyLines(raw: string) {
+  let start = 0;
+
+  for (let index = 0; index <= raw.length; index += 1) {
+    if (index < raw.length && raw.charCodeAt(index) !== 10) continue;
+    const end = index > start && raw.charCodeAt(index - 1) === 13 ? index - 1 : index;
+    const line = raw.slice(start, end).trim();
+    if (line) yield line;
+    start = index + 1;
   }
-  return null;
 }
 
 function getUrlPath(url: string): string {
@@ -497,7 +524,8 @@ function parseEpisodeInfo(name: string) {
   };
 }
 
-async function buildM3USnapshot(playlist: any) {
+async function buildM3USnapshot(playlist: any, reportProgress: ProgressReporter) {
+  await reportProgress('m3u_download');
   const raw = await fetchText(playlist.playlist_url, 'Lista M3U');
 
   if (!raw.includes('#EXTINF')) {
@@ -507,24 +535,33 @@ async function buildM3USnapshot(playlist: any) {
   const channels: any[] = [];
   const movies: any[] = [];
   const seriesMap = new Map<string, any>();
-  const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   let episodeCounter = 0;
+  let processedEntries = 0;
+  let extInfLine: string | null = null;
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (!line.startsWith('#EXTINF')) continue;
+  await reportProgress('m3u_parse');
+  for (const line of iterateNonEmptyLines(raw)) {
+    if (line.startsWith('#EXTINF')) {
+      extInfLine = line;
+      continue;
+    }
+    if (!extInfLine || !isPlayableUrl(line)) continue;
 
-    const playable = findNextPlayableUrl(lines, index);
-    if (!playable) continue;
-
-    const url = playable.url;
-    const name = readName(line);
-    const groupTitle = readAttr(line, 'group-title') || 'Outros';
-    const logo = readAttr(line, 'tvg-logo') || undefined;
-    const epgId = readAttr(line, 'tvg-id') || undefined;
-    const duration = formatDuration(readExtInfDuration(line));
+    const metadataLine = extInfLine;
+    extInfLine = null;
+    const url = line;
+    const name = readName(metadataLine);
+    const groupTitle = readAttr(metadataLine, 'group-title') || 'Outros';
+    const logo = readAttr(metadataLine, 'tvg-logo') || undefined;
+    const epgId = readAttr(metadataLine, 'tvg-id') || undefined;
+    const duration = formatDuration(readExtInfDuration(metadataLine));
     const kind = classifyEntry(name, groupTitle, url);
-    index = playable.index;
+    processedEntries += 1;
+
+    if (processedEntries % 5000 === 0) {
+      await reportProgress('m3u_parse');
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
 
     if (kind === 'live') {
       channels.push({
@@ -604,6 +641,8 @@ async function buildM3USnapshot(playlist: any) {
       .sort((a: any, b: any) => a.number - b.number),
   }));
 
+  await reportProgress('snapshot_ready');
+
   return { channels, movies, series };
 }
 
@@ -621,7 +660,7 @@ function attemptLabel(method: PlaylistCacheAttempt['method']) {
   return method === 'm3u' ? 'M3U' : 'Xtream';
 }
 
-async function buildSnapshot(playlist: any) {
+async function buildSnapshot(playlist: any, reportProgress: ProgressReporter) {
   const attempts: PlaylistCacheAttempt[] = [];
   const playlistType = normalizeType(playlist.playlist_type);
   const hasXtreamCredentials = Boolean(parseXtreamSource(playlist.playlist_url));
@@ -633,8 +672,8 @@ async function buildSnapshot(playlist: any) {
   for (const method of methods) {
     try {
       const result = method === 'xtream'
-        ? await buildXtreamSnapshot(playlist)
-        : await buildM3USnapshot(playlist);
+        ? await buildXtreamSnapshot(playlist, reportProgress)
+        : await buildM3USnapshot(playlist, reportProgress);
 
       if (!result) {
         attempts.push({
@@ -702,21 +741,22 @@ async function buildSnapshot(playlist: any) {
 }
 
 async function uploadJsonCachePart(supabase: any, storagePath: string, payload: unknown) {
-  const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  const encoded = await encodeJsonCachePart(payload);
   const upload = await supabase.storage
     .from(BUCKET)
-    .upload(storagePath, body, {
+    .upload(storagePath, encoded.body, {
       contentType: 'application/json',
-      upsert: true,
-      cacheControl: '3600',
+      upsert: false,
+      cacheControl: '31536000',
     });
 
   if (upload.error) throw new Error(upload.error.message);
 
   return {
     path: storagePath,
-    sizeBytes: new TextEncoder().encode(body).byteLength,
-  };
+    sizeBytes: encoded.sizeBytes,
+    sha256: encoded.sha256,
+  } satisfies UploadedCachePart;
 }
 
 function hasUsableCache(playlist: any) {
@@ -729,179 +769,318 @@ function hasUsableCache(playlist: any) {
   );
 }
 
-async function acquireCacheLock(supabase: any, playlistId: string) {
-  const staleBefore = new Date(Date.now() - CACHE_LOCK_TTL_MS).toISOString();
-  await supabase
-    .from('playlist_cache_generation_lock')
-    .delete()
-    .eq('id', CACHE_LOCK_ID)
-    .lt('started_at', staleBefore);
-
-  const token = crypto.randomUUID();
-  const { error } = await supabase
-    .from('playlist_cache_generation_lock')
-    .insert({
-      id: CACHE_LOCK_ID,
-      playlist_id: playlistId,
-      token,
-      started_at: new Date().toISOString(),
-    });
-
-  if (!error) return { acquired: true, token };
-  if (error.code === '23505') return { acquired: false, token: null };
-  throw new Error(`Não foi possível reservar a geração do cache: ${error.message}`);
+function firstRpcRow(data: any) {
+  return Array.isArray(data) ? data[0] : data;
 }
 
-async function releaseCacheLock(supabase: any, token: string | null) {
-  if (!token) return;
+async function claimCacheGeneration(supabase: any, playlistId: string, ownerId: string): Promise<CacheLease> {
+  const { data, error } = await supabase.rpc('claim_playlist_cache_generation', {
+    p_playlist_id: playlistId,
+    p_owner_id: ownerId,
+    p_lease_seconds: CACHE_LEASE_SECONDS,
+  });
+
+  if (error) throw new Error(`Não foi possível reservar a geração do cache: ${error.message}`);
+  const row = firstRpcRow(data);
+  if (!row?.attempt_id) throw new Error('O banco não retornou a tentativa de geração do cache.');
+
+  return {
+    acquired: row.acquired === true,
+    attemptId: String(row.attempt_id),
+    leaseExpiresAt: String(row.lease_expires_at || ''),
+    manifestPath: String(row.manifest_path || ''),
+    channelsPath: String(row.channels_path || ''),
+    moviesPath: String(row.movies_path || ''),
+    seriesPath: String(row.series_path || ''),
+  };
+}
+
+async function heartbeatCacheGeneration(
+  supabase: any,
+  playlistId: string,
+  attemptId: string,
+  ownerId: string,
+  phase: string,
+) {
+  const { data, error } = await supabase.rpc('heartbeat_playlist_cache_generation', {
+    p_playlist_id: playlistId,
+    p_attempt_id: attemptId,
+    p_owner_id: ownerId,
+    p_phase: phase,
+    p_lease_seconds: CACHE_LEASE_SECONDS,
+  });
+
+  if (error) throw new Error(`Não foi possível renovar o lease do cache: ${error.message}`);
+  return firstRpcRow(data)?.renewed === true;
+}
+
+async function completeCacheGeneration(
+  supabase: any,
+  playlistId: string,
+  attemptId: string,
+  ownerId: string,
+  payload: {
+    generatedAt: string;
+    version: string;
+    itemCount: number;
+    sizeBytes: number;
+    manifestSha256: string;
+    manifestSizeBytes: number;
+    cacheAttempts: PlaylistCacheAttempt[];
+    parts: Record<string, unknown>;
+  },
+) {
+  const { data, error } = await supabase.rpc('complete_playlist_cache_generation', {
+    p_playlist_id: playlistId,
+    p_attempt_id: attemptId,
+    p_owner_id: ownerId,
+    p_generated_at: payload.generatedAt,
+    p_version: payload.version,
+    p_item_count: payload.itemCount,
+    p_size_bytes: payload.sizeBytes,
+    p_manifest_sha256: payload.manifestSha256,
+    p_manifest_size_bytes: payload.manifestSizeBytes,
+    p_cache_attempts: payload.cacheAttempts,
+    p_parts: payload.parts,
+  });
+
+  if (error) throw new Error(`Não foi possível publicar o cache: ${error.message}`);
+  const row = firstRpcRow(data);
+  return {
+    published: row?.published === true,
+    reason: String(row?.reason || 'unknown'),
+  };
+}
+
+async function failCacheGeneration(
+  supabase: any,
+  playlistId: string,
+  attemptId: string,
+  ownerId: string,
+  failure: ReturnType<typeof classifyPlaylistCacheFailure>,
+  message: string,
+  attempts: PlaylistCacheAttempt[],
+) {
+  const { data, error } = await supabase.rpc('fail_playlist_cache_generation', {
+    p_playlist_id: playlistId,
+    p_attempt_id: attemptId,
+    p_owner_id: ownerId,
+    p_error_code: failure.code,
+    p_error_message: message,
+    p_access_mode: failure.accessMode,
+    p_cache_attempts: attempts,
+  });
+
+  if (error) throw new Error(`Não foi possível registrar a falha do cache: ${error.message}`);
+  return data === true;
+}
+
+async function removeCacheObjects(supabase: any, paths: string[]) {
+  const uniquePaths = [...new Set(paths.filter(Boolean))];
+  if (uniquePaths.length === 0) return true;
+  const { error } = await supabase.storage.from(BUCKET).remove(uniquePaths);
+  return !error;
+}
+
+async function markAttemptObjectsDeleted(supabase: any, attemptId: string) {
   await supabase
-    .from('playlist_cache_generation_lock')
-    .delete()
-    .eq('id', CACHE_LOCK_ID)
-    .eq('token', token);
+    .from('playlist_cache_generation_attempts')
+    .update({ objects_deleted_at: new Date().toISOString() })
+    .eq('id', attemptId);
+}
+
+async function cleanupOldCacheGenerations(supabase: any, playlistId: string) {
+  const { data, error } = await supabase
+    .from('playlist_cache_generation_attempts')
+    .select('id, status, manifest_path, channels_path, movies_path, series_path, finished_at')
+    .eq('playlist_id', playlistId)
+    .is('objects_deleted_at', null)
+    .neq('status', 'building')
+    .order('finished_at', { ascending: false, nullsFirst: false })
+    .limit(25);
+
+  if (error) return;
+  let readySeen = 0;
+
+  for (const attempt of data ?? []) {
+    if (attempt.status === 'ready') {
+      readySeen += 1;
+      if (readySeen <= CACHE_GENERATIONS_TO_KEEP) continue;
+    }
+
+    const removed = await removeCacheObjects(supabase, [
+      attempt.manifest_path,
+      attempt.channels_path,
+      attempt.movies_path,
+      attempt.series_path,
+    ]);
+    if (removed) await markAttemptObjectsDeleted(supabase, String(attempt.id));
+  }
+}
+
+class CacheLeaseLostError extends Error {
+  constructor() {
+    super('A geração perdeu o lease antes de concluir.');
+    this.name = 'CacheLeaseLostError';
+  }
 }
 
 async function refreshPlaylistCache(supabase: any, playlist: any) {
   const startedAt = Date.now();
   const previousCacheIsUsable = hasUsableCache(playlist);
-  const lock = await acquireCacheLock(supabase, playlist.id);
+  const ownerId = crypto.randomUUID();
+  const lease = await claimCacheGeneration(supabase, playlist.id, ownerId);
 
-  if (!lock.acquired) {
-    await supabase
-      .from('panel_playlists')
-      .update({
-        playlist_cache_status: previousCacheIsUsable ? 'ready' : 'error',
-        playlist_cache_error: previousCacheIsUsable
-          ? null
-          : 'Já existe uma geração de cache em andamento. Tente novamente em instantes.',
-        playlist_cache_error_code: previousCacheIsUsable ? null : 'CACHE_GENERATION_BUSY',
-        playlist_access_mode: previousCacheIsUsable ? 'server_cache' : 'blocked',
-      })
-      .eq('id', playlist.id);
-
+  if (!lease.acquired) {
     return {
       ok: false,
       busy: true,
       playlistId: playlist.id,
       playlistName: playlist.name,
+      attemptId: lease.attemptId,
+      leaseExpiresAt: lease.leaseExpiresAt,
       errorCode: 'cache_generation_busy',
-      message: 'Outra lista já está gerando cache. Aguarde a conclusão e tente novamente.',
+      message: 'Esta lista já possui uma geração de cache em andamento.',
       elapsedMs: Date.now() - startedAt,
     };
   }
 
-  if (!previousCacheIsUsable) {
-    await supabase
-      .from('panel_playlists')
-      .update({
-        playlist_cache_status: 'building',
-        playlist_cache_error: null,
-        playlist_cache_error_code: null,
-        playlist_cache_attempts: [],
-        playlist_access_mode: 'server_cache',
-      })
-      .eq('id', playlist.id);
-  }
+  const uploadedPaths: string[] = [];
+  const reportProgress: ProgressReporter = async phase => {
+    const renewed = await heartbeatCacheGeneration(
+      supabase,
+      playlist.id,
+      lease.attemptId,
+      ownerId,
+      phase,
+    );
+    if (!renewed) throw new CacheLeaseLostError();
+  };
 
   try {
-    const snapshot = await buildSnapshot(playlist);
+    const snapshot = await buildSnapshot(playlist, reportProgress);
     const itemCount = snapshot.channels.length + snapshot.movies.length + snapshot.series.length;
-    const hashSeed = JSON.stringify({
-      playlistId: snapshot.playlistId,
-      generatedAt: snapshot.generatedAt,
+    const counts = {
       channels: snapshot.channels.length,
       movies: snapshot.movies.length,
       series: snapshot.series.length,
+      total: itemCount,
+    };
+    const hashSeed = JSON.stringify({
+      playlistId: snapshot.playlistId,
+      generatedAt: snapshot.generatedAt,
+      counts,
       updatedAt: playlist.playlist_updated_at ?? null,
     });
-    const hash = await sha256Short(hashSeed);
+    const hash = (await sha256Hex(hashSeed)).slice(0, 20);
     const version = `${snapshot.generatedAt}-${hash}`;
 
-    const manifestPath = `${playlist.id}/manifest-${hash}.json`;
-    const channelsPath = `${playlist.id}/channels-${hash}.json`;
-    const moviesPath = `${playlist.id}/movies-${hash}.json`;
-    const seriesPath = `${playlist.id}/series-${hash}.json`;
-
-    const manifest = {
-      schemaVersion: snapshot.schemaVersion,
-      generatedAt: snapshot.generatedAt,
-      playlistId: snapshot.playlistId,
-      playlistName: snapshot.playlistName,
-      version,
-      counts: {
-        channels: snapshot.channels.length,
-        movies: snapshot.movies.length,
-        series: snapshot.series.length,
-        total: itemCount,
-      },
-      files: {
-        manifest: manifestPath,
-        channels: channelsPath,
-        movies: moviesPath,
-        series: seriesPath,
-      },
-    };
-
-    const channelsPayload = {
+    await reportProgress('upload_channels');
+    const channelsUpload = await uploadJsonCachePart(supabase, lease.channelsPath, {
       schemaVersion: snapshot.schemaVersion,
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
       playlists: snapshot.playlists,
       channels: snapshot.channels,
-    };
+    });
+    uploadedPaths.push(channelsUpload.path);
+    snapshot.channels = [];
 
-    const moviesPayload = {
+    await reportProgress('upload_movies');
+    const moviesUpload = await uploadJsonCachePart(supabase, lease.moviesPath, {
       schemaVersion: snapshot.schemaVersion,
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
       movies: snapshot.movies,
-    };
+    });
+    uploadedPaths.push(moviesUpload.path);
+    snapshot.movies = [];
 
-    const seriesPayload = {
+    await reportProgress('upload_series');
+    const seriesUpload = await uploadJsonCachePart(supabase, lease.seriesPath, {
       schemaVersion: snapshot.schemaVersion,
       generatedAt: snapshot.generatedAt,
       playlistId: snapshot.playlistId,
       playlistName: snapshot.playlistName,
       series: snapshot.series,
-    };
+    });
+    uploadedPaths.push(seriesUpload.path);
+    snapshot.series = [];
 
-    const manifestUpload = await uploadJsonCachePart(supabase, manifestPath, manifest);
-    const channelsUpload = await uploadJsonCachePart(supabase, channelsPath, channelsPayload);
-    const moviesUpload = await uploadJsonCachePart(supabase, moviesPath, moviesPayload);
-    const seriesUpload = await uploadJsonCachePart(supabase, seriesPath, seriesPayload);
+    const manifest = buildCacheManifest({
+      schemaVersion: snapshot.schemaVersion,
+      generatedAt: snapshot.generatedAt,
+      playlistId: snapshot.playlistId,
+      playlistName: snapshot.playlistName,
+      attemptId: lease.attemptId,
+      version,
+      counts,
+      channels: channelsUpload,
+      movies: moviesUpload,
+      series: seriesUpload,
+      manifestPath: lease.manifestPath,
+    });
+
+    await reportProgress('upload_manifest');
+    const manifestUpload = await uploadJsonCachePart(supabase, lease.manifestPath, manifest);
+    uploadedPaths.push(manifestUpload.path);
 
     const sizeBytes = manifestUpload.sizeBytes + channelsUpload.sizeBytes + moviesUpload.sizeBytes + seriesUpload.sizeBytes;
+    const parts = {
+      channels: { path: channelsUpload.path, sha256: channelsUpload.sha256, bytes: channelsUpload.sizeBytes, count: counts.channels },
+      movies: { path: moviesUpload.path, sha256: moviesUpload.sha256, bytes: moviesUpload.sizeBytes, count: counts.movies },
+      series: { path: seriesUpload.path, sha256: seriesUpload.sha256, bytes: seriesUpload.sizeBytes, count: counts.series },
+      manifest: { path: manifestUpload.path, sha256: manifestUpload.sha256, bytes: manifestUpload.sizeBytes },
+    };
 
-    await supabase
-      .from('panel_playlists')
-      .update({
-        playlist_cache_status: 'ready',
-        playlist_cache_path: manifestUpload.path,
-        playlist_cache_manifest_path: manifestUpload.path,
-        playlist_cache_channels_path: channelsUpload.path,
-        playlist_cache_movies_path: moviesUpload.path,
-        playlist_cache_series_path: seriesUpload.path,
-        playlist_cache_version: version,
-        playlist_cache_updated_at: snapshot.generatedAt,
-        playlist_cache_item_count: itemCount,
-        playlist_cache_size_bytes: sizeBytes,
-        playlist_cache_error: null,
-        playlist_cache_error_code: null,
-        playlist_cache_attempts: snapshot.cacheAttempts,
-        playlist_access_mode: 'server_cache',
-      })
-      .eq('id', playlist.id);
+    await reportProgress('publish_manifest');
+    const publication = await completeCacheGeneration(
+      supabase,
+      playlist.id,
+      lease.attemptId,
+      ownerId,
+      {
+        generatedAt: snapshot.generatedAt,
+        version,
+        itemCount,
+        sizeBytes,
+        manifestSha256: manifestUpload.sha256,
+        manifestSizeBytes: manifestUpload.sizeBytes,
+        cacheAttempts: snapshot.cacheAttempts,
+        parts,
+      },
+    );
+
+    if (!publication.published) {
+      await removeCacheObjects(supabase, uploadedPaths);
+      await markAttemptObjectsDeleted(supabase, lease.attemptId);
+      return {
+        ok: false,
+        playlistId: playlist.id,
+        playlistName: playlist.name,
+        attemptId: lease.attemptId,
+        errorCode: publication.reason,
+        preservedPreviousCache: previousCacheIsUsable,
+        message: publication.reason === 'source_changed'
+          ? 'A lista foi alterada durante a geração. Gere o cache novamente.'
+          : 'A geração perdeu a autorização de publicação e foi descartada com segurança.',
+        elapsedMs: Date.now() - startedAt,
+      };
+    }
+
+    await cleanupOldCacheGenerations(supabase, playlist.id);
 
     return {
       ok: true,
       playlistId: playlist.id,
       playlistName: playlist.name,
+      attemptId: lease.attemptId,
       itemCount,
-      channels: snapshot.channels.length,
-      movies: snapshot.movies.length,
-      series: snapshot.series.length,
+      channels: counts.channels,
+      movies: counts.movies,
+      series: counts.series,
       sizeBytes,
       parts: {
         manifestBytes: manifestUpload.sizeBytes,
@@ -919,21 +1098,29 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       : [{ method: 'm3u', status: 'error', error: message }] as PlaylistCacheAttempt[];
     const failure = classifyPlaylistCacheFailure(attempts, playlist.playlist_type);
 
-    await supabase
-      .from('panel_playlists')
-      .update({
-        playlist_cache_status: previousCacheIsUsable ? 'ready' : 'error',
-        playlist_cache_error: message,
-        playlist_cache_error_code: failure.code,
-        playlist_cache_attempts: attempts,
-        playlist_access_mode: previousCacheIsUsable ? 'server_cache' : failure.accessMode,
-      })
-      .eq('id', playlist.id);
+    if (uploadedPaths.length > 0 && await removeCacheObjects(supabase, uploadedPaths)) {
+      await markAttemptObjectsDeleted(supabase, lease.attemptId);
+    }
+
+    try {
+      await failCacheGeneration(
+        supabase,
+        playlist.id,
+        lease.attemptId,
+        ownerId,
+        failure,
+        message,
+        attempts,
+      );
+    } catch {
+      // O reconciliador recupera tentativas cujo lease foi perdido antes do registro da falha.
+    }
 
     return {
       ok: false,
       playlistId: playlist.id,
       playlistName: playlist.name,
+      attemptId: lease.attemptId,
       error: message,
       errorCode: failure.code,
       accessMode: failure.accessMode,
@@ -945,8 +1132,6 @@ async function refreshPlaylistCache(supabase: any, playlist: any) {
       attempts,
       elapsedMs: Date.now() - startedAt,
     };
-  } finally {
-    await releaseCacheLock(supabase, lock.token);
   }
 }
 

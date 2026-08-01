@@ -589,19 +589,6 @@ serve(async (req) => {
 
     if (action === 'refreshPlaylistCache') {
       const id = requiredText(body.id || body.playlistId, 'ID da lista');
-      const { error: stateError } = await supabase
-        .from('panel_playlists')
-        .update({
-          playlist_cache_status: 'processing',
-          playlist_cache_error: null,
-          playlist_cache_error_code: null,
-          playlist_cache_attempts: [],
-          playlist_access_mode: 'server_cache',
-        })
-        .eq('id', id)
-        .eq('active', true);
-      if (stateError) return json({ error: stateError.message }, 500);
-
       const cache = await triggerPlaylistCache(id);
       const accepted = cache.ok === true || cache.accessMode === 'direct';
       return json({

@@ -3,6 +3,11 @@ import fs from 'node:fs';
 const required = new Map([
   ['supabase/functions/playlist-cache/index.ts', [
     'classifyPlaylistCacheFailure',
+    "rpc('fail_playlist_cache_generation'",
+    'p_access_mode: failure.accessMode',
+    'p_cache_attempts: attempts',
+  ]],
+  ['supabase/migrations/20260801024610_playlist_cache_leases_and_manifests.sql', [
     'playlist_access_mode',
     'playlist_cache_attempts',
   ]],

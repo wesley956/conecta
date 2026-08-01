@@ -4,14 +4,14 @@ Este documento transforma a auditoria técnica em lotes publicáveis, com depend
 
 ## Estado atual
 
-Branch de trabalho: `codex/security-xtream-seller-lifecycle`
-Base: `main` no commit `613a4b6`
+Branch do lote 3: `agent/cache-concurrency`
+Base: `main` no commit `332a177`
 
-Os lotes 1 e 2 abaixo estão implementados no código da branch. Eles ainda precisam passar pelo CI com banco local, revisão e implantação controlada antes de chegar à produção.
+Os lotes 1 e 2 foram revisados, aprovados por todos os checks e mesclados pelo PR #180. O deploy automático do GitHub Pages, redundante e desabilitado no repositório, foi removido pelo PR #181; o Vercel permanece como hospedagem oficial do painel. O lote 3 está implementado nesta branch e aguarda validação do banco/pgTAP no CI. Nenhuma migration ou Edge Function deste plano foi aplicada manualmente ao Supabase de produção.
 
 ## Lote 1 — segurança, Xtream e continuidade
 
-Status: implementado e validado pelos testes estruturais e pelo build da Smart TV.
+Status: mesclado na `main` pelo PR #180, com todos os checks aprovados.
 
 - Preservar porta e caminho-base nas APIs e URLs de reprodução Xtream.
 - Aceitar catálogos válidos sem filmes quando canais ou séries existem.
@@ -29,7 +29,7 @@ Status: implementado e validado pelos testes estruturais e pelo build da Smart T
 
 ## Lote 2 — contas temporárias de vendedores
 
-Status: implementado. A migration possui teste pgTAP, mas ele precisa ser executado pelo CI com Postgres/Supabase local.
+Status: mesclado na `main` pelo PR #180. Migration, lint do PostgreSQL e teste pgTAP foram aprovados no CI.
 
 ### Regra funcional
 
@@ -87,10 +87,29 @@ O frontend não deve ser publicado antes da migration e das Edge Functions, porq
 
 ### Lote 3 — cache e concorrência
 
-- Substituir a trava global por coordenação por lista.
-- Adicionar heartbeat/lease e recuperação automática de processamentos abandonados.
-- Publicar manifestos de cache de forma atômica e manter a última versão válida.
-- Limitar paralelismo e memória por tipo de catálogo.
+Status: implementado na branch `agent/cache-concurrency`; aguarda CI e revisão antes de mesclagem.
+
+- Substituir a trava global por lease renovável por `playlist_id`, permitindo listas independentes em paralelo.
+- Persistir cada tentativa com `attempt_id`, proprietário, fase, heartbeat, validade e resultado, sem guardar URL ou credencial da origem.
+- Recuperar leases abandonados automaticamente a cada cinco minutos e liberar uma nova tentativa.
+- Manter o último cache válido durante refresh, falha ou reconciliação.
+- Gravar canais, filmes, séries e manifest em caminhos imutáveis por tentativa, com `upsert = false`.
+- Incluir SHA-256 e tamanho de cada parte no manifest e persistir a integridade do manifest no ponteiro ativo.
+- Trocar todos os ponteiros em uma única função SQL, com compare-and-set do `attempt_id` e da versão da origem.
+- Reter as duas últimas gerações válidas e remover de forma assíncrona objetos de tentativas antigas, falhas ou substituídas.
+- Limitar a duas chamadas simultâneas a coleta das categorias Xtream e processar catálogos grandes por seção.
+- Evitar o vetor duplicado de linhas no parser M3U e liberar cada coleção da memória depois do upload.
+
+### Ordem de implantação do lote 3
+
+| Ordem | Entrega | Verificação antes de avançar |
+|---|---|---|
+| 1 | Migration `20260801024610_playlist_cache_leases_and_manifests.sql` | Tabelas, índices, RPCs, privilégios e job aparecem; cache ativo existente continua inalterado |
+| 2 | Edge Function `playlist-cache` e módulos compartilhados | Duas listas diferentes obtêm leases; a mesma lista recebe resposta ocupada; cache anterior continua disponível |
+| 3 | Funções que criam/editam/diagnosticam listas | Novas listas começam em `missing`; nenhuma função marca `processing` antes do lease |
+| 4 | Monitoramento gratuito | Conferir tentativas, leases expirados, cron e limpeza sem criar staging pago |
+
+Rollback: restaurar primeiro as Edge Functions anteriores. A tabela de trava global foi mantida temporariamente para esse fim. Não remover as novas tabelas, colunas ou histórico durante um incidente; o job pode ser interrompido com `select cron.unschedule('playlist-cache-lease-reconciler');`.
 
 ### Lote 4 — consistência comercial
 
@@ -123,5 +142,6 @@ O frontend não deve ser publicado antes da migration e das Edge Functions, porq
 - `npm run typecheck --prefix smart-tv`: aprovado.
 - `npm run build --prefix smart-tv`: aprovado.
 - `git diff --check`: aprovado.
-- Build Android: pendente porque o repositório não contém Gradle Wrapper e o ambiente não possui Gradle/Android SDK.
-- Teste pgTAP da nova migration: pendente porque o ambiente atual não possui Docker nem Supabase/Postgres local em execução.
+- Builds Android, LG e Samsung dos lotes 1 e 2: aprovados no CI do PR #180 e após a mesclagem.
+- Teste estrutural e comportamental de integridade SHA-256/limite de concorrência do lote 3: aprovado localmente.
+- Teste pgTAP do lote 3: criado; será executado pelo CI porque o Supabase CLI local não consegue usar seu diretório de configuração neste ambiente restrito.
