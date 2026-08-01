@@ -1,8 +1,6 @@
 import fs from 'node:fs';
 
 const requiredFiles = [
-  'admin-panel/subscription-module.js',
-  'admin-panel/subscription-module.css',
   'admin-panel/playlist-edit-module.js',
   'admin-panel/playlist-edit-module.css',
   'supabase/functions/subscription-panel/index.ts',
@@ -21,7 +19,6 @@ for (const file of requiredFiles) {
   if (!fs.existsSync(file)) throw new Error(`Arquivo obrigatório ausente: ${file}`);
 }
 
-const ui = fs.readFileSync('admin-panel/subscription-module.js', 'utf8');
 const playlistEditUi = fs.readFileSync('admin-panel/playlist-edit-module.js', 'utf8');
 const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'utf8');
 const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
@@ -31,20 +28,6 @@ const legacyEditMigration = fs.readFileSync('supabase/migrations/2026072206_lega
 const deviceConfig = fs.readFileSync('supabase/functions/device-config/index.ts', 'utf8');
 const configGenerator = fs.readFileSync('scripts/generate-panel-config.mjs', 'utf8');
 const supabaseConfig = fs.readFileSync('supabase/config.toml', 'utf8');
-
-const uiRequirements = [
-  'Nova assinatura',
-  'Adicionar aparelho',
-  'Substituir aparelho',
-  'Alterar plano',
-  'Renovar assinatura',
-  'Modo Laboratório do proprietário',
-  'durationMinutes',
-  'Diagnóstico de cache',
-];
-for (const token of uiRequirements) {
-  if (!ui.includes(token)) throw new Error(`Interface de assinatura não contém: ${token}`);
-}
 
 const playlistEditUiRequirements = [
   'Editar / trocar',
@@ -61,7 +44,7 @@ for (const token of playlistEditUiRequirements) {
   if (!playlistEditUi.includes(token)) throw new Error(`Interface de edição de lista não contém: ${token}`);
 }
 
-if (/\bFunction\s*\(|\beval\s*\(/.test(ui) || /\bFunction\s*\(|\beval\s*\(/.test(playlistEditUi)) {
+if (/\bFunction\s*\(|\beval\s*\(/.test(playlistEditUi)) {
   throw new Error('Módulos do painel não podem executar código dinâmico.');
 }
 
@@ -146,7 +129,7 @@ if (!deviceConfig.includes('allowDirectPlaylistFallback() && !labContext')) {
   throw new Error('Laboratório precisa bloquear exposição direta da lista.');
 }
 if (configGenerator.includes('subscription-module.js')) {
-  throw new Error('O módulo de assinatura incompleto deve permanecer preservado no repositório, mas desativado no painel publicado.');
+  throw new Error('O protótipo visual de assinaturas não pode voltar ao painel publicado.');
 }
 if (!configGenerator.includes('commercial-consolidation-v2.js')) {
   throw new Error('O painel publicado precisa carregar a consolidação comercial V2 que remove a aba incompleta sem travar o DOM.');
@@ -158,4 +141,4 @@ if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supab
   throw new Error('Função de edição de listas precisa exigir JWT.');
 }
 
-console.log('✅ Assinaturas preservadas para uso futuro, desativadas no painel publicado, com edição segura de listas validada.');
+console.log('✅ Backend de assinaturas e edição publicada de listas validados sem aprovar interface visual inativa.');

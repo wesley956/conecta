@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const read = path => fs.readFileSync(path, 'utf8');
-const dashboard = read('admin-panel/dashboard.html');
+const dashboard = `${read('admin-panel/dashboard.html')}\n${read('admin-panel/dashboard.js')}`;
 const seller = read('admin-panel/seller.html');
 const sellerUx = read('admin-panel/seller-portal-ux.js');
 const sellerNavigation = read('admin-panel/seller-dynamic-navigation-v2.js');
