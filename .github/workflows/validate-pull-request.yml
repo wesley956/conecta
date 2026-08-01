@@ -205,6 +205,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --silent
 
+      - name: Validate unique migration versions
+        run: npm run check:migration-versions
+
       - name: Start isolated PostgreSQL
         shell: bash
         run: |
