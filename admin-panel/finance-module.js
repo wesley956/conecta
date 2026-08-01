@@ -443,7 +443,8 @@
       button.onclick = () => window.setTab?.('finance');
       button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16v12H4zM7 4h10v3M8 13h8M12 10v6"/></svg><span>Financeiro</span>';
       const playlists = nav.querySelector('[data-tab="playlists"]');
-      nav.insertBefore(button, playlists || nav.lastElementChild);
+      if (playlists) playlists.insertAdjacentElement('beforebegin', button);
+      else nav.appendChild(button);
     }
 
     if (!$('section-finance')) {
@@ -838,6 +839,7 @@
     window.renewDevice = function financeOpenAdminRenew(id) {
       const device = (globalLists().devices || []).find(item => item.id === id);
       if (!device) return showNotice('admin', 'Aparelho não encontrado.', true);
+      window.closeDetails?.();
       openFinanceModal('Renovar aparelho', `${device.deviceCode} · ${device.customerName || 'Sem cliente'}`, renewalModalHtml(device));
     };
     return true;

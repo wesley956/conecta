@@ -6,6 +6,7 @@ dist/
 .env.*.local
 *.log
 *.tsbuildinfo
+artifacts/e2e/
 
 # Configuração pública gerada no deploy do painel
 admin-panel/panel-config.js

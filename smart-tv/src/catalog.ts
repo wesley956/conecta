@@ -216,6 +216,7 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
         }
 
         let lastError: unknown = null;
+        const syncAttemptId = `catalog-sync:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
         for (const [index, candidate] of available.entries()) {
           try {
             const data = await loadCatalog(candidate.cacheParts, controller.signal);
@@ -238,6 +239,12 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             return;
           } catch (error) {
             lastError = error;
+            if (controller.signal.aborted) return;
+            const reason = error instanceof Error ? error.message : "Falha ao carregar a lista.";
+            await reportPlaylistFailure(candidate.id, reason, {
+              correlationId: syncAttemptId,
+              failoverAttemptId: syncAttemptId
+            }).catch(() => undefined);
           }
         }
         throw lastError || new Error("Nenhuma lista pôde ser carregada.");
