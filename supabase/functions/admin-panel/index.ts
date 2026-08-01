@@ -199,7 +199,7 @@ async function getAdminUsablePlaylist(supabase: any, playlistId: string, label =
   return playlist;
 }
 
-async function setDeviceBackupPlaylist(
+async function setDevicePlaylists(
   supabase: any,
   deviceId: string,
   primaryPlaylistId: string | null,
@@ -209,30 +209,14 @@ async function setDeviceBackupPlaylist(
     throw new Error('A lista reserva precisa ser diferente da lista principal.');
   }
 
-  const { error: clearError } = await supabase
-    .from('panel_device_playlists')
-    .delete()
-    .eq('device_id', deviceId)
-    .eq('priority', 2);
-  if (clearError) throw new Error(`Falha ao atualizar a lista reserva: ${clearError.message}`);
-
-  if (!backupPlaylistId) return;
-
-  await getAdminUsablePlaylist(supabase, backupPlaylistId, 'Lista reserva');
-
-  const { error: insertError } = await supabase
-    .from('panel_device_playlists')
-    .insert({
-      device_id: deviceId,
-      playlist_id: backupPlaylistId,
-      priority: 2,
-      active: true,
-      consecutive_failures: 0,
-      cooldown_until: null,
-      last_error: null,
-      updated_at: new Date().toISOString(),
-    });
-  if (insertError) throw new Error(`Falha ao vincular a lista reserva: ${insertError.message}`);
+  const { error } = await supabase.rpc('set_device_playlists_transaction', {
+    p_device_id: deviceId,
+    p_primary_playlist_id: primaryPlaylistId,
+    p_backup_playlist_id: backupPlaylistId,
+    p_seller_id: null,
+    p_enforce_seller_ownership: false,
+  });
+  if (error) throw new Error(`Falha ao atualizar as listas do aparelho: ${error.message}`);
 }
 
 
@@ -279,16 +263,18 @@ async function applyAdminDeviceSubscription(
     planId: string;
     planName?: string | null;
     playlistId: string;
+    backupPlaylistId?: string | null;
     expiresAt: string;
     type: 'activation' | 'renewal';
     idempotencyKey: string;
   },
 ) {
-  const { data, error } = await supabase.rpc('apply_device_subscription_transaction', {
+  const { data, error } = await supabase.rpc('apply_device_subscription_complete_transaction', {
     p_seller_id: payload.sellerId,
     p_device_id: payload.deviceId,
     p_plan_id: payload.planId,
     p_playlist_id: payload.playlistId,
+    p_backup_playlist_id: payload.backupPlaylistId || null,
     p_expires_at: payload.expiresAt,
     p_operation_type: payload.type,
     p_performed_by: 'admin',
@@ -1207,11 +1193,13 @@ serve(async (req) => {
           planId: plan.id,
           planName: plan.name,
           playlistId: nextPlaylistId,
+          backupPlaylistId: nextBackupPlaylistId,
           expiresAt: nextExpiresAt,
           type: operationType as 'activation' | 'renewal',
           idempotencyKey,
         });
       } else {
+        if ('playlistId' in body) delete updates.playlist_id;
         const { error } = await supabase
           .from('panel_devices')
           .update(updates)
@@ -1220,8 +1208,8 @@ serve(async (req) => {
         if (error) return json({ error: error.message }, 500);
       }
 
-      if ('backupPlaylistId' in body || 'playlistId' in body) {
-        await setDeviceBackupPlaylist(supabase, id, nextPlaylistId, nextBackupPlaylistId);
+      if (!operationType && ('backupPlaylistId' in body || 'playlistId' in body)) {
+        await setDevicePlaylists(supabase, id, nextPlaylistId, nextBackupPlaylistId);
       }
 
       const auditAction = operationType === 'activation'
@@ -1384,49 +1372,28 @@ serve(async (req) => {
 
     if (action === 'deletePlaylist') {
       const id = requiredText(body.id, 'ID da lista');
-
-      const { data: primaryAssignments, error: assignmentError } = await supabase
-        .from('panel_device_playlists')
-        .select('device_id')
-        .eq('playlist_id', id)
-        .eq('priority', 1);
-      if (assignmentError) return json({ error: assignmentError.message }, 500);
-
-      for (const assignment of primaryAssignments ?? []) {
-        const { data: backup } = await supabase
-          .from('panel_device_playlists')
-          .select('playlist_id')
-          .eq('device_id', assignment.device_id)
-          .eq('priority', 2)
-          .eq('active', true)
-          .maybeSingle();
-
-        const { error: promoteError } = await supabase
-          .from('panel_devices')
-          .update({
-            playlist_id: backup?.playlist_id || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', assignment.device_id);
-        if (promoteError) return json({ error: promoteError.message }, 500);
-      }
-
-      const { error } = await supabase
-        .from('panel_playlists')
-        .delete()
-        .eq('id', id);
-
+      const { data, error } = await supabase.rpc('delete_playlist_with_reassignment', {
+        p_playlist_id: id,
+      });
       if (error) return json({ error: error.message }, 500);
+      const result = Array.isArray(data) ? data[0] : data;
 
       await writeAudit(supabase, {
         action: 'playlist.deleted',
         entityType: 'playlist',
         entityId: id,
         description: 'Lista excluída',
-        metadata: {},
+        metadata: {
+          devicesReassigned: Number(result?.devices_reassigned || 0),
+          subscriptionsReassigned: Number(result?.subscriptions_reassigned || 0),
+        },
       });
 
-      return json({ ok: true });
+      return json({
+        ok: true,
+        devicesReassigned: Number(result?.devices_reassigned || 0),
+        subscriptionsReassigned: Number(result?.subscriptions_reassigned || 0),
+      });
     }
 
     return json({ error: 'Ação inválida.' }, 400);
