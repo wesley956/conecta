@@ -28,7 +28,7 @@ require_command node
 require_command psql
 require_command date
 
-"${SCRIPT_DIR}/verify-production-backup.sh" "${backup_dir}"
+bash "${SCRIPT_DIR}/verify-production-backup.sh" "${backup_dir}"
 
 readonly metadata_file="${backup_dir}/METADATA.json"
 readonly source_summary="$(node - "${metadata_file}" <<'NODE'
@@ -39,7 +39,9 @@ NODE
 )"
 IFS=$'\t' read -r source_host source_id <<< "${source_summary}"
 
-readonly target_summary="$({
+target_summary=""
+set +e
+target_summary="$({
   RONECA_RESTORE_TARGET_URL="${RONECA_RESTORE_TARGET_URL}" node <<'NODE'
 const crypto = require('node:crypto');
 const raw = String(process.env.RONECA_RESTORE_TARGET_URL || '').trim();
@@ -68,7 +70,11 @@ const database = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
 const id = crypto.createHash('sha256').update(`${host}:${port}/${database}`).digest('hex');
 process.stdout.write([host, port, database, id].join('\t'));
 NODE
-} 2>&1)" || fail "${target_summary:-Não foi possível validar o destino descartável.}"
+} 2>&1)"
+target_summary_status=$?
+set -e
+[[ ${target_summary_status} -eq 0 ]] || fail "${target_summary:-Não foi possível validar o destino descartável.}"
+readonly target_summary
 IFS=$'\t' read -r target_host target_port target_database target_id <<< "${target_summary}"
 
 [[ "${target_id}" =~ ^[a-f0-9]{64}$ ]] || fail 'Identificador do destino descartável inválido.'
