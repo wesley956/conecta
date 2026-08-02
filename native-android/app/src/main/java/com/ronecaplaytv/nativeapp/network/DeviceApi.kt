@@ -5,6 +5,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -47,6 +48,7 @@ class DeviceApi(private val functionsBaseUrl: String) {
         playlistHealthError: String? = null,
         correlationId: String? = null,
         failoverAttemptId: String? = null,
+        playlistDiagnosticSubmission: PlaylistDiagnosticSubmission? = null,
     ): DeviceConfigResponse = withContext(Dispatchers.IO) {
         val payload = JSONObject()
             .put("deviceCode", deviceCode)
@@ -74,6 +76,7 @@ class DeviceApi(private val functionsBaseUrl: String) {
                             },
                     )
                 }
+                playlistDiagnosticSubmission?.let { put("playlistDiagnosticResult", it.toJson()) }
             }
 
         val result = postJson(
@@ -225,6 +228,73 @@ data class DeviceActivationResponse(
     }
 }
 
+data class PlaylistDiagnosticTask(
+    val id: String,
+    val diagnosticId: String,
+    val playlistId: String,
+    val playlistType: String,
+    val sourceUrl: String,
+    val checks: List<String>,
+    val expiresAt: String?,
+) {
+    companion object {
+        fun from(json: JSONObject?): PlaylistDiagnosticTask? {
+            if (json == null) return null
+            val id = json.optNullableString("id") ?: return null
+            val diagnosticId = json.optNullableString("diagnosticId") ?: return null
+            val playlistId = json.optNullableString("playlistId") ?: return null
+            val sourceUrl = json.optNullableString("sourceUrl") ?: return null
+            val checksJson = json.optJSONArray("checks")
+            val checks = buildList {
+                if (checksJson != null) {
+                    for (index in 0 until checksJson.length()) {
+                        checksJson.optString(index)
+                            .trim()
+                            .lowercase()
+                            .takeIf { it in setOf("head", "auth", "playback") }
+                            ?.let(::add)
+                    }
+                }
+            }.distinct().take(3)
+            return PlaylistDiagnosticTask(
+                id = id,
+                diagnosticId = diagnosticId,
+                playlistId = playlistId,
+                playlistType = json.optNullableString("playlistType") ?: "m3u",
+                sourceUrl = sourceUrl,
+                checks = checks.ifEmpty { listOf("head", "auth", "playback") },
+                expiresAt = json.optNullableString("expiresAt"),
+            )
+        }
+    }
+}
+
+data class PlaylistDiagnosticCheck(
+    val kind: String,
+    val ok: Boolean,
+    val httpStatus: Int?,
+    val latencyMs: Long?,
+    val code: String?,
+) {
+    fun toJson() = JSONObject()
+        .put("kind", kind.take(20))
+        .put("ok", ok)
+        .apply {
+            httpStatus?.let { put("httpStatus", it.coerceIn(0, 599)) }
+            latencyMs?.let { put("latencyMs", it.coerceIn(0, 120_000)) }
+            code?.takeIf(String::isNotBlank)?.take(80)?.let { put("code", it) }
+        }
+}
+
+data class PlaylistDiagnosticSubmission(
+    val taskId: String,
+    val checks: List<PlaylistDiagnosticCheck>,
+) {
+    fun toJson() = JSONObject()
+        .put("taskId", taskId)
+        .put("checks", JSONArray().apply { checks.take(3).forEach { put(it.toJson()) } })
+}
+
 data class DeviceConfigResponse(
     val httpStatus: Int,
     val active: Boolean,
@@ -239,6 +309,7 @@ data class DeviceConfigResponse(
     val moviesUrl: String?,
     val seriesUrl: String?,
     val playlists: List<DevicePlaylistConfig>,
+    val playlistDiagnosticTask: PlaylistDiagnosticTask?,
     val message: String?,
 ) {
     companion object {
@@ -280,6 +351,7 @@ data class DeviceConfigResponse(
                 moviesUrl = cacheParts?.optNullableString("moviesUrl"),
                 seriesUrl = cacheParts?.optNullableString("seriesUrl"),
                 playlists = playlists,
+                playlistDiagnosticTask = PlaylistDiagnosticTask.from(json.optJSONObject("playlistDiagnosticTask")),
                 message = json.optNullableString("message"),
             )
         }
