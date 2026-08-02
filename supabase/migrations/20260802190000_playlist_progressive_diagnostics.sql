@@ -67,6 +67,24 @@ revoke all on table public.panel_playlist_diagnostic_tasks from anon, authentica
 grant all on table public.panel_playlist_diagnostics to service_role;
 grant all on table public.panel_playlist_diagnostic_tasks to service_role;
 
+create or replace function public.align_playlist_diagnostic_expiration()
+returns trigger
+language plpgsql
+as $$
+begin
+  update public.panel_playlist_diagnostics
+  set expires_at = new.expires_at, updated_at = now()
+  where id = new.diagnostic_id and status = 'waiting_device';
+  return new;
+end;
+$$;
+
+drop trigger if exists align_playlist_diagnostic_expiration_trigger
+  on public.panel_playlist_diagnostic_tasks;
+create trigger align_playlist_diagnostic_expiration_trigger
+after insert on public.panel_playlist_diagnostic_tasks
+for each row execute function public.align_playlist_diagnostic_expiration();
+
 comment on table public.panel_playlist_diagnostics is
   'Diagnóstico progressivo de listas. Guarda somente resultados técnicos saneados, nunca URL, usuário, senha ou catálogo.';
 comment on table public.panel_playlist_diagnostic_tasks is
