@@ -168,6 +168,9 @@
     script.src = './playlist-diagnostics-module.js';
     script.defer = true;
     script.dataset.playlistDiagnosticsModule = 'true';
+    script.addEventListener('load', function () {
+      global.__playlistDiagnosticsReady = true;
+    });
     document.head.appendChild(script);
   }
 
