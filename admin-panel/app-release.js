@@ -165,7 +165,7 @@
   function load() {
     if (document.querySelector('script[data-playlist-diagnostics-module]')) return;
     var script = document.createElement('script');
-    script.src = 'playlist-diagnostics-module.js';
+    script.src = './playlist-diagnostics-module.js';
     script.defer = true;
     script.dataset.playlistDiagnosticsModule = 'true';
     document.head.appendChild(script);
