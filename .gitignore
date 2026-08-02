@@ -26,6 +26,14 @@ android/app/build/
 *.p12
 *.pem
 
+# Backups e ensaios de restauração: sempre fora do repositório
+backups/
+.roneca-backups/
+*.dump
+*.backup.sql
+*.sql.gz
+restore-drill-*.json
+
 # Arquivos temporários de fusão
 _imports/
 _backup_conecta_before_fusion/
