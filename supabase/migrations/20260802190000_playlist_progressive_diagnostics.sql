@@ -70,6 +70,8 @@ grant all on table public.panel_playlist_diagnostic_tasks to service_role;
 create or replace function public.align_playlist_diagnostic_expiration()
 returns trigger
 language plpgsql
+security definer
+set search_path = ''
 as $$
 begin
   update public.panel_playlist_diagnostics
@@ -78,6 +80,9 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.align_playlist_diagnostic_expiration() from public, anon, authenticated;
+grant execute on function public.align_playlist_diagnostic_expiration() to service_role;
 
 drop trigger if exists align_playlist_diagnostic_expiration_trigger
   on public.panel_playlist_diagnostic_tasks;
