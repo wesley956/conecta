@@ -156,3 +156,21 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
 })(window);
+
+(function loadPlaylistDiagnosticsModule(global) {
+  'use strict';
+  if (global.__ronecaPlaylistDiagnosticsLoaderInstalled) return;
+  global.__ronecaPlaylistDiagnosticsLoaderInstalled = true;
+
+  function load() {
+    if (document.querySelector('script[data-playlist-diagnostics-module]')) return;
+    var script = document.createElement('script');
+    script.src = 'playlist-diagnostics-module.js';
+    script.defer = true;
+    script.dataset.playlistDiagnosticsModule = 'true';
+    document.head.appendChild(script);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, { once: true });
+  else load();
+})(window);
