@@ -19,18 +19,37 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "Comando obrigatório não encontrado: $1"
 }
 
+canonical_path() {
+  node - "$1" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+
+const original = path.resolve(process.argv[2]);
+let existing = original;
+const suffix = [];
+while (!fs.existsSync(existing)) {
+  const parent = path.dirname(existing);
+  if (parent === existing) break;
+  suffix.unshift(path.basename(existing));
+  existing = parent;
+}
+const resolvedBase = fs.realpathSync(existing);
+process.stdout.write(path.join(resolvedBase, ...suffix));
+NODE
+}
+
 require_command node
 require_command sha256sum
 require_command stat
 require_command awk
 require_command sort
-require_command cmp
+require_command wc
 
 [[ -n "${backup_dir}" ]] || fail 'Informe o diretório do backup.'
 [[ -d "${backup_dir}" ]] || fail "Diretório inexistente: ${backup_dir}"
 [[ ! -L "${backup_dir}" ]] || fail 'Diretório de backup não pode ser um link simbólico.'
 
-backup_dir="$(node -e "const path=require('node:path'); console.log(path.resolve(process.argv[1]));" "${backup_dir}")"
+backup_dir="$(canonical_path "${backup_dir}")"
 
 if [[ -e "${backup_dir}/FAILED" ]]; then
   fail 'O diretório está marcado como FAILED.'
@@ -50,6 +69,8 @@ for file_name in "${required_files[@]}"; do
   [[ -f "${file_path}" ]] || fail "Arquivo obrigatório ausente: ${file_name}"
   [[ ! -L "${file_path}" ]] || fail "Arquivo obrigatório não pode ser link simbólico: ${file_name}"
   [[ -s "${file_path}" ]] || fail "Arquivo obrigatório vazio: ${file_name}"
+  [[ "$(stat -c '%h' "${file_path}")" == '1' ]] \
+    || fail "Arquivo obrigatório possui hard links inesperados: ${file_name}"
 done
 
 check_private_permissions() {
@@ -73,7 +94,21 @@ done
 [[ ${allow_incomplete} -eq 0 ]] \
   && check_private_permissions "${backup_dir}/READY" 'marcador READY'
 
-mapfile -t checksum_names < <(awk '{ name=$2; sub(/^\*/, "", name); print name }' "${backup_dir}/SHA256SUMS" | sort)
+readonly checksum_line_count="$(wc -l < "${backup_dir}/SHA256SUMS" | tr -d '[:space:]')"
+[[ "${checksum_line_count}" == '4' ]] \
+  || fail 'SHA256SUMS precisa conter exatamente quatro linhas.'
+
+mapfile -t checksum_names < <(
+  awk '
+    $1 !~ /^[a-f0-9]{64}$/ { exit 2 }
+    {
+      name=$2;
+      sub(/^\*/, "", name);
+      if (name ~ /^\// || name ~ /(^|\/)\.\.($|\/)/ || name == "") exit 3;
+      print name;
+    }
+  ' "${backup_dir}/SHA256SUMS" | sort
+) || fail 'SHA256SUMS possui hash ou caminho inválido.'
 mapfile -t expected_names < <(printf '%s\n' roles.sql schema.sql data.sql METADATA.json | sort)
 
 [[ ${#checksum_names[@]} -eq ${#expected_names[@]} ]] \
@@ -89,7 +124,9 @@ done
   sha256sum -c SHA256SUMS >/dev/null
 ) || fail 'A assinatura SHA-256 não corresponde aos arquivos do backup.'
 
-node - "${backup_dir}" <<'NODE'
+safe_summary=""
+set +e
+safe_summary="$(node - "${backup_dir}" <<'NODE'
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -132,7 +169,9 @@ if (metadata.schemaVersion !== 1) throw new Error('Versão de METADATA.json não
 if (!Number.isFinite(Date.parse(metadata.createdAt))) throw new Error('Data do backup inválida.');
 if (!metadata.source || typeof metadata.source !== 'object') throw new Error('Origem do backup ausente.');
 if (!/^[a-f0-9]{64}$/.test(String(metadata.source.id || ''))) throw new Error('Identificador seguro da origem inválido.');
-if (!metadata.source.host || !metadata.source.database) throw new Error('Host ou banco ausente nos metadados seguros.');
+if (!/^[a-z0-9.-]+$/i.test(String(metadata.source.host || ''))) throw new Error('Host seguro da origem inválido.');
+if (!metadata.source.database || /[\r\n\0]/.test(String(metadata.source.database))) throw new Error('Banco da origem inválido.');
+if (!Number.isInteger(metadata.source.port) || metadata.source.port < 1 || metadata.source.port > 65535) throw new Error('Porta da origem inválida.');
 if (!metadata.tooling?.supabaseCli) throw new Error('Versão da CLI não registrada.');
 if (metadata.containsSensitiveData !== true) throw new Error('Classificação de sensibilidade ausente.');
 
@@ -153,23 +192,12 @@ function visit(value, trail = []) {
 }
 visit(metadata);
 
-process.stdout.write(JSON.stringify({
-  createdAt: metadata.createdAt,
-  host: metadata.source.host,
-  database: metadata.source.database,
-  sourceId: metadata.source.id,
-  supabaseCli: metadata.tooling.supabaseCli,
-}));
-NODE
-metadata_summary="$?"
-[[ "${metadata_summary}" -eq 0 ]] || fail 'Conteúdo do backup não passou pela validação estrutural.'
-
-safe_summary="$(node - "${backup_dir}/METADATA.json" <<'NODE'
-const fs = require('node:fs');
-const metadata = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 process.stdout.write(`${metadata.createdAt}\t${metadata.source.host}\t${metadata.source.database}\t${metadata.source.id}`);
 NODE
 )"
+metadata_status=$?
+set -e
+[[ ${metadata_status} -eq 0 ]] || fail "${safe_summary:-Conteúdo do backup não passou pela validação estrutural.}"
 IFS=$'\t' read -r created_at source_host source_database source_id <<< "${safe_summary}"
 
 printf 'Backup verificado com sucesso.\n'
