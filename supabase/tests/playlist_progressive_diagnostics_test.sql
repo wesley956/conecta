@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(18);
+select plan(19);
 
 select has_table('public', 'panel_playlist_diagnostics', 'Tabela de diagnósticos progressivos existe');
 select has_table('public', 'panel_playlist_diagnostic_tasks', 'Tabela de tarefas para Android existe');
