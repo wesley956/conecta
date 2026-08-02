@@ -1,0 +1,52 @@
+name: Validate Production Safety
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/validate-production-safety.yml'
+      - '.gitignore'
+      - 'package.json'
+      - 'scripts/production-backup.sh'
+      - 'scripts/verify-production-backup.sh'
+      - 'scripts/restore-backup-to-disposable.sh'
+      - 'scripts/check-production-safety.mjs'
+      - 'docs/PRODUCTION_SAFETY_GATE_2026-08-02.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-safety-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  safety-gate:
+    name: Backup, integrity and restore guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate production safety gate
+        run: npm run check:production-safety
+
+      - name: Confirm no backup artifact entered the repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden="$(git ls-files | grep -E '(^|/)(roles|schema|data)\.sql$|(^|/)SHA256SUMS$|(^|/)METADATA\.json$|\.dump$|\.backup\.sql$|\.sql\.gz$' || true)"
+          if [ -n "${forbidden}" ]; then
+            echo '::error::Um arquivo compatível com backup sensível foi versionado.'
+            printf '%s\n' "${forbidden}"
+            exit 1
+          fi
