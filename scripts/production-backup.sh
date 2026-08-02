@@ -8,7 +8,6 @@ readonly SUPABASE_CLI_VERSION="${SUPABASE_CLI_VERSION:-2.111.0}"
 readonly KEEP_FAILED_BACKUP="${RONECA_KEEP_FAILED_BACKUP:-0}"
 
 backup_dir=""
-backup_complete=0
 
 fail() {
   printf 'ERRO: %s\n' "$*" >&2
@@ -20,7 +19,22 @@ require_command() {
 }
 
 canonical_path() {
-  node -e "const path=require('node:path'); console.log(path.resolve(process.argv[1]));" "$1"
+  node - "$1" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+
+const original = path.resolve(process.argv[2]);
+let existing = original;
+const suffix = [];
+while (!fs.existsSync(existing)) {
+  const parent = path.dirname(existing);
+  if (parent === existing) break;
+  suffix.unshift(path.basename(existing));
+  existing = parent;
+}
+const resolvedBase = fs.realpathSync(existing);
+process.stdout.write(path.join(resolvedBase, ...suffix));
+NODE
 }
 
 path_is_inside() {
@@ -34,7 +48,9 @@ on_exit() {
   trap - EXIT
 
   if [[ ${status} -ne 0 && -n "${backup_dir}" && -d "${backup_dir}" ]]; then
+    find "${backup_dir}" -maxdepth 1 -type f -name '.*.partial' -delete 2>/dev/null || true
     printf 'Falha em %s. Este diretório não é um backup válido.\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "${backup_dir}/FAILED"
+    chmod 600 "${backup_dir}/FAILED" 2>/dev/null || true
     rm -f "${backup_dir}/READY"
 
     if [[ "${KEEP_FAILED_BACKUP}" != "1" ]]; then
@@ -69,7 +85,9 @@ if [[ -z "${RONECA_DB_URL:-}" ]]; then
   fi
 fi
 
-readonly db_metadata="$({
+db_metadata=""
+set +e
+db_metadata="$({
   node <<'NODE'
 const crypto = require('node:crypto');
 
@@ -108,7 +126,11 @@ const sourceId = crypto
 
 process.stdout.write([parsed.hostname.toLowerCase(), port, database, sourceId].join('\t'));
 NODE
-} 2>&1)" || fail "${db_metadata:-Não foi possível validar a URL do banco.}"
+} 2>&1)"
+db_metadata_status=$?
+set -e
+[[ ${db_metadata_status} -eq 0 ]] || fail "${db_metadata:-Não foi possível validar a URL do banco.}"
+readonly db_metadata
 
 IFS=$'\t' read -r db_host db_port db_name source_id <<< "${db_metadata}"
 [[ -n "${db_host}" && -n "${db_name}" && "${source_id}" =~ ^[a-f0-9]{64}$ ]] \
@@ -210,16 +232,15 @@ chmod 600 "${backup_dir}/METADATA.json"
 )
 chmod 600 "${backup_dir}/SHA256SUMS"
 
-"${SCRIPT_DIR}/verify-production-backup.sh" "${backup_dir}"
+bash "${SCRIPT_DIR}/verify-production-backup.sh" --pre-finalize "${backup_dir}"
 
 rm -f "${backup_dir}/INCOMPLETE" "${backup_dir}/FAILED"
 printf 'Backup válido e verificado em %s.\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "${backup_dir}/READY"
 chmod 600 "${backup_dir}/READY"
 
 # Verificação final já com o marcador de prontidão.
-"${SCRIPT_DIR}/verify-production-backup.sh" "${backup_dir}"
+bash "${SCRIPT_DIR}/verify-production-backup.sh" "${backup_dir}"
 
-backup_complete=1
 trap - EXIT
 unset RONECA_DB_URL
 
