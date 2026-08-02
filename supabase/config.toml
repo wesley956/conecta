@@ -120,3 +120,6 @@ verify_jwt = true
 
 [functions.lg-review-panel]
 verify_jwt = true
+
+[functions.playlist-diagnostics]
+verify_jwt = true
