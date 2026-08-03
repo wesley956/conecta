@@ -5,6 +5,9 @@ import {
   buildXtreamStreamUrl,
   parseXtreamSource,
 } from '../supabase/functions/_shared/xtreamSource.ts';
+import {
+  classifyPlaylistCacheFailure,
+} from '../supabase/functions/_shared/playlistAccessMode.ts';
 
 const subpath = parseXtreamSource(
   'https://provider.example:8443/customer-a/get.php?username=user%40name&password=p%40ss%2Fword&output=m3u8',
@@ -30,6 +33,40 @@ assert.equal(
   'http://provider.example/player_api.php?username=demo&password=secret',
 );
 
+const refusedWithCredentialsInUrl = classifyPlaylistCacheFailure([
+  {
+    method: 'xtream',
+    status: 'error',
+    error: 'error sending request for url (https://provider.example/player_api.php?username=demo&password=secret): tcp connect error: Connection refused (os error 111)',
+  },
+  {
+    method: 'm3u',
+    status: 'error',
+    error: 'error sending request for url (https://provider.example/get.php?username=demo&password=secret): client error (Connect): Connection refused',
+  },
+], 'xtream');
+assert.equal(refusedWithCredentialsInUrl.code, 'DATACENTER_BLOCKED');
+assert.equal(refusedWithCredentialsInUrl.accessMode, 'direct');
+assert.equal(refusedWithCredentialsInUrl.directEligible, true);
+
+const explicitAuthFailure = classifyPlaylistCacheFailure([
+  {
+    method: 'xtream',
+    status: 'error',
+    error: 'A conta Xtream não autorizou o acesso.',
+  },
+], 'xtream');
+assert.equal(explicitAuthFailure.code, 'INVALID_CREDENTIALS');
+assert.equal(explicitAuthFailure.accessMode, 'blocked');
+assert.equal(explicitAuthFailure.directEligible, false);
+
+const endpointNotFound = classifyPlaylistCacheFailure([
+  { method: 'xtream', status: 'error', error: 'Login Xtream: HTTP 404.' },
+  { method: 'm3u', status: 'error', error: 'Lista M3U: HTTP 404.' },
+], 'xtream');
+assert.equal(endpointNotFound.code, 'PROVIDER_ENDPOINT_NOT_FOUND');
+assert.equal(endpointNotFound.accessMode, 'blocked');
+
 const cache = await readFile(
   new URL('../supabase/functions/playlist-cache/index.ts', import.meta.url),
   'utf8',
@@ -50,6 +87,7 @@ const accessMode = await readFile(
 );
 assert.ok(accessMode.includes("code: 'PROVIDER_ENDPOINT_NOT_FOUND'"));
 assert.ok(!accessMode.includes("code: 'DATACENTER_HTTP_404'"));
+assert.ok(accessMode.includes('removeUrlsAndQueryCredentials'));
 
 const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
 assert.match(config, /\[functions\.device-config-direct\]\s+verify_jwt = false/);
