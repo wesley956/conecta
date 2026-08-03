@@ -37,27 +37,50 @@ internal class DirectM3uClient {
     }
 
     private fun downloadAndParse(sourceUrl: String): DirectM3uCatalog {
-        val connection = openConnection(sourceUrl)
-        return try {
-            val status = connection.responseCode
-            if (status !in 200..299) {
-                throw CatalogLoadException("A lista direta respondeu HTTP $status.")
-            }
+        val failures = mutableListOf<String>()
 
-            val declaredSize = connection.contentLengthLong
-            if (declaredSize > MAX_PLAYLIST_BYTES) {
-                throw CatalogLoadException("A lista direta excede o limite seguro para este aparelho.")
-            }
+        for ((index, profile) in REQUEST_PROFILES.withIndex()) {
+            val connection = openConnection(sourceUrl, profile)
+            try {
+                val status = connection.responseCode
+                if (status !in 200..299) {
+                    failures += "${profile.label}: HTTP $status"
+                    if (status == HttpURLConnection.HTTP_UNAUTHORIZED) break
+                    if (index == 0 && status !in PROFILE_RETRY_STATUSES) break
+                    continue
+                }
 
-            connection.inputStream.use { input ->
-                parsePlaylist(LimitedM3uInputStream(input, MAX_PLAYLIST_BYTES))
+                val declaredSize = connection.contentLengthLong
+                if (declaredSize > MAX_PLAYLIST_BYTES) {
+                    throw CatalogLoadException("A lista direta excede o limite seguro para este aparelho.")
+                }
+
+                return connection.inputStream.use { input ->
+                    parsePlaylist(LimitedM3uInputStream(input, MAX_PLAYLIST_BYTES))
+                }
+            } catch (error: CatalogLoadException) {
+                failures += "${profile.label}: ${error.message.orEmpty()}"
+                if (index == 0 && !isProfileSensitiveFailure(error.message.orEmpty())) break
+            } catch (error: Exception) {
+                failures += "${profile.label}: ${safeNetworkFailure(error)}"
+                break
+            } finally {
+                connection.disconnect()
             }
-        } finally {
-            connection.disconnect()
         }
+
+        val summary = failures
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+            .takeLast(3)
+            .joinToString(" | ")
+            .take(420)
+            .ifBlank { "falha não identificada" }
+        throw CatalogLoadException("A lista direta não pôde ser baixada. $summary")
     }
 
-    private fun openConnection(sourceUrl: String): HttpURLConnection {
+    private fun openConnection(sourceUrl: String, profile: RequestProfile): HttpURLConnection {
         val url = URL(sourceUrl)
         require(url.protocol == "http" || url.protocol == "https") {
             "Protocolo da lista direta não permitido."
@@ -69,9 +92,29 @@ internal class DirectM3uClient {
             readTimeout = READ_TIMEOUT_MS
             instanceFollowRedirects = true
             useCaches = false
-            setRequestProperty("Accept", "*/*")
+            setRequestProperty("Accept", profile.accept)
+            setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.7")
             setRequestProperty("Cache-Control", "no-cache")
-            setRequestProperty("User-Agent", "RonecaPlayTV-Native")
+            setRequestProperty("Connection", "keep-alive")
+            setRequestProperty("User-Agent", profile.userAgent)
+            profile.requestedWith?.let { setRequestProperty("X-Requested-With", it) }
+        }
+    }
+
+    private fun isProfileSensitiveFailure(message: String): Boolean {
+        val normalized = message.lowercase(Locale.ROOT)
+        return normalized.contains("não retornou canais") ||
+            normalized.contains("dados inválidos") ||
+            normalized.contains("resposta vazia")
+    }
+
+    private fun safeNetworkFailure(error: Exception): String {
+        val message = error.message.orEmpty().lowercase(Locale.ROOT)
+        return when {
+            message.contains("timed out") || message.contains("timeout") -> "tempo limite de conexão"
+            message.contains("failed to connect") || message.contains("connection refused") -> "falha de conexão"
+            message.contains("unable to resolve host") || message.contains("unknown host") -> "domínio não encontrado"
+            else -> error::class.java.simpleName.ifBlank { "falha de rede" }
         }
     }
 
@@ -300,6 +343,13 @@ internal class DirectM3uClient {
         )
     }
 
+    private data class RequestProfile(
+        val label: String,
+        val userAgent: String,
+        val accept: String,
+        val requestedWith: String? = null,
+    )
+
     private enum class EntryKind { LIVE, MOVIE, SERIES }
 
     companion object {
@@ -313,6 +363,30 @@ internal class DirectM3uClient {
         private const val READ_TIMEOUT_MS = 150_000
         private const val MAX_PLAYLIST_BYTES = 90L * 1024L * 1024L
         private const val BUFFER_SIZE = 64 * 1024
+        private val PROFILE_RETRY_STATUSES = setOf(403, 404, 406)
+        private val REQUEST_PROFILES = listOf(
+            RequestProfile(
+                label = "Roneca",
+                userAgent = "RonecaPlayTV-Native",
+                accept = "application/x-mpegURL, application/vnd.apple.mpegurl, */*",
+            ),
+            RequestProfile(
+                label = "Smarters",
+                userAgent = "IPTVSmartersPro",
+                accept = "*/*",
+                requestedWith = "com.nst.iptvsmarterstvbox",
+            ),
+            RequestProfile(
+                label = "VLC",
+                userAgent = "VLC/3.0.21 LibVLC/3.0.21",
+                accept = "*/*",
+            ),
+            RequestProfile(
+                label = "Android",
+                userAgent = "okhttp/4.12.0",
+                accept = "*/*",
+            ),
+        )
 
         private val YEAR_PATTERN = Regex("\\b(19\\d{2}|20\\d{2})\\b")
         private val QUALITY_MARKERS = Regex(
