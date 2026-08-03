@@ -1,12 +1,12 @@
-# RonecaPlayTV Native 2.5.1
+# RonecaPlayTV Native 2.5.2
 
-Correção de compatibilidade para listas que funcionam em outros players, mas recusam um protocolo específico no RonecaPlayTV.
+Compatibilidade adicional para fornecedores que filtram o download da lista pelo perfil do aplicativo.
 
-- tenta automaticamente HTTPS e HTTP quando o provedor recusa a conexão;
-- preserva a URL cadastrada no painel, sem substituição automática;
-- tenta os formatos `m3u8` e `ts` no acesso direto;
-- mantém a consulta Xtream antes do fallback M3U;
-- interrompe as alternativas quando o provedor confirma credenciais inválidas;
-- reduz mensagens de erro repetidas e mostra somente as tentativas finais relevantes;
-- mantém o failover entre lista principal e reserva;
-- preserva cache, favoritos, progresso e vínculos existentes.
+- mantém as tentativas automáticas em HTTPS e HTTP;
+- mantém as alternativas `m3u8` e `ts`;
+- tenta a M3U com perfis RonecaPlayTV, IPTV Smarters, VLC e Android/OkHttp;
+- adiciona cabeçalhos compatíveis sem alterar a URL cadastrada;
+- não repete perfis quando a falha é de rede e não depende do aplicativo;
+- interrompe as tentativas quando o provedor confirma autenticação negada;
+- não altera listas, aparelhos, prioridades, favoritos ou progresso;
+- preserva o comportamento que já corrigiu a lista Kmaster na versão 2.5.1.
