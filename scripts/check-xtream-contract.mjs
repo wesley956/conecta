@@ -60,12 +60,13 @@ assert.equal(explicitAuthFailure.code, 'INVALID_CREDENTIALS');
 assert.equal(explicitAuthFailure.accessMode, 'blocked');
 assert.equal(explicitAuthFailure.directEligible, false);
 
-const endpointNotFound = classifyPlaylistCacheFailure([
+const endpointHiddenFromDatacenter = classifyPlaylistCacheFailure([
   { method: 'xtream', status: 'error', error: 'Login Xtream: HTTP 404.' },
   { method: 'm3u', status: 'error', error: 'Lista M3U: HTTP 404.' },
 ], 'xtream');
-assert.equal(endpointNotFound.code, 'PROVIDER_ENDPOINT_NOT_FOUND');
-assert.equal(endpointNotFound.accessMode, 'blocked');
+assert.equal(endpointHiddenFromDatacenter.code, 'DATACENTER_HTTP_404');
+assert.equal(endpointHiddenFromDatacenter.accessMode, 'direct');
+assert.equal(endpointHiddenFromDatacenter.directEligible, true);
 
 const cache = await readFile(
   new URL('../supabase/functions/playlist-cache/index.ts', import.meta.url),
@@ -85,8 +86,8 @@ const accessMode = await readFile(
   new URL('../supabase/functions/_shared/playlistAccessMode.ts', import.meta.url),
   'utf8',
 );
-assert.ok(accessMode.includes("code: 'PROVIDER_ENDPOINT_NOT_FOUND'"));
-assert.ok(!accessMode.includes("code: 'DATACENTER_HTTP_404'"));
+assert.ok(accessMode.includes("code: 'DATACENTER_HTTP_404'"));
+assert.ok(!accessMode.includes("code: 'PROVIDER_ENDPOINT_NOT_FOUND'"));
 assert.ok(accessMode.includes('removeUrlsAndQueryCredentials'));
 
 const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
