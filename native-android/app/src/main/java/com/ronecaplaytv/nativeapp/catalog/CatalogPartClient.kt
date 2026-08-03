@@ -59,10 +59,10 @@ class CatalogPartClient(context: Context) {
         xtreamLoader: suspend (String) -> List<T>,
         m3uSelector: (DirectM3uCatalog) -> List<T>,
     ): List<T> {
-        val candidates = directProviderCandidates(url)
+        val protocolCandidates = directProtocolCandidates(url)
         val xtreamFailures = mutableListOf<String>()
 
-        for (candidate in candidates) {
+        for (candidate in protocolCandidates) {
             if (!DirectXtreamClient.supports(candidate)) continue
 
             val result = runCatching { xtreamLoader(candidate) }
@@ -73,7 +73,7 @@ class CatalogPartClient(context: Context) {
         }
 
         val m3uFailures = mutableListOf<String>()
-        for (candidate in candidates) {
+        for (candidate in directM3uCandidates(protocolCandidates)) {
             val result = runCatching { m3uSelector(loadM3uOnce(candidate)) }
             result.getOrNull()?.let { return it }
             val message = result.exceptionOrNull()?.message.orEmpty()
@@ -92,7 +92,7 @@ class CatalogPartClient(context: Context) {
     private suspend fun loadM3uOnce(url: String): DirectM3uCatalog =
         directM3uMutex.withLock { directM3uClient.load(url) }
 
-    private fun directProviderCandidates(markedUrl: String): List<String> {
+    private fun directProtocolCandidates(markedUrl: String): List<String> {
         val marker = if (DirectM3uClient.isDirectUrl(markedUrl)) {
             DirectM3uClient.DIRECT_MARKER
         } else {
@@ -109,21 +109,29 @@ class CatalogPartClient(context: Context) {
         }
 
         add(source)
-        add(withAlternateOutput(source))
-
-        val alternateProtocol = when {
+        when {
             source.startsWith("https://", true) ->
-                "http://${source.substringAfter("://")}" 
+                add("http://${source.substringAfter("://")}")
             source.startsWith("http://", true) ->
-                "https://${source.substringAfter("://")}" 
-            else -> null
-        }
-        alternateProtocol?.let {
-            add(it)
-            add(withAlternateOutput(it))
+                add("https://${source.substringAfter("://")}")
         }
 
         return sources.map { "$it$marker" }
+    }
+
+    private fun directM3uCandidates(protocolCandidates: List<String>): List<String> {
+        val candidates = linkedSetOf<String>()
+        for (markedCandidate in protocolCandidates) {
+            val marker = if (DirectM3uClient.isDirectUrl(markedCandidate)) {
+                DirectM3uClient.DIRECT_MARKER
+            } else {
+                ""
+            }
+            val source = markedCandidate.substringBefore(DirectM3uClient.DIRECT_MARKER)
+            candidates += "$source$marker"
+            candidates += "${withAlternateOutput(source)}$marker"
+        }
+        return candidates.toList()
     }
 
     private fun withAlternateOutput(rawUrl: String): String {
