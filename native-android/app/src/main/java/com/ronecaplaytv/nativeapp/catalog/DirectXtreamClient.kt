@@ -29,18 +29,20 @@ internal class DirectXtreamClient(context: Context) {
     suspend fun loadChannels(markedUrl: String): List<NativeChannel> = withContext(Dispatchers.IO) {
         val credentials = credentialsFrom(markedUrl)
             ?: throw CatalogLoadException("A URL direta não contém credenciais Xtream válidas.")
-        val categories = loadCategories(credentials, "get_live_categories")
+        val categories = runCatching {
+            loadCategories(credentials, "get_live_categories")
+        }.getOrDefault(emptyMap())
         requestArray(credentials, "get_live_streams").objects().mapNotNull { item ->
             val streamId = item.optStringValue("stream_id") ?: return@mapNotNull null
             val name = item.optStringValue("name") ?: return@mapNotNull null
-            val streamUrl = credentials.streamUrl("live", streamId, "ts")
+            val playbackUrls = credentials.liveStreamUrls(streamId)
             NativeChannel(
                 id = "xtream-ch-$streamId",
                 name = name,
                 groupTitle = categories[item.optStringValue("category_id")] ?: "Canais",
                 logoUrl = item.optStringValue("stream_icon"),
-                primaryUrl = streamUrl,
-                playbackUrls = listOf(streamUrl),
+                primaryUrl = playbackUrls.first(),
+                playbackUrls = playbackUrls,
             )
         }
     }
@@ -48,7 +50,9 @@ internal class DirectXtreamClient(context: Context) {
     suspend fun loadMovies(markedUrl: String): List<NativeMovie> = withContext(Dispatchers.IO) {
         val credentials = credentialsFrom(markedUrl)
             ?: throw CatalogLoadException("A URL direta não contém credenciais Xtream válidas.")
-        val categories = loadCategories(credentials, "get_vod_categories")
+        val categories = runCatching {
+            loadCategories(credentials, "get_vod_categories")
+        }.getOrDefault(emptyMap())
         requestArray(credentials, "get_vod_streams").objects().mapNotNull { item ->
             val streamId = item.optStringValue("stream_id") ?: return@mapNotNull null
             val name = item.optStringValue("name") ?: return@mapNotNull null
@@ -71,7 +75,9 @@ internal class DirectXtreamClient(context: Context) {
     suspend fun loadSeries(markedUrl: String): List<NativeSeries> = withContext(Dispatchers.IO) {
         val credentials = credentialsFrom(markedUrl)
             ?: throw CatalogLoadException("A URL direta não contém credenciais Xtream válidas.")
-        val categories = loadCategories(credentials, "get_series_categories")
+        val categories = runCatching {
+            loadCategories(credentials, "get_series_categories")
+        }.getOrDefault(emptyMap())
         requestArray(credentials, "get_series").objects().mapNotNull { item ->
             val seriesId = item.optStringValue("series_id") ?: return@mapNotNull null
             val name = item.optStringValue("name") ?: return@mapNotNull null
@@ -303,6 +309,7 @@ internal class DirectXtreamClient(context: Context) {
                 .toMap()
             val username = parameters["username"]?.takeIf(String::isNotBlank) ?: return null
             val password = parameters["password"]?.takeIf(String::isNotBlank) ?: return null
+            val output = parameters["output"].orEmpty()
             val parentPath = url.path.substringBeforeLast('/', "")
             val server = buildString {
                 append(url.protocol)
@@ -312,7 +319,7 @@ internal class DirectXtreamClient(context: Context) {
                     append(parentPath)
                 }
             }.trimEnd('/')
-            return XtreamCredentials(server, username, password)
+            return XtreamCredentials(server, username, password, output)
         }
 
         private fun safeExtension(value: String?, fallback: String): String =
@@ -343,6 +350,7 @@ internal class DirectXtreamClient(context: Context) {
         val server: String,
         val username: String,
         val password: String,
+        val output: String,
     ) {
         fun apiUrl(action: String, extraParameters: Map<String, String>): URL {
             val query = buildList {
@@ -356,9 +364,26 @@ internal class DirectXtreamClient(context: Context) {
             return URL("$server/player_api.php?$query")
         }
 
-        fun streamUrl(kind: String, streamId: String, extension: String): String =
-            "$server/$kind/${encode(username)}/${encode(password)}/" +
+        fun liveStreamUrls(streamId: String): List<String> {
+            val primaryExtension = if (output.equals("m3u8", ignoreCase = true)) {
+                "m3u8"
+            } else {
+                "ts"
+            }
+            val alternateExtension = if (primaryExtension == "m3u8") "ts" else "m3u8"
+            return listOf(
+                streamUrl("live", streamId, primaryExtension),
+                streamUrl("live", streamId, alternateExtension),
+                streamUrl(null, streamId, primaryExtension),
+                streamUrl(null, streamId, alternateExtension),
+            ).distinct()
+        }
+
+        fun streamUrl(kind: String?, streamId: String, extension: String): String {
+            val prefix = kind?.let { "/$it" }.orEmpty()
+            return "$server$prefix/${encode(username)}/${encode(password)}/" +
                 "${encode(streamId)}.${safeExtension(extension, "ts")}"
+        }
     }
 
     private data class DirectSeriesRequest(

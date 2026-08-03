@@ -59,25 +59,122 @@ class CatalogPartClient(context: Context) {
         xtreamLoader: suspend (String) -> List<T>,
         m3uSelector: (DirectM3uCatalog) -> List<T>,
     ): List<T> {
-        if (!DirectXtreamClient.supports(url)) {
-            return m3uSelector(loadM3uOnce(url))
+        val protocolCandidates = directProtocolCandidates(url)
+        val xtreamFailures = mutableListOf<String>()
+
+        for (candidate in protocolCandidates) {
+            if (!DirectXtreamClient.supports(candidate)) continue
+
+            val result = runCatching { xtreamLoader(candidate) }
+            val items = result.getOrNull()
+            if (items != null && items.isNotEmpty()) return items
+            if (items != null) {
+                xtreamFailures += "A API Xtream respondeu sem itens nesta seção."
+                continue
+            }
+
+            val message = result.exceptionOrNull()?.message.orEmpty()
+            if (message.isNotBlank()) xtreamFailures += message
+            if (isDefinitiveAuthenticationFailure(message)) break
         }
 
-        val xtreamResult = runCatching { xtreamLoader(url) }
-        xtreamResult.getOrNull()?.let { return it }
-
-        return runCatching { m3uSelector(loadM3uOnce(url)) }.getOrElse { m3uFailure ->
-            val xtreamMessage = xtreamResult.exceptionOrNull()?.message
-                ?: "falha não identificada"
-            val m3uMessage = m3uFailure.message ?: "falha não identificada"
-            throw CatalogLoadException(
-                "API Xtream: $xtreamMessage M3U: $m3uMessage",
-            )
+        val m3uFailures = mutableListOf<String>()
+        for (candidate in directM3uCandidates(protocolCandidates)) {
+            val result = runCatching { m3uSelector(loadM3uOnce(candidate)) }
+            result.getOrNull()?.let { return it }
+            val message = result.exceptionOrNull()?.message.orEmpty()
+            if (message.isNotBlank()) m3uFailures += message
+            if (isDefinitiveAuthenticationFailure(message)) break
         }
+
+        val xtreamMessage = compactFailureSummary(xtreamFailures)
+        val m3uMessage = compactFailureSummary(m3uFailures)
+        throw CatalogLoadException(
+            "Não foi possível abrir esta lista diretamente. " +
+                "Xtream: $xtreamMessage M3U: $m3uMessage",
+        )
     }
 
     private suspend fun loadM3uOnce(url: String): DirectM3uCatalog =
         directM3uMutex.withLock { directM3uClient.load(url) }
+
+    private fun directProtocolCandidates(markedUrl: String): List<String> {
+        val marker = if (DirectM3uClient.isDirectUrl(markedUrl)) {
+            DirectM3uClient.DIRECT_MARKER
+        } else {
+            ""
+        }
+        val source = markedUrl.substringBefore(DirectM3uClient.DIRECT_MARKER).trim()
+        if (source.isBlank()) return listOf(markedUrl)
+
+        val sources = linkedSetOf<String>()
+        fun add(candidate: String) {
+            if (candidate.startsWith("http://", true) || candidate.startsWith("https://", true)) {
+                sources += candidate
+            }
+        }
+
+        add(source)
+        when {
+            source.startsWith("https://", true) ->
+                add("http://${source.substringAfter("://")}")
+            source.startsWith("http://", true) ->
+                add("https://${source.substringAfter("://")}")
+        }
+
+        return sources.map { "$it$marker" }
+    }
+
+    private fun directM3uCandidates(protocolCandidates: List<String>): List<String> {
+        val candidates = linkedSetOf<String>()
+        for (markedCandidate in protocolCandidates) {
+            val marker = if (DirectM3uClient.isDirectUrl(markedCandidate)) {
+                DirectM3uClient.DIRECT_MARKER
+            } else {
+                ""
+            }
+            val source = markedCandidate.substringBefore(DirectM3uClient.DIRECT_MARKER)
+            candidates += "$source$marker"
+            candidates += "${withAlternateOutput(source)}$marker"
+        }
+        return candidates.toList()
+    }
+
+    private fun withAlternateOutput(rawUrl: String): String {
+        val outputMatch = OUTPUT_PARAMETER.find(rawUrl)
+        val current = outputMatch?.groupValues?.getOrNull(2)?.lowercase()
+        val replacement = when (current) {
+            "m3u8" -> "ts"
+            "ts", "mpegts" -> "m3u8"
+            else -> "ts"
+        }
+
+        if (outputMatch != null) {
+            val separator = outputMatch.groupValues[1]
+            return rawUrl.replaceRange(
+                outputMatch.range,
+                "${separator}output=$replacement",
+            )
+        }
+
+        val separator = if (rawUrl.contains('?')) '&' else '?'
+        return "$rawUrl${separator}output=$replacement"
+    }
+
+    private fun isDefinitiveAuthenticationFailure(message: String): Boolean =
+        message.contains("HTTP 401", ignoreCase = true) ||
+            message.contains("não autoriz", ignoreCase = true) ||
+            message.contains("unauthorized", ignoreCase = true) ||
+            message.contains("credenciais inválidas", ignoreCase = true)
+
+    private fun compactFailureSummary(messages: List<String>): String {
+        val distinct = messages
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+        if (distinct.isEmpty()) return "falha não identificada."
+        return distinct.takeLast(2).joinToString(" | ").take(420)
+    }
 
     private fun <T> readPart(
         signedUrl: String,
@@ -121,6 +218,7 @@ class CatalogPartClient(context: Context) {
     }
 
     private companion object {
+        val OUTPUT_PARAMETER = Regex("([?&])output=([^&#]*)", RegexOption.IGNORE_CASE)
         const val CONNECT_TIMEOUT_MS = 12_000
         const val READ_TIMEOUT_MS = 45_000
         const val MAX_CHANNELS_BYTES = 35L * 1024L * 1024L
