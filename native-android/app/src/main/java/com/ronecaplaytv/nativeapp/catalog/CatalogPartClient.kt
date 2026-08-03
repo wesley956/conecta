@@ -135,21 +135,24 @@ class CatalogPartClient(context: Context) {
     }
 
     private fun withAlternateOutput(rawUrl: String): String {
-        val current = OUTPUT_PARAMETER.find(rawUrl)?.groupValues?.getOrNull(2)?.lowercase()
+        val outputMatch = OUTPUT_PARAMETER.find(rawUrl)
+        val current = outputMatch?.groupValues?.getOrNull(2)?.lowercase()
         val replacement = when (current) {
             "m3u8" -> "ts"
             "ts", "mpegts" -> "m3u8"
             else -> "ts"
         }
 
-        return if (OUTPUT_PARAMETER.containsMatchIn(rawUrl)) {
-            OUTPUT_PARAMETER.replaceFirst(rawUrl) { match ->
-                "${match.groupValues[1]}output=$replacement"
-            }
-        } else {
-            val separator = if (rawUrl.contains('?')) '&' else '?'
-            "$rawUrl${separator}output=$replacement"
+        if (outputMatch != null) {
+            val separator = outputMatch.groupValues[1]
+            return rawUrl.replaceRange(
+                outputMatch.range,
+                "${separator}output=$replacement",
+            )
         }
+
+        val separator = if (rawUrl.contains('?')) '&' else '?'
+        return "$rawUrl${separator}output=$replacement"
     }
 
     private fun isDefinitiveAuthenticationFailure(message: String): Boolean =
