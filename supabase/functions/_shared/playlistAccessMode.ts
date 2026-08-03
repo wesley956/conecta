@@ -26,25 +26,24 @@ function failedMessages(attempts: PlaylistCacheAttempt[]) {
     .map(attempt => normalized(attempt.error));
 }
 
+function removeUrlsAndQueryCredentials(value: string) {
+  return value
+    .replace(/https?:\/\/[^\s|)]+/g, ' ')
+    .replace(/\b(?:username|user|login|password|pass|pwd)\s*=\s*[^&\s|)]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function classifyPlaylistCacheFailure(
   attempts: PlaylistCacheAttempt[],
   playlistType: unknown,
 ): PlaylistCacheFailure {
   const messages = failedMessages(attempts);
   const combined = messages.join(' | ');
+  const credentialSignals = removeUrlsAndQueryCredentials(combined);
   const supportsDirect = ['m3u', 'xtream'].includes(normalized(playlistType));
   const allApplicableFailed = attempts.some(attempt => attempt.status === 'error')
     && attempts.every(attempt => attempt.status !== 'success');
-
-  const invalidCredentials = /http 401|nao autoriz|unauthori[sz]ed|invalid (user|username|password|credential)|credencia|usuario.*senha|username.*password/.test(combined);
-  if (invalidCredentials) {
-    return {
-      accessMode: 'blocked',
-      code: 'INVALID_CREDENTIALS',
-      message: 'Credenciais inválidas ou não autorizadas pelo provedor.',
-      directEligible: false,
-    };
-  }
 
   const unsafeOrInvalidUrl = /url externa invalida|somente urls http|enderecos privados|host nao permitido|allowed_hosts|protocolo.*nao permitido/.test(combined);
   if (unsafeOrInvalidUrl) {
@@ -76,13 +75,23 @@ export function classifyPlaylistCacheFailure(
     };
   }
 
-  const datacenterBlocked = /http (403|406|409|418|429|451|500|502|503|504|520|521|522|523|524)|connection reset|connection refused|network error|fetch failed|dns/.test(combined);
+  const datacenterBlocked = /http (403|406|409|418|429|451|500|502|503|504|520|521|522|523|524)|connection reset|connection refused|network error|fetch failed|dns|tcp connect error/.test(combined);
   if (supportsDirect && datacenterBlocked && allApplicableFailed) {
     return {
       accessMode: 'direct',
       code: 'DATACENTER_BLOCKED',
       message: 'O provedor bloqueou ou recusou o servidor. O aparelho usará acesso direto.',
       directEligible: true,
+    };
+  }
+
+  const invalidCredentials = /http 401|nao autoriz|unauthori[sz]ed|invalid (user|username|password|credential)|credencia(?:is)? invalida|usuario.*senha|username.*password|login.*negad|authentication failed|auth.*(?:0|false)/.test(credentialSignals);
+  if (invalidCredentials) {
+    return {
+      accessMode: 'blocked',
+      code: 'INVALID_CREDENTIALS',
+      message: 'Credenciais inválidas ou não autorizadas pelo provedor.',
+      directEligible: false,
     };
   }
 
