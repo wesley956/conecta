@@ -66,7 +66,13 @@ class CatalogPartClient(context: Context) {
             if (!DirectXtreamClient.supports(candidate)) continue
 
             val result = runCatching { xtreamLoader(candidate) }
-            result.getOrNull()?.let { return it }
+            val items = result.getOrNull()
+            if (items != null && items.isNotEmpty()) return items
+            if (items != null) {
+                xtreamFailures += "A API Xtream respondeu sem itens nesta seção."
+                continue
+            }
+
             val message = result.exceptionOrNull()?.message.orEmpty()
             if (message.isNotBlank()) xtreamFailures += message
             if (isDefinitiveAuthenticationFailure(message)) break
