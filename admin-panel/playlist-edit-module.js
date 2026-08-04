@@ -24,6 +24,15 @@
     document.head.appendChild(link);
   }
 
+  function installXtreamLoginModule() {
+    if (document.querySelector('script[data-xtream-login-module]')) return;
+    const script = document.createElement('script');
+    script.src = './xtream-login-module.js?v=1.0';
+    script.async = false;
+    script.dataset.xtreamLoginModule = 'true';
+    document.head.appendChild(script);
+  }
+
   function operationKey() {
     const random = globalThis.crypto?.randomUUID?.()
       || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -330,6 +339,7 @@
 
   function initialize() {
     installStylesheet();
+    installXtreamLoginModule();
     ensureModal();
     enhanceCards();
     const observer = new MutationObserver(scheduleEnhancement);
