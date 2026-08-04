@@ -1,0 +1,42 @@
+name: Patch playlist editor CORS
+
+on:
+  push:
+    branches:
+      - fix/panel-playlist-edit-vercel-cors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/panel-playlist-edit-vercel-cors
+          fetch-depth: 0
+
+      - name: Add production panel origins
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/subscription-playlist-edit/index.ts')
+          text = path.read_text(encoding='utf-8')
+          old = "const DEFAULT_ALLOWED_ORIGINS = [\n  'https://wesley956.github.io',"
+          new = "const DEFAULT_ALLOWED_ORIGINS = [\n  'https://wesley956.github.io',\n  'https://conecta-five-iota.vercel.app',\n  'https://conecta-cruzjade080-4490s-projects.vercel.app',\n  'https://conecta-git-main-cruzjade080-4490s-projects.vercel.app',"
+          if old not in text:
+              raise SystemExit('Bloco de origens esperado não foi encontrado.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/patch-playlist-edit-vercel-cors.yml
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/subscription-playlist-edit/index.ts .github/workflows/patch-playlist-edit-vercel-cors.yml
+          git commit -m 'Permite painel Vercel na edição de listas'
+          git push origin HEAD:fix/panel-playlist-edit-vercel-cors
