@@ -3,6 +3,8 @@ import fs from 'node:fs';
 const requiredFiles = [
   'admin-panel/playlist-edit-module.js',
   'admin-panel/playlist-edit-module.css',
+  'admin-panel/xtream-login-module.js',
+  'admin-panel/xtream-login-module.css',
   'supabase/functions/subscription-panel/index.ts',
   'supabase/functions/subscription-playlist-edit/index.ts',
   'supabase/functions/_shared/labSession.ts',
@@ -20,6 +22,7 @@ for (const file of requiredFiles) {
 }
 
 const playlistEditUi = fs.readFileSync('admin-panel/playlist-edit-module.js', 'utf8');
+const xtreamLoginUi = fs.readFileSync('admin-panel/xtream-login-module.js', 'utf8');
 const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'utf8');
 const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/2026072201_customer_subscriptions_lab.sql', 'utf8');
@@ -39,13 +42,36 @@ const playlistEditUiRequirements = [
   'Validar e aplicar',
   'Nova URL completa',
   'Motivo da alteração',
+  'installXtreamLoginModule',
+  'xtream-login-module.js',
 ];
 for (const token of playlistEditUiRequirements) {
   if (!playlistEditUi.includes(token)) throw new Error(`Interface de edição de lista não contém: ${token}`);
 }
 
-if (/\bFunction\s*\(|\beval\s*\(/.test(playlistEditUi)) {
+const xtreamLoginRequirements = [
+  'Login Xtream — host, usuário e senha',
+  'Link M3U completo',
+  'Host do servidor',
+  'Usuário Xtream',
+  'Senha Xtream',
+  "endpoint.searchParams.set('username', user)",
+  "endpoint.searchParams.set('password', pass)",
+  "endpoint.searchParams.set('type', 'm3u_plus')",
+  "endpoint.searchParams.set('output', 'ts')",
+  "!['http:', 'https:'].includes(parsed.protocol)",
+  'parsed.username || parsed.password || parsed.search || parsed.hash',
+  "typeSelect.value = 'xtream'",
+];
+for (const token of xtreamLoginRequirements) {
+  if (!xtreamLoginUi.includes(token)) throw new Error(`Cadastro Xtream não contém: ${token}`);
+}
+
+if (/\bFunction\s*\(|\beval\s*\(/.test(`${playlistEditUi}\n${xtreamLoginUi}`)) {
   throw new Error('Módulos do painel não podem executar código dinâmico.');
+}
+if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(xtreamLoginUi)) {
+  throw new Error('Cadastro Xtream não pode registrar credenciais no console.');
 }
 
 const apiRequirements = [
@@ -141,4 +167,4 @@ if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supab
   throw new Error('Função de edição de listas precisa exigir JWT.');
 }
 
-console.log('✅ Backend de assinaturas e edição publicada de listas validados sem aprovar interface visual inativa.');
+console.log('✅ Backend de assinaturas, edição de listas e cadastro Xtream validados.');

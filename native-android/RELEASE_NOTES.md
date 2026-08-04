@@ -1,13 +1,17 @@
-# RonecaPlayTV Native 2.5.4
+# RonecaPlayTV Native 2.6.0
 
-Primeiro lote do Motor de Compatibilidade de Provedores.
+Segundo lote do Motor de Compatibilidade de Provedores: executor Xtream inteligente.
 
-- registra cada tentativa de cache, Xtream e M3U com correlação por carregamento;
-- separa resultados de canais, filmes e séries;
-- registra protocolo, porta, caminho sanitizado, formato, perfil, duração e quantidade de itens;
-- nunca envia query string, usuário ou senha ao histórico da matriz;
-- atualiza automaticamente no painel a versão real e a plataforma do aparelho;
-- corrige a interrupção prematura quando uma tentativa M3U retorna catálogo vazio;
-- continua testando protocolo e formato alternativos antes de desistir;
-- preserva listas, vínculos, prioridades, favoritos, progresso e o funcionamento da Kmaster;
-- prepara Gabtec e demais listas problemáticas para o laboratório comparativo.
+- adiciona no painel o cadastro por host, usuário e senha, mantendo a opção por URL M3U completa;
+- preserva protocolo, porta e subpasta informados pelo vendedor;
+- monta os endpoints Xtream automaticamente sem exibir novamente a senha salva;
+- testa a autenticação Xtream antes de depender das categorias e do catálogo;
+- diferencia conta vencida, credencial inválida, API ausente, DNS, TLS, timeout, conexão reiniciada, HTML e resposta incompatível;
+- interrompe tentativas quando a conta está comprovadamente vencida ou inválida;
+- reduz os tempos individuais de rede e aplica um orçamento global de 75 segundos por carregamento da matriz;
+- mantém canais, filmes e séries independentes, preservando as seções que funcionarem;
+- memoriza por servidor, conta e seção a estratégia que funcionou;
+- tenta primeiro o transporte, protocolo e formato vencedores nas próximas aberturas;
+- mantém fallback entre Xtream e M3U quando a falha não é definitiva;
+- registra todos os resultados no histórico sanitizado criado no Lote 1;
+- não altera automaticamente listas existentes, vínculos, prioridades, favoritos ou progresso.

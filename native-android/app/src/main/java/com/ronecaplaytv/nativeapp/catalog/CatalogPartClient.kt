@@ -21,6 +21,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 data class ProviderAttemptContext(
     val playlistId: String,
@@ -35,8 +36,42 @@ class CatalogPartClient(
     private val applicationContext = context.applicationContext
     private val directM3uClient = DirectM3uClient()
     private val directXtreamClient = DirectXtreamClient(applicationContext)
+    private val strategyStore = ProviderStrategyStore(applicationContext)
     private val directM3uMutex = Mutex()
+    private val preflightMutex = Mutex()
+    private val preflightResults = linkedMapOf<String, Result<Unit>>()
     private val platform = detectPlatform(applicationContext)
+    private val matrixDeadlines = ConcurrentHashMap<String, Long>()
+
+    suspend fun preflightDirect(
+        url: String,
+        attemptContext: ProviderAttemptContext,
+    ) {
+        if (!DirectM3uClient.isDirectUrl(url) || !DirectXtreamClient.supports(url)) return
+        val preferred = strategyStore.preferred(url, attemptContext.section)
+        val candidates = directProtocolCandidates(url, preferred?.protocol)
+
+        for ((index, candidate) in candidates.withIndex()) {
+            ensureBudget(attemptContext)
+            if (!DirectXtreamClient.supports(candidate)) continue
+            val endpoint = DirectXtreamClient.authenticationEndpoint(candidate) ?: continue
+            val result = observedAuthenticationAttempt(
+                url = endpoint,
+                attemptContext = attemptContext.copy(section = "authentication"),
+                phase = if (index == 0) "fast" else "compatibility",
+            ) {
+                directXtreamClient.verifyAuthentication(candidate)
+            }
+            if (result.isSuccess) return
+            val message = result.exceptionOrNull()?.message.orEmpty()
+            if (isDefinitiveAuthenticationFailure(message)) {
+                throw CatalogLoadException(cleanAuthenticationMessage(message))
+            }
+        }
+
+        // Alguns provedores escondem player_api.php, mas mantêm get.php válido.
+        // Falhas não definitivas ficam registradas e ainda permitem o fallback M3U.
+    }
 
     suspend fun loadChannels(
         url: String,
@@ -89,55 +124,88 @@ class CatalogPartClient(
         xtreamLoader: suspend (String) -> List<T>,
         m3uSelector: (DirectM3uCatalog) -> List<T>,
     ): List<T> {
-        val protocolCandidates = directProtocolCandidates(url)
+        ensurePreflightOnce(url, attemptContext)
+
+        val section = attemptContext?.section ?: "unknown"
+        val preferred = strategyStore.preferred(url, section)
+        val protocolCandidates = directProtocolCandidates(url, preferred?.protocol)
         val xtreamFailures = mutableListOf<String>()
-
-        for ((index, candidate) in protocolCandidates.withIndex()) {
-            if (!DirectXtreamClient.supports(candidate)) continue
-
-            val result = observedListAttempt(
-                url = candidate,
-                attemptContext = attemptContext,
-                transport = "xtream",
-                phase = if (index == 0) "fast" else "compatibility",
-                requestProfile = "IPTVSmartersPro",
-            ) {
-                xtreamLoader(candidate)
-            }
-            val items = result.getOrNull()
-            if (!items.isNullOrEmpty()) return items
-            if (items != null) {
-                xtreamFailures += "A API Xtream respondeu sem itens nesta seção."
-                continue
-            }
-
-            val message = result.exceptionOrNull()?.message.orEmpty()
-            if (message.isNotBlank()) xtreamFailures += message
-            if (isDefinitiveAuthenticationFailure(message)) break
-        }
-
         val m3uFailures = mutableListOf<String>()
-        for ((index, candidate) in directM3uCandidates(protocolCandidates).withIndex()) {
-            val result = observedListAttempt(
-                url = candidate,
-                attemptContext = attemptContext,
-                transport = "m3u",
-                phase = if (index == 0) "fast" else "compatibility",
-                requestProfile = "multi_profile",
-            ) {
-                m3uSelector(loadM3uOnce(candidate))
-            }
-            val items = result.getOrNull()
-            if (!items.isNullOrEmpty()) return items
-            if (items != null) {
-                m3uFailures += "A M3U respondeu sem itens nesta seção."
-                continue
-            }
 
-            val message = result.exceptionOrNull()?.message.orEmpty()
-            if (message.isNotBlank()) m3uFailures += message
-            if (isDefinitiveAuthenticationFailure(message)) break
+        suspend fun tryXtream(): List<T>? {
+            for ((index, candidate) in protocolCandidates.withIndex()) {
+                ensureBudget(attemptContext)
+                if (!DirectXtreamClient.supports(candidate)) continue
+
+                val result = observedListAttempt(
+                    url = candidate,
+                    attemptContext = attemptContext,
+                    transport = "xtream",
+                    phase = if (index == 0) "fast" else "compatibility",
+                    requestProfile = "IPTVSmartersPro",
+                ) {
+                    xtreamLoader(candidate)
+                }
+                val items = result.getOrNull()
+                if (!items.isNullOrEmpty()) {
+                    rememberStrategy(url, section, "xtream", candidate)
+                    return items
+                }
+                if (items != null) {
+                    xtreamFailures += "A API Xtream respondeu sem itens nesta seção."
+                    continue
+                }
+
+                val message = result.exceptionOrNull()?.message.orEmpty()
+                if (message.isNotBlank()) xtreamFailures += message
+                if (isDefinitiveAuthenticationFailure(message)) {
+                    throw CatalogLoadException(cleanAuthenticationMessage(message))
+                }
+            }
+            return null
         }
+
+        suspend fun tryM3u(): List<T>? {
+            val candidates = directM3uCandidates(
+                protocolCandidates = protocolCandidates,
+                preferredOutput = preferred?.output,
+            )
+            for ((index, candidate) in candidates.withIndex()) {
+                ensureBudget(attemptContext)
+                val result = observedListAttempt(
+                    url = candidate,
+                    attemptContext = attemptContext,
+                    transport = "m3u",
+                    phase = if (index == 0) "fast" else "compatibility",
+                    requestProfile = "multi_profile",
+                ) {
+                    m3uSelector(loadM3uOnce(candidate))
+                }
+                val items = result.getOrNull()
+                if (!items.isNullOrEmpty()) {
+                    rememberStrategy(url, section, "m3u", candidate)
+                    return items
+                }
+                if (items != null) {
+                    m3uFailures += "A M3U respondeu sem itens nesta seção."
+                    continue
+                }
+
+                val message = result.exceptionOrNull()?.message.orEmpty()
+                if (message.isNotBlank()) m3uFailures += message
+                if (isDefinitiveAuthenticationFailure(message)) {
+                    throw CatalogLoadException(cleanAuthenticationMessage(message))
+                }
+            }
+            return null
+        }
+
+        val result = if (preferred?.transport == "m3u") {
+            tryM3u() ?: tryXtream()
+        } else {
+            tryXtream() ?: tryM3u()
+        }
+        if (result != null) return result
 
         val xtreamMessage = compactFailureSummary(xtreamFailures)
         val m3uMessage = compactFailureSummary(m3uFailures)
@@ -145,6 +213,29 @@ class CatalogPartClient(
             "Não foi possível abrir esta lista diretamente. " +
                 "Xtream: $xtreamMessage M3U: $m3uMessage",
         )
+    }
+
+    private suspend fun ensurePreflightOnce(
+        url: String,
+        attemptContext: ProviderAttemptContext?,
+    ) {
+        val context = attemptContext ?: return
+        if (!DirectXtreamClient.supports(url)) return
+
+        preflightMutex.withLock {
+            preflightResults[context.correlationId]?.getOrThrow()?.let { return@withLock }
+            val result = runCatching {
+                preflightDirect(
+                    url = url,
+                    attemptContext = context.copy(section = "authentication"),
+                )
+            }
+            preflightResults[context.correlationId] = result
+            while (preflightResults.size > MAX_PREFLIGHT_RESULTS) {
+                preflightResults.entries.firstOrNull()?.key?.let(preflightResults::remove) ?: break
+            }
+            result.getOrThrow()
+        }
     }
 
     private suspend fun <T> loadCachePart(
@@ -165,6 +256,53 @@ class CatalogPartClient(
             }
         }
         return result.getOrThrow()
+    }
+
+    private suspend fun observedAuthenticationAttempt(
+        url: String,
+        attemptContext: ProviderAttemptContext,
+        phase: String,
+        loader: suspend () -> XtreamAuthentication,
+    ): Result<XtreamAuthentication> {
+        val started = SystemClock.elapsedRealtime()
+        val result = runCatching { loader() }
+        val elapsed = (SystemClock.elapsedRealtime() - started).coerceAtLeast(0)
+        runCatching {
+            val facts = endpointFacts(url)
+            val failureMessage = result.exceptionOrNull()?.message
+            reportAttempt(
+                ProviderAttemptReport(
+                    clientEventId = "matrix:${UUID.randomUUID()}",
+                    playlistId = attemptContext.playlistId,
+                    correlationId = attemptContext.correlationId,
+                    phase = phase,
+                    section = "authentication",
+                    transport = "xtream",
+                    strategyKey = strategyKey(
+                        "xtream",
+                        facts,
+                        "authentication",
+                        "IPTVSmartersPro",
+                    ),
+                    protocol = facts.protocol,
+                    host = facts.host,
+                    port = facts.port,
+                    path = facts.path,
+                    requestProfile = "IPTVSmartersPro",
+                    outputFormat = facts.output,
+                    result = if (result.isSuccess) "success" else "failure",
+                    httpStatus = extractHttpStatus(failureMessage),
+                    durationMs = elapsed,
+                    itemCount = null,
+                    errorCode = failureMessage?.let(::classifyError),
+                    errorMessage = failureMessage,
+                    platform = platform,
+                    appVersion = BuildConfig.VERSION_NAME,
+                    occurredAt = nowIso(),
+                ),
+            )
+        }
+        return result
     }
 
     private suspend fun <T> observedListAttempt(
@@ -221,10 +359,45 @@ class CatalogPartClient(
         return result
     }
 
+    private fun ensureBudget(attemptContext: ProviderAttemptContext?) {
+        val correlationId = attemptContext?.correlationId ?: return
+        val now = SystemClock.elapsedRealtime()
+        val deadline = matrixDeadlines.computeIfAbsent(correlationId) {
+            now + MATRIX_BUDGET_MS
+        }
+        if (now >= deadline) {
+            throw CatalogLoadException(
+                "[MATRIX_BUDGET_EXCEEDED] O limite global de tentativas desta lista foi atingido.",
+            )
+        }
+        if (matrixDeadlines.size > MAX_MATRIX_BUDGETS) {
+            matrixDeadlines.entries.removeIf { it.value < now }
+        }
+    }
+
+    private fun rememberStrategy(
+        originalUrl: String,
+        section: String,
+        transport: String,
+        candidateUrl: String,
+    ) {
+        val facts = endpointFacts(candidateUrl)
+        strategyStore.save(
+            markedUrl = originalUrl,
+            section = section,
+            transport = transport,
+            protocol = facts.protocol,
+            output = facts.output,
+        )
+    }
+
     private suspend fun loadM3uOnce(url: String): DirectM3uCatalog =
         directM3uMutex.withLock { directM3uClient.load(url) }
 
-    private fun directProtocolCandidates(markedUrl: String): List<String> {
+    private fun directProtocolCandidates(
+        markedUrl: String,
+        preferredProtocol: String? = null,
+    ): List<String> {
         val marker = if (DirectM3uClient.isDirectUrl(markedUrl)) {
             DirectM3uClient.DIRECT_MARKER
         } else {
@@ -240,19 +413,25 @@ class CatalogPartClient(
             }
         }
 
-        add(source)
-        when {
+        val alternate = when {
             source.startsWith("https://", true) ->
-                add("http://${source.substringAfter("://")}")
+                "http://${source.substringAfter("://")}"
             source.startsWith("http://", true) ->
-                add("https://${source.substringAfter("://")}")
+                "https://${source.substringAfter("://")}"
+            else -> null
         }
-
+        val ordered = listOfNotNull(source, alternate).sortedBy {
+            if (it.startsWith("${preferredProtocol.orEmpty()}://", true)) 0 else 1
+        }
+        ordered.forEach(::add)
         return sources.map { "$it$marker" }
     }
 
-    private fun directM3uCandidates(protocolCandidates: List<String>): List<String> {
-        val candidates = linkedSetOf<String>()
+    private fun directM3uCandidates(
+        protocolCandidates: List<String>,
+        preferredOutput: String? = null,
+    ): List<String> {
+        val generated = linkedSetOf<String>()
         for (markedCandidate in protocolCandidates) {
             val marker = if (DirectM3uClient.isDirectUrl(markedCandidate)) {
                 DirectM3uClient.DIRECT_MARKER
@@ -260,15 +439,24 @@ class CatalogPartClient(
                 ""
             }
             val source = markedCandidate.substringBefore(DirectM3uClient.DIRECT_MARKER)
-            candidates += "$source$marker"
-            candidates += "${withAlternateOutput(source)}$marker"
+            generated += "$source$marker"
+            generated += "${withAlternateOutput(source)}$marker"
         }
-        return candidates.toList()
+        return generated.sortedBy { candidate ->
+            if (
+                preferredOutput != null &&
+                endpointFacts(candidate).output.equals(preferredOutput, ignoreCase = true)
+            ) {
+                0
+            } else {
+                1
+            }
+        }
     }
 
     private fun withAlternateOutput(rawUrl: String): String {
         val outputMatch = OUTPUT_PARAMETER.find(rawUrl)
-        val current = outputMatch?.groupValues?.getOrNull(2)?.lowercase()
+        val current = outputMatch?.groupValues?.getOrNull(2)?.lowercase(Locale.ROOT)
         val replacement = when (current) {
             "m3u8" -> "ts"
             "ts", "mpegts" -> "m3u8"
@@ -288,19 +476,30 @@ class CatalogPartClient(
     }
 
     private fun isDefinitiveAuthenticationFailure(message: String): Boolean =
-        message.contains("HTTP 401", ignoreCase = true) ||
+        message.contains("[XTREAM_AUTH_INVALID]", ignoreCase = true) ||
+            message.contains("[XTREAM_AUTH_EXPIRED]", ignoreCase = true) ||
+            message.contains("HTTP 401", ignoreCase = true) ||
             message.contains("não autoriz", ignoreCase = true) ||
             message.contains("unauthorized", ignoreCase = true) ||
             message.contains("credenciais inválidas", ignoreCase = true)
 
+    private fun cleanAuthenticationMessage(message: String): String =
+        message
+            .replace(Regex("\\[XTREAM_[A-Z_]+]"), "")
+            .trim()
+            .ifBlank { "A autenticação Xtream falhou." }
+
     private fun compactFailureSummary(messages: List<String>): String {
         val distinct = messages
-            .map(String::trim)
+            .map(::cleanDiagnosticMessage)
             .filter(String::isNotEmpty)
             .distinct()
         if (distinct.isEmpty()) return "falha não identificada."
         return distinct.takeLast(2).joinToString(" | ").take(420)
     }
+
+    private fun cleanDiagnosticMessage(message: String): String =
+        message.replace(Regex("\\[(?:XTREAM|MATRIX)_[A-Z_]+]"), "").trim()
 
     private fun <T> readPart(
         signedUrl: String,
@@ -401,20 +600,42 @@ class CatalogPartClient(
     private fun classifyError(message: String): String {
         val normalized = message.lowercase(Locale.ROOT)
         return when {
-            normalized.contains("401") || normalized.contains("não autoriz") || normalized.contains("unauthorized") ->
-                "AUTHENTICATION_FAILED"
-            normalized.contains("404") -> "HTTP_404"
+            normalized.contains("[xtream_auth_expired]") -> "ACCOUNT_EXPIRED"
+            normalized.contains("[xtream_auth_invalid]") ||
+                normalized.contains("401") ||
+                normalized.contains("não autoriz") ||
+                normalized.contains("unauthorized") -> "AUTHENTICATION_FAILED"
+            normalized.contains("[matrix_budget_exceeded]") -> "MATRIX_BUDGET_EXCEEDED"
+            normalized.contains("[xtream_auth_endpoint_not_found]") ||
+                normalized.contains("404") -> "HTTP_404"
             normalized.contains("403") -> "HTTP_403"
-            normalized.contains("timeout") || normalized.contains("tempo limite") || normalized.contains("timed out") ->
-                "TIMEOUT"
-            normalized.contains("connect_fail") || normalized.contains("connection refused") || normalized.contains("failed to connect") ->
-                "CONNECTION_FAILED"
-            normalized.contains("dns_fail") || normalized.contains("unknown host") || normalized.contains("domínio não encontrado") ->
-                "DNS_FAILED"
-            normalized.contains("tls_fail") || normalized.contains("certificate") || normalized.contains("ssl") ->
-                "TLS_FAILED"
-            normalized.contains("vazia") || normalized.contains("sem itens") -> "EMPTY_RESPONSE"
-            normalized.contains("inválid") || normalized.contains("invalid") -> "INVALID_RESPONSE"
+            normalized.contains("[xtream_timeout]") ||
+                normalized.contains("timeout") ||
+                normalized.contains("tempo limite") ||
+                normalized.contains("timed out") -> "TIMEOUT"
+            normalized.contains("[xtream_connection_reset]") ||
+                normalized.contains("connection reset") ||
+                normalized.contains("socketexception") -> "CONNECTION_RESET"
+            normalized.contains("[xtream_connection_failed]") ||
+                normalized.contains("connect_fail") ||
+                normalized.contains("connection refused") ||
+                normalized.contains("failed to connect") -> "CONNECTION_FAILED"
+            normalized.contains("[xtream_dns_failed]") ||
+                normalized.contains("dns_fail") ||
+                normalized.contains("unknown host") ||
+                normalized.contains("domínio não encontrado") -> "DNS_FAILED"
+            normalized.contains("[xtream_tls_failed]") ||
+                normalized.contains("tls_fail") ||
+                normalized.contains("certificate") ||
+                normalized.contains("ssl") -> "TLS_FAILED"
+            normalized.contains("vazia") ||
+                normalized.contains("sem itens") ||
+                normalized.contains("[xtream_response_empty]") -> "EMPTY_RESPONSE"
+            normalized.contains("[xtream_response_html]") -> "HTML_RESPONSE"
+            normalized.contains("[xtream_response_invalid]") ||
+                normalized.contains("[xtream_auth_incompatible]") ||
+                normalized.contains("inválid") ||
+                normalized.contains("invalid") -> "INVALID_RESPONSE"
             else -> "PROVIDER_ATTEMPT_FAILED"
         }
     }
@@ -451,6 +672,9 @@ class CatalogPartClient(
                 timeZone = TimeZone.getTimeZone("UTC")
             }
         }
+        const val MATRIX_BUDGET_MS = 75_000L
+        const val MAX_MATRIX_BUDGETS = 32
+        const val MAX_PREFLIGHT_RESULTS = 32
         const val CONNECT_TIMEOUT_MS = 12_000
         const val READ_TIMEOUT_MS = 45_000
         const val MAX_CHANNELS_BYTES = 35L * 1024L * 1024L

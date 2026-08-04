@@ -1,0 +1,56 @@
+.xtream-source-mode small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted, #a8a8ad);
+  line-height: 1.45;
+}
+
+.xtream-login-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.xtream-login-fields[hidden],
+[data-source-url-group][hidden] {
+  display: none !important;
+}
+
+.xtream-login-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.xtream-login-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.xtream-login-note {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid rgba(224, 44, 44, 0.25);
+  background: rgba(224, 44, 44, 0.07);
+  color: var(--muted, #c5c5ca);
+  line-height: 1.45;
+}
+
+.xtream-login-note strong {
+  color: var(--text, #fff);
+}
+
+@media (max-width: 720px) {
+  .xtream-login-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .xtream-login-fields .wide,
+  .xtream-login-note {
+    grid-column: 1;
+  }
+}
