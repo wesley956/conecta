@@ -6,14 +6,23 @@ import com.ronecaplaytv.nativeapp.network.DeviceActivationResponse
 import com.ronecaplaytv.nativeapp.network.DeviceApi
 import com.ronecaplaytv.nativeapp.network.DeviceConfigDirectApi
 import com.ronecaplaytv.nativeapp.network.DeviceConfigResponse
+import com.ronecaplaytv.nativeapp.network.PlaylistDiagnosticRunner
 import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
 import com.ronecaplaytv.nativeapp.security.SecureCredentialStore
+import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class DeviceSessionRepository(context: Context) {
     private val identityStore = DeviceIdentityStore(context)
     private val credentialStore = SecureCredentialStore(context)
     private val api = DeviceApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
     private val directConfigApi = DeviceConfigDirectApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
+    private val diagnosticRunner = PlaylistDiagnosticRunner()
+    private val diagnosticScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val activeDiagnosticTaskIds = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun bootstrap(isTelevision: Boolean): DeviceSessionState {
         val deviceCode = identityStore.getDeviceCode()
@@ -122,7 +131,33 @@ class DeviceSessionRepository(context: Context) {
             identityStore.saveDeviceCode(response.deviceCode)
         }
 
+        scheduleDiagnostic(response, response.deviceCode ?: deviceCode, credential)
         return response.toSessionState()
+    }
+
+    private fun scheduleDiagnostic(
+        response: DeviceConfigResponse,
+        deviceCode: String,
+        credential: String,
+    ) {
+        val task = response.playlistDiagnosticTask ?: return
+        if (!activeDiagnosticTaskIds.add(task.id)) return
+
+        diagnosticScope.launch {
+            try {
+                val submission = diagnosticRunner.run(task)
+                directConfigApi.fetchConfig(
+                    deviceCode = deviceCode,
+                    deviceUuid = identityStore.getOrCreateDeviceUuid(),
+                    deviceCredential = credential,
+                    playlistDiagnosticSubmission = submission,
+                )
+            } catch (_: Exception) {
+                // Diagnóstico é auxiliar: uma falha nunca bloqueia catálogo, ativação ou reprodução.
+            } finally {
+                activeDiagnosticTaskIds.remove(task.id)
+            }
+        }
     }
 
     private fun DeviceActivationResponse.toSessionState() = DeviceSessionState(

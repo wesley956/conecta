@@ -2,6 +2,7 @@ package com.ronecaplaytv.nativeapp.network
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -25,6 +26,7 @@ class DeviceConfigDirectApi(private val functionsBaseUrl: String) {
         playlistHealthError: String? = null,
         correlationId: String? = null,
         failoverAttemptId: String? = null,
+        playlistDiagnosticSubmission: PlaylistDiagnosticSubmission? = null,
     ): DeviceConfigResponse = withContext(Dispatchers.IO) {
         val payload = JSONObject()
             .put("deviceCode", deviceCode)
@@ -50,6 +52,19 @@ class DeviceConfigDirectApi(private val functionsBaseUrl: String) {
                                     ?.take(180)
                                     ?.let { put("failoverAttemptId", it) }
                             },
+                    )
+                }
+                playlistDiagnosticSubmission?.let { submission ->
+                    put(
+                        "playlistDiagnosticResult",
+                        JSONObject()
+                            .put("taskId", submission.taskId)
+                            .put(
+                                "checks",
+                                JSONArray().apply {
+                                    submission.checks.take(3).forEach { put(it.toJson()) }
+                                },
+                            ),
                     )
                 }
             }
