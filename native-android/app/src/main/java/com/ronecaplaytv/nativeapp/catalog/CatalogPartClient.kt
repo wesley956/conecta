@@ -22,7 +22,7 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 
-internal data class ProviderAttemptContext(
+data class ProviderAttemptContext(
     val playlistId: String,
     val section: String,
     val correlationId: String,
