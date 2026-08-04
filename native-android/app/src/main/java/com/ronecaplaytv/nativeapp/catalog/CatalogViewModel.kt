@@ -15,8 +15,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 class CatalogViewModel(application: Application) : AndroidViewModel(application) {
-    private val client = CatalogPartClient(application)
     private val sessionRepository = DeviceSessionRepository(application)
+    private val client = CatalogPartClient(application) { attempt ->
+        viewModelScope.launch {
+            runCatching { sessionRepository.reportProviderAttempt(attempt) }
+        }
+    }
     private val mutableState = MutableStateFlow(NativeCatalogState())
 
     val state: StateFlow<NativeCatalogState> = mutableState.asStateFlow()
@@ -234,15 +238,37 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         prefix: String,
     ): LoadedCatalog = supervisorScope {
         mutableState.update { it.copy(loadingSection = "${prefix}consultando API") }
+        val matrixCorrelationId = "matrix:${UUID.randomUUID()}"
 
         val channelsDeferred = async {
-            runCatching { candidate.channelsUrl?.let { client.loadChannels(it) }.orEmpty() }
+            runCatching {
+                candidate.channelsUrl?.let {
+                    client.loadChannels(
+                        it,
+                        ProviderAttemptContext(candidate.id, "channels", matrixCorrelationId),
+                    )
+                }.orEmpty()
+            }
         }
         val moviesDeferred = async {
-            runCatching { candidate.moviesUrl?.let { client.loadMovies(it) }.orEmpty() }
+            runCatching {
+                candidate.moviesUrl?.let {
+                    client.loadMovies(
+                        it,
+                        ProviderAttemptContext(candidate.id, "movies", matrixCorrelationId),
+                    )
+                }.orEmpty()
+            }
         }
         val seriesDeferred = async {
-            runCatching { candidate.seriesUrl?.let { client.loadSeries(it) }.orEmpty() }
+            runCatching {
+                candidate.seriesUrl?.let {
+                    client.loadSeries(
+                        it,
+                        ProviderAttemptContext(candidate.id, "series", matrixCorrelationId),
+                    )
+                }.orEmpty()
+            }
         }
 
         val channelsResult = channelsDeferred.await()
