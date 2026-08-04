@@ -20,6 +20,9 @@ type TargetContext = {
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://wesley956.github.io',
+  'https://conecta-five-iota.vercel.app',
+  'https://conecta-cruzjade080-4490s-projects.vercel.app',
+  'https://conecta-git-main-cruzjade080-4490s-projects.vercel.app',
   'http://localhost:4173',
   'http://localhost:5173',
   'http://127.0.0.1:4173',
