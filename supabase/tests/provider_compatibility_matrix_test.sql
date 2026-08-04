@@ -86,7 +86,11 @@ select throws_ok($test$
     'RPTV-MATRIX', 'fast', 'channels', 'xtream',
     'unsafe', 'https', 'provider.invalid?username=alice', 'failure'
   )
-$test$, '23514', 'Host com query é bloqueado pelo banco');
+$test$,
+  '23514',
+  'new row for relation "playlist_provider_attempts" violates check constraint "playlist_provider_attempts_safe_host_check"',
+  'Host com query é bloqueado pelo banco'
+);
 
 select * from finish();
 rollback;
