@@ -2,14 +2,17 @@ package com.ronecaplaytv.nativeapp.catalog
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import java.io.BufferedReader
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.InputStreamReader
-import java.net.HttpURLConnection
 import java.net.URL
 import java.text.Normalizer
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 internal data class DirectM3uCatalog(
     val channels: List<NativeChannel>,
@@ -18,6 +21,14 @@ internal data class DirectM3uCatalog(
 )
 
 internal class DirectM3uClient {
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
+        .build()
+
     @Volatile
     private var cachedSourceUrl: String? = null
 
@@ -40,32 +51,38 @@ internal class DirectM3uClient {
         val failures = mutableListOf<String>()
 
         for ((index, profile) in REQUEST_PROFILES.withIndex()) {
-            val connection = openConnection(sourceUrl, profile)
+            val request = buildRequest(sourceUrl, profile)
             try {
-                val status = connection.responseCode
-                if (status !in 200..299) {
-                    failures += "${profile.label}: HTTP $status"
-                    if (status == HttpURLConnection.HTTP_UNAUTHORIZED) break
-                    if (index == 0 && status !in PROFILE_RETRY_STATUSES) break
-                    continue
-                }
+                val response = httpClient.newCall(request).execute()
+                try {
+                    val status = response.code
+                    if (!response.isSuccessful) {
+                        failures += responseTrace(profile, response)
+                        if (status == 401) break
+                        if (index == 0 && status !in PROFILE_RETRY_STATUSES) break
+                        continue
+                    }
 
-                val declaredSize = connection.contentLengthLong
-                if (declaredSize > MAX_PLAYLIST_BYTES) {
-                    throw CatalogLoadException("A lista direta excede o limite seguro para este aparelho.")
-                }
+                    val body = response.body
+                    val declaredSize = body.contentLength()
+                    if (declaredSize > MAX_PLAYLIST_BYTES) {
+                        throw CatalogLoadException(
+                            "A lista direta excede o limite seguro para este aparelho.",
+                        )
+                    }
 
-                return connection.inputStream.use { input ->
-                    parsePlaylist(LimitedM3uInputStream(input, MAX_PLAYLIST_BYTES))
+                    return body.byteStream().use { input ->
+                        parsePlaylist(LimitedM3uInputStream(input, MAX_PLAYLIST_BYTES))
+                    }
+                } finally {
+                    response.close()
                 }
             } catch (error: CatalogLoadException) {
                 failures += "${profile.label}: ${error.message.orEmpty()}"
                 if (index == 0 && !isProfileSensitiveFailure(error.message.orEmpty())) break
             } catch (error: Exception) {
                 failures += "${profile.label}: ${safeNetworkFailure(error)}"
-                break
-            } finally {
-                connection.disconnect()
+                if (index == 0) break
             }
         }
 
@@ -73,32 +90,72 @@ internal class DirectM3uClient {
             .map(String::trim)
             .filter(String::isNotBlank)
             .distinct()
-            .takeLast(3)
+            .takeLast(4)
             .joinToString(" | ")
-            .take(420)
+            .take(460)
             .ifBlank { "falha não identificada" }
-        throw CatalogLoadException("A lista direta não pôde ser baixada. $summary")
+        throw CatalogLoadException("M3U_TRACE $summary")
     }
 
-    private fun openConnection(sourceUrl: String, profile: RequestProfile): HttpURLConnection {
-        val url = URL(sourceUrl)
-        require(url.protocol == "http" || url.protocol == "https") {
+    private fun buildRequest(sourceUrl: String, profile: RequestProfile): Request {
+        val parsed = URL(sourceUrl)
+        require(parsed.protocol == "http" || parsed.protocol == "https") {
             "Protocolo da lista direta não permitido."
         }
 
-        return (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            instanceFollowRedirects = true
-            useCaches = false
-            setRequestProperty("Accept", profile.accept)
-            setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.7")
-            setRequestProperty("Cache-Control", "no-cache")
-            setRequestProperty("Connection", "keep-alive")
-            setRequestProperty("User-Agent", profile.userAgent)
-            profile.requestedWith?.let { setRequestProperty("X-Requested-With", it) }
+        return Request.Builder()
+            .url(sourceUrl)
+            .get()
+            .header("Accept", profile.accept)
+            .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.7")
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
+            .header("User-Agent", profile.userAgent)
+            .apply {
+                profile.requestedWith?.let { header("X-Requested-With", it) }
+                profile.referer?.let { header("Referer", it) }
+            }
+            .build()
+    }
+
+    private fun responseTrace(profile: RequestProfile, response: Response): String {
+        val finalUrl = response.request.url
+        val scheme = finalUrl.scheme
+        val host = finalUrl.host
+        val port = finalUrl.port
+        val path = finalUrl.encodedPath.take(80)
+        val portLabel = when {
+            scheme == "https" && port == 443 -> ""
+            scheme == "http" && port == 80 -> ""
+            else -> ":$port"
         }
+        val server = response.header("Server")
+            ?.replace(Regex("[^A-Za-z0-9._/-]"), "")
+            ?.take(28)
+            ?.ifBlank { null }
+            ?: "-"
+        val contentType = response.header("Content-Type")
+            ?.substringBefore(';')
+            ?.replace(Regex("[^A-Za-z0-9.+/-]"), "")
+            ?.take(32)
+            ?.ifBlank { null }
+            ?: "-"
+        val location = response.header("Location")
+            ?.let(::safeLocation)
+            ?: "-"
+        return "${profile.label}:${response.code}/${response.protocol} " +
+            "$scheme://$host$portLabel$path srv=$server ct=$contentType loc=$location"
+    }
+
+    private fun safeLocation(value: String): String {
+        val parsed = runCatching { URL(value) }.getOrNull() ?: return "relative"
+        val portLabel = when {
+            parsed.protocol == "https" && parsed.port in listOf(-1, 443) -> ""
+            parsed.protocol == "http" && parsed.port in listOf(-1, 80) -> ""
+            parsed.port > 0 -> ":${parsed.port}"
+            else -> ""
+        }
+        return "${parsed.protocol}://${parsed.host}$portLabel${parsed.path.take(50)}"
     }
 
     private fun isProfileSensitiveFailure(message: String): Boolean {
@@ -111,10 +168,11 @@ internal class DirectM3uClient {
     private fun safeNetworkFailure(error: Exception): String {
         val message = error.message.orEmpty().lowercase(Locale.ROOT)
         return when {
-            message.contains("timed out") || message.contains("timeout") -> "tempo limite de conexão"
-            message.contains("failed to connect") || message.contains("connection refused") -> "falha de conexão"
-            message.contains("unable to resolve host") || message.contains("unknown host") -> "domínio não encontrado"
-            else -> error::class.java.simpleName.ifBlank { "falha de rede" }
+            message.contains("timed out") || message.contains("timeout") -> "timeout"
+            message.contains("failed to connect") || message.contains("connection refused") -> "connect_fail"
+            message.contains("unable to resolve host") || message.contains("unknown host") -> "dns_fail"
+            message.contains("certificate") || message.contains("ssl") || message.contains("tls") -> "tls_fail"
+            else -> error::class.java.simpleName.ifBlank { "network_fail" }
         }
     }
 
@@ -235,7 +293,9 @@ internal class DirectM3uClient {
             Regex("$escaped\\s*=\\s*'([^']*)'", RegexOption.IGNORE_CASE),
             Regex("$escaped\\s*=\\s*([^\\s,]+)", RegexOption.IGNORE_CASE),
         )
-        return patterns.firstNotNullOfOrNull { it.find(extInf)?.groupValues?.getOrNull(1)?.trim() }.orEmpty()
+        return patterns.firstNotNullOfOrNull {
+            it.find(extInf)?.groupValues?.getOrNull(1)?.trim()
+        }.orEmpty()
     }
 
     private fun classify(name: String, groupTitle: String, streamUrl: String): EntryKind {
@@ -251,7 +311,11 @@ internal class DirectM3uClient {
         if (EPISODE_PATTERNS.any { it.containsMatchIn(name) }) return EntryKind.SERIES
         if (path.endsWith(".ts") || path.endsWith(".m3u8")) return EntryKind.LIVE
         if (VOD_EXTENSIONS.any(path::endsWith)) {
-            return if (combined.contains("serie") || combined.contains("temporada") || combined.contains("season")) {
+            return if (
+                combined.contains("serie") ||
+                combined.contains("temporada") ||
+                combined.contains("season")
+            ) {
                 EntryKind.SERIES
             } else {
                 EntryKind.MOVIE
@@ -267,7 +331,9 @@ internal class DirectM3uClient {
         val match = EPISODE_PATTERNS.firstNotNullOfOrNull { it.find(name) }
         val season = match?.groupValues?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
         val episode = match?.groupValues?.getOrNull(2)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
-        val seriesName = EPISODE_PATTERNS.fold(name) { current, pattern -> current.replace(pattern, "") }
+        val seriesName = EPISODE_PATTERNS.fold(name) { current, pattern ->
+            current.replace(pattern, "")
+        }
             .replace(Regex("\\s*[-–|]\\s*$"), "")
             .replace(Regex("\\s{2,}"), " ")
             .trim()
@@ -293,19 +359,23 @@ internal class DirectM3uClient {
             .ifBlank { fallback }
         return cleaned.lowercase(Locale("pt", "BR"))
             .split(Regex("\\s+"))
-            .joinToString(" ") { word -> word.replaceFirstChar { it.titlecase(Locale("pt", "BR")) } }
+            .joinToString(" ") { word ->
+                word.replaceFirstChar { it.titlecase(Locale("pt", "BR")) }
+            }
     }
 
-    private fun yearFromName(name: String): Int? = YEAR_PATTERN.find(name)?.value?.toIntOrNull()
+    private fun yearFromName(name: String): Int? =
+        YEAR_PATTERN.find(name)?.value?.toIntOrNull()
 
     private fun slug(value: String): String = normalize(value)
         .replace(Regex("[^a-z0-9]+"), "-")
         .trim('-')
         .ifBlank { "outros" }
 
-    private fun normalize(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFD)
-        .replace(Regex("\\p{M}+"), "")
-        .lowercase(Locale.ROOT)
+    private fun normalize(value: String): String =
+        Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+            .lowercase(Locale.ROOT)
 
     private fun isPlayableUrl(value: String): Boolean =
         value.startsWith("http://", ignoreCase = true) ||
@@ -338,7 +408,10 @@ internal class DirectM3uClient {
             seasons = seasons.entries
                 .sortedBy(Map.Entry<Int, MutableList<NativeEpisode>>::key)
                 .map { (number, episodes) ->
-                    NativeSeason(number = number, episodes = episodes.sortedBy(NativeEpisode::number))
+                    NativeSeason(
+                        number = number,
+                        episodes = episodes.sortedBy(NativeEpisode::number),
+                    )
                 },
         )
     }
@@ -348,6 +421,7 @@ internal class DirectM3uClient {
         val userAgent: String,
         val accept: String,
         val requestedWith: String? = null,
+        val referer: String? = null,
     )
 
     private enum class EntryKind { LIVE, MOVIE, SERIES }
@@ -357,10 +431,11 @@ internal class DirectM3uClient {
 
         fun isDirectUrl(url: String): Boolean = url.contains(DIRECT_MARKER)
 
-        private fun sourceUrl(markedUrl: String): String = markedUrl.substringBefore(DIRECT_MARKER)
+        private fun sourceUrl(markedUrl: String): String =
+            markedUrl.substringBefore(DIRECT_MARKER)
 
-        private const val CONNECT_TIMEOUT_MS = 15_000
-        private const val READ_TIMEOUT_MS = 150_000
+        private const val CONNECT_TIMEOUT_MS = 15_000L
+        private const val READ_TIMEOUT_MS = 150_000L
         private const val MAX_PLAYLIST_BYTES = 90L * 1024L * 1024L
         private const val BUFFER_SIZE = 64 * 1024
         private val PROFILE_RETRY_STATUSES = setOf(403, 404, 406)
@@ -383,14 +458,15 @@ internal class DirectM3uClient {
             ),
             RequestProfile(
                 label = "Android",
-                userAgent = "okhttp/4.12.0",
+                userAgent = "okhttp/5.3.2",
                 accept = "*/*",
             ),
         )
 
         private val YEAR_PATTERN = Regex("\\b(19\\d{2}|20\\d{2})\\b")
         private val QUALITY_MARKERS = Regex(
-            "\\b(4K|UHD|FHD|HD|SD|DUB|DUBLADO|LEG|LEGENDADO|DUAL AUDIO|BLURAY|WEB-DL|WEBRIP|BRRIP|X264|X265|H264|H265)\\b",
+            "\\b(4K|UHD|FHD|HD|SD|DUB|DUBLADO|LEG|LEGENDADO|DUAL AUDIO|" +
+                "BLURAY|WEB-DL|WEBRIP|BRRIP|X264|X265|H264|H265)\\b",
             RegexOption.IGNORE_CASE,
         )
         private val EPISODE_PATTERNS = listOf(
@@ -398,7 +474,16 @@ internal class DirectM3uClient {
             Regex("\\bT(\\d{1,2})\\s*E(\\d{1,3})\\b", RegexOption.IGNORE_CASE),
             Regex("\\b(\\d{1,2})x(\\d{1,3})\\b", RegexOption.IGNORE_CASE),
         )
-        private val VOD_EXTENSIONS = listOf(".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v")
+        private val VOD_EXTENSIONS = listOf(
+            ".mp4",
+            ".mkv",
+            ".avi",
+            ".mov",
+            ".wmv",
+            ".flv",
+            ".webm",
+            ".m4v",
+        )
     }
 }
 

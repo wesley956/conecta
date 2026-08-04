@@ -1,12 +1,12 @@
-# RonecaPlayTV Native 2.5.2
+# RonecaPlayTV Native 2.5.3
 
-Compatibilidade adicional para fornecedores que filtram o download da lista pelo perfil do aplicativo.
+Diagnóstico e compatibilidade de transporte para listas que continuam retornando HTTP 404 apenas no RonecaPlayTV.
 
-- mantém as tentativas automáticas em HTTPS e HTTP;
-- mantém as alternativas `m3u8` e `ts`;
-- tenta a M3U com perfis RonecaPlayTV, IPTV Smarters, VLC e Android/OkHttp;
-- adiciona cabeçalhos compatíveis sem alterar a URL cadastrada;
-- não repete perfis quando a falha é de rede e não depende do aplicativo;
-- interrompe as tentativas quando o provedor confirma autenticação negada;
-- não altera listas, aparelhos, prioridades, favoritos ou progresso;
-- preserva o comportamento que já corrigiu a lista Kmaster na versão 2.5.1.
+- passa a baixar a M3U usando OkHttp real, com negociação HTTP/2, TLS e redirecionamentos;
+- mantém as tentativas em HTTPS, HTTP, `m3u8` e `ts`;
+- mantém os perfis RonecaPlayTV, IPTV Smarters, VLC e Android;
+- registra de forma segura código HTTP, protocolo, servidor, tipo de conteúdo e destino final;
+- envia automaticamente a falha de catálogo ao painel sem expor usuário, senha ou query string;
+- registra sucesso quando uma lista volta a carregar;
+- não altera URLs, vínculos, prioridades, favoritos ou progresso;
+- preserva o funcionamento da Kmaster corrigido nas versões anteriores.
