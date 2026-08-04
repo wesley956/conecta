@@ -38,6 +38,8 @@ class CatalogPartClient(
     private val directXtreamClient = DirectXtreamClient(applicationContext)
     private val strategyStore = ProviderStrategyStore(applicationContext)
     private val directM3uMutex = Mutex()
+    private val preflightMutex = Mutex()
+    private val preflightResults = linkedMapOf<String, Result<Unit>>()
     private val platform = detectPlatform(applicationContext)
     private val matrixDeadlines = ConcurrentHashMap<String, Long>()
 
@@ -67,8 +69,8 @@ class CatalogPartClient(
             }
         }
 
-        // player_api.php may be hidden while get.php is still valid. Non-definitive
-        // preflight failures are recorded, but M3U and section endpoints remain eligible.
+        // Alguns provedores escondem player_api.php, mas mantêm get.php válido.
+        // Falhas não definitivas ficam registradas e ainda permitem o fallback M3U.
     }
 
     suspend fun loadChannels(
@@ -122,6 +124,8 @@ class CatalogPartClient(
         xtreamLoader: suspend (String) -> List<T>,
         m3uSelector: (DirectM3uCatalog) -> List<T>,
     ): List<T> {
+        ensurePreflightOnce(url, attemptContext)
+
         val section = attemptContext?.section ?: "unknown"
         val preferred = strategyStore.preferred(url, section)
         val protocolCandidates = directProtocolCandidates(url, preferred?.protocol)
@@ -162,7 +166,11 @@ class CatalogPartClient(
         }
 
         suspend fun tryM3u(): List<T>? {
-            for ((index, candidate) in directM3uCandidates(protocolCandidates).withIndex()) {
+            val candidates = directM3uCandidates(
+                protocolCandidates = protocolCandidates,
+                preferredOutput = preferred?.output,
+            )
+            for ((index, candidate) in candidates.withIndex()) {
                 ensureBudget(attemptContext)
                 val result = observedListAttempt(
                     url = candidate,
@@ -205,6 +213,29 @@ class CatalogPartClient(
             "Não foi possível abrir esta lista diretamente. " +
                 "Xtream: $xtreamMessage M3U: $m3uMessage",
         )
+    }
+
+    private suspend fun ensurePreflightOnce(
+        url: String,
+        attemptContext: ProviderAttemptContext?,
+    ) {
+        val context = attemptContext ?: return
+        if (!DirectXtreamClient.supports(url)) return
+
+        preflightMutex.withLock {
+            preflightResults[context.correlationId]?.getOrThrow()?.let { return@withLock }
+            val result = runCatching {
+                preflightDirect(
+                    url = url,
+                    attemptContext = context.copy(section = "authentication"),
+                )
+            }
+            preflightResults[context.correlationId] = result
+            while (preflightResults.size > MAX_PREFLIGHT_RESULTS) {
+                preflightResults.entries.firstOrNull()?.key?.let(preflightResults::remove) ?: break
+            }
+            result.getOrThrow()
+        }
     }
 
     private suspend fun <T> loadCachePart(
@@ -396,8 +427,11 @@ class CatalogPartClient(
         return sources.map { "$it$marker" }
     }
 
-    private fun directM3uCandidates(protocolCandidates: List<String>): List<String> {
-        val candidates = linkedSetOf<String>()
+    private fun directM3uCandidates(
+        protocolCandidates: List<String>,
+        preferredOutput: String? = null,
+    ): List<String> {
+        val generated = linkedSetOf<String>()
         for (markedCandidate in protocolCandidates) {
             val marker = if (DirectM3uClient.isDirectUrl(markedCandidate)) {
                 DirectM3uClient.DIRECT_MARKER
@@ -405,10 +439,19 @@ class CatalogPartClient(
                 ""
             }
             val source = markedCandidate.substringBefore(DirectM3uClient.DIRECT_MARKER)
-            candidates += "$source$marker"
-            candidates += "${withAlternateOutput(source)}$marker"
+            generated += "$source$marker"
+            generated += "${withAlternateOutput(source)}$marker"
         }
-        return candidates.toList()
+        return generated.sortedBy { candidate ->
+            if (
+                preferredOutput != null &&
+                endpointFacts(candidate).output.equals(preferredOutput, ignoreCase = true)
+            ) {
+                0
+            } else {
+                1
+            }
+        }
     }
 
     private fun withAlternateOutput(rawUrl: String): String {
@@ -631,6 +674,7 @@ class CatalogPartClient(
         }
         const val MATRIX_BUDGET_MS = 75_000L
         const val MAX_MATRIX_BUDGETS = 32
+        const val MAX_PREFLIGHT_RESULTS = 32
         const val CONNECT_TIMEOUT_MS = 12_000
         const val READ_TIMEOUT_MS = 45_000
         const val MAX_CHANNELS_BYTES = 35L * 1024L * 1024L
