@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
+import com.ronecaplaytv.nativeapp.activation.DeviceSessionRepository
+import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +16,7 @@ import kotlinx.coroutines.supervisorScope
 
 class CatalogViewModel(application: Application) : AndroidViewModel(application) {
     private val client = CatalogPartClient(application)
+    private val sessionRepository = DeviceSessionRepository(application)
     private val mutableState = MutableStateFlow(NativeCatalogState())
 
     val state: StateFlow<NativeCatalogState> = mutableState.asStateFlow()
@@ -91,6 +94,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             val result = runCatching { loadCompleteCatalog(candidate, "lista reserva: ") }
             val catalog = result.getOrNull()
             if (catalog != null) {
+                reportCatalogSuccess(candidate.id)
                 val state = catalog.toState(
                     candidate = candidate,
                     usingBackup = true,
@@ -110,6 +114,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
             lastFailure = result.exceptionOrNull()
+            reportCatalogFailure(candidate.id, lastFailure)
         }
 
         mutableState.update {
@@ -148,8 +153,10 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             for ((candidateIndex, candidate) in candidates.withIndex()) {
                 val prefix = if (candidateIndex == 0) "" else "lista reserva: "
                 val result = runCatching { loadCompleteCatalog(candidate, prefix) }
+                val catalog = result.getOrNull()
 
-                result.onSuccess { catalog ->
+                if (catalog != null) {
+                    reportCatalogSuccess(candidate.id)
                     loadedKey = key
                     val switchedPlaylist = previousState.activePlaylistId != null &&
                         previousState.activePlaylistId != candidate.id
@@ -175,7 +182,10 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                         },
                     )
                     return
-                }.onFailure { lastFailure = it }
+                }
+
+                lastFailure = result.exceptionOrNull()
+                reportCatalogFailure(candidate.id, lastFailure)
             }
             throw lastFailure ?: IllegalStateException("Nenhuma lista pôde ser carregada.")
         }.onFailure { error ->
@@ -187,6 +197,30 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
         }
+    }
+
+    private suspend fun reportCatalogFailure(
+        playlistId: String,
+        failure: Throwable?,
+    ) {
+        val error = failure?.message
+            ?.trim()
+            ?.take(500)
+            ?.takeIf(String::isNotBlank)
+            ?: "Falha de catálogo sem detalhes."
+        val attemptId = "catalog:${UUID.randomUUID()}"
+        runCatching {
+            sessionRepository.reportPlaylistFailure(
+                playlistId = playlistId,
+                error = error,
+                correlationId = attemptId,
+                failoverAttemptId = attemptId,
+            )
+        }
+    }
+
+    private suspend fun reportCatalogSuccess(playlistId: String) {
+        runCatching { sessionRepository.reportPlaylistSuccess(playlistId) }
     }
 
     /**
