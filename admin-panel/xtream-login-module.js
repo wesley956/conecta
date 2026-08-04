@@ -69,10 +69,14 @@
       label: String(item.querySelector('small')?.textContent || '').trim().toLowerCase(),
       value: String(item.querySelector('span')?.textContent || '').trim(),
     }));
+    const protocol = values.find(item => item.label === 'protocolo')?.value.toLowerCase() || 'http';
     const host = values.find(item => item.label === 'servidor')?.value || '';
     const hasUser = values.find(item => item.label.includes('usuário'))?.value === 'Sim';
     const hasPassword = values.find(item => item.label.includes('senha'))?.value === 'Sim';
-    return { host, xtream: Boolean(host && hasUser && hasPassword) };
+    return {
+      host: host && host !== '—' ? `${protocol}://${host}` : '',
+      xtream: Boolean(host && hasUser && hasPassword),
+    };
   }
 
   function toggleMode(form) {
@@ -123,7 +127,7 @@
     xtreamGroup.className = 'wide xtream-login-fields';
     xtreamGroup.dataset.sourceXtreamGroup = 'true';
     xtreamGroup.innerHTML = `
-      <label class="wide"><span>Host do servidor</span><input name="xtreamHost" maxlength="1000" autocomplete="url" placeholder="http://servidor.com:8080" value="${esc(hint.host && hint.host !== '—' ? `http://${hint.host}` : '')}" /></label>
+      <label class="wide"><span>Host do servidor</span><input name="xtreamHost" maxlength="1000" autocomplete="url" placeholder="http://servidor.com:8080" value="${esc(hint.host)}" /></label>
       <label><span>Usuário Xtream</span><input name="xtreamUsername" maxlength="300" autocomplete="off" autocapitalize="none" spellcheck="false" /></label>
       <label><span>Senha Xtream</span><input name="xtreamPassword" type="password" maxlength="300" autocomplete="new-password" /></label>
       <div class="xtream-login-note"><strong>Matriz automática:</strong> o aplicativo testará API Xtream e fallback M3U, HTTP/HTTPS e formatos compatíveis sem alterar os dados informados.</div>`;
