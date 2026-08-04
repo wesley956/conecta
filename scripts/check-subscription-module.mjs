@@ -6,6 +6,7 @@ const requiredFiles = [
   'admin-panel/xtream-login-module.js',
   'admin-panel/xtream-login-module.css',
   'admin-panel/unified-playlist-entry.js',
+  'admin-panel/playlist-save-feedback-hotfix.js',
   'supabase/functions/subscription-panel/index.ts',
   'supabase/functions/subscription-playlist-edit/index.ts',
   'supabase/functions/_shared/labSession.ts',
@@ -25,6 +26,7 @@ for (const file of requiredFiles) {
 const playlistEditUi = fs.readFileSync('admin-panel/playlist-edit-module.js', 'utf8');
 const xtreamLoginUi = fs.readFileSync('admin-panel/xtream-login-module.js', 'utf8');
 const unifiedPlaylistEntry = fs.readFileSync('admin-panel/unified-playlist-entry.js', 'utf8');
+const playlistSaveFeedback = fs.readFileSync('admin-panel/playlist-save-feedback-hotfix.js', 'utf8');
 const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'utf8');
 const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/2026072201_customer_subscriptions_lab.sql', 'utf8');
@@ -89,10 +91,26 @@ for (const token of unifiedEntryRequirements) {
   if (!unifiedPlaylistEntry.includes(token)) throw new Error(`Entrada unificada de listas não contém: ${token}`);
 }
 
-if (/\bFunction\s*\(|\beval\s*\(/.test(`${playlistEditUi}\n${xtreamLoginUi}\n${unifiedPlaylistEntry}`)) {
+const saveFeedbackRequirements = [
+  'Lista salva com sucesso. O provedor demorou no cache',
+  'não cadastre novamente',
+  'waitForPlaylistState',
+  "wrapBefore('sellerUxActivateDevice'",
+  "wrapBefore('sellerUxRenewDevice'",
+  "wrapBefore('activatePending'",
+  'sellerListsCreateWithAccurateFeedback',
+  'playlist-save-feedback-hotfix.js',
+];
+for (const token of saveFeedbackRequirements) {
+  if (!playlistSaveFeedback.includes(token) && !configGenerator.includes(token)) {
+    throw new Error(`Correção do retorno de salvamento não contém: ${token}`);
+  }
+}
+
+if (/\bFunction\s*\(|\beval\s*\(/.test(`${playlistEditUi}\n${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistSaveFeedback}`)) {
   throw new Error('Módulos do painel não podem executar código dinâmico.');
 }
-if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(`${xtreamLoginUi}\n${unifiedPlaylistEntry}`)) {
+if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(`${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistSaveFeedback}`)) {
   throw new Error('Cadastro Xtream não pode registrar credenciais no console.');
 }
 
@@ -187,6 +205,9 @@ if (!configGenerator.includes('playlist-edit-module.js')) {
 }
 if (!configGenerator.includes('unified-playlist-entry.js')) {
   throw new Error('Deploy dos painéis não carrega a entrada Xtream unificada.');
+}
+if (!configGenerator.includes('playlist-save-feedback-hotfix.js')) {
+  throw new Error('Deploy dos painéis não carrega a correção do retorno de salvamento.');
 }
 if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supabaseConfig.includes('verify_jwt = true')) {
   throw new Error('Função de edição de listas precisa exigir JWT.');
