@@ -53,13 +53,14 @@ internal class DirectM3uClient {
         for ((index, profile) in REQUEST_PROFILES.withIndex()) {
             val request = buildRequest(sourceUrl, profile)
             try {
-                httpClient.newCall(request).execute().use { response ->
+                val response = httpClient.newCall(request).execute()
+                try {
                     val status = response.code
                     if (!response.isSuccessful) {
                         failures += responseTrace(profile, response)
                         if (status == 401) break
                         if (index == 0 && status !in PROFILE_RETRY_STATUSES) break
-                        return@use
+                        continue
                     }
 
                     val body = response.body
@@ -73,6 +74,8 @@ internal class DirectM3uClient {
                     return body.byteStream().use { input ->
                         parsePlaylist(LimitedM3uInputStream(input, MAX_PLAYLIST_BYTES))
                     }
+                } finally {
+                    response.close()
                 }
             } catch (error: CatalogLoadException) {
                 failures += "${profile.label}: ${error.message.orEmpty()}"
