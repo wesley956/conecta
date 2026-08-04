@@ -6,6 +6,8 @@ import com.ronecaplaytv.nativeapp.network.DeviceActivationResponse
 import com.ronecaplaytv.nativeapp.network.DeviceApi
 import com.ronecaplaytv.nativeapp.network.DeviceConfigDirectApi
 import com.ronecaplaytv.nativeapp.network.DeviceConfigResponse
+import com.ronecaplaytv.nativeapp.network.ProviderAttemptApi
+import com.ronecaplaytv.nativeapp.network.ProviderAttemptReport
 import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
 import com.ronecaplaytv.nativeapp.security.SecureCredentialStore
 
@@ -14,6 +16,7 @@ class DeviceSessionRepository(context: Context) {
     private val credentialStore = SecureCredentialStore(context)
     private val api = DeviceApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
     private val directConfigApi = DeviceConfigDirectApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
+    private val providerAttemptApi = ProviderAttemptApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
 
     suspend fun bootstrap(isTelevision: Boolean): DeviceSessionState {
         val deviceCode = identityStore.getDeviceCode()
@@ -74,6 +77,18 @@ class DeviceSessionRepository(context: Context) {
             deviceCredential = credential,
             playlistHealthId = playlistId,
             playlistHealthStatus = "success",
+        )
+    }
+
+    suspend fun reportProviderAttempt(attempt: ProviderAttemptReport) {
+        val deviceCode = identityStore.getDeviceCode() ?: return
+        val credential = credentialStore.load() ?: return
+
+        providerAttemptApi.report(
+            deviceCode = deviceCode,
+            deviceUuid = identityStore.getOrCreateDeviceUuid(),
+            deviceCredential = credential,
+            attempt = attempt,
         )
     }
 
