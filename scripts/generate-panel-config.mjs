@@ -100,6 +100,21 @@ const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `    loadOnce();\n` +
   `  }\n` +
   `})();\n` +
+  `(function loadPlaylistSaveFeedback(){\n` +
+  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
+  `  function loadOnce(){\n` +
+  `    if (document.querySelector('script[src*="playlist-save-feedback-hotfix.js"]')) return;\n` +
+  `    var script = document.createElement('script');\n` +
+  `    script.src = './playlist-save-feedback-hotfix.js?v=1.0';\n` +
+  `    script.async = false;\n` +
+  `    document.head.appendChild(script);\n` +
+  `  }\n` +
+  `  if (document.readyState === 'loading') {\n` +
+  `    document.addEventListener('DOMContentLoaded', loadOnce, { once: true });\n` +
+  `  } else {\n` +
+  `    loadOnce();\n` +
+  `  }\n` +
+  `})();\n` +
   `(function loadCommercialConsolidation(){\n` +
   `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
   `  if (!document.querySelector('link[href*="commercial-consolidation.css"]')) {\n` +
