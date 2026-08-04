@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(15);
+select plan(16);
 
 select has_table('public', 'playlist_provider_attempts', 'Histórico da matriz existe');
 select has_column('public', 'playlist_provider_attempts', 'client_event_id', 'Matriz possui evento idempotente');
