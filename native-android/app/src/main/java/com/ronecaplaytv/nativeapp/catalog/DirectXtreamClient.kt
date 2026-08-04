@@ -2,19 +2,33 @@ package com.ronecaplaytv.nativeapp.catalog
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.net.UnknownHostException
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import javax.net.ssl.SSLException
+
+internal data class XtreamAuthentication(
+    val expiresAtEpochSeconds: Long?,
+    val activeConnections: Int?,
+    val maxConnections: Int?,
+)
 
 /**
  * Loads direct playlists through the native Xtream API.
@@ -25,10 +39,24 @@ import java.util.concurrent.ConcurrentHashMap
  */
 internal class DirectXtreamClient(context: Context) {
     private val cacheDirectory = File(context.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }
+    private val authenticationMutex = Mutex()
+    private val authenticationCache = mutableMapOf<String, CachedAuthentication>()
+
+    suspend fun verifyAuthentication(markedUrl: String): XtreamAuthentication =
+        withContext(Dispatchers.IO) {
+            val credentials = credentialsFrom(markedUrl)
+                ?: throw CatalogLoadException(
+                    "[XTREAM_AUTH_INVALID] A origem direta não contém credenciais Xtream válidas.",
+                )
+            verifyAuthentication(credentials)
+        }
 
     suspend fun loadChannels(markedUrl: String): List<NativeChannel> = withContext(Dispatchers.IO) {
         val credentials = credentialsFrom(markedUrl)
-            ?: throw CatalogLoadException("A URL direta não contém credenciais Xtream válidas.")
+            ?: throw CatalogLoadException(
+                "[XTREAM_AUTH_INVALID] A origem direta não contém credenciais Xtream válidas.",
+            )
+        verifyAuthentication(credentials)
         val categories = runCatching {
             loadCategories(credentials, "get_live_categories")
         }.getOrDefault(emptyMap())
@@ -49,7 +77,10 @@ internal class DirectXtreamClient(context: Context) {
 
     suspend fun loadMovies(markedUrl: String): List<NativeMovie> = withContext(Dispatchers.IO) {
         val credentials = credentialsFrom(markedUrl)
-            ?: throw CatalogLoadException("A URL direta não contém credenciais Xtream válidas.")
+            ?: throw CatalogLoadException(
+                "[XTREAM_AUTH_INVALID] A origem direta não contém credenciais Xtream válidas.",
+            )
+        verifyAuthentication(credentials)
         val categories = runCatching {
             loadCategories(credentials, "get_vod_categories")
         }.getOrDefault(emptyMap())
@@ -74,7 +105,10 @@ internal class DirectXtreamClient(context: Context) {
 
     suspend fun loadSeries(markedUrl: String): List<NativeSeries> = withContext(Dispatchers.IO) {
         val credentials = credentialsFrom(markedUrl)
-            ?: throw CatalogLoadException("A URL direta não contém credenciais Xtream válidas.")
+            ?: throw CatalogLoadException(
+                "[XTREAM_AUTH_INVALID] A origem direta não contém credenciais Xtream válidas.",
+            )
+        verifyAuthentication(credentials)
         val categories = runCatching {
             loadCategories(credentials, "get_series_categories")
         }.getOrDefault(emptyMap())
@@ -94,6 +128,93 @@ internal class DirectXtreamClient(context: Context) {
         }
     }
 
+    private suspend fun verifyAuthentication(
+        credentials: XtreamCredentials,
+    ): XtreamAuthentication = authenticationMutex.withLock {
+        val cacheKey = sha256(
+            "${credentials.server}|${credentials.username}|${credentials.password}",
+        )
+        val now = System.currentTimeMillis()
+        authenticationCache[cacheKey]
+            ?.takeIf { it.validUntilMillis > now }
+            ?.let { cached ->
+                cached.errorMessage?.let { throw CatalogLoadException(it) }
+                return@withLock requireNotNull(cached.authentication)
+            }
+
+        val result = runCatching { requestAuthentication(credentials) }
+        val message = result.exceptionOrNull()?.message
+        val ttl = when {
+            result.isSuccess -> AUTH_SUCCESS_TTL_MS
+            message?.let(::isDefinitiveAuthenticationMessage) == true -> AUTH_FAILURE_TTL_MS
+            else -> AUTH_TRANSIENT_TTL_MS
+        }
+        authenticationCache[cacheKey] = CachedAuthentication(
+            authentication = result.getOrNull(),
+            errorMessage = message,
+            validUntilMillis = now + ttl,
+        )
+        if (authenticationCache.size > MAX_AUTH_CACHE_ENTRIES) {
+            val expiredKeys = authenticationCache
+                .filterValues { it.validUntilMillis <= now }
+                .keys
+            expiredKeys.forEach(authenticationCache::remove)
+            while (authenticationCache.size > MAX_AUTH_CACHE_ENTRIES) {
+                authenticationCache.keys.firstOrNull()?.let(authenticationCache::remove) ?: break
+            }
+        }
+        result.getOrThrow()
+    }
+
+    private fun requestAuthentication(credentials: XtreamCredentials): XtreamAuthentication {
+        val text = requestText(
+            credentials = credentials,
+            action = null,
+            extraParameters = emptyMap(),
+            maximumBytes = AUTH_RESPONSE_BYTES,
+            useDiskCache = false,
+        )
+        val root = runCatching { JSONObject(text) }.getOrElse {
+            throw CatalogLoadException(
+                "[XTREAM_AUTH_INCOMPATIBLE] A autenticação Xtream retornou uma resposta inválida.",
+            )
+        }
+        val userInfo = root.optJSONObject("user_info") ?: root
+        val auth = userInfo.optStringValue("auth")
+        val status = userInfo.optStringValue("status")
+            ?.lowercase(Locale.ROOT)
+            .orEmpty()
+        val expiration = userInfo.optStringValue("exp_date")?.toLongOrNull()
+            ?.takeIf { it > 0L }
+        val nowSeconds = System.currentTimeMillis() / 1_000L
+
+        if (auth == "0" || status.contains("invalid") || status.contains("banned") ||
+            status.contains("disabled")
+        ) {
+            throw CatalogLoadException(
+                "[XTREAM_AUTH_INVALID] Usuário ou senha Xtream inválidos, bloqueados ou desativados.",
+            )
+        }
+        if (status.contains("expired") || (expiration != null && expiration <= nowSeconds)) {
+            throw CatalogLoadException("[XTREAM_AUTH_EXPIRED] A conta Xtream está vencida.")
+        }
+        if (auth != "1" && !status.contains("active")) {
+            val message = userInfo.optStringValue("message")
+                ?: root.optStringValue("message")
+            throw CatalogLoadException(
+                "[XTREAM_AUTH_INCOMPATIBLE] " +
+                    (message?.take(180)
+                        ?: "O servidor não confirmou uma sessão Xtream ativa."),
+            )
+        }
+
+        return XtreamAuthentication(
+            expiresAtEpochSeconds = expiration,
+            activeConnections = userInfo.optStringValue("active_cons")?.toIntOrNull(),
+            maxConnections = userInfo.optStringValue("max_connections")?.toIntOrNull(),
+        )
+    }
+
     private fun loadCategories(credentials: XtreamCredentials, action: String): Map<String, String> =
         requestArray(credentials, action).objects().mapNotNull { item ->
             val id = item.optStringValue("category_id") ?: return@mapNotNull null
@@ -102,6 +223,7 @@ internal class DirectXtreamClient(context: Context) {
         }.toMap()
 
     private fun loadSeriesEpisodes(request: DirectSeriesRequest): List<NativeSeason> {
+        verifyAuthenticationBlocking(request.credentials)
         val response = requestObject(
             credentials = request.credentials,
             action = "get_series_info",
@@ -153,6 +275,10 @@ internal class DirectXtreamClient(context: Context) {
         }
     }
 
+    private fun verifyAuthenticationBlocking(credentials: XtreamCredentials) {
+        requestAuthentication(credentials)
+    }
+
     private fun requestArray(
         credentials: XtreamCredentials,
         action: String,
@@ -161,7 +287,8 @@ internal class DirectXtreamClient(context: Context) {
         return runCatching { JSONArray(text) }.getOrElse {
             val message = runCatching { JSONObject(text).optStringValue("message") }.getOrNull()
             throw CatalogLoadException(
-                message ?: "A API Xtream retornou dados inválidos em $action.",
+                message?.take(180)
+                    ?: "[XTREAM_RESPONSE_INVALID] A API Xtream retornou dados inválidos em $action.",
             )
         }
     }
@@ -173,29 +300,34 @@ internal class DirectXtreamClient(context: Context) {
     ): JSONObject {
         val text = requestText(credentials, action, extraParameters)
         return runCatching { JSONObject(text) }.getOrElse {
-            throw CatalogLoadException("A API Xtream retornou dados inválidos em $action.")
+            throw CatalogLoadException(
+                "[XTREAM_RESPONSE_INVALID] A API Xtream retornou dados inválidos em $action.",
+            )
         }
     }
 
     private fun requestText(
         credentials: XtreamCredentials,
-        action: String,
+        action: String?,
         extraParameters: Map<String, String>,
+        maximumBytes: Long = MAX_RESPONSE_BYTES,
+        useDiskCache: Boolean = true,
     ): String {
         val cacheKey = sha256(
             listOf(
                 credentials.server,
                 credentials.username,
                 credentials.password,
-                action,
+                action ?: "authenticate",
                 extraParameters.toSortedMap().entries.joinToString("&"),
             ).joinToString("|"),
         )
         val cacheFile = File(cacheDirectory, "$cacheKey.json")
         val now = System.currentTimeMillis()
         if (
+            useDiskCache &&
             cacheFile.isFile &&
-            cacheFile.length() in 1..MAX_RESPONSE_BYTES &&
+            cacheFile.length() in 1..maximumBytes &&
             now - cacheFile.lastModified() <= CACHE_TTL_MS
         ) {
             return cacheFile.readText(Charsets.UTF_8)
@@ -216,27 +348,66 @@ internal class DirectXtreamClient(context: Context) {
         return try {
             val status = connection.responseCode
             if (status !in 200..299) {
-                throw CatalogLoadException("A API Xtream respondeu HTTP $status em $action.")
+                val message = when (status) {
+                    401, 403 ->
+                        "[XTREAM_AUTH_INVALID] O servidor recusou as credenciais Xtream (HTTP $status)."
+                    404 ->
+                        "[XTREAM_AUTH_ENDPOINT_NOT_FOUND] A API Xtream respondeu HTTP 404."
+                    408, 429 ->
+                        "[XTREAM_SERVER_BUSY] A API Xtream respondeu HTTP $status."
+                    else ->
+                        "[XTREAM_HTTP_ERROR] A API Xtream respondeu HTTP $status" +
+                            action?.let { " em $it." }.orEmpty()
+                }
+                throw CatalogLoadException(message)
             }
             val declaredSize = connection.contentLengthLong
-            if (declaredSize > MAX_RESPONSE_BYTES) {
-                throw CatalogLoadException("A resposta Xtream excede o limite seguro.")
+            if (declaredSize > maximumBytes) {
+                throw CatalogLoadException(
+                    "[XTREAM_RESPONSE_TOO_LARGE] A resposta Xtream excede o limite seguro.",
+                )
             }
             val text = connection.inputStream.use {
-                readLimitedUtf8(it, MAX_RESPONSE_BYTES)
+                readLimitedUtf8(it, maximumBytes)
             }
             if (text.isBlank()) {
-                throw CatalogLoadException("A API Xtream retornou uma resposta vazia em $action.")
+                throw CatalogLoadException(
+                    "[XTREAM_RESPONSE_EMPTY] A API Xtream retornou uma resposta vazia" +
+                        action?.let { " em $it." }.orEmpty(),
+                )
             }
-            runCatching {
-                val temporary = File(cacheDirectory, "$cacheKey.tmp")
-                temporary.writeText(text, Charsets.UTF_8)
-                if (!temporary.renameTo(cacheFile)) {
-                    cacheFile.writeText(text, Charsets.UTF_8)
-                    temporary.delete()
+            if (text.trimStart().startsWith("<")) {
+                throw CatalogLoadException(
+                    "[XTREAM_RESPONSE_HTML] A API Xtream devolveu uma página HTML em vez de dados.",
+                )
+            }
+            if (useDiskCache) {
+                runCatching {
+                    val temporary = File(cacheDirectory, "$cacheKey.tmp")
+                    temporary.writeText(text, Charsets.UTF_8)
+                    if (!temporary.renameTo(cacheFile)) {
+                        cacheFile.writeText(text, Charsets.UTF_8)
+                        temporary.delete()
+                    }
                 }
             }
             text
+        } catch (error: CatalogLoadException) {
+            throw error
+        } catch (error: SocketTimeoutException) {
+            throw CatalogLoadException("[XTREAM_TIMEOUT] O servidor Xtream excedeu o tempo limite.")
+        } catch (error: UnknownHostException) {
+            throw CatalogLoadException("[XTREAM_DNS_FAILED] O domínio do servidor Xtream não foi encontrado.")
+        } catch (error: SSLException) {
+            throw CatalogLoadException("[XTREAM_TLS_FAILED] A conexão segura com o servidor Xtream falhou.")
+        } catch (error: SocketException) {
+            throw CatalogLoadException(
+                "[XTREAM_CONNECTION_RESET] O servidor Xtream encerrou a conexão.",
+            )
+        } catch (error: IOException) {
+            throw CatalogLoadException(
+                "[XTREAM_CONNECTION_FAILED] Não foi possível conectar ao servidor Xtream.",
+            )
         } finally {
             connection.disconnect()
         }
@@ -251,7 +422,9 @@ internal class DirectXtreamClient(context: Context) {
             if (read < 0) break
             total += read
             if (total > maximumBytes) {
-                throw CatalogLoadException("Download da API Xtream excedeu o limite seguro.")
+                throw CatalogLoadException(
+                    "[XTREAM_RESPONSE_TOO_LARGE] Download da API Xtream excedeu o limite seguro.",
+                )
             }
             output.write(buffer, 0, read)
         }
@@ -260,15 +433,30 @@ internal class DirectXtreamClient(context: Context) {
 
     companion object {
         const val SERIES_KEY_PREFIX = "direct-xtream:"
-        private const val CACHE_DIRECTORY = "xtream_catalog_v1"
+        private const val CACHE_DIRECTORY = "xtream_catalog_v2"
         private const val CACHE_TTL_MS = 6L * 60L * 60L * 1_000L
-        private const val CONNECT_TIMEOUT_MS = 12_000
-        private const val READ_TIMEOUT_MS = 45_000
+        private const val AUTH_SUCCESS_TTL_MS = 5L * 60L * 1_000L
+        private const val AUTH_FAILURE_TTL_MS = 30L * 1_000L
+        private const val AUTH_TRANSIENT_TTL_MS = 10L * 1_000L
+        private const val MAX_AUTH_CACHE_ENTRIES = 32
+        private const val CONNECT_TIMEOUT_MS = 8_000
+        private const val READ_TIMEOUT_MS = 18_000
         private const val MAX_RESPONSE_BYTES = 64L * 1024L * 1024L
+        private const val AUTH_RESPONSE_BYTES = 1L * 1024L * 1024L
         private const val USER_AGENT = "IPTVSmartersPro"
         private val directSeries = ConcurrentHashMap<String, DirectSeriesRequest>()
 
         fun supports(markedUrl: String): Boolean = credentialsFrom(markedUrl) != null
+
+        fun authenticationEndpoint(markedUrl: String): String? {
+            val marker = if (DirectM3uClient.isDirectUrl(markedUrl)) {
+                DirectM3uClient.DIRECT_MARKER
+            } else {
+                ""
+            }
+            val credentials = credentialsFrom(markedUrl) ?: return null
+            return credentials.apiUrl(null, emptyMap()).toString() + marker
+        }
 
         fun isDirectSeriesKey(value: String): Boolean = value.startsWith(SERIES_KEY_PREFIX)
 
@@ -303,7 +491,7 @@ internal class DirectXtreamClient(context: Context) {
                 .mapNotNull { part ->
                     val separator = part.indexOf('=')
                     if (separator <= 0) return@mapNotNull null
-                    decode(part.substring(0, separator)).lowercase() to
+                    decode(part.substring(0, separator)).lowercase(Locale.ROOT) to
                         decode(part.substring(separator + 1))
                 }
                 .toMap()
@@ -322,9 +510,13 @@ internal class DirectXtreamClient(context: Context) {
             return XtreamCredentials(server, username, password, output)
         }
 
+        private fun isDefinitiveAuthenticationMessage(message: String): Boolean =
+            message.contains("[XTREAM_AUTH_INVALID]") ||
+                message.contains("[XTREAM_AUTH_EXPIRED]")
+
         private fun safeExtension(value: String?, fallback: String): String =
             value.orEmpty()
-                .lowercase()
+                .lowercase(Locale.ROOT)
                 .replace(Regex("[^a-z0-9]"), "")
                 .takeIf(String::isNotBlank)
                 ?.take(8)
@@ -352,11 +544,11 @@ internal class DirectXtreamClient(context: Context) {
         val password: String,
         val output: String,
     ) {
-        fun apiUrl(action: String, extraParameters: Map<String, String>): URL {
+        fun apiUrl(action: String?, extraParameters: Map<String, String>): URL {
             val query = buildList {
                 add("username=${encode(username)}")
                 add("password=${encode(password)}")
-                add("action=${encode(action)}")
+                action?.takeIf(String::isNotBlank)?.let { add("action=${encode(it)}") }
                 extraParameters.forEach { (key, value) ->
                     add("${encode(key)}=${encode(value)}")
                 }
@@ -389,6 +581,12 @@ internal class DirectXtreamClient(context: Context) {
     private data class DirectSeriesRequest(
         val credentials: XtreamCredentials,
         val seriesId: String,
+    )
+
+    private data class CachedAuthentication(
+        val authentication: XtreamAuthentication?,
+        val errorMessage: String?,
+        val validUntilMillis: Long,
     )
 }
 
