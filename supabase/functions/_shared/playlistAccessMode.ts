@@ -147,9 +147,9 @@ export function isPlaylistUsable(
     return qualification === 'ready_cache' || qualification === 'ready_direct';
   }
 
-  // Compatibilidade para consumidores antigos: o banco mantém erro ativo em
-  // listas diretas ainda pendentes e o limpa somente após confirmação real.
-  // Assim nenhum endpoint precisa deduzir a homologação por timeout.
+  // Este helper mede disponibilidade técnica para aparelhos já vinculados.
+  // A autorização de novas vendas é feita exclusivamente pela qualificação
+  // comercial e pelas guardas transacionais do banco.
   const accessMode = resolvePlaylistAccessMode(
     cacheStatus,
     storedMode,
@@ -157,6 +157,5 @@ export function isPlaylistUsable(
     cacheError,
     playlistType,
   );
-  const confirmedDirect = accessMode === 'direct' && !errorCode && !cacheError;
-  return cacheStatus === 'ready' || confirmedDirect;
+  return cacheStatus === 'ready' || accessMode === 'direct';
 }
