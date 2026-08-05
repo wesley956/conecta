@@ -6,7 +6,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.BufferedReader
+import java.io.EOFException
 import java.io.FilterInputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.net.URL
@@ -24,6 +26,7 @@ internal class DirectM3uClient {
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        .callTimeout(CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
@@ -172,6 +175,7 @@ internal class DirectM3uClient {
             message.contains("failed to connect") || message.contains("connection refused") -> "connect_fail"
             message.contains("unable to resolve host") || message.contains("unknown host") -> "dns_fail"
             message.contains("certificate") || message.contains("ssl") || message.contains("tls") -> "tls_fail"
+            error is EOFException -> "truncated_response"
             else -> error::class.java.simpleName.ifBlank { "network_fail" }
         }
     }
@@ -185,22 +189,24 @@ internal class DirectM3uClient {
         var movieCounter = 0
         var seriesCounter = 0
         var episodeCounter = 0
+        val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8), BUFFER_SIZE)
 
-        BufferedReader(InputStreamReader(input, Charsets.UTF_8), BUFFER_SIZE).useLines { lines ->
-            lines.forEach { rawLine ->
+        try {
+            while (true) {
+                val rawLine = reader.readLine() ?: break
                 val line = rawLine.trim().removePrefix("\uFEFF")
-                if (line.isBlank()) return@forEach
+                if (line.isBlank()) continue
 
                 if (line.startsWith("#EXTINF", ignoreCase = true)) {
                     pendingExtInf = line
-                    return@forEach
+                    continue
                 }
 
-                val extInf = pendingExtInf ?: return@forEach
-                if (line.startsWith("#")) return@forEach
+                val extInf = pendingExtInf ?: continue
+                if (line.startsWith("#")) continue
                 if (!isPlayableUrl(line)) {
                     pendingExtInf = null
-                    return@forEach
+                    continue
                 }
                 pendingExtInf = null
 
@@ -264,6 +270,13 @@ internal class DirectM3uClient {
                     }
                 }
             }
+        } catch (error: IOException) {
+            val recoveredItems = channels.size + movies.size + seriesByKey.size
+            if (recoveredItems == 0) throw error
+            // Alguns provedores encerram respostas M3U grandes sem o terminador HTTP correto.
+            // O conteúdo completo já recebido continua válido e é preservado.
+        } finally {
+            runCatching { reader.close() }
         }
 
         val series = seriesByKey.values.map(MutableSeries::build)
@@ -434,8 +447,9 @@ internal class DirectM3uClient {
         private fun sourceUrl(markedUrl: String): String =
             markedUrl.substringBefore(DIRECT_MARKER)
 
-        private const val CONNECT_TIMEOUT_MS = 15_000L
-        private const val READ_TIMEOUT_MS = 150_000L
+        private const val CONNECT_TIMEOUT_MS = 12_000L
+        private const val READ_TIMEOUT_MS = 45_000L
+        private const val CALL_TIMEOUT_MS = 45_000L
         private const val MAX_PLAYLIST_BYTES = 90L * 1024L * 1024L
         private const val BUFFER_SIZE = 64 * 1024
         private val PROFILE_RETRY_STATUSES = setOf(403, 404, 406)
