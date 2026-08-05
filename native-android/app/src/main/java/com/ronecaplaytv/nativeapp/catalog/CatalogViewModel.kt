@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.activation.DeviceSessionRepository
+import com.ronecaplaytv.nativeapp.network.ProviderAttemptReport
 import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,11 +17,13 @@ import kotlinx.coroutines.supervisorScope
 
 class CatalogViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionRepository = DeviceSessionRepository(application)
-    private val client = CatalogPartClient(application) { attempt ->
+    private val attemptReporter: (ProviderAttemptReport) -> Unit = { attempt ->
         viewModelScope.launch {
             runCatching { sessionRepository.reportProviderAttempt(attempt) }
         }
     }
+    private val client = CatalogPartClient(application, attemptReporter)
+    private val fastXtreamClient = FastXtreamChannelClient(application, attemptReporter)
     private val mutableState = MutableStateFlow(NativeCatalogState())
 
     val state: StateFlow<NativeCatalogState> = mutableState.asStateFlow()
@@ -109,6 +112,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     lastFailoverOutcome = "switched",
                 )
                 mutableState.value = state
+                if (catalog.progressive) scheduleProgressiveHydration(candidate)
                 return NativeCatalogFailoverResult(
                     attemptId = attemptId,
                     reason = reason,
@@ -185,6 +189,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                             previousState.lastFailoverAtMillis
                         },
                     )
+                    if (catalog.progressive) scheduleProgressiveHydration(candidate)
                     return
                 }
 
@@ -228,12 +233,55 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Channels, movies and series are independent Xtream endpoints. Running them
-     * concurrently removes the old wait in which every section blocked the next.
-     * A provider may return one section late or unavailable; successful sections
-     * are kept instead of leaving the whole application at zero.
+     * Para origens Xtream diretas, tenta primeiro apenas os canais com limites
+     * curtos e sem consultar categorias. Assim o primeiro conteúdo aparece sem
+     * aguardar filmes e séries. Os demais endpoints são hidratados depois.
      */
     private suspend fun loadCompleteCatalog(
+        candidate: DevicePlaylistConfig,
+        prefix: String,
+    ): LoadedCatalog {
+        val channelsUrl = candidate.channelsUrl
+        if (channelsUrl != null && fastXtreamClient.supports(channelsUrl)) {
+            mutableState.update { it.copy(loadingSection = "${prefix}abrindo primeiro conteúdo") }
+            val correlationId = "matrix-fast:${UUID.randomUUID()}"
+            val result = runCatching {
+                fastXtreamClient.loadChannels(
+                    channelsUrl,
+                    ProviderAttemptContext(candidate.id, "channels", correlationId),
+                )
+            }
+            val channels = result.getOrNull()
+            if (!channels.isNullOrEmpty()) {
+                return LoadedCatalog(
+                    channels = channels,
+                    movies = emptyList(),
+                    series = emptyList(),
+                    warning = "Canais carregados. Filmes e séries continuam em segundo plano.",
+                    progressive = true,
+                )
+            }
+
+            val message = result.exceptionOrNull()?.message.orEmpty()
+            if (isSlowProviderFailure(message)) {
+                throw CatalogLoadException(
+                    "O servidor aceitou o login, mas não entregou o catálogo rapidamente. " +
+                        "A lista reserva será usada quando estiver disponível.",
+                )
+            }
+            if (isDefinitiveAuthenticationFailure(message)) {
+                throw CatalogLoadException(cleanAuthenticationMessage(message))
+            }
+        }
+
+        return loadCompatibilityCatalog(candidate, prefix)
+    }
+
+    /**
+     * Caminho completo preservado para cache do servidor, M3U e provedores que
+     * respondem rapidamente aos endpoints independentes.
+     */
+    private suspend fun loadCompatibilityCatalog(
         candidate: DevicePlaylistConfig,
         prefix: String,
     ): LoadedCatalog = supervisorScope {
@@ -303,6 +351,73 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
+    private fun scheduleProgressiveHydration(candidate: DevicePlaylistConfig) {
+        viewModelScope.launch {
+            val correlationId = "matrix-background:${UUID.randomUUID()}"
+            val moviesResult = runCatching {
+                candidate.moviesUrl?.let {
+                    client.loadMovies(
+                        it,
+                        ProviderAttemptContext(candidate.id, "movies", correlationId),
+                    )
+                }.orEmpty()
+            }
+            val movies = moviesResult.getOrDefault(emptyList())
+            if (movies.isNotEmpty()) {
+                mutableState.update { current ->
+                    if (current.activePlaylistId != candidate.id) current
+                    else current.copy(movies = movies)
+                }
+            }
+
+            val seriesResult = runCatching {
+                candidate.seriesUrl?.let {
+                    client.loadSeries(
+                        it,
+                        ProviderAttemptContext(candidate.id, "series", correlationId),
+                    )
+                }.orEmpty()
+            }
+            val series = seriesResult.getOrDefault(emptyList())
+            mutableState.update { current ->
+                if (current.activePlaylistId != candidate.id) {
+                    current
+                } else {
+                    val remaining = buildList {
+                        if (moviesResult.isFailure || movies.isEmpty()) add("filmes")
+                        if (seriesResult.isFailure || series.isEmpty()) add("séries")
+                    }
+                    val progressiveNotice = when {
+                        remaining.isEmpty() -> null
+                        else -> "Canais disponíveis. ${remaining.joinToString(" e ").replaceFirstChar(Char::uppercase)} serão atualizados novamente em segundo plano."
+                    }
+                    current.copy(
+                        movies = if (movies.isNotEmpty()) movies else current.movies,
+                        series = if (series.isNotEmpty()) series else current.series,
+                        failoverNotice = when {
+                            current.usingBackupPlaylist -> current.failoverNotice
+                            current.failoverNotice?.startsWith("Canais carregados") == true -> progressiveNotice
+                            else -> current.failoverNotice ?: progressiveNotice
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    private fun isSlowProviderFailure(message: String): Boolean =
+        message.contains("[XTREAM_FAST_TIMEOUT]", ignoreCase = true) ||
+            message.contains("[XTREAM_CONNECTION_RESET]", ignoreCase = true) ||
+            message.contains("[XTREAM_CONNECTION_FAILED]", ignoreCase = true)
+
+    private fun isDefinitiveAuthenticationFailure(message: String): Boolean =
+        message.contains("[XTREAM_AUTH_INVALID]", ignoreCase = true) ||
+            message.contains("[XTREAM_AUTH_EXPIRED]", ignoreCase = true)
+
+    private fun cleanAuthenticationMessage(message: String): String =
+        message.replace(Regex("\\[XTREAM_[A-Z_]+]"), "").trim()
+            .ifBlank { "A autenticação Xtream falhou." }
+
     private fun playlistCandidates(
         channelsUrl: String?,
         moviesUrl: String?,
@@ -339,6 +454,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         val movies: List<NativeMovie>,
         val series: List<NativeSeries>,
         val warning: String? = null,
+        val progressive: Boolean = false,
     ) {
         fun toState(
             candidate: DevicePlaylistConfig,
