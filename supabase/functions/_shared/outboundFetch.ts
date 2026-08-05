@@ -1,6 +1,8 @@
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_BYTES = 80 * 1024 * 1024;
 const DEFAULT_MAX_REDIRECTS = 5;
+const DEFAULT_MAX_TOTAL_MULTIPLIER = 3;
+const MAX_TOTAL_TIMEOUT_MS = 180_000;
 
 type DnsRecordType = 'A' | 'AAAA';
 type DnsResolver = (hostname: string, recordType: DnsRecordType) => Promise<string[]>;
@@ -156,11 +158,13 @@ export async function assertPublicPlaylistTarget(
 interface SafeFetchTextOptions {
   label: string;
   timeoutMs?: number;
+  maxTotalMs?: number;
   maxBytes?: number;
   headers?: HeadersInit;
   redirectsLeft?: number;
   resolveDns?: DnsResolver;
   allowedOrigins?: string[];
+  deadlineAt?: number;
 }
 
 export function assertAllowedOutboundOrigin(target: URL, allowedOrigins?: string[]) {
@@ -175,6 +179,7 @@ async function readBoundedResponse(
   response: Response,
   label: string,
   maxBytes: number,
+  onProgress?: () => void,
 ) {
   const declaredLength = Number(response.headers.get('content-length') || 0);
   if (declaredLength > maxBytes) {
@@ -192,6 +197,7 @@ async function readBoundedResponse(
     if (done) break;
     if (!value) continue;
 
+    onProgress?.();
     total += value.byteLength;
     if (total > maxBytes) {
       await reader.cancel('response too large');
@@ -226,6 +232,13 @@ function decodeResponse(bytes: Uint8Array, contentType: string) {
   }
 }
 
+function isAbortError(error: unknown) {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
+}
+
 export async function safeFetchPlaylistText(
   rawUrl: string,
   options: SafeFetchTextOptions,
@@ -234,11 +247,44 @@ export async function safeFetchPlaylistText(
   assertAllowedOutboundOrigin(target, options.allowedOrigins);
   await assertPublicPlaylistTarget(target, options.resolveDns);
 
-  const timeoutMs = Math.max(1_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const inactivityTimeoutMs = Math.min(
+    MAX_TOTAL_TIMEOUT_MS,
+    Math.max(1_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+  );
+  const requestedMaxTotalMs = options.maxTotalMs ?? inactivityTimeoutMs * DEFAULT_MAX_TOTAL_MULTIPLIER;
+  const maxTotalMs = Math.min(
+    MAX_TOTAL_TIMEOUT_MS,
+    Math.max(inactivityTimeoutMs, requestedMaxTotalMs),
+  );
+  const deadlineAt = options.deadlineAt ?? Date.now() + maxTotalMs;
+  const remainingTotalMs = Math.max(1, deadlineAt - Date.now());
   const maxBytes = Math.max(1_024, options.maxBytes ?? DEFAULT_MAX_BYTES);
   const redirectsLeft = Math.max(0, options.redirectsLeft ?? DEFAULT_MAX_REDIRECTS);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutReason: 'inactivity' | 'total' | null = null;
+  let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearInactivityTimer = () => {
+    if (inactivityTimer !== undefined) clearTimeout(inactivityTimer);
+    inactivityTimer = undefined;
+  };
+  const resetInactivityTimer = () => {
+    clearInactivityTimer();
+    inactivityTimer = setTimeout(() => {
+      timeoutReason = 'inactivity';
+      controller.abort();
+    }, inactivityTimeoutMs);
+  };
+  const totalTimer = setTimeout(() => {
+    timeoutReason = 'total';
+    controller.abort();
+  }, remainingTotalMs);
+  const clearTimers = () => {
+    clearInactivityTimer();
+    clearTimeout(totalTimer);
+  };
+
+  resetInactivityTimer();
 
   try {
     const response = await fetch(target, {
@@ -247,6 +293,7 @@ export async function safeFetchPlaylistText(
       signal: controller.signal,
       headers: options.headers,
     });
+    resetInactivityTimer();
 
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
@@ -256,15 +303,23 @@ export async function safeFetchPlaylistText(
       }
 
       const redirected = new URL(location, target).toString();
+      clearTimers();
       return await safeFetchPlaylistText(redirected, {
         ...options,
-        timeoutMs,
+        timeoutMs: inactivityTimeoutMs,
+        maxTotalMs,
+        deadlineAt,
         maxBytes,
         redirectsLeft: redirectsLeft - 1,
       });
     }
 
-    const bytes = await readBoundedResponse(response, options.label, maxBytes);
+    const bytes = await readBoundedResponse(
+      response,
+      options.label,
+      maxBytes,
+      resetInactivityTimer,
+    );
     const raw = decodeResponse(bytes, response.headers.get('content-type') || '');
 
     if (!response.ok) {
@@ -273,12 +328,16 @@ export async function safeFetchPlaylistText(
 
     return raw;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`${options.label}: tempo limite de ${Math.round(timeoutMs / 1000)} segundos excedido.`);
+    if (isAbortError(error)) {
+      if (timeoutReason === 'total') {
+        throw new Error(`${options.label}: tempo limite total de ${Math.round(maxTotalMs / 1000)} segundos excedido.`);
+      }
+
+      throw new Error(`${options.label}: tempo limite sem progresso de ${Math.round(inactivityTimeoutMs / 1000)} segundos excedido.`);
     }
 
     throw error;
   } finally {
-    clearTimeout(timeout);
+    clearTimers();
   }
 }
