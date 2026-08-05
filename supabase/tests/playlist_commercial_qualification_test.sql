@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(22);
+select plan(24);
 
 select has_column('public', 'panel_playlists', 'playlist_qualification_status', 'Lista possui estado comercial');
 select has_column('public', 'panel_devices', 'is_playlist_validation_device', 'Aparelho pode ser reservado para validação');
