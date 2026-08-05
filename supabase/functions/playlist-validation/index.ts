@@ -167,7 +167,8 @@ async function requireDedicatedValidationDevice(supabase: any, deviceId: string)
       plan_id,
       subscription_expires_at,
       device_credential_hash,
-      is_playlist_validation_device
+      is_playlist_validation_device,
+      device_type
     `)
     .eq('id', deviceId)
     .maybeSingle();
@@ -183,6 +184,9 @@ async function requireDedicatedValidationDevice(supabase: any, deviceId: string)
   if (!data.device_credential_hash) {
     throw new Error('Abra o aplicativo nesse aparelho antes de marcá-lo para validação.');
   }
+  if (!['android', 'androidtv'].includes(String(data.device_type || '').toLowerCase())) {
+    throw new Error('A homologação direta exige um aparelho Android nesta etapa.');
+  }
   return data;
 }
 
@@ -195,7 +199,7 @@ serve(async request => {
     const supabase = createClient(getEnv('SUPABASE_URL'), getEnv('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const principal = await requirePanelPrincipal(request, supabase, ['owner']);
+    const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
     const body = await readBody(request);
     const action = String(body.action || 'list').trim();
 
