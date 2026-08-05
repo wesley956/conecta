@@ -5,7 +5,7 @@
   window.__ronecaPlaylistFingerprintBackfillInstalled = true;
   if (!/\/dashboard\.html$/.test(window.location.pathname)) return;
 
-  const STORAGE_KEY = 'roneca:playlist-fingerprint-backfill:2026-08-05';
+  const STORAGE_KEY = 'roneca:playlist-fingerprint-backfill:2026-08-05-v2';
   let running = false;
 
   async function invokeBackfill() {
@@ -28,11 +28,7 @@
     });
 
     const payload = await response.json().catch(() => ({}));
-    if (response.status === 401 || response.status === 403) {
-      // Um admin sem papel owner não deve repetir a operação durante esta sessão.
-      sessionStorage.setItem(`${STORAGE_KEY}:not-owner`, '1');
-      return false;
-    }
+    if (response.status === 401 || response.status === 403) return false;
     if (!response.ok && response.status !== 207) {
       throw new Error(payload.error || payload.message || `Falha HTTP ${response.status}.`);
     }
@@ -53,9 +49,7 @@
   }
 
   async function runOnce() {
-    if (running
-        || localStorage.getItem(STORAGE_KEY)
-        || sessionStorage.getItem(`${STORAGE_KEY}:not-owner`)) return;
+    if (running || localStorage.getItem(STORAGE_KEY)) return;
     running = true;
     try {
       await invokeBackfill();
