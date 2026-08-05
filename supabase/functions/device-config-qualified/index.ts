@@ -134,7 +134,8 @@ async function validationPlaylist(supabase: any, playlistId: string) {
       playlist_access_mode,
       playlist_qualification_status,
       playlist_cache_status,
-      playlist_updated_at
+      playlist_updated_at,
+      playlist_direct_confirmed_device_id
     `)
     .eq('id', playlistId)
     .maybeSingle();
@@ -142,23 +143,48 @@ async function validationPlaylist(supabase: any, playlistId: string) {
   return data;
 }
 
+async function requireRpcSuccess(
+  supabase: any,
+  functionName: string,
+  parameters: Record<string, unknown>,
+  failureMessage: string,
+) {
+  const { data, error } = await supabase.rpc(functionName, parameters);
+  if (error) throw new Error(`${failureMessage}: ${error.message}`);
+  if (data !== true) throw new Error(failureMessage);
+}
+
 async function applyHealth(
   supabase: any,
   deviceId: string,
   health: Record<string, unknown> | null,
   validationSession: any | null,
-) {
-  if (!health) return;
+): Promise<'success' | 'failure' | null> {
+  if (!health) return null;
   const playlistId = text(health.playlistId);
   const status = text(health.status);
-  if (!playlistId || !status) return;
+  if (!playlistId || !status) return null;
 
   if (status === 'success') {
-    await supabase.rpc('mark_playlist_direct_success', {
-      p_playlist_id: playlistId,
-      p_device_id: deviceId,
-    });
-    return;
+    await requireRpcSuccess(
+      supabase,
+      'mark_playlist_direct_success',
+      {
+        p_playlist_id: playlistId,
+        p_device_id: deviceId,
+      },
+      'O aparelho carregou o catálogo, mas o servidor não autorizou a homologação',
+    );
+
+    const confirmed = await validationPlaylist(supabase, playlistId);
+    if (
+      !confirmed
+      || confirmed.playlist_qualification_status !== 'ready_direct'
+      || String(confirmed.playlist_direct_confirmed_device_id || '') !== deviceId
+    ) {
+      throw new Error('O aparelho carregou o catálogo, mas a homologação não foi persistida corretamente.');
+    }
+    return 'success';
   }
 
   if (
@@ -166,13 +192,22 @@ async function applyHealth(
     && validationSession
     && String(validationSession.playlist_id) === playlistId
   ) {
-    await supabase.rpc('mark_playlist_validation_failure', {
-      p_playlist_id: playlistId,
-      p_device_id: deviceId,
-      p_error_code: 'DEVICE_REPORTED_FAILURE',
-      p_error_message: safeDiagnosticText(health.error, 500) || 'O aparelho não conseguiu carregar a lista.',
-    });
+    await requireRpcSuccess(
+      supabase,
+      'mark_playlist_validation_failure',
+      {
+        p_playlist_id: playlistId,
+        p_device_id: deviceId,
+        p_error_code: 'DEVICE_REPORTED_FAILURE',
+        p_error_message: safeDiagnosticText(health.error, 500)
+          || 'O aparelho não conseguiu carregar a lista.',
+      },
+      'O teste falhou, mas o servidor não conseguiu registrar o resultado',
+    );
+    return 'failure';
   }
+
+  return null;
 }
 
 function sourceMap(device: any) {
@@ -261,7 +296,22 @@ Deno.serve(async request => {
     const validationSession = device.is_playlist_validation_device === true
       ? await resolveValidationSession(supabase, device.id)
       : null;
-    await applyHealth(supabase, device.id, healthPayload(requestPayload), validationSession);
+    const healthResult = await applyHealth(
+      supabase,
+      device.id,
+      healthPayload(requestPayload),
+      validationSession,
+    );
+
+    if (healthResult === 'failure') {
+      return json({
+        active: false,
+        status: 'pending',
+        deviceCode,
+        validationMode: true,
+        message: 'O teste no aparelho falhou e o diagnóstico foi registrado. Revise a lista antes de tentar novamente.',
+      });
+    }
 
     if (validationSession) {
       const playlist = await validationPlaylist(supabase, String(validationSession.playlist_id));
@@ -311,7 +361,10 @@ Deno.serve(async request => {
         validationMode: true,
         validationSessionId: validationSession.session_id,
         validationExpiresAt: validationSession.expires_at,
-        message: 'Modo de validação ativo. Nenhuma venda ou vínculo de cliente será alterado.',
+        validationPersisted: healthResult === 'success',
+        message: healthResult === 'success'
+          ? 'Acesso direto homologado e confirmado no servidor.'
+          : 'Modo de validação ativo. Nenhuma venda ou vínculo de cliente será alterado.',
       });
     }
 
