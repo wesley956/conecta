@@ -90,7 +90,7 @@ begin
         v_now,
         v_now
       )
-      on conflict (seller_id, playlist_id) do update
+      on conflict on constraint panel_seller_playlists_seller_id_playlist_id_key do update
       set active = true,
           updated_at = excluded.updated_at;
     end if;
@@ -150,7 +150,7 @@ begin
       v_now,
       v_now
     )
-    on conflict (seller_id, playlist_id) do update
+    on conflict on constraint panel_seller_playlists_seller_id_playlist_id_key do update
     set active = true,
         updated_at = excluded.updated_at;
   end if;
