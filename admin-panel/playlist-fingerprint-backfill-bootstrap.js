@@ -5,6 +5,7 @@
   window.__ronecaPlaylistFingerprintBackfillInstalled = true;
   if (!/\/dashboard\.html$/.test(window.location.pathname)) return;
 
+  // Compatibilidade de regressão com o marcador anterior: 2026-08-05-v2.
   const STORAGE_KEY = 'roneca:playlist-fingerprint-backfill:2026-08-05-v3';
   let running = false;
 
