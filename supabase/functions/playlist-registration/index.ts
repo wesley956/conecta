@@ -14,7 +14,6 @@ import {
   playlistSourceFingerprint,
   redactPlaylistSecrets,
   requiredText,
-  textOrNull,
   validatePlaylistUrl,
 } from '../_shared/playlistSource.ts';
 
@@ -162,7 +161,12 @@ function mapPlaylist(row: Record<string, unknown>, reused = false) {
   };
 }
 
-async function ensureSellerPermission(supabase: any, sellerId: string, playlistId: string) {
+async function ensureSellerPermission(
+  supabase: any,
+  sellerId: string | null,
+  playlistId: string,
+) {
+  if (!sellerId) throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
   const now = new Date().toISOString();
   const { error } = await supabase
     .from('panel_seller_playlists')
@@ -181,6 +185,7 @@ async function loadAuthorizedPlaylist(
   playlistId: string,
 ) {
   if (principal.role === 'seller') {
+    if (!principal.sellerId) throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
     const { data: permission, error: permissionError } = await supabase
       .from('panel_seller_playlists')
       .select('playlist_id')
@@ -201,6 +206,7 @@ async function loadAuthorizedPlaylist(
 
 async function listAuthorizedPlaylists(supabase: any, principal: any) {
   if (principal.role === 'seller') {
+    if (!principal.sellerId) throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
     const { data, error } = await supabase
       .from('panel_seller_playlists')
       .select(`playlist:panel_playlists(${PLAYLIST_SELECT})`)
