@@ -127,6 +127,9 @@ verify_jwt = true
 [functions.playlist-validation]
 verify_jwt = true
 
+[functions.playlist-fingerprint-backfill]
+verify_jwt = true
+
 [functions.admin-operations-panel]
 verify_jwt = true
 
