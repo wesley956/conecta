@@ -63,6 +63,9 @@ verify_jwt = false
 [functions.device-config-direct]
 verify_jwt = false
 
+[functions.device-config-qualified]
+verify_jwt = false
+
 [functions.device-activate]
 verify_jwt = false
 
