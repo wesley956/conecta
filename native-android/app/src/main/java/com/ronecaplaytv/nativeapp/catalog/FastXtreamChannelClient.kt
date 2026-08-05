@@ -58,14 +58,28 @@ internal class FastXtreamChannelClient(
                 "[XTREAM_AUTH_INVALID] A origem direta não contém credenciais Xtream válidas.",
             )
         val started = SystemClock.elapsedRealtime()
+        var recoveryUsed = false
         val result = runCatching {
             verifyAuthentication(credentials)
-            val text = request(
-                credentials = credentials,
-                action = "get_live_streams",
-                maximumBytes = MAX_CHANNEL_RESPONSE_BYTES,
-                allowStale = true,
-            )
+            val text = try {
+                request(
+                    credentials = credentials,
+                    action = "get_live_streams",
+                    maximumBytes = MAX_CHANNEL_RESPONSE_BYTES,
+                    allowStale = true,
+                    readTimeoutMs = CATALOG_READ_TIMEOUT_MS,
+                )
+            } catch (error: CatalogLoadException) {
+                if (!isRecoverableFastFailure(error.message.orEmpty())) throw error
+                recoveryUsed = true
+                request(
+                    credentials = credentials,
+                    action = "get_live_streams",
+                    maximumBytes = MAX_CHANNEL_RESPONSE_BYTES,
+                    allowStale = true,
+                    readTimeoutMs = RECOVERY_READ_TIMEOUT_MS,
+                )
+            }
             val array = runCatching { JSONArray(text) }.getOrElse {
                 throw CatalogLoadException(
                     "[XTREAM_RESPONSE_INVALID] A API Xtream retornou canais inválidos.",
@@ -90,16 +104,17 @@ internal class FastXtreamChannelClient(
         val channels = result.getOrNull()
         val failure = result.exceptionOrNull()?.message
         val endpoint = credentials.apiUrl("get_live_streams")
+        val attemptPhase = if (recoveryUsed) "recovery" else "fast"
         runCatching {
             reportAttempt(
                 ProviderAttemptReport(
                     clientEventId = "matrix:${UUID.randomUUID()}",
                     playlistId = attemptContext.playlistId,
                     correlationId = attemptContext.correlationId,
-                    phase = "fast",
+                    phase = attemptPhase,
                     section = "channels",
                     transport = "xtream",
-                    strategyKey = "xtream_fast_first_content_${endpoint.protocol}_${endpoint.effectivePort()}",
+                    strategyKey = "xtream_${attemptPhase}_first_content_${endpoint.protocol}_${endpoint.effectivePort()}",
                     protocol = endpoint.protocol.lowercase(Locale.ROOT),
                     host = endpoint.host.lowercase(Locale.ROOT),
                     port = endpoint.effectivePort(),
@@ -135,6 +150,7 @@ internal class FastXtreamChannelClient(
                 action = null,
                 maximumBytes = AUTH_RESPONSE_BYTES,
                 allowStale = false,
+                readTimeoutMs = AUTH_READ_TIMEOUT_MS,
             )
             val root = runCatching { JSONObject(text) }.getOrElse {
                 throw CatalogLoadException(
@@ -175,6 +191,7 @@ internal class FastXtreamChannelClient(
         action: String?,
         maximumBytes: Long,
         allowStale: Boolean,
+        readTimeoutMs: Int,
     ): String {
         val key = sha256(
             "${credentials.server}|${credentials.username}|${credentials.password}|${action ?: "auth"}",
@@ -192,7 +209,7 @@ internal class FastXtreamChannelClient(
         val connection = (credentials.apiUrl(action).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = if (action == null) AUTH_READ_TIMEOUT_MS else CATALOG_READ_TIMEOUT_MS
+            readTimeout = readTimeoutMs
             instanceFollowRedirects = true
             useCaches = false
             setRequestProperty("Accept", "application/json, text/plain, */*")
@@ -249,6 +266,12 @@ internal class FastXtreamChannelClient(
             }
         }
     }
+
+    private fun isRecoverableFastFailure(message: String): Boolean =
+        message.contains("[XTREAM_FAST_TIMEOUT]", ignoreCase = true) ||
+            message.contains("[XTREAM_CONNECTION_RESET]", ignoreCase = true) ||
+            message.contains("[XTREAM_CONNECTION_FAILED]", ignoreCase = true) ||
+            message.contains("[XTREAM_SERVER_BUSY]", ignoreCase = true)
 
     private fun mapConnectionError(error: Exception): CatalogLoadException = when (error) {
         is CatalogLoadException -> error
@@ -325,6 +348,7 @@ internal class FastXtreamChannelClient(
         const val CONNECT_TIMEOUT_MS = 3_500
         const val AUTH_READ_TIMEOUT_MS = 4_500
         const val CATALOG_READ_TIMEOUT_MS = 8_500
+        const val RECOVERY_READ_TIMEOUT_MS = 20_000
         const val AUTH_RESPONSE_BYTES = 1L * 1024L * 1024L
         const val MAX_CHANNEL_RESPONSE_BYTES = 48L * 1024L * 1024L
         const val USER_AGENT = "IPTVSmartersPro"
