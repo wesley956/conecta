@@ -1,69 +1,137 @@
 import fs from 'node:fs';
 
+const failures = [];
+const fail = message => failures.push(String(message));
+
 const files = {
-  ui: 'admin-panel/inline-playlist-activation.js',
-  styles: 'admin-panel/inline-playlist-activation.css',
+  controller: 'admin-panel/playlist-flow-controller.js',
+  entry: 'admin-panel/unified-playlist-entry.js',
   loader: 'scripts/generate-panel-config.mjs',
-  adminFunction: 'supabase/functions/admin-inline-playlist/index.ts',
-  supabaseConfig: 'supabase/config.toml',
+  registration: 'supabase/functions/playlist-registration/index.ts',
+  compatibility: 'supabase/functions/admin-inline-playlist/index.ts',
 };
 
 for (const path of Object.values(files)) {
-  if (!fs.existsSync(path)) throw new Error(`Arquivo obrigatório ausente: ${path}`);
+  if (!fs.existsSync(path)) fail(`Arquivo obrigatório ausente: ${path}`);
 }
 
 const source = Object.fromEntries(
-  Object.entries(files).map(([name, path]) => [name, fs.readFileSync(path, 'utf8')]),
+  Object.entries(files).map(([name, path]) => [
+    name,
+    fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '',
+  ]),
 );
 
-const required = {
-  ui: [
-    '__roneca_new_playlist__',
-    'Cadastrar uma nova lista agora',
-    'resolveAdminPlaylist',
-    'resolveSellerPlaylist',
-    "callPanelFunction('admin-inline-playlist'",
-    "action: 'createSellerPlaylist'",
-    "action: 'refreshSellerPlaylistCache'",
-    "action: 'refreshPlaylistCache'",
-    'confirmCreditConsumption',
-    'withDeviceActionLock',
-    'idempotencyKey',
-  ],
-  styles: [
-    '.inline-playlist-fields[hidden]',
-    '.inline-playlist-fields.open',
-    '.inline-playlist-fields-admin',
-    '.inline-playlist-fields-seller',
-  ],
-  loader: [
-    'loadInlinePlaylistActivation',
-    'inline-playlist-activation.js?v=1.0',
-    '(dashboard|seller)',
-  ],
-  adminFunction: [
-    "requirePanelPrincipal(request, supabase, ['owner', 'admin'])",
-    "from('panel_seller_playlists')",
-    "onConflict: 'seller_id,playlist_id'",
-    "action: 'playlist.created_during_device_activation'",
-    'triggerPlaylistCache',
-  ],
-  supabaseConfig: [
-    '[functions.admin-inline-playlist]',
-    'verify_jwt = true',
-  ],
-};
-
-for (const [name, snippets] of Object.entries(required)) {
-  for (const snippet of snippets) {
-    if (!source[name].includes(snippet)) {
-      throw new Error(`Proteção de regressão ausente em ${files[name]}: ${snippet}`);
-    }
+const requiredControllerTokens = [
+  '__ronecaPlaylistFlowControllerInstalled',
+  "registrationInvoke({ action: 'list' })",
+  "action: 'create'",
+  'PlaylistSavedPendingError',
+  'createPromises',
+  'operationLocks',
+  "wrapBefore('activatePending'",
+  "wrapBefore('sellerUxActivateDevice'",
+  "wrapBefore('sellerUxRenewDevice'",
+  '__ronecaPlaylistFlowController',
+  'Não cadastre novamente',
+];
+for (const token of requiredControllerTokens) {
+  if (!source.controller.includes(token)) {
+    fail(`Controlador único não contém: ${token}`);
   }
 }
 
-if (source.adminFunction.includes('metadata: { name, playlistUrl')) {
-  throw new Error('A URL completa da lista não pode ser gravada na auditoria da ativação inline.');
+for (const forbidden of [
+  'setInterval(',
+  "callPanelFunction('admin-inline-playlist'",
+  "action: 'refreshSellerPlaylistCache'",
+  "action: 'refreshPlaylistCache'",
+]) {
+  if (source.controller.includes(forbidden)) {
+    fail(`Controlador único contém comportamento legado proibido: ${forbidden}`);
+  }
 }
 
-console.log('✅ Cadastro de lista durante ativação validado para administrador e vendedor.');
+for (const token of [
+  '__roneca_new_playlist__',
+  'Login Xtream',
+  'buildUrl',
+  'prepare(key)',
+  'MutationObserver',
+  'Nova lista principal',
+  'Nova lista reserva',
+]) {
+  if (!source.entry.includes(token)) fail(`Entrada unificada não contém: ${token}`);
+}
+
+for (const forbidden of [
+  'admin-inline-playlist',
+  'createSellerPlaylist',
+  'function before(',
+  'function after(',
+  'wrapFunctions',
+  'cache?.ok',
+]) {
+  if (source.entry.includes(forbidden)) {
+    fail(`A entrada visual não pode controlar o fluxo comercial: ${forbidden}`);
+  }
+}
+
+for (const token of [
+  'loadUnifiedPlaylistEntry',
+  'loadPlaylistFlowController',
+  'playlist-flow-controller.js?v=1.0',
+  'loadPlaylistCommercialQualification',
+  '(dashboard|seller)',
+]) {
+  if (!source.loader.includes(token)) fail(`Carregador não contém: ${token}`);
+}
+
+for (const forbidden of [
+  'loadInlinePlaylistActivation',
+  'inline-playlist-activation.js',
+  'loadPlaylistSaveFeedback',
+  'playlist-save-feedback-hotfix.js',
+]) {
+  if (source.loader.includes(forbidden)) {
+    fail(`Carregador ainda publica o módulo concorrente: ${forbidden}`);
+  }
+}
+
+for (const token of [
+  'register_playlist_source_transaction',
+  'source_fingerprint',
+  'saved:',
+  'reused:',
+  'commerciallyUsable',
+  'nextAction',
+]) {
+  if (!source.registration.includes(token)) {
+    fail(`Cadastro canônico não contém: ${token}`);
+  }
+}
+
+for (const token of [
+  'playlist-registration',
+  "action: 'create'",
+  'compatibilityProxy',
+]) {
+  if (!source.compatibility.includes(token)) {
+    fail(`Compatibilidade administrativa não contém: ${token}`);
+  }
+}
+
+for (const [name, content] of Object.entries(source)) {
+  if (/console\.(?:log|debug|info|warn|error)\s*\([^)]*(?:playlistUrl|playlist_url|password|username|token)/i.test(content)) {
+    fail(`${files[name]} pode registrar credenciais em log.`);
+  }
+}
+
+if (failures.length) {
+  const message = failures.join(' | ').replace(/[\r\n]+/g, ' ').slice(0, 4000);
+  console.log(`::error file=scripts/check-inline-playlist-activation.mjs,title=Contrato do fluxo de listas inválido::${message}`);
+  console.log(message);
+  process.exit(1);
+}
+
+console.log('✅ Fluxo único de listas validado sem wrappers concorrentes ou rotas legadas de criação.');

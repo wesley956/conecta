@@ -5,7 +5,8 @@
   window.__ronecaPlaylistFingerprintBackfillInstalled = true;
   if (!/\/dashboard\.html$/.test(window.location.pathname)) return;
 
-  const STORAGE_KEY = 'roneca:playlist-fingerprint-backfill:2026-08-05-v2';
+  // Compatibilidade de regressão com o marcador anterior: 2026-08-05-v2.
+  const STORAGE_KEY = 'roneca:playlist-fingerprint-backfill:2026-08-05-v3';
   let running = false;
 
   async function invokeBackfill() {
@@ -34,10 +35,14 @@
     }
 
     const result = payload.data || payload;
-    if (Number(result.failures || 0) === 0) {
+    const completed = Number(result.failures || 0) === 0
+      && Number(result.remainingWithoutFingerprint || 0) === 0;
+    if (completed) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         completedAt: new Date().toISOString(),
-        processed: Number(result.processed || 0),
+        examined: Number(result.examined || 0),
+        fingerprinted: Number(result.fingerprinted || 0),
+        consolidated: Number(result.consolidated || 0),
         canonicalSources: Number(result.canonicalSources || 0),
       }));
       window.dispatchEvent(new CustomEvent('roneca:playlist-fingerprint-backfill-complete', {

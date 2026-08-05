@@ -11,8 +11,8 @@
     validationSessions: [],
     refreshing: null,
   };
-  let installTimer = null;
   let renderTimer = null;
+  let scanTimer = null;
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '')
@@ -39,6 +39,7 @@
     if (!supabaseUrl || !anonKey || !window.RonecaPanelAuth) {
       throw new Error('Sessão do painel não encontrada. Entre novamente.');
     }
+
     const accessToken = await window.RonecaPanelAuth.getAccessToken();
     const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
       method: 'POST',
@@ -60,68 +61,10 @@
     return data.data ?? data;
   }
 
-  function draft(key, fallback) {
-    if (window.RonecaUnifiedPlaylistEntry?.prepare) {
-      try { return window.RonecaUnifiedPlaylistEntry.prepare(key); }
-      catch (error) {
-        if (!fallback) throw error;
-      }
-    }
-    return fallback();
-  }
-
-  function qualificationMessage(playlist) {
-    if (!playlist) return 'Lista não encontrada no contrato comercial.';
-    return playlist.qualificationMessage || 'A lista ainda não está homologada.';
-  }
-
-  async function refreshPlaylists(force = false) {
-    if (state.refreshing && !force) return state.refreshing;
-    state.refreshing = invoke('playlist-registration', { action: 'list' })
-      .then(result => {
-        state.playlists.clear();
-        for (const playlist of result.playlists || []) {
-          if (playlist?.id) state.playlists.set(String(playlist.id), playlist);
-        }
-        decorateKnownSelects();
-        scheduleRender();
-        return [...state.playlists.values()];
-      })
-      .finally(() => { state.refreshing = null; });
-    return state.refreshing;
-  }
-
-  async function createPlaylistRecord(prepared) {
-    const result = await invoke('playlist-registration', {
-      action: 'create',
-      name: prepared.name,
-      playlistUrl: prepared.playlistUrl,
-      playlistType: prepared.playlistType,
-      maxConnections: prepared.maxConnections || 1,
-    });
-    if (!result.playlistId || !result.playlist) {
-      throw new Error('A lista foi salva sem retornar o contrato comercial.');
-    }
-    state.playlists.set(String(result.playlistId), result.playlist);
-    return result;
-  }
-
-  function addResolvedOption(select, playlist) {
-    if (!select || !playlist?.id) return;
-    let option = [...select.options].find(item => item.value === playlist.id);
-    if (!option) {
-      option = document.createElement('option');
-      option.value = playlist.id;
-      select.appendChild(option);
-    }
-    option.textContent = playlist.name || 'Lista salva nesta operação';
-    select.value = playlist.id;
-    decorateOption(option, playlist);
-  }
-
   function decorateOption(option, playlist) {
     if (!option || !playlist) return;
-    const baseName = String(playlist.name || option.textContent || 'Lista').replace(/\s+—\s+.+$/, '');
+    const baseName = String(playlist.name || option.textContent || 'Lista')
+      .replace(/\s+—\s+.+$/, '');
     option.disabled = playlist.commerciallyUsable !== true;
     option.dataset.qualificationStatus = playlist.qualificationStatus || 'validating';
     option.textContent = playlist.commerciallyUsable
@@ -129,189 +72,46 @@
       : `${baseName} — ${playlist.qualificationLabel || 'validando'}`;
   }
 
-  function qualificationSelectIds() {
-    return [
+  function decorateKnownSelects() {
+    const fixedIds = [
       'sellerActivationPlaylist',
       'sellerActivationBackupPlaylist',
       'sellerRenewPlaylist',
       'sellerRenewBackupPlaylist',
     ];
-  }
+    const selects = fixedIds.map($).filter(Boolean).concat([
+      ...document.querySelectorAll('[id^="pend-playlist-"], [id^="pend-backup-playlist-"]'),
+    ]);
 
-  function decorateKnownSelects() {
-    const selects = qualificationSelectIds()
-      .map($)
-      .filter(Boolean)
-      .concat([...document.querySelectorAll('[id^="pend-playlist-"], [id^="pend-backup-playlist-"]')]);
     for (const select of selects) {
-      for (const option of select.options) {
+      for (const option of select.options || []) {
         if (!option.value || option.value === NEW_PLAYLIST) continue;
-        const playlist = state.playlists.get(option.value);
+        const playlist = state.playlists.get(String(option.value));
         if (playlist) decorateOption(option, playlist);
       }
     }
   }
 
-  async function resolveNewSelection(selectId, key, fallback) {
-    const select = $(selectId);
-    if (!select || select.value !== NEW_PLAYLIST) return;
-    const prepared = draft(key, fallback);
-    const result = await createPlaylistRecord(prepared);
-    addResolvedOption(select, result.playlist);
-    await refreshPlaylists(true);
-    if (result.playlist.commerciallyUsable !== true) {
-      throw new Error(
-        `A lista foi salva, mas ainda não pode ser ativada. ${qualificationMessage(result.playlist)} Não cadastre novamente.`,
-      );
-    }
-  }
+  async function refreshPlaylists(force = false) {
+    if (state.refreshing && !force) return state.refreshing;
+    state.refreshing = (async () => {
+      const playlists = window.RonecaPlaylistFlowController?.refreshPlaylists
+        ? await window.RonecaPlaylistFlowController.refreshPlaylists(force)
+        : (await invoke('playlist-registration', { action: 'list' })).playlists || [];
 
-  async function requireSelectedUsable(selectId, label) {
-    const select = $(selectId);
-    if (!select || !select.value || select.value === NEW_PLAYLIST) return;
-    let playlist = state.playlists.get(select.value);
-    if (!playlist) {
-      await refreshPlaylists(true);
-      playlist = state.playlists.get(select.value);
-    }
-    if (playlist && playlist.commerciallyUsable !== true) {
-      throw new Error(`${label} ainda não está homologada. ${qualificationMessage(playlist)}`);
-    }
-  }
-
-  function wrapBefore(name, hook) {
-    const current = window[name];
-    if (typeof current !== 'function' || current.__commercialQualificationHook) return;
-    const wrapped = async function (...args) {
-      try {
-        await hook(...args);
-      } catch (error) {
-        panelMessage(error.message || 'A lista ainda não pode ser utilizada.', 'err');
-        return;
+      state.playlists.clear();
+      for (const playlist of playlists || []) {
+        if (playlist?.id) state.playlists.set(String(playlist.id), playlist);
       }
-      return current.apply(this, args);
-    };
-    wrapped.__commercialQualificationHook = true;
-    wrapped.__commercialQualificationOriginal = current;
-    window[name] = wrapped;
-  }
-
-  function installAdminCreate() {
-    const current = window.createPlaylist;
-    if (typeof current !== 'function' || current.__commercialQualificationReplacement) return;
-    const replacement = async function createQualifiedPlaylist() {
-      const button = $('playlistActionModal')?.querySelector('button.primary')
-        || $('newPlaylistForm')?.querySelector('button[type="submit"]');
-      try {
-        if (button) button.disabled = true;
-        panelMessage('Salvando a lista. A validação continuará sem prender esta tela.');
-        const prepared = draft('admin-base', () => ({
-          name: $('uxNewPlaylistName')?.value.trim() || $('newPlaylistName')?.value.trim() || '',
-          playlistUrl: $('uxNewPlaylistUrl')?.value.trim() || $('newPlaylistUrl')?.value.trim() || '',
-          playlistType: $('uxNewPlaylistType')?.value || $('newPlaylistType')?.value || 'm3u',
-        }));
-        const result = await createPlaylistRecord(prepared);
-        if ($('uxNewPlaylistName')) $('uxNewPlaylistName').value = '';
-        if ($('uxNewPlaylistUrl')) $('uxNewPlaylistUrl').value = '';
-        if ($('newPlaylistName')) $('newPlaylistName').value = '';
-        if ($('newPlaylistUrl')) $('newPlaylistUrl').value = '';
-        window.closePlaylistActionModal?.();
-        await window.loadAll?.();
-        await refreshPlaylists(true);
-        panelMessage(result.message || 'Lista salva. Acompanhe a homologação antes de ativar.', '');
-      } catch (error) {
-        panelMessage(error.message || 'Não foi possível cadastrar a lista.', 'err');
-      } finally {
-        if (button) button.disabled = false;
-      }
-    };
-    replacement.__commercialQualificationReplacement = true;
-    replacement.__commercialQualificationOriginal = current;
-    window.createPlaylist = replacement;
-  }
-
-  function installSellerCreate() {
-    const current = window.sellerListsCreate;
-    if (typeof current !== 'function' || current.__commercialQualificationReplacement) return;
-    const replacement = async function createQualifiedSellerPlaylist() {
-      const button = $('sellerPlaylistForm')?.querySelector('button.primary');
-      try {
-        if (button) button.disabled = true;
-        panelMessage('Salvando a lista. A validação continuará em segundo plano.');
-        const prepared = draft('seller-base', () => ({
-          name: $('sellerPlaylistName')?.value.trim() || '',
-          playlistUrl: $('sellerPlaylistUrl')?.value.trim() || '',
-          playlistType: $('sellerPlaylistType')?.value || 'm3u',
-        }));
-        const result = await createPlaylistRecord(prepared);
-        if ($('sellerPlaylistName')) $('sellerPlaylistName').value = '';
-        if ($('sellerPlaylistUrl')) $('sellerPlaylistUrl').value = '';
-        window.sellerListsToggleForm?.(false);
-        await window.sellerListsUxRender?.();
-        await window.loadPortal?.();
-        await refreshPlaylists(true);
-        panelMessage(result.message || 'Lista salva. Não cadastre novamente enquanto ela é validada.', 'ok');
-      } catch (error) {
-        panelMessage(error.message || 'Não foi possível cadastrar a lista.', 'err');
-      } finally {
-        if (button) button.disabled = false;
-      }
-    };
-    replacement.__commercialQualificationReplacement = true;
-    replacement.__commercialQualificationOriginal = current;
-    window.sellerListsCreate = replacement;
-  }
-
-  function installCommercialPreflights() {
-    wrapBefore('sellerUxActivateDevice', async () => {
-      await resolveNewSelection('sellerActivationPlaylist', 'seller-inline-playlist', () => ({
-        name: $('seller-inline-playlist-name')?.value.trim() || '',
-        playlistUrl: $('seller-inline-playlist-url')?.value.trim() || '',
-        playlistType: $('seller-inline-playlist-type')?.value || 'm3u',
-      }));
-      await resolveNewSelection('sellerActivationBackupPlaylist', 'seller-activation-backup-new', () => ({
-        name: $('seller-activation-backup-new-name')?.value.trim() || '',
-        playlistUrl: $('seller-activation-backup-new-url')?.value.trim() || '',
-        playlistType: $('seller-activation-backup-new-type')?.value || 'm3u',
-      }));
-      await requireSelectedUsable('sellerActivationPlaylist', 'Lista principal');
-      await requireSelectedUsable('sellerActivationBackupPlaylist', 'Lista reserva');
-    });
-
-    wrapBefore('sellerUxRenewDevice', async () => {
-      await resolveNewSelection('sellerRenewPlaylist', 'seller-renew-main-new', () => ({
-        name: $('seller-renew-main-new-name')?.value.trim() || '',
-        playlistUrl: $('seller-renew-main-new-url')?.value.trim() || '',
-        playlistType: $('seller-renew-main-new-type')?.value || 'm3u',
-      }));
-      await resolveNewSelection('sellerRenewBackupPlaylist', 'seller-renew-backup-new', () => ({
-        name: $('seller-renew-backup-new-name')?.value.trim() || '',
-        playlistUrl: $('seller-renew-backup-new-url')?.value.trim() || '',
-        playlistType: $('seller-renew-backup-new-type')?.value || 'm3u',
-      }));
-      await requireSelectedUsable('sellerRenewPlaylist', 'Lista principal');
-      await requireSelectedUsable('sellerRenewBackupPlaylist', 'Lista reserva');
-    });
-
-    wrapBefore('activatePending', async deviceId => {
-      await resolveNewSelection(`pend-playlist-${deviceId}`, `pend-inline-playlist-${deviceId}`, () => ({
-        name: $(`pend-inline-playlist-${deviceId}-name`)?.value.trim() || '',
-        playlistUrl: $(`pend-inline-playlist-${deviceId}-url`)?.value.trim() || '',
-        playlistType: $(`pend-inline-playlist-${deviceId}-type`)?.value || 'm3u',
-      }));
-      await resolveNewSelection(`pend-backup-playlist-${deviceId}`, `pend-backup-new-${deviceId}`, () => ({
-        name: $(`pend-backup-new-${deviceId}-name`)?.value.trim() || '',
-        playlistUrl: $(`pend-backup-new-${deviceId}-url`)?.value.trim() || '',
-        playlistType: $(`pend-backup-new-${deviceId}-type`)?.value || 'm3u',
-      }));
-      await requireSelectedUsable(`pend-playlist-${deviceId}`, 'Lista principal');
-      await requireSelectedUsable(`pend-backup-playlist-${deviceId}`, 'Lista reserva');
-    });
+      decorateKnownSelects();
+      scheduleRender();
+      return playlists;
+    })().finally(() => { state.refreshing = null; });
+    return state.refreshing;
   }
 
   async function retryPlaylist(playlistId) {
     const result = await invoke('playlist-registration', { action: 'retry', playlistId });
-    if (result.playlist) state.playlists.set(String(playlistId), result.playlist);
     panelMessage(result.message || 'Nova validação iniciada.', 'ok');
     await refreshPlaylists(true);
   }
@@ -351,6 +151,7 @@
   async function renderQualificationPanel() {
     const mount = qualificationMount();
     if (!mount) return;
+
     let panel = $('ronecaQualificationPanel');
     if (!panel) {
       panel = document.createElement('section');
@@ -371,12 +172,14 @@
     const markedIds = new Set(state.validationDevices.map(device => device.id));
     const deviceOptions = [
       ...state.validationDevices.map(device => ({ ...device, marked: true })),
-      ...allPendingDevices.filter(device => !markedIds.has(device.id)).map(device => ({
-        id: device.id,
-        deviceCode: device.deviceCode,
-        clientName: device.clientName,
-        marked: false,
-      })),
+      ...allPendingDevices
+        .filter(device => !markedIds.has(device.id))
+        .map(device => ({
+          id: device.id,
+          deviceCode: device.deviceCode,
+          clientName: device.clientName,
+          marked: false,
+        })),
     ];
     const activeSessions = state.validationSessions.filter(session => session.status === 'active');
 
@@ -421,22 +224,32 @@
       </div>`;
 
     panel.querySelectorAll('[data-retry-playlist]').forEach(button => {
-      button.addEventListener('click', () => retryPlaylist(button.dataset.retryPlaylist).catch(error => panelMessage(error.message, 'err')));
+      button.addEventListener('click', () => {
+        retryPlaylist(button.dataset.retryPlaylist).catch(error => panelMessage(error.message, 'err'));
+      });
     });
     panel.querySelectorAll('[data-revoke-session]').forEach(button => {
       button.addEventListener('click', async () => {
         try {
-          await invoke('playlist-validation', { action: 'revoke', sessionId: button.dataset.revokeSession });
+          await invoke('playlist-validation', {
+            action: 'revoke',
+            sessionId: button.dataset.revokeSession,
+          });
           panelMessage('Sessão de validação encerrada.', 'ok');
           await refreshPlaylists(true);
-        } catch (error) { panelMessage(error.message, 'err'); }
+        } catch (error) {
+          panelMessage(error.message, 'err');
+        }
       });
     });
     $('qualificationStartButton')?.addEventListener('click', async () => {
       const deviceSelect = $('qualificationDeviceSelect');
       const playlistId = $('qualificationPlaylistSelect')?.value || '';
       const deviceId = deviceSelect?.value || '';
-      if (!deviceId || !playlistId) return panelMessage('Selecione o aparelho e a lista.', 'err');
+      if (!deviceId || !playlistId) {
+        panelMessage('Selecione o aparelho e a lista.', 'err');
+        return;
+      }
       try {
         const option = deviceSelect.selectedOptions[0];
         if (option?.dataset.marked !== '1') {
@@ -450,36 +263,38 @@
         });
         panelMessage('Teste iniciado. Abra ou atualize o aplicativo no aparelho escolhido.', 'ok');
         await refreshPlaylists(true);
-      } catch (error) { panelMessage(error.message, 'err'); }
+      } catch (error) {
+        panelMessage(error.message, 'err');
+      }
     });
   }
 
   function scheduleRender() {
     clearTimeout(renderTimer);
-    renderTimer = setTimeout(() => renderQualificationPanel().catch(() => {}), 120);
+    renderTimer = setTimeout(() => renderQualificationPanel().catch(() => {}), 100);
   }
 
-  function install() {
-    installAdminCreate();
-    installSellerCreate();
-    installCommercialPreflights();
+  function scan() {
     decorateKnownSelects();
     if (!$('ronecaQualificationPanel') && qualificationMount()) scheduleRender();
   }
 
   function initialize() {
     refreshPlaylists().catch(() => {});
-    install();
+    scan();
     const observer = new MutationObserver(() => {
-      clearTimeout(installTimer);
-      installTimer = setTimeout(install, 80);
+      clearTimeout(scanTimer);
+      scanTimer = setTimeout(scan, 60);
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
-    setInterval(() => {
-      install();
-      refreshPlaylists().catch(() => {});
-    }, 15000);
+    window.addEventListener('roneca:playlist-fingerprint-backfill-complete', () => {
+      refreshPlaylists(true).catch(() => {});
+    });
   }
+
+  window.RonecaPlaylistQualification = Object.freeze({
+    refresh: refreshPlaylists,
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize, { once: true });

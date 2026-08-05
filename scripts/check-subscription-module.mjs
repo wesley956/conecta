@@ -6,9 +6,10 @@ const requiredFiles = [
   'admin-panel/xtream-login-module.js',
   'admin-panel/xtream-login-module.css',
   'admin-panel/unified-playlist-entry.js',
-  'admin-panel/playlist-save-feedback-hotfix.js',
+  'admin-panel/playlist-flow-controller.js',
   'supabase/functions/subscription-panel/index.ts',
   'supabase/functions/subscription-playlist-edit/index.ts',
+  'supabase/functions/playlist-registration/index.ts',
   'supabase/functions/_shared/labSession.ts',
   'supabase/migrations/2026072201_customer_subscriptions_lab.sql',
   'supabase/migrations/2026072202_owner_role_compat.sql',
@@ -26,7 +27,8 @@ for (const file of requiredFiles) {
 const playlistEditUi = fs.readFileSync('admin-panel/playlist-edit-module.js', 'utf8');
 const xtreamLoginUi = fs.readFileSync('admin-panel/xtream-login-module.js', 'utf8');
 const unifiedPlaylistEntry = fs.readFileSync('admin-panel/unified-playlist-entry.js', 'utf8');
-const playlistSaveFeedback = fs.readFileSync('admin-panel/playlist-save-feedback-hotfix.js', 'utf8');
+const playlistFlowController = fs.readFileSync('admin-panel/playlist-flow-controller.js', 'utf8');
+const registrationApi = fs.readFileSync('supabase/functions/playlist-registration/index.ts', 'utf8');
 const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'utf8');
 const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/2026072201_customer_subscriptions_lab.sql', 'utf8');
@@ -76,41 +78,77 @@ const unifiedEntryRequirements = [
   'seller-base',
   'Login Xtream — host, usuário e senha',
   'Link M3U completo',
-  "before('activatePending'",
-  "before('sellerUxActivateDevice'",
-  "before('sellerUxRenewDevice'",
   'sellerActivationBackupPlaylist',
   'sellerRenewPlaylist',
   'sellerRenewBackupPlaylist',
-  "panelFunction('admin-inline-playlist'",
-  "action: 'createSellerPlaylist'",
   "base.searchParams.set('username', user)",
   "base.searchParams.set('password', pass)",
+  'prepare(key)',
+  'MutationObserver',
 ];
 for (const token of unifiedEntryRequirements) {
   if (!unifiedPlaylistEntry.includes(token)) throw new Error(`Entrada unificada de listas não contém: ${token}`);
 }
-
-const saveFeedbackRequirements = [
-  'Lista salva com sucesso. O provedor demorou no cache',
-  'não cadastre novamente',
-  'waitForPlaylistState',
-  "wrapBefore('sellerUxActivateDevice'",
-  "wrapBefore('sellerUxRenewDevice'",
-  "wrapBefore('activatePending'",
-  'sellerListsCreateWithAccurateFeedback',
-  'playlist-save-feedback-hotfix.js',
-];
-for (const token of saveFeedbackRequirements) {
-  if (!playlistSaveFeedback.includes(token) && !configGenerator.includes(token)) {
-    throw new Error(`Correção do retorno de salvamento não contém: ${token}`);
+for (const forbidden of [
+  "panelFunction('admin-inline-playlist'",
+  "action: 'createSellerPlaylist'",
+  "before('activatePending'",
+  "before('sellerUxActivateDevice'",
+  "before('sellerUxRenewDevice'",
+  'setInterval(',
+]) {
+  if (unifiedPlaylistEntry.includes(forbidden)) {
+    throw new Error(`Entrada visual não pode executar fluxo comercial legado: ${forbidden}`);
   }
 }
 
-if (/\bFunction\s*\(|\beval\s*\(/.test(`${playlistEditUi}\n${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistSaveFeedback}`)) {
+const flowControllerRequirements = [
+  '__ronecaPlaylistFlowControllerInstalled',
+  "registrationInvoke({ action: 'list' })",
+  "action: 'create'",
+  'PlaylistSavedPendingError',
+  'Não cadastre novamente',
+  "wrapBefore('sellerUxActivateDevice'",
+  "wrapBefore('sellerUxRenewDevice'",
+  "wrapBefore('activatePending'",
+  'createPromises',
+  'operationLocks',
+];
+for (const token of flowControllerRequirements) {
+  if (!playlistFlowController.includes(token)) {
+    throw new Error(`Controlador canônico de listas não contém: ${token}`);
+  }
+}
+for (const forbidden of [
+  "callPanelFunction('admin-inline-playlist'",
+  "action: 'refreshSellerPlaylistCache'",
+  "action: 'refreshPlaylistCache'",
+  'setInterval(',
+]) {
+  if (playlistFlowController.includes(forbidden)) {
+    throw new Error(`Controlador canônico contém comportamento legado: ${forbidden}`);
+  }
+}
+
+const registrationRequirements = [
+  'register_playlist_source_transaction',
+  'saved:',
+  'created:',
+  'reused:',
+  'commerciallyUsable',
+  'nextAction',
+  'A validação continuará sem prender esta tela',
+];
+for (const token of registrationRequirements) {
+  if (!registrationApi.includes(token)) {
+    throw new Error(`Cadastro canônico não contém: ${token}`);
+  }
+}
+
+if (/\bFunction\s*\(|\beval\s*\(/.test(`${playlistEditUi}\n${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistFlowController}`)) {
   throw new Error('Módulos do painel não podem executar código dinâmico.');
 }
-if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(`${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistSaveFeedback}`)) {
+if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(`${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistFlowController}`)) {
   throw new Error('Cadastro Xtream não pode registrar credenciais no console.');
 }
 
@@ -206,11 +244,14 @@ if (!configGenerator.includes('playlist-edit-module.js')) {
 if (!configGenerator.includes('unified-playlist-entry.js')) {
   throw new Error('Deploy dos painéis não carrega a entrada Xtream unificada.');
 }
-if (!configGenerator.includes('playlist-save-feedback-hotfix.js')) {
-  throw new Error('Deploy dos painéis não carrega a correção do retorno de salvamento.');
+if (!configGenerator.includes('playlist-flow-controller.js')) {
+  throw new Error('Deploy dos painéis não carrega o controlador canônico de listas.');
+}
+if (configGenerator.includes('playlist-save-feedback-hotfix.js')) {
+  throw new Error('O hotfix concorrente de salvamento não pode voltar ao painel publicado.');
 }
 if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supabaseConfig.includes('verify_jwt = true')) {
   throw new Error('Função de edição de listas precisa exigir JWT.');
 }
 
-console.log('✅ Backend de assinaturas, edição de listas e cadastro Xtream validados.');
+console.log('✅ Backend de assinaturas, edição segura e controlador canônico de listas validados.');

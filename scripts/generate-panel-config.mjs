@@ -36,12 +36,6 @@ const modules = [
     script: './seller-provisioning.js?v=1.2',
   },
   {
-    id: 'inline-playlist-activation',
-    contractName: 'loadInlinePlaylistActivation',
-    pages: ['dashboard', 'seller'],
-    script: './inline-playlist-activation.js?v=1.0',
-  },
-  {
     id: 'finance-module',
     contractName: 'loadFinanceModule',
     pages: ['dashboard', 'seller'],
@@ -66,14 +60,14 @@ const modules = [
     id: 'unified-playlist-entry',
     contractName: 'loadUnifiedPlaylistEntry',
     pages: ['dashboard', 'seller'],
-    script: './unified-playlist-entry.js?v=1.0',
+    script: './unified-playlist-entry.js?v=1.1',
     afterDomReady: true,
   },
   {
-    id: 'playlist-save-feedback-hotfix',
-    contractName: 'loadPlaylistSaveFeedback',
+    id: 'playlist-flow-controller',
+    contractName: 'loadPlaylistFlowController',
     pages: ['dashboard', 'seller'],
-    script: './playlist-save-feedback-hotfix.js?v=1.0',
+    script: './playlist-flow-controller.js?v=1.0',
     afterDomReady: true,
   },
   {
@@ -81,7 +75,7 @@ const modules = [
     contractName: 'loadPlaylistCommercialQualification',
     pages: ['dashboard', 'seller'],
     style: './playlist-commercial-qualification.css?v=1.0',
-    script: './playlist-commercial-qualification.js?v=1.0',
+    script: './playlist-commercial-qualification.js?v=1.1',
     afterDomReady: true,
   },
   {

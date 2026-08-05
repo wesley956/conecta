@@ -91,6 +91,18 @@ function requiredUuid(value: unknown, label: string) {
   return id;
 }
 
+function optionalUuid(value: unknown, label: string) {
+  const id = String(value ?? '').trim();
+  return id ? requiredUuid(id, label) : null;
+}
+
+function safeRequestId(value: unknown) {
+  const id = String(value ?? '').trim();
+  if (!id) return null;
+  if (id.length > 180 || !/^[a-zA-Z0-9:._-]+$/.test(id)) return null;
+  return id;
+}
+
 function positiveInteger(value: unknown, fallback = 1, maximum = 50) {
   const parsed = Number(value ?? fallback);
   if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
@@ -161,6 +173,14 @@ function mapPlaylist(row: Record<string, unknown>, reused = false) {
   };
 }
 
+function nextActionFor(playlist: ReturnType<typeof mapPlaylist>) {
+  if (playlist.commerciallyUsable) return 'activate';
+  if (playlist.qualificationStatus === 'awaiting_device_test') return 'test_on_android';
+  if (playlist.qualificationStatus === 'retryable_error') return 'retry_cache';
+  if (playlist.qualificationStatus === 'blocked') return 'edit_source';
+  return 'wait';
+}
+
 async function loadAuthorizedPlaylist(
   supabase: any,
   principal: any,
@@ -222,11 +242,16 @@ async function registerSource(
     playlistType: string;
     maxConnections: number;
     fingerprint: string;
+    sellerId: string | null;
   },
 ) {
   if (principal.role === 'seller' && !principal.sellerId) {
     throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
   }
+
+  const targetSellerId = principal.role === 'seller'
+    ? principal.sellerId
+    : input.sellerId;
 
   const { data, error } = await supabase.rpc('register_playlist_source_transaction', {
     p_name: input.name,
@@ -234,7 +259,7 @@ async function registerSource(
     p_playlist_type: input.playlistType,
     p_max_connections: input.maxConnections,
     p_source_fingerprint: input.fingerprint,
-    p_seller_id: principal.role === 'seller' ? principal.sellerId : null,
+    p_seller_id: targetSellerId,
   });
   if (error) {
     throw new Error(error.message || 'Não foi possível salvar ou reutilizar a lista.');
@@ -244,6 +269,7 @@ async function registerSource(
   return {
     playlistId: String(row.playlist_id),
     created: row.created === true,
+    sellerId: targetSellerId,
   };
 }
 
@@ -266,7 +292,16 @@ Deno.serve(async request => {
     if (action === 'status') {
       const playlistId = requiredUuid(body.playlistId, 'Lista');
       const row = await loadAuthorizedPlaylist(supabase, principal, playlistId);
-      return json(request, { ok: true, playlist: mapPlaylist(row) });
+      const playlist = mapPlaylist(row);
+      return json(request, {
+        ok: true,
+        saved: true,
+        playlistId,
+        playlist,
+        qualificationStatus: playlist.qualificationStatus,
+        commerciallyUsable: playlist.commerciallyUsable,
+        nextAction: nextActionFor(playlist),
+      });
     }
 
     if (action === 'retry') {
@@ -274,16 +309,22 @@ Deno.serve(async request => {
       const row = await loadAuthorizedPlaylist(supabase, principal, playlistId);
       const qualification = playlistQualificationPayload(row);
       if (!qualification.canRetryCache && !qualification.requiresDeviceTest) {
+        const playlist = mapPlaylist(row);
         return json(request, {
           ok: true,
-          playlist: mapPlaylist(row),
+          saved: true,
+          playlistId,
+          playlist,
+          qualificationStatus: playlist.qualificationStatus,
+          commerciallyUsable: playlist.commerciallyUsable,
+          nextAction: nextActionFor(playlist),
           message: qualification.commerciallyUsable
             ? 'A lista já está homologada.'
             : qualification.qualificationMessage,
         });
       }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('panel_playlists')
         .update({
           playlist_qualification_status: 'validating',
@@ -292,11 +333,18 @@ Deno.serve(async request => {
           playlist_qualification_updated_at: new Date().toISOString(),
         })
         .eq('id', playlistId);
+      if (updateError) throw new Error('Não foi possível reiniciar a validação da lista.');
+
       schedule(triggerCache(playlistId));
-      const refreshed = await loadAuthorizedPlaylist(supabase, principal, playlistId);
+      const playlist = mapPlaylist(await loadAuthorizedPlaylist(supabase, principal, playlistId));
       return json(request, {
         ok: true,
-        playlist: mapPlaylist(refreshed),
+        saved: true,
+        playlistId,
+        playlist,
+        qualificationStatus: playlist.qualificationStatus,
+        commerciallyUsable: playlist.commerciallyUsable,
+        nextAction: nextActionFor(playlist),
         message: 'Nova validação iniciada. Não cadastre a lista novamente.',
       }, 202);
     }
@@ -306,6 +354,10 @@ Deno.serve(async request => {
       const playlistUrl = validatePlaylistUrl(body.playlistUrl);
       const playlistType = inferPlaylistType(playlistUrl, body.playlistType);
       const maxConnections = positiveInteger(body.maxConnections, 1, 50);
+      const requestId = safeRequestId(body.requestId);
+      const sellerId = principal.role === 'seller'
+        ? principal.sellerId
+        : optionalUuid(body.sellerId, 'Vendedor');
       const fingerprint = await playlistSourceFingerprint(
         getEnv('SUPABASE_SERVICE_ROLE_KEY'),
         playlistUrl,
@@ -317,26 +369,35 @@ Deno.serve(async request => {
         playlistType,
         maxConnections,
         fingerprint,
+        sellerId,
       });
       const row = await loadAuthorizedPlaylist(supabase, principal, registration.playlistId);
-      const mapped = mapPlaylist(row, !registration.created);
+      const playlist = mapPlaylist(row, !registration.created);
 
-      if (registration.created || mapped.canRetryCache) {
+      if (registration.created || playlist.canRetryCache) {
         schedule(triggerCache(registration.playlistId));
       }
 
+      const message = registration.created
+        ? 'Lista salva. A validação continuará sem prender esta tela. Não cadastre novamente.'
+        : playlist.commerciallyUsable
+        ? 'Esta origem já estava cadastrada e homologada. Ela foi reutilizada.'
+        : 'Esta origem já estava cadastrada. Acompanhe a validação existente e não cadastre novamente.';
+
       return json(request, {
         ok: true,
+        saved: true,
         created: registration.created,
+        reused: !registration.created,
         playlistId: registration.playlistId,
-        playlist: mapped,
+        playlist,
+        qualificationStatus: playlist.qualificationStatus,
+        commerciallyUsable: playlist.commerciallyUsable,
+        nextAction: nextActionFor(playlist),
+        requestId,
         source: inspectPlaylistSource(playlistUrl),
-        message: registration.created
-          ? 'Lista salva. A validação continuará sem prender esta tela. Não cadastre novamente.'
-          : mapped.commerciallyUsable
-          ? 'Esta origem já estava cadastrada e homologada. Ela foi reutilizada.'
-          : 'Esta origem já estava cadastrada. Acompanhe a validação existente e não cadastre novamente.',
-      }, registration.created || !mapped.commerciallyUsable ? 202 : 200);
+        message,
+      }, registration.created || !playlist.commerciallyUsable ? 202 : 200);
     }
 
     return json(request, { error: 'Ação não suportada.' }, 400);
