@@ -1,0 +1,337 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeDiagnosticText } from '../_shared/diagnosticSafety.ts';
+
+const DIRECT_MARKER = '#roneca-direct-m3u';
+const MAX_REQUEST_BYTES = 64 * 1024;
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-device-credential',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+function text(value: unknown) {
+  const result = String(value ?? '').trim();
+  return result || null;
+}
+
+async function readRawBody(request: Request) {
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (declared > MAX_REQUEST_BYTES) throw new Error('Payload muito grande.');
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > MAX_REQUEST_BYTES) {
+    throw new Error('Payload muito grande.');
+  }
+  let payload: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(raw || '{}');
+    if (parsed && typeof parsed === 'object') payload = parsed as Record<string, unknown>;
+  } catch {
+    payload = {};
+  }
+  return { raw: raw || '{}', payload };
+}
+
+function healthPayload(payload: Record<string, unknown>) {
+  const health = payload.playlistHealth;
+  return health && typeof health === 'object' ? health as Record<string, unknown> : null;
+}
+
+function directParts(sourceUrl: string) {
+  const marked = `${sourceUrl.substringBefore?.(DIRECT_MARKER) ?? sourceUrl}${DIRECT_MARKER}`;
+  return {
+    manifestUrl: null,
+    channelsUrl: marked,
+    moviesUrl: marked,
+    seriesUrl: marked,
+  };
+}
+
+function markDirectUrl(sourceUrl: string) {
+  return `${sourceUrl.split(DIRECT_MARKER)[0]}${DIRECT_MARKER}`;
+}
+
+async function proxyDeviceConfig(
+  supabaseUrl: string,
+  request: Request,
+  rawBody: string,
+) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const deviceCredential = request.headers.get('x-device-credential');
+  const authorization = request.headers.get('authorization');
+  const apikey = request.headers.get('apikey');
+  if (deviceCredential) headers['x-device-credential'] = deviceCredential;
+  if (authorization) headers.authorization = authorization;
+  if (apikey) headers.apikey = apikey;
+
+  const upstream = await fetch(`${supabaseUrl}/functions/v1/device-config`, {
+    method: 'POST',
+    headers,
+    body: rawBody,
+  });
+  const raw = await upstream.text();
+  let payload: any;
+  try {
+    payload = JSON.parse(raw || '{}');
+  } catch {
+    return {
+      ok: false,
+      status: 502,
+      payload: { active: false, status: 'pending', message: 'Resposta inválida do servidor.' },
+    };
+  }
+  return { ok: upstream.ok, status: upstream.status, payload };
+}
+
+async function resolveDevice(supabase: any, deviceCode: string) {
+  const { data, error } = await supabase
+    .from('panel_devices')
+    .select(`
+      id,
+      device_code,
+      client_name,
+      status,
+      is_playlist_validation_device,
+      playlist:panel_playlists(id, playlist_url, playlist_type, active),
+      device_playlists:panel_device_playlists(
+        playlist_id,
+        priority,
+        active,
+        playlist:panel_playlists(id, playlist_url, playlist_type, active)
+      )
+    `)
+    .eq('device_code', deviceCode)
+    .maybeSingle();
+  if (error) return null;
+  return data || null;
+}
+
+async function resolveValidationSession(supabase: any, deviceId: string) {
+  const { data, error } = await supabase.rpc('resolve_active_playlist_validation_session', {
+    p_device_id: deviceId,
+  });
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || null;
+}
+
+async function validationPlaylist(supabase: any, playlistId: string) {
+  const { data, error } = await supabase
+    .from('panel_playlists')
+    .select(`
+      id,
+      name,
+      playlist_url,
+      playlist_type,
+      active,
+      playlist_access_mode,
+      playlist_qualification_status,
+      playlist_cache_status,
+      playlist_updated_at
+    `)
+    .eq('id', playlistId)
+    .maybeSingle();
+  if (error || !data || data.active === false) return null;
+  return data;
+}
+
+async function applyHealth(
+  supabase: any,
+  deviceId: string,
+  health: Record<string, unknown> | null,
+  validationSession: any | null,
+) {
+  if (!health) return;
+  const playlistId = text(health.playlistId);
+  const status = text(health.status);
+  if (!playlistId || !status) return;
+
+  if (status === 'success') {
+    await supabase.rpc('mark_playlist_direct_success', {
+      p_playlist_id: playlistId,
+      p_device_id: deviceId,
+    });
+    return;
+  }
+
+  if (
+    status === 'failure'
+    && validationSession
+    && String(validationSession.playlist_id) === playlistId
+  ) {
+    await supabase.rpc('mark_playlist_validation_failure', {
+      p_playlist_id: playlistId,
+      p_device_id: deviceId,
+      p_error_code: 'DEVICE_REPORTED_FAILURE',
+      p_error_message: safeDiagnosticText(health.error, 500) || 'O aparelho não conseguiu carregar a lista.',
+    });
+  }
+}
+
+function sourceMap(device: any) {
+  const sources = new Map<string, { url: string; type: string }>();
+  const legacy = Array.isArray(device?.playlist) ? device.playlist[0] : device?.playlist;
+  if (legacy?.id && legacy?.active !== false && text(legacy.playlist_url)) {
+    sources.set(String(legacy.id), {
+      url: String(legacy.playlist_url),
+      type: text(legacy.playlist_type) || 'm3u',
+    });
+  }
+  for (const assignment of device?.device_playlists || []) {
+    if (assignment?.active === false) continue;
+    const playlist = Array.isArray(assignment?.playlist) ? assignment.playlist[0] : assignment?.playlist;
+    if (!playlist?.id || playlist.active === false || !text(playlist.playlist_url)) continue;
+    sources.set(String(playlist.id), {
+      url: String(playlist.playlist_url),
+      type: text(playlist.playlist_type) || 'm3u',
+    });
+  }
+  return sources;
+}
+
+function injectCommercialDirectSources(payload: any, device: any) {
+  const sources = sourceMap(device);
+  const playlists = Array.isArray(payload.playlists)
+    ? payload.playlists.map((item: any) => {
+        const id = text(item?.id);
+        const source = id ? sources.get(id) : null;
+        const cacheReady = item?.cacheReady === true
+          || Boolean(item?.cacheParts?.channelsUrl || item?.cacheSnapshotUrl);
+        if (!source || cacheReady || item?.accessMode !== 'direct') return item;
+        return {
+          ...item,
+          type: source.type,
+          cacheParts: directParts(source.url),
+          cacheReady: true,
+          directFallback: true,
+        };
+      })
+    : [];
+  const selectedId = text(payload.selectedPlaylistId);
+  const selected = selectedId ? playlists.find((item: any) => String(item?.id) === selectedId) : null;
+  const usingDirect = playlists.some((item: any) => item?.directFallback === true);
+  return {
+    ...payload,
+    playlists,
+    cacheParts: selected?.cacheParts || payload.cacheParts || null,
+    directPlaylistFallbackAllowed: usingDirect,
+    message: usingDirect
+      ? 'Cache indisponível neste provedor. O aplicativo usará a conexão direta homologada.'
+      : payload.message,
+  };
+}
+
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (request.method !== 'POST') return json({ active: false, message: 'Método não permitido.' }, 405);
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    if (!supabaseUrl || !serviceRoleKey) {
+      return json({ active: false, status: 'pending', message: 'Servidor não configurado.' }, 500);
+    }
+
+    const { raw, payload: requestPayload } = await readRawBody(request);
+    const upstream = await proxyDeviceConfig(supabaseUrl, request, raw);
+    const upstreamPayload = upstream.payload;
+
+    // Erros de identidade sempre prevalecem. A sessão de validação jamais contorna
+    // código, UUID ou credencial do aparelho.
+    if (!upstream.ok && [400, 401, 403, 409, 428].includes(upstream.status)) {
+      return json(upstreamPayload, upstream.status);
+    }
+
+    const deviceCode = text(upstreamPayload?.deviceCode)
+      || text(requestPayload.deviceCode)
+      || text(requestPayload.device_code);
+    if (!deviceCode) return json(upstreamPayload, upstream.status);
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+    const device = await resolveDevice(supabase, deviceCode);
+    if (!device) return json(upstreamPayload, upstream.status);
+
+    const validationSession = device.is_playlist_validation_device === true
+      ? await resolveValidationSession(supabase, device.id)
+      : null;
+    await applyHealth(supabase, device.id, healthPayload(requestPayload), validationSession);
+
+    if (validationSession) {
+      const playlist = await validationPlaylist(supabase, String(validationSession.playlist_id));
+      if (!playlist || playlist.playlist_access_mode !== 'direct') {
+        return json({
+          active: false,
+          status: 'pending',
+          deviceCode,
+          message: 'A sessão de validação não possui uma lista direta disponível.',
+        });
+      }
+      const sourceUrl = text(playlist.playlist_url);
+      if (!sourceUrl) {
+        return json({
+          active: false,
+          status: 'pending',
+          deviceCode,
+          message: 'A origem da lista de validação não está disponível.',
+        });
+      }
+      const parts = directParts(sourceUrl);
+      const item = {
+        id: playlist.id,
+        priority: 1,
+        role: 'primary',
+        name: playlist.name,
+        type: playlist.playlist_type || 'm3u',
+        accessMode: 'direct',
+        qualificationStatus: playlist.playlist_qualification_status,
+        updatedAt: playlist.playlist_updated_at,
+        cacheStatus: playlist.playlist_cache_status,
+        cacheReady: true,
+        directFallback: true,
+        cacheParts: parts,
+      };
+      return json({
+        active: true,
+        status: 'active',
+        deviceCode,
+        clientName: device.client_name || upstreamPayload?.clientName || 'Aparelho de validação',
+        expiresAt: validationSession.expires_at,
+        playlistName: playlist.name,
+        selectedPlaylistId: playlist.id,
+        playlists: [item],
+        cacheParts: parts,
+        cacheSnapshotUrl: null,
+        validationMode: true,
+        validationSessionId: validationSession.session_id,
+        validationExpiresAt: validationSession.expires_at,
+        message: 'Modo de validação ativo. Nenhuma venda ou vínculo de cliente será alterado.',
+      });
+    }
+
+    if (!upstream.ok || upstreamPayload?.active !== true || upstreamPayload?.status !== 'active') {
+      return json(upstreamPayload, upstream.status);
+    }
+
+    return json(injectCommercialDirectSources(upstreamPayload, device), upstream.status);
+  } catch (error) {
+    return json({
+      active: false,
+      status: 'pending',
+      message: safeDiagnosticText(
+        error instanceof Error ? error.message : 'Falha temporária ao carregar a configuração.',
+        500,
+      ) || 'Falha temporária ao carregar a configuração.',
+    }, 500);
+  }
+});
