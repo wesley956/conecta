@@ -15,6 +15,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4173',
   'http://127.0.0.1:5173',
 ];
+const MAX_BODY_BYTES = 32 * 1024;
 
 function allowedOrigins() {
   const configured = String(Deno.env.get('PANEL_ALLOWED_ORIGINS') || '')
@@ -56,10 +57,14 @@ function getEnv(name: string) {
 }
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > 32 * 1024) throw new Error('Requisição excede o limite permitido.');
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (declared > MAX_BODY_BYTES) throw new Error('Requisição excede o limite permitido.');
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
+    throw new Error('Requisição excede o limite permitido.');
+  }
   try {
-    const body = await request.json();
+    const body = JSON.parse(raw || '{}');
     return body && typeof body === 'object' ? body as Record<string, unknown> : {};
   } catch {
     return {};
@@ -148,6 +153,39 @@ async function listState(supabase: any, playlistId: string | null = null) {
   };
 }
 
+async function requireDedicatedValidationDevice(supabase: any, deviceId: string) {
+  const { data, error } = await supabase
+    .from('panel_devices')
+    .select(`
+      id,
+      device_code,
+      client_name,
+      status,
+      seller_id,
+      customer_id,
+      playlist_id,
+      plan_id,
+      subscription_expires_at,
+      device_credential_hash,
+      is_playlist_validation_device
+    `)
+    .eq('id', deviceId)
+    .maybeSingle();
+  if (error || !data) throw new Error('Aparelho não encontrado.');
+  if (data.status !== 'pending'
+      || data.seller_id
+      || data.customer_id
+      || data.playlist_id
+      || data.plan_id
+      || data.subscription_expires_at) {
+    throw new Error('Use um aparelho pendente e sem qualquer vínculo comercial para a validação.');
+  }
+  if (!data.device_credential_hash) {
+    throw new Error('Abra o aplicativo nesse aparelho antes de marcá-lo para validação.');
+  }
+  return data;
+}
+
 serve(async request => {
   const headers = corsHeaders(request);
   if (request.method === 'OPTIONS') return new Response('ok', { headers });
@@ -169,10 +207,15 @@ serve(async request => {
     if (action === 'markDevice') {
       const deviceId = requiredUuid(body.deviceId, 'Aparelho');
       const enabled = body.enabled !== false;
+      if (enabled) await requireDedicatedValidationDevice(supabase, deviceId);
       if (!enabled) {
         await supabase
           .from('panel_playlist_validation_sessions')
-          .update({ status: 'revoked', revoked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .update({
+            status: 'revoked',
+            revoked_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
           .eq('device_id', deviceId)
           .eq('status', 'active');
       }
@@ -197,6 +240,7 @@ serve(async request => {
     if (action === 'start') {
       const playlistId = requiredUuid(body.playlistId, 'Lista');
       const deviceId = requiredUuid(body.deviceId, 'Aparelho');
+      await requireDedicatedValidationDevice(supabase, deviceId);
       const decision = await getPlaylistCommercialDecision(supabase, playlistId);
       if (!decision.requiresDeviceTest && decision.status !== 'retryable_error') {
         throw new Error(`Esta lista não precisa de teste direto. Estado atual: ${decision.label}.`);
