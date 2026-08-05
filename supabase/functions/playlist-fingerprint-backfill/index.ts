@@ -57,6 +57,51 @@ function json(request: Request, value: unknown, status = 200) {
   });
 }
 
+function qualificationRank(value: unknown) {
+  const ranks: Record<string, number> = {
+    ready_cache: 0,
+    ready_direct: 1,
+    awaiting_device_test: 2,
+    validating: 3,
+    retryable_error: 4,
+    blocked: 5,
+  };
+  return ranks[String(value || '')] ?? 6;
+}
+
+function compareCanonical(left: any, right: any) {
+  const qualification = qualificationRank(left.playlist_qualification_status)
+    - qualificationRank(right.playlist_qualification_status);
+  if (qualification !== 0) return qualification;
+
+  const leftCache = left.playlist_cache_status === 'ready' ? 0 : 1;
+  const rightCache = right.playlist_cache_status === 'ready' ? 0 : 1;
+  if (leftCache !== rightCache) return leftCache - rightCache;
+
+  const items = Number(right.playlist_cache_item_count || 0)
+    - Number(left.playlist_cache_item_count || 0);
+  if (items !== 0) return items;
+
+  const leftCreated = new Date(left.created_at || 0).getTime();
+  const rightCreated = new Date(right.created_at || 0).getTime();
+  return leftCreated - rightCreated;
+}
+
+async function registerSingleSource(supabase: any, row: any, fingerprint: string) {
+  const { data, error } = await supabase.rpc('register_playlist_source_transaction', {
+    p_name: String(row.name || 'Lista legada').slice(0, 180),
+    p_playlist_url: String(row.playlist_url || '').trim(),
+    p_playlist_type: String(row.playlist_type || 'm3u'),
+    p_max_connections: Math.max(1, Math.min(50, Number(row.max_connections || 1))),
+    p_source_fingerprint: fingerprint,
+    p_seller_id: null,
+  });
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.playlist_id) throw new Error('O cadastro canônico não retornou a lista processada.');
+  return String(result.playlist_id);
+}
+
 serve(async request => {
   const headers = corsHeaders(request);
   if (request.method === 'OPTIONS') return new Response('ok', { headers });
@@ -68,43 +113,95 @@ serve(async request => {
     });
     await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
 
-    const { data: legacyRows, error: legacyError } = await supabase
+    const { data: activeRows, error: loadError } = await supabase
       .from('panel_playlists')
-      .select('id, name, playlist_url, playlist_type, max_connections')
+      .select(`
+        id,
+        name,
+        playlist_url,
+        playlist_type,
+        max_connections,
+        source_fingerprint,
+        playlist_qualification_status,
+        playlist_cache_status,
+        playlist_cache_item_count,
+        created_at
+      `)
       .eq('active', true)
-      .is('source_fingerprint', null)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(2000);
-    if (legacyError) throw new Error('Não foi possível carregar os metadados legados.');
+    if (loadError) throw new Error('Não foi possível carregar os metadados das listas.');
 
-    let processed = 0;
-    let canonicalSources = 0;
+    const groups = new Map<string, any[]>();
+    let examined = 0;
     let failures = 0;
-    const canonicalIds = new Set<string>();
 
-    for (const row of legacyRows || []) {
+    for (const row of activeRows || []) {
       try {
         const playlistUrl = String(row.playlist_url || '').trim();
-        if (!playlistUrl) {
-          failures += 1;
+        if (!playlistUrl) throw new Error('Lista ativa sem origem válida.');
+        const fingerprint = String(row.source_fingerprint || '').trim()
+          || await playlistSourceFingerprint(getEnv('SUPABASE_SERVICE_ROLE_KEY'), playlistUrl);
+        if (!groups.has(fingerprint)) groups.set(fingerprint, []);
+        groups.get(fingerprint)!.push({ ...row, computedFingerprint: fingerprint });
+        examined += 1;
+      } catch (error) {
+        failures += 1;
+        console.error('Falha sanitizada ao calcular fingerprint legado.', {
+          message: redactPlaylistSecrets(error instanceof Error ? error.message : error, 240),
+        });
+      }
+    }
+
+    let fingerprinted = 0;
+    let consolidated = 0;
+    let canonicalSources = 0;
+
+    for (const [fingerprint, rows] of groups.entries()) {
+      try {
+        const ordered = [...rows].sort(compareCanonical);
+        const canonical = ordered[0];
+        canonicalSources += 1;
+
+        if (ordered.length === 1) {
+          if (!canonical.source_fingerprint) {
+            const canonicalId = await registerSingleSource(supabase, canonical, fingerprint);
+            if (canonicalId !== String(canonical.id)) {
+              const { error: consolidationError } = await supabase.rpc(
+                'consolidate_playlist_source_transaction',
+                {
+                  p_canonical_id: canonicalId,
+                  p_duplicate_id: canonical.id,
+                  p_source_fingerprint: fingerprint,
+                },
+              );
+              if (consolidationError) throw consolidationError;
+              consolidated += 1;
+            } else {
+              fingerprinted += 1;
+            }
+          }
           continue;
         }
-        const fingerprint = await playlistSourceFingerprint(
-          getEnv('SUPABASE_SERVICE_ROLE_KEY'),
-          playlistUrl,
-        );
-        const { data, error } = await supabase.rpc('register_playlist_source_transaction', {
-          p_name: String(row.name || 'Lista legada').slice(0, 180),
-          p_playlist_url: playlistUrl,
-          p_playlist_type: String(row.playlist_type || 'm3u'),
-          p_max_connections: Math.max(1, Math.min(50, Number(row.max_connections || 1))),
-          p_source_fingerprint: fingerprint,
-          p_seller_id: null,
-        });
-        if (error) throw error;
-        const result = Array.isArray(data) ? data[0] : data;
-        if (result?.playlist_id) canonicalIds.add(String(result.playlist_id));
-        processed += 1;
+
+        for (const duplicate of ordered.slice(1)) {
+          const { data, error } = await supabase.rpc('consolidate_playlist_source_transaction', {
+            p_canonical_id: canonical.id,
+            p_duplicate_id: duplicate.id,
+            p_source_fingerprint: fingerprint,
+          });
+          if (error) throw error;
+          if (data?.ok !== true) throw new Error('A consolidação não retornou confirmação.');
+          consolidated += 1;
+        }
+
+        if (!canonical.source_fingerprint) {
+          const canonicalId = await registerSingleSource(supabase, canonical, fingerprint);
+          if (canonicalId !== String(canonical.id)) {
+            throw new Error('A origem canônica mudou durante o backfill.');
+          }
+          fingerprinted += 1;
+        }
       } catch (error) {
         failures += 1;
         console.error('Falha sanitizada no backfill de fingerprint.', {
@@ -113,16 +210,24 @@ serve(async request => {
       }
     }
 
-    canonicalSources = canonicalIds.size;
+    const { count: remainingWithoutFingerprint, error: countError } = await supabase
+      .from('panel_playlists')
+      .select('id', { count: 'exact', head: true })
+      .eq('active', true)
+      .is('source_fingerprint', null);
+    if (countError) throw new Error('Não foi possível conferir o resultado do backfill.');
+
     return json(request, {
-      ok: failures === 0,
+      ok: failures === 0 && Number(remainingWithoutFingerprint || 0) === 0,
       data: {
-        legacyRows: (legacyRows || []).length,
-        processed,
+        examined,
+        fingerprinted,
+        consolidated,
         canonicalSources,
         failures,
+        remainingWithoutFingerprint: Number(remainingWithoutFingerprint || 0),
       },
-    }, failures === 0 ? 200 : 207);
+    }, failures === 0 && Number(remainingWithoutFingerprint || 0) === 0 ? 200 : 207);
   } catch (error) {
     if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, headers);
     return json(request, {
