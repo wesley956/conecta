@@ -1,12 +1,7 @@
 import fs from 'node:fs';
 
-process.on('uncaughtException', error => {
-  const message = String(error?.message || error || 'Falha desconhecida')
-    .replace(/[\r\n]+/g, ' ')
-    .slice(0, 1000);
-  console.error(`::error file=scripts/check-inline-playlist-activation.mjs,title=Fluxo de listas inválido::${message}`);
-  process.exit(1);
-});
+const failures = [];
+const fail = message => failures.push(String(message));
 
 const files = {
   controller: 'admin-panel/playlist-flow-controller.js',
@@ -17,11 +12,14 @@ const files = {
 };
 
 for (const path of Object.values(files)) {
-  if (!fs.existsSync(path)) throw new Error(`Arquivo obrigatório ausente: ${path}`);
+  if (!fs.existsSync(path)) fail(`Arquivo obrigatório ausente: ${path}`);
 }
 
 const source = Object.fromEntries(
-  Object.entries(files).map(([name, path]) => [name, fs.readFileSync(path, 'utf8')]),
+  Object.entries(files).map(([name, path]) => [
+    name,
+    fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '',
+  ]),
 );
 
 const requiredControllerTokens = [
@@ -39,7 +37,7 @@ const requiredControllerTokens = [
 ];
 for (const token of requiredControllerTokens) {
   if (!source.controller.includes(token)) {
-    throw new Error(`Controlador único não contém: ${token}`);
+    fail(`Controlador único não contém: ${token}`);
   }
 }
 
@@ -50,7 +48,7 @@ for (const forbidden of [
   "action: 'refreshPlaylistCache'",
 ]) {
   if (source.controller.includes(forbidden)) {
-    throw new Error(`Controlador único contém comportamento legado proibido: ${forbidden}`);
+    fail(`Controlador único contém comportamento legado proibido: ${forbidden}`);
   }
 }
 
@@ -63,7 +61,7 @@ for (const token of [
   'Nova lista principal',
   'Nova lista reserva',
 ]) {
-  if (!source.entry.includes(token)) throw new Error(`Entrada unificada não contém: ${token}`);
+  if (!source.entry.includes(token)) fail(`Entrada unificada não contém: ${token}`);
 }
 
 for (const forbidden of [
@@ -75,7 +73,7 @@ for (const forbidden of [
   'cache?.ok',
 ]) {
   if (source.entry.includes(forbidden)) {
-    throw new Error(`A entrada visual não pode controlar o fluxo comercial: ${forbidden}`);
+    fail(`A entrada visual não pode controlar o fluxo comercial: ${forbidden}`);
   }
 }
 
@@ -86,7 +84,7 @@ for (const token of [
   'loadPlaylistCommercialQualification',
   '(dashboard|seller)',
 ]) {
-  if (!source.loader.includes(token)) throw new Error(`Carregador não contém: ${token}`);
+  if (!source.loader.includes(token)) fail(`Carregador não contém: ${token}`);
 }
 
 for (const forbidden of [
@@ -96,7 +94,7 @@ for (const forbidden of [
   'playlist-save-feedback-hotfix.js',
 ]) {
   if (source.loader.includes(forbidden)) {
-    throw new Error(`Carregador ainda publica o módulo concorrente: ${forbidden}`);
+    fail(`Carregador ainda publica o módulo concorrente: ${forbidden}`);
   }
 }
 
@@ -109,7 +107,7 @@ for (const token of [
   'nextAction',
 ]) {
   if (!source.registration.includes(token)) {
-    throw new Error(`Cadastro canônico não contém: ${token}`);
+    fail(`Cadastro canônico não contém: ${token}`);
   }
 }
 
@@ -119,14 +117,21 @@ for (const token of [
   'compatibilityProxy',
 ]) {
   if (!source.compatibility.includes(token)) {
-    throw new Error(`Compatibilidade administrativa não contém: ${token}`);
+    fail(`Compatibilidade administrativa não contém: ${token}`);
   }
 }
 
 for (const [name, content] of Object.entries(source)) {
   if (/console\.(?:log|debug|info|warn|error)\s*\([^)]*(?:playlistUrl|playlist_url|password|username|token)/i.test(content)) {
-    throw new Error(`${files[name]} pode registrar credenciais em log.`);
+    fail(`${files[name]} pode registrar credenciais em log.`);
   }
+}
+
+if (failures.length) {
+  const message = failures.join(' | ').replace(/[\r\n]+/g, ' ').slice(0, 4000);
+  console.error(`::error file=scripts/check-inline-playlist-activation.mjs,title=Contrato do fluxo de listas inválido::${message}`);
+  console.error(message);
+  process.exit(1);
 }
 
 console.log('✅ Fluxo único de listas validado sem wrappers concorrentes ou rotas legadas de criação.');
