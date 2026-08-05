@@ -163,13 +163,13 @@
         <div class="playlist-edit-head">
           <div>
             <h2>${current ? 'Editar ou trocar' : 'Adicionar'} lista ${roleLabel}</h2>
-            <p>${esc(details.customerName || 'Cliente')} · a lista atual permanece funcionando até a nova passar na validação.</p>
+            <p>${esc(details.customerName || 'Cliente')} · a lista atual permanece funcionando até a nova passar na homologação.</p>
           </div>
           <button type="button" class="btn" data-playlist-edit-close>×</button>
         </div>
         ${sourceInspectionHtml(current?.source)}
         <div class="playlist-edit-cache-summary">
-          <span><strong>Cache atual:</strong> ${esc(current?.cacheStatus || 'não existe')}</span>
+          <span><strong>Estado atual:</strong> ${esc(current?.qualificationLabel || current?.cacheStatus || 'não existe')}</span>
           <span><strong>Itens:</strong> ${Number(current?.cacheItemCount || 0)}</span>
           <span><strong>Tamanho:</strong> ${formatBytes(current?.cacheSizeBytes)}</span>
           <span><strong>Atualizado:</strong> ${esc(formatDate(current?.cacheUpdatedAt))}</span>
@@ -190,7 +190,7 @@
             <label class="wide"><span>Motivo da alteração</span><input name="reason" minlength="3" maxlength="500" required placeholder="Ex: corrigir senha digitada ou trocar provedor" /></label>
           </div>
           <div class="playlist-edit-safety">
-            <strong>Troca sem interrupção:</strong> primeiro o servidor testa a URL e gera o novo cache. A mudança só é aplicada depois que esse processo terminar com sucesso. Em caso de erro, a lista atual é mantida.
+            <strong>Troca sem interrupção:</strong> a nova origem é salva e homologada primeiro. A mudança só é aplicada quando houver cache pronto ou acesso direto confirmado. Em qualquer pendência, a lista atual é mantida.
           </div>
           <div id="playlistEditProgress" class="playlist-edit-progress" hidden></div>
           <div class="playlist-edit-actions">
@@ -211,7 +211,7 @@
         submit.disabled = true;
         progress.hidden = false;
         progress.classList.remove('error');
-        progress.textContent = 'Validando acesso, testando a origem e gerando o cache. Aguarde...';
+        progress.textContent = 'Salvando a origem e consultando a homologação comercial...';
         try {
           const values = new FormData(form);
           const result = await callApi({
@@ -225,8 +225,18 @@
             reason: values.get('reason'),
             idempotencyKey: operationKey(),
           });
-          progress.textContent = result.message || 'Lista validada e aplicada.';
-          showToast(result.message || 'Lista validada e aplicada com segurança.');
+
+          progress.textContent = result.message || 'Lista homologada e aplicada.';
+          showToast(result.message || 'Lista homologada e aplicada com segurança.');
+
+          if (result.pending === true) {
+            submit.disabled = false;
+            submit.textContent = 'Verificar e aplicar novamente';
+            form.dataset.candidatePlaylistId = result.candidatePlaylistId || '';
+            await refreshPanels();
+            return;
+          }
+
           setTimeout(async () => {
             closeModal();
             await refreshPanels();
