@@ -121,6 +121,9 @@ verify_jwt = true
 [functions.subscription-playlist-edit]
 verify_jwt = true
 
+[functions.playlist-registration]
+verify_jwt = true
+
 [functions.playlist-validation]
 verify_jwt = true
 
