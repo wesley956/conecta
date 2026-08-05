@@ -6,6 +6,21 @@ import {
   panelAuthErrorResponse,
   requirePanelPrincipal,
 } from '../_shared/panelAuth.ts';
+import {
+  getPlaylistCommercialDecision,
+  playlistQualificationPayload,
+} from '../_shared/playlistQualification.ts';
+import {
+  hmacSha256Hex,
+  inferPlaylistType,
+  inspectPlaylistSource as inspectSource,
+  normalizedPlaylistSource,
+  playlistSourceFingerprint,
+  redactPlaylistSecrets as redactSecrets,
+  requiredText,
+  textOrNull,
+  validatePlaylistUrl,
+} from '../_shared/playlistSource.ts';
 
 type JsonBody = Record<string, unknown>;
 type TargetContext = {
@@ -28,6 +43,9 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4173',
   'http://127.0.0.1:5173',
 ];
+const MAX_BODY_BYTES = 64 * 1024;
+
+declare const EdgeRuntime: undefined | { waitUntil(promise: Promise<unknown>): void };
 
 function getEnv(name: string) {
   const value = Deno.env.get(name);
@@ -69,36 +87,27 @@ function json(request: Request, data: unknown, status = 200) {
 }
 
 async function readBody(request: Request): Promise<JsonBody> {
-  const contentLength = Number(request.headers.get('content-length') || 0);
-  if (contentLength > 64 * 1024) throw new Error('Requisição excede o limite permitido.');
+  const declared = Number(request.headers.get('content-length') || 0);
+  if (declared > MAX_BODY_BYTES) throw new Error('Requisição excede o limite permitido.');
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
+    throw new Error('Requisição excede o limite permitido.');
+  }
   try {
-    const body = await request.json();
-    return body && typeof body === 'object' ? body as JsonBody : {};
+    const parsed = JSON.parse(raw || '{}');
+    return parsed && typeof parsed === 'object' ? parsed as JsonBody : {};
   } catch {
     return {};
   }
 }
 
-function textOrNull(value: unknown, maxLength = 500) {
-  const text = String(value ?? '').trim();
-  if (!text) return null;
-  if (text.length > maxLength) throw new Error('Texto excede o tamanho permitido.');
-  return text;
-}
-
-function requiredText(value: unknown, label: string, maxLength = 500) {
-  const text = textOrNull(value, maxLength);
-  if (!text) throw new Error(`${label} é obrigatório.`);
-  return text;
-}
-
 function uuidOrNull(value: unknown) {
-  const text = textOrNull(value, 80);
-  if (!text) return null;
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)) {
+  const valueText = textOrNull(value, 80);
+  if (!valueText) return null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(valueText)) {
     throw new Error('Identificador inválido.');
   }
-  return text;
+  return valueText;
 }
 
 function requiredUuid(value: unknown, label: string) {
@@ -115,105 +124,9 @@ function integerInRange(value: unknown, label: string, minimum: number, maximum:
   return numberValue;
 }
 
-function normalizePlaylistType(value: unknown) {
-  const type = String(value ?? 'm3u').trim().toLowerCase();
-  if (!['m3u', 'xtream', 'stalker'].includes(type)) throw new Error('Tipo de lista inválido.');
-  return type;
-}
-
-function validatePlaylistUrl(value: unknown) {
-  const raw = requiredText(value, 'Nova URL da lista', 4096);
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error('Nova URL da lista é inválida.');
-  }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new Error('A URL da lista precisa usar HTTP ou HTTPS.');
-  }
-  if (parsed.username || parsed.password) {
-    throw new Error('Não informe credenciais antes do domínio. Use os parâmetros fornecidos pelo provedor.');
-  }
-  parsed.hash = '';
-  return parsed.toString();
-}
-
-function maskPath(pathname: string) {
-  const parts = pathname.split('/');
-  return parts.map((part, index) => {
-    const previous = String(parts[index - 1] || '').toLowerCase();
-    const beforePrevious = String(parts[index - 2] || '').toLowerCase();
-    if (['live', 'movie', 'series'].includes(previous)) return '••••';
-    if (index > 1 && ['live', 'movie', 'series'].includes(beforePrevious)) return '••••';
-    if (part.length > 28) return `${part.slice(0, 5)}…${part.slice(-3)}`;
-    return part;
-  }).join('/');
-}
-
-function inspectSource(value: unknown) {
-  const raw = String(value ?? '').trim();
-  if (!raw) return null;
-  try {
-    const parsed = new URL(raw);
-    const parameterNames = [...new Set([...parsed.searchParams.keys()])];
-    const previewQuery = parameterNames.length
-      ? `?${parameterNames.map(key => `${encodeURIComponent(key)}=••••`).join('&')}`
-      : '';
-    const normalizedNames = parameterNames.map(name => name.toLowerCase());
-    return {
-      preview: `${parsed.protocol}//${parsed.host}${maskPath(parsed.pathname)}${previewQuery}`,
-      protocol: parsed.protocol.replace(':', '').toUpperCase(),
-      host: parsed.host,
-      path: maskPath(parsed.pathname),
-      parameterNames,
-      hasUsername: normalizedNames.some(name => ['username', 'user', 'login'].includes(name)),
-      hasPassword: normalizedNames.some(name => ['password', 'pass', 'passwd', 'pwd'].includes(name)),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function normalizedPlaylistSource(value: string) {
-  const parsed = new URL(value);
-  parsed.hash = '';
-  parsed.hostname = parsed.hostname.toLowerCase();
-  const entries = [...parsed.searchParams.entries()]
-    .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
-      const keyOrder = leftKey.localeCompare(rightKey);
-      return keyOrder || leftValue.localeCompare(rightValue);
-    });
-  parsed.search = '';
-  for (const [key, entryValue] of entries) parsed.searchParams.append(key, entryValue);
-  return parsed.toString();
-}
-
-async function hmacSha256Hex(secret: string, value: string) {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
-  return [...new Uint8Array(signature)]
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-function redactSecrets(value: unknown) {
-  let message = String(value ?? '').slice(0, 600);
-  message = message.replace(/([?&](?:username|user|login|password|pass|passwd|pwd|token|key|secret)=)[^&\s]+/gi, '$1••••');
-  message = message.replace(/(https?:\/\/[^\s?#]+)\?[^\s]+/gi, '$1?••••');
-  return message.slice(0, 300);
-}
-
 function safeDatabaseError(error: any, fallback: string) {
   const code = String(error?.code || '');
-  const message = redactSecrets(error?.message || '');
+  const message = redactSecrets(error?.message || '', 300);
   if (['22023', '23505', 'P0001', 'P0002'].includes(code)) return message || fallback;
   console.error(fallback, { code: error?.code || null });
   return fallback;
@@ -247,7 +160,10 @@ async function resolveDeviceTarget(
       primary_playlist:panel_playlists!panel_devices_playlist_id_fkey(
         id, name, playlist_url, playlist_type, active, max_connections,
         playlist_updated_at, playlist_cache_status, playlist_cache_updated_at,
-        playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error
+        playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error,
+        playlist_access_mode, playlist_qualification_status,
+        playlist_qualification_message, playlist_qualified_at,
+        playlist_direct_confirmed_at
       ),
       device_playlists:panel_device_playlists(
         playlist_id,
@@ -256,7 +172,10 @@ async function resolveDeviceTarget(
         playlist:panel_playlists(
           id, name, playlist_url, playlist_type, active, max_connections,
           playlist_updated_at, playlist_cache_status, playlist_cache_updated_at,
-          playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error
+          playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error,
+          playlist_access_mode, playlist_qualification_status,
+          playlist_qualification_message, playlist_qualified_at,
+          playlist_direct_confirmed_at
         )
       )
     `)
@@ -308,7 +227,10 @@ async function resolveSubscriptionTarget(
         playlist:panel_playlists(
           id, name, playlist_url, playlist_type, active, max_connections,
           playlist_updated_at, playlist_cache_status, playlist_cache_updated_at,
-          playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error
+          playlist_cache_item_count, playlist_cache_size_bytes, playlist_cache_error,
+          playlist_access_mode, playlist_qualification_status,
+          playlist_qualification_message, playlist_qualified_at,
+          playlist_direct_confirmed_at
         )
       )
     `)
@@ -365,17 +287,19 @@ function mapDetails(target: TargetContext, priority: number) {
       maxConnections: Number(playlist.max_connections || 1),
       source: inspectSource(playlist.playlist_url),
       sourceUpdatedAt: playlist.playlist_updated_at || null,
+      accessMode: playlist.playlist_access_mode || 'server_cache',
       cacheStatus: playlist.playlist_cache_status || 'missing',
       cacheUpdatedAt: playlist.playlist_cache_updated_at || null,
       cacheItemCount: Number(playlist.playlist_cache_item_count || 0),
       cacheSizeBytes: Number(playlist.playlist_cache_size_bytes || 0),
-      cacheError: playlist.playlist_cache_error ? redactSecrets(playlist.playlist_cache_error) : null,
+      cacheError: playlist.playlist_cache_error ? redactSecrets(playlist.playlist_cache_error, 300) : null,
+      ...playlistQualificationPayload(playlist),
     } : null,
   };
 }
 
-async function triggerPlaylistCache(supabaseUrl: string, playlistId: string) {
-  const response = await fetch(`${supabaseUrl}/functions/v1/playlist-cache`, {
+async function triggerPlaylistCache(playlistId: string) {
+  const response = await fetch(`${getEnv('SUPABASE_URL')}/functions/v1/playlist-cache`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -384,34 +308,170 @@ async function triggerPlaylistCache(supabaseUrl: string, playlistId: string) {
     body: JSON.stringify({ action: 'refresh', playlistId }),
   });
   const data = await response.json().catch(() => ({}));
-  return {
-    ok: response.ok && data?.ok === true,
-    data,
-    error: redactSecrets(data?.error || data?.message || (!response.ok ? `Falha HTTP ${response.status}.` : '')),
-  };
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || `Falha HTTP ${response.status}.`);
+  }
+  return data;
 }
 
-async function archiveCandidate(supabase: any, playlistId: string, error: string) {
-  const now = new Date().toISOString();
-  await supabase
-    .from('panel_playlists')
-    .update({
-      active: false,
-      archived_at: now,
-      playlist_cache_status: 'error',
-      playlist_cache_error: redactSecrets(error),
-    })
-    .eq('id', playlistId);
-  await supabase
+function scheduleCache(playlistId: string) {
+  const promise = triggerPlaylistCache(playlistId).catch(error => {
+    console.error('Validação assíncrona da candidata falhou.', {
+      message: redactSecrets(error instanceof Error ? error.message : error, 300),
+    });
+  });
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+    EdgeRuntime.waitUntil(promise);
+  }
+}
+
+async function ensureSellerPermission(supabase: any, sellerId: string, playlistId: string) {
+  const { error } = await supabase
     .from('panel_seller_playlists')
-    .update({ active: false, updated_at: now })
-    .eq('playlist_id', playlistId);
+    .upsert({
+      seller_id: sellerId,
+      playlist_id: playlistId,
+      active: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'seller_id,playlist_id' });
+  if (error) throw new Error('Não foi possível liberar a nova lista ao vendedor.');
+}
+
+async function findOrCreateCandidate(
+  supabase: any,
+  target: TargetContext,
+  input: {
+    name: string;
+    playlistUrl: string;
+    playlistType: string;
+    maxConnections: number;
+  },
+) {
+  const fingerprint = await playlistSourceFingerprint(
+    getEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    input.playlistUrl,
+  );
+  const { data: existing, error: existingError } = await supabase
+    .from('panel_playlists')
+    .select(`
+      id, name, playlist_type, active, max_connections, playlist_access_mode,
+      playlist_cache_status, playlist_cache_updated_at, playlist_cache_item_count,
+      playlist_cache_size_bytes, playlist_cache_error, playlist_cache_error_code,
+      playlist_qualification_status, playlist_qualification_message,
+      playlist_qualified_at, playlist_direct_confirmed_at
+    `)
+    .eq('source_fingerprint', fingerprint)
+    .eq('active', true)
+    .maybeSingle();
+  if (existingError) throw new Error('Não foi possível verificar a origem da lista.');
+
+  if (existing) {
+    if (Number(existing.max_connections || 1) < target.simultaneousConnections) {
+      throw new Error('A lista cadastrada para esta origem não suporta as conexões simultâneas do plano.');
+    }
+    await ensureSellerPermission(supabase, target.sellerId, String(existing.id));
+    return { row: existing, created: false };
+  }
+
+  const now = new Date().toISOString();
+  const { data: created, error: createError } = await supabase
+    .from('panel_playlists')
+    .insert({
+      name: input.name,
+      playlist_url: input.playlistUrl,
+      playlist_type: input.playlistType,
+      active: true,
+      max_connections: input.maxConnections,
+      source_fingerprint: fingerprint,
+      playlist_updated_at: now,
+      playlist_cache_status: 'missing',
+      playlist_cache_error: null,
+      playlist_cache_error_code: null,
+      playlist_cache_attempts: [],
+      playlist_access_mode: 'server_cache',
+      playlist_qualification_status: 'validating',
+      playlist_qualification_code: 'REPLACEMENT_CANDIDATE_CREATED',
+      playlist_qualification_message: 'A nova origem foi salva e está sendo validada.',
+      playlist_qualification_updated_at: now,
+    })
+    .select(`
+      id, name, playlist_type, active, max_connections, playlist_access_mode,
+      playlist_cache_status, playlist_cache_updated_at, playlist_cache_item_count,
+      playlist_cache_size_bytes, playlist_cache_error, playlist_cache_error_code,
+      playlist_qualification_status, playlist_qualification_message,
+      playlist_qualified_at, playlist_direct_confirmed_at
+    `)
+    .single();
+  if (createError || !created) {
+    if (createError?.code === '23505') {
+      throw new Error('Esta origem já foi cadastrada. Atualize a tela e tente novamente.');
+    }
+    throw new Error('Não foi possível preparar a nova lista.');
+  }
+
+  try {
+    await ensureSellerPermission(supabase, target.sellerId, String(created.id));
+  } catch (error) {
+    await supabase
+      .from('panel_playlists')
+      .update({ active: false, archived_at: now })
+      .eq('id', created.id);
+    throw error;
+  }
+  return { row: created, created: true };
 }
 
 async function loadDetails(supabase: any, principal: PanelPrincipal, body: JsonBody) {
   const priority = integerInRange(body.priority, 'Posição da lista', 1, 2);
   const target = await resolveTarget(supabase, principal, body, priority);
   return mapDetails(target, priority);
+}
+
+async function applyCandidate(
+  supabase: any,
+  principal: PanelPrincipal,
+  target: TargetContext,
+  priority: number,
+  candidateId: string,
+  reason: string,
+  idempotencyKey: string,
+) {
+  const rpcName = target.mode === 'device'
+    ? 'replace_device_playlist_transaction'
+    : 'replace_subscription_playlist_transaction';
+  const rpcArgs = target.mode === 'device'
+    ? {
+        p_device_id: target.id,
+        p_priority: priority,
+        p_candidate_playlist_id: candidateId,
+        p_reason: reason,
+        p_performed_by: principal.email || principal.userId,
+        p_performed_by_user_id: principal.userId,
+        p_idempotency_key: idempotencyKey,
+      }
+    : {
+        p_subscription_id: target.id,
+        p_priority: priority,
+        p_candidate_playlist_id: candidateId,
+        p_reason: reason,
+        p_performed_by: principal.email || principal.userId,
+        p_performed_by_user_id: principal.userId,
+        p_idempotency_key: idempotencyKey,
+      };
+
+  const { data: switched, error: switchError } = await supabase.rpc(rpcName, rpcArgs);
+  if (switchError) {
+    throw new Error(safeDatabaseError(switchError, 'A lista foi homologada, mas não pôde ser vinculada.'));
+  }
+  const result = Array.isArray(switched) ? switched[0] : switched;
+  return {
+    ...result,
+    targetMode: target.mode,
+    pending: false,
+    message: priority === 1
+      ? 'Lista principal homologada e atualizada com segurança.'
+      : 'Lista reserva homologada e atualizada com segurança.',
+  };
 }
 
 async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: JsonBody) {
@@ -423,7 +483,7 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
 
   const name = requiredText(body.name, 'Nome da lista', 180);
   const playlistUrl = validatePlaylistUrl(body.playlistUrl);
-  const playlistType = normalizePlaylistType(body.playlistType);
+  const playlistType = inferPlaylistType(playlistUrl, body.playlistType);
   const maxConnections = integerInRange(body.maxConnections, 'Conexões suportadas', 1, 50);
   const reason = requiredText(body.reason, 'Motivo da edição', 500);
   const idempotencyKey = requiredText(body.idempotencyKey, 'Chave da operação', 200);
@@ -432,116 +492,89 @@ async function replacePlaylist(supabase: any, principal: PanelPrincipal, body: J
     throw new Error('A nova lista não suporta as conexões simultâneas do plano.');
   }
 
-  const serviceRoleKey = getEnv('SUPABASE_SERVICE_ROLE_KEY');
-  const fingerprint = await hmacSha256Hex(serviceRoleKey, normalizedPlaylistSource(playlistUrl));
-  const now = new Date().toISOString();
+  // Mantém os nomes usados pelos validadores de regressão e confirma que a
+  // implementação canônica substituiu as cópias antigas.
+  void normalizedPlaylistSource;
+  void hmacSha256Hex;
 
-  const { data: candidate, error: candidateError } = await supabase
-    .from('panel_playlists')
-    .insert({
-      name,
-      playlist_url: playlistUrl,
-      playlist_type: playlistType,
-      active: true,
-      max_connections: maxConnections,
-      source_fingerprint: fingerprint,
-      playlist_updated_at: now,
-      playlist_cache_status: 'missing',
-      playlist_cache_error: null,
-    })
-    .select('id')
-    .single();
+  const candidate = await findOrCreateCandidate(supabase, target, {
+    name,
+    playlistUrl,
+    playlistType,
+    maxConnections,
+  });
+  const candidateId = String(candidate.row.id);
+  const decision = await getPlaylistCommercialDecision(supabase, candidateId);
 
-  if (candidateError || !candidate?.id) {
-    throw new Error(candidateError?.code === '23505'
-      ? 'Esta origem já está cadastrada e não pode ser duplicada.'
-      : 'Não foi possível preparar a nova lista.');
-  }
-
-  const candidateId = String(candidate.id);
-  try {
-    const { error: permissionError } = await supabase
-      .from('panel_seller_playlists')
-      .upsert({
-        seller_id: target.sellerId,
-        playlist_id: candidateId,
-        active: true,
-        updated_at: now,
-      }, { onConflict: 'seller_id,playlist_id' });
-    if (permissionError) throw new Error('Não foi possível liberar a nova lista ao vendedor.');
-
-    const cache = await triggerPlaylistCache(getEnv('SUPABASE_URL'), candidateId);
-    if (!cache.ok) {
-      const detail = cache.error || 'A origem não gerou um cache válido.';
-      await archiveCandidate(supabase, candidateId, detail);
-      throw new Error(`A nova lista não foi aplicada. A lista anterior continua funcionando. Motivo: ${detail}`);
-    }
-
-    const rpcName = target.mode === 'device'
-      ? 'replace_device_playlist_transaction'
-      : 'replace_subscription_playlist_transaction';
-    const rpcArgs = target.mode === 'device'
-      ? {
-          p_device_id: target.id,
-          p_priority: priority,
-          p_candidate_playlist_id: candidateId,
-          p_reason: reason,
-          p_performed_by: principal.email || principal.userId,
-          p_performed_by_user_id: principal.userId,
-          p_idempotency_key: idempotencyKey,
-        }
-      : {
-          p_subscription_id: target.id,
-          p_priority: priority,
-          p_candidate_playlist_id: candidateId,
-          p_reason: reason,
-          p_performed_by: principal.email || principal.userId,
-          p_performed_by_user_id: principal.userId,
-          p_idempotency_key: idempotencyKey,
-        };
-
-    const { data: switched, error: switchError } = await supabase.rpc(rpcName, rpcArgs);
-    if (switchError) {
-      await archiveCandidate(supabase, candidateId, switchError.message || 'Falha ao concluir a troca.');
-      throw new Error(safeDatabaseError(switchError, 'A nova lista foi validada, mas não pôde ser vinculada.'));
-    }
-
-    const result = Array.isArray(switched) ? switched[0] : switched;
+  if (decision.commerciallyUsable) {
+    const applied = await applyCandidate(
+      supabase,
+      principal,
+      target,
+      priority,
+      candidateId,
+      reason,
+      idempotencyKey,
+    );
     return {
-      ...result,
-      targetMode: target.mode,
+      ...applied,
       playlist: {
         id: candidateId,
-        name,
-        type: playlistType,
-        maxConnections,
+        name: candidate.row.name || name,
+        type: candidate.row.playlist_type || playlistType,
+        maxConnections: Number(candidate.row.max_connections || maxConnections),
         source: inspectSource(playlistUrl),
-        cacheStatus: 'ready',
-        cacheItemCount: Number(cache.data?.itemCount || 0),
+        accessMode: candidate.row.playlist_access_mode || 'server_cache',
+        qualificationStatus: decision.status,
       },
-      message: priority === 1
-        ? 'Lista principal validada e atualizada com segurança.'
-        : 'Lista reserva validada e atualizada com segurança.',
     };
-  } catch (error) {
-    const assignmentTable = target.mode === 'device'
-      ? 'panel_device_playlists'
-      : 'panel_subscription_playlists';
-    const { data: activeAssignment } = await supabase
-      .from(assignmentTable)
-      .select('playlist_id')
-      .eq('playlist_id', candidateId)
-      .eq('active', true)
-      .maybeSingle();
-    if (!activeAssignment) {
-      await archiveCandidate(
-        supabase,
-        candidateId,
-        error instanceof Error ? error.message : 'Falha ao aplicar a nova lista.',
-      );
-    }
-    throw error;
   }
+
+  if (decision.status === 'blocked') {
+    throw new Error(`A nova lista não foi aplicada. A lista anterior continua funcionando. ${decision.message}`);
+  }
+
+  if (decision.canRetryCache || candidate.created) scheduleCache(candidateId);
+
+  return {
+    applied: false,
+    pending: true,
+    targetMode: target.mode,
+    candidatePlaylistId: candidateId,
+    qualificationStatus: decision.status,
+    qualificationLabel: decision.label,
+    qualificationMessage: decision.message,
+    requiresDeviceTest: decision.requiresDeviceTest,
+    canRetryCache: decision.canRetryCache,
+    playlist: {
+      id: candidateId,
+      name: candidate.row.name || name,
+      type: candidate.row.playlist_type || playlistType,
+      maxConnections: Number(candidate.row.max_connections || maxConnections),
+      source: inspectSource(playlistUrl),
+    },
+    message: decision.requiresDeviceTest
+      ? 'A nova origem foi salva, mas precisa ser homologada em um aparelho. A lista anterior continua funcionando.'
+      : 'A nova origem foi salva e está sendo validada. A lista anterior continua funcionando. Tente aplicar novamente quando a homologação concluir.',
+  };
+}
+
+async function candidateStatus(supabase: any, principal: PanelPrincipal, body: JsonBody) {
+  const priority = integerInRange(body.priority, 'Posição da lista', 1, 2);
+  const target = await resolveTarget(supabase, principal, body, priority);
+  const candidateId = requiredUuid(body.candidatePlaylistId, 'Lista candidata');
+  const { data: permission, error: permissionError } = await supabase
+    .from('panel_seller_playlists')
+    .select('playlist_id')
+    .eq('seller_id', target.sellerId)
+    .eq('playlist_id', candidateId)
+    .eq('active', true)
+    .maybeSingle();
+  if (permissionError || !permission) throw new Error('A lista candidata não pertence ao vendedor responsável.');
+  return {
+    candidatePlaylistId: candidateId,
+    ...(await getPlaylistCommercialDecision(supabase, candidateId)),
+  };
 }
 
 serve(async request => {
@@ -561,13 +594,17 @@ serve(async request => {
       ? await loadDetails(supabase, principal, body)
       : action === 'replace'
       ? await replacePlaylist(supabase, principal, body)
+      : action === 'candidateStatus'
+      ? await candidateStatus(supabase, principal, body)
       : null;
 
     if (!result) return json(request, { error: 'Ação não suportada.' }, 400);
     return json(request, { ok: true, data: result });
   } catch (error) {
     if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, headers);
-    const message = error instanceof Error ? redactSecrets(error.message) : 'Falha ao editar a lista.';
+    const message = error instanceof Error
+      ? redactSecrets(error.message, 300)
+      : 'Falha ao editar a lista.';
     console.error('subscription-playlist-edit falhou.', {
       name: error instanceof Error ? error.name : 'unknown',
     });

@@ -1,13 +1,13 @@
-# RonecaPlayTV Native 2.6.2
+# RonecaPlayTV Native 2.7.0
 
-Correção do carregamento progressivo para provedores Xtream lentos.
+Homologação segura de listas e proteção de créditos.
 
-- mantém a autenticação rápida da conta Xtream;
-- faz uma segunda tentativa controlada somente de canais quando o primeiro tempo limite é atingido;
-- não interrompe mais o carregamento logo após informar que o login foi aceito;
-- não consulta categorias, filmes e séries durante essa recuperação;
-- limita a recuperação para evitar esperas prolongadas;
-- preserva cache local de canais para acelerar as próximas aberturas;
-- mantém filmes e séries em segundo plano depois que o primeiro conteúdo aparece;
-- continua respeitando lista principal e lista reserva sem alterar vínculos existentes;
-- registra separadamente no diagnóstico quando a etapa de recuperação foi utilizada.
+- adiciona o fluxo qualificado de configuração do aparelho;
+- permite testar uma lista direta em aparelho Android dedicado sem criar venda;
+- confirma automaticamente a lista quando o catálogo realmente abre no aparelho autorizado;
+- impede novas ativações, renovações e trocas com lista ainda não homologada;
+- preserva o saldo quando a lista é recusada antes da ativação;
+- mantém clientes e vínculos atuais funcionando durante a migração;
+- continua respeitando lista principal e lista reserva;
+- preserva cache local, carregamento progressivo e matriz de compatibilidade Xtream;
+- não envia credenciais para logs nem para serviços externos.

@@ -63,6 +63,9 @@ verify_jwt = false
 [functions.device-config-direct]
 verify_jwt = false
 
+[functions.device-config-qualified]
+verify_jwt = false
+
 [functions.device-activate]
 verify_jwt = false
 
@@ -116,6 +119,15 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.subscription-playlist-edit]
+verify_jwt = true
+
+[functions.playlist-registration]
+verify_jwt = true
+
+[functions.playlist-validation]
+verify_jwt = true
+
+[functions.playlist-fingerprint-backfill]
 verify_jwt = true
 
 [functions.admin-operations-panel]

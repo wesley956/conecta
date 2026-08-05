@@ -60,7 +60,7 @@ export function classifyPlaylistCacheFailure(
     return {
       accessMode: 'direct',
       code: 'DATACENTER_TIMEOUT',
-      message: 'O provedor não respondeu ao servidor. O aparelho usará acesso direto.',
+      message: 'O provedor não respondeu ao servidor. É necessário confirmar o acesso direto em um aparelho.',
       directEligible: true,
     };
   }
@@ -70,7 +70,7 @@ export function classifyPlaylistCacheFailure(
     return {
       accessMode: 'direct',
       code: 'DATACENTER_HTTP_404',
-      message: 'O provedor não expôs o endpoint ao servidor. O aparelho usará acesso direto.',
+      message: 'O endpoint não respondeu ao servidor. É necessário confirmar o acesso direto em um aparelho.',
       directEligible: true,
     };
   }
@@ -80,7 +80,7 @@ export function classifyPlaylistCacheFailure(
     return {
       accessMode: 'direct',
       code: 'DATACENTER_BLOCKED',
-      message: 'O provedor bloqueou ou recusou o servidor. O aparelho usará acesso direto.',
+      message: 'O provedor recusou o servidor. É necessário confirmar o acesso direto em um aparelho.',
       directEligible: true,
     };
   }
@@ -140,7 +140,22 @@ export function isPlaylistUsable(
   errorCode: unknown,
   cacheError: unknown,
   playlistType: unknown = 'm3u',
+  qualificationStatus: unknown = null,
 ) {
-  return cacheStatus === 'ready'
-    || resolvePlaylistAccessMode(cacheStatus, storedMode, errorCode, cacheError, playlistType) === 'direct';
+  const qualification = String(qualificationStatus ?? '').trim();
+  if (qualification) {
+    return qualification === 'ready_cache' || qualification === 'ready_direct';
+  }
+
+  // Este helper mede disponibilidade técnica para aparelhos já vinculados.
+  // A autorização de novas vendas é feita exclusivamente pela qualificação
+  // comercial e pelas guardas transacionais do banco.
+  const accessMode = resolvePlaylistAccessMode(
+    cacheStatus,
+    storedMode,
+    errorCode,
+    cacheError,
+    playlistType,
+  );
+  return cacheStatus === 'ready' || accessMode === 'direct';
 }

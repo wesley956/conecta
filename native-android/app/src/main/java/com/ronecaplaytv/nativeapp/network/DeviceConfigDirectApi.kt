@@ -54,7 +54,7 @@ class DeviceConfigDirectApi(private val functionsBaseUrl: String) {
                 }
             }
 
-        val endpoint = URL("${functionsBaseUrl.trimEnd('/')}/device-config-direct")
+        val endpoint = URL("${functionsBaseUrl.trimEnd('/')}/device-config-qualified")
         require(endpoint.protocol == "https") { "Redirecionamento para protocolo inseguro bloqueado." }
 
         val connection = (endpoint.openConnection() as HttpURLConnection).apply {

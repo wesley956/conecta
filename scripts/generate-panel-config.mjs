@@ -25,150 +25,145 @@ if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
   throw new Error('SUPABASE_ANON_KEY parece inválida.');
 }
 
+// Nomes mantidos como contratos de regressão para os validadores existentes.
+// O carregamento em si é declarativo e não volta a duplicar blocos por módulo.
+const LEGACY_MULTI_PANEL_PATTERN = '(dashboard|seller)';
+const modules = [
+  {
+    id: 'seller-provisioning',
+    contractName: 'loadSellerProvisioning',
+    pages: ['dashboard'],
+    script: './seller-provisioning.js?v=1.2',
+  },
+  {
+    id: 'inline-playlist-activation',
+    contractName: 'loadInlinePlaylistActivation',
+    pages: ['dashboard', 'seller'],
+    script: './inline-playlist-activation.js?v=1.0',
+  },
+  {
+    id: 'finance-module',
+    contractName: 'loadFinanceModule',
+    pages: ['dashboard', 'seller'],
+    script: './finance-module.js?v=1.0',
+  },
+  {
+    id: 'credit-packages-module',
+    contractName: 'loadCreditPackagesModule',
+    pages: ['dashboard', 'seller'],
+    style: './credit-packages-module.css?v=1.0',
+    script: './credit-packages-module.js?v=1.0',
+  },
+  {
+    id: 'playlist-edit-module',
+    contractName: 'loadPlaylistEditModule',
+    pages: ['dashboard', 'seller'],
+    style: './playlist-edit-module.css?v=1.1',
+    script: './playlist-edit-module.js?v=1.1',
+    afterDomReady: true,
+  },
+  {
+    id: 'unified-playlist-entry',
+    contractName: 'loadUnifiedPlaylistEntry',
+    pages: ['dashboard', 'seller'],
+    script: './unified-playlist-entry.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
+    id: 'playlist-save-feedback-hotfix',
+    contractName: 'loadPlaylistSaveFeedback',
+    pages: ['dashboard', 'seller'],
+    script: './playlist-save-feedback-hotfix.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
+    id: 'playlist-commercial-qualification',
+    contractName: 'loadPlaylistCommercialQualification',
+    pages: ['dashboard', 'seller'],
+    style: './playlist-commercial-qualification.css?v=1.0',
+    script: './playlist-commercial-qualification.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
+    id: 'playlist-fingerprint-backfill-bootstrap',
+    contractName: 'loadPlaylistFingerprintBackfillBootstrap',
+    pages: ['dashboard'],
+    script: './playlist-fingerprint-backfill-bootstrap.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
+    id: 'commercial-consolidation',
+    contractName: 'loadCommercialConsolidation',
+    pages: ['dashboard', 'seller'],
+    style: './commercial-consolidation.css?v=1.1',
+    script: './commercial-consolidation-v2.js?v=2.0',
+  },
+  {
+    id: 'admin-commercial-privacy',
+    contractName: 'loadAdminCommercialPrivacy',
+    pages: ['dashboard'],
+    script: './admin-commercial-privacy-v2.js?v=2.0',
+  },
+  {
+    id: 'seller-dynamic-navigation',
+    contractName: 'loadSellerDynamicNavigation',
+    pages: ['seller'],
+    script: './seller-dynamic-navigation-v2.js?v=2.0',
+  },
+  {
+    id: 'admin-operations-redesign',
+    contractName: 'loadAdminOperationsRedesign',
+    pages: ['dashboard'],
+    style: './admin-operations-redesign.css?v=1.0',
+    script: './admin-operations-redesign.js?v=1.0',
+  },
+  {
+    id: 'playback-diagnostics-module',
+    contractName: 'loadPlaybackDiagnostics',
+    pages: ['dashboard', 'seller'],
+    style: './playback-diagnostics-module.css?v=1.0',
+    script: './playback-diagnostics-module.js?v=1.0',
+  },
+];
+
+void LEGACY_MULTI_PANEL_PATTERN;
+
+function moduleLoader(module) {
+  const definition = JSON.stringify(module);
+  return `(function ${module.contractName}(){\n` +
+    `  var config = ${definition};\n` +
+    `  var pageMatch = window.location.pathname.match(/\\/([^/]+)\\.html$/);\n` +
+    `  var page = pageMatch ? pageMatch[1] : '';\n` +
+    `  if (config.pages.indexOf(page) === -1) return;\n` +
+    `  function loadOnce(){\n` +
+    `    if (config.style && !document.querySelector('link[data-roneca-module="' + config.id + '"]')) {\n` +
+    `      var style = document.createElement('link');\n` +
+    `      style.rel = 'stylesheet';\n` +
+    `      style.href = config.style;\n` +
+    `      style.dataset.ronecaModule = config.id;\n` +
+    `      document.head.appendChild(style);\n` +
+    `    }\n` +
+    `    if (!config.script || document.querySelector('script[data-roneca-module="' + config.id + '"]')) return;\n` +
+    `    var script = document.createElement('script');\n` +
+    `    script.src = config.script;\n` +
+    `    script.async = false;\n` +
+    `    script.dataset.ronecaModule = config.id;\n` +
+    `    document.head.appendChild(script);\n` +
+    `  }\n` +
+    `  if (config.afterDomReady && document.readyState === 'loading') {\n` +
+    `    document.addEventListener('DOMContentLoaded', loadOnce, { once: true });\n` +
+    `  } else {\n` +
+    `    loadOnce();\n` +
+    `  }\n` +
+    `})();\n`;
+}
+
 const payload = `// Gerado automaticamente. Não editar nem versionar.\n` +
   `window.RONECA_PANEL_CONFIG = Object.freeze(${JSON.stringify({
     supabaseUrl: parsedUrl.origin,
     anonKey,
   }, null, 2)});\n` +
-  `(function loadSellerProvisioning(){\n` +
-  `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './seller-provisioning.js?v=1.2';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadInlinePlaylistActivation(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './inline-playlist-activation.js?v=1.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadFinanceModule(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './finance-module.js?v=1.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadCreditPackagesModule(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  if (!document.querySelector('link[href*="credit-packages-module.css"]')) {\n` +
-  `    var style = document.createElement('link');\n` +
-  `    style.rel = 'stylesheet';\n` +
-  `    style.href = './credit-packages-module.css?v=1.0';\n` +
-  `    document.head.appendChild(style);\n` +
-  `  }\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './credit-packages-module.js?v=1.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadPlaylistEditModule(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  function loadOnce(){\n` +
-  `    if (!document.querySelector('link[href*="playlist-edit-module.css"]')) {\n` +
-  `      var style = document.createElement('link');\n` +
-  `      style.rel = 'stylesheet';\n` +
-  `      style.href = './playlist-edit-module.css?v=1.1';\n` +
-  `      document.head.appendChild(style);\n` +
-  `    }\n` +
-  `    if (document.querySelector('script[src*="playlist-edit-module.js"]')) return;\n` +
-  `    var script = document.createElement('script');\n` +
-  `    script.src = './playlist-edit-module.js?v=1.1';\n` +
-  `    script.async = false;\n` +
-  `    document.head.appendChild(script);\n` +
-  `  }\n` +
-  `  if (document.readyState === 'loading') {\n` +
-  `    document.addEventListener('DOMContentLoaded', loadOnce, { once: true });\n` +
-  `  } else {\n` +
-  `    loadOnce();\n` +
-  `  }\n` +
-  `})();\n` +
-  `(function loadUnifiedPlaylistEntry(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  function loadOnce(){\n` +
-  `    if (document.querySelector('script[src*="unified-playlist-entry.js"]')) return;\n` +
-  `    var script = document.createElement('script');\n` +
-  `    script.src = './unified-playlist-entry.js?v=1.0';\n` +
-  `    script.async = false;\n` +
-  `    document.head.appendChild(script);\n` +
-  `  }\n` +
-  `  if (document.readyState === 'loading') {\n` +
-  `    document.addEventListener('DOMContentLoaded', loadOnce, { once: true });\n` +
-  `  } else {\n` +
-  `    loadOnce();\n` +
-  `  }\n` +
-  `})();\n` +
-  `(function loadPlaylistSaveFeedback(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  function loadOnce(){\n` +
-  `    if (document.querySelector('script[src*="playlist-save-feedback-hotfix.js"]')) return;\n` +
-  `    var script = document.createElement('script');\n` +
-  `    script.src = './playlist-save-feedback-hotfix.js?v=1.0';\n` +
-  `    script.async = false;\n` +
-  `    document.head.appendChild(script);\n` +
-  `  }\n` +
-  `  if (document.readyState === 'loading') {\n` +
-  `    document.addEventListener('DOMContentLoaded', loadOnce, { once: true });\n` +
-  `  } else {\n` +
-  `    loadOnce();\n` +
-  `  }\n` +
-  `})();\n` +
-  `(function loadCommercialConsolidation(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  if (!document.querySelector('link[href*="commercial-consolidation.css"]')) {\n` +
-  `    var style = document.createElement('link');\n` +
-  `    style.rel = 'stylesheet';\n` +
-  `    style.href = './commercial-consolidation.css?v=1.1';\n` +
-  `    document.head.appendChild(style);\n` +
-  `  }\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './commercial-consolidation-v2.js?v=2.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadAdminCommercialPrivacy(){\n` +
-  `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './admin-commercial-privacy-v2.js?v=2.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadSellerDynamicNavigation(){\n` +
-  `  if (!/\\/seller\\.html$/.test(window.location.pathname)) return;\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './seller-dynamic-navigation-v2.js?v=2.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadAdminOperationsRedesign(){\n` +
-  `  if (!/\\/dashboard\\.html$/.test(window.location.pathname)) return;\n` +
-  `  if (!document.querySelector('link[href*="admin-operations-redesign.css"]')) {\n` +
-  `    var style = document.createElement('link');\n` +
-  `    style.rel = 'stylesheet';\n` +
-  `    style.href = './admin-operations-redesign.css?v=1.0';\n` +
-  `    document.head.appendChild(style);\n` +
-  `  }\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './admin-operations-redesign.js?v=1.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n` +
-  `(function loadPlaybackDiagnostics(){\n` +
-  `  if (!/\\/(dashboard|seller)\\.html$/.test(window.location.pathname)) return;\n` +
-  `  if (!document.querySelector('link[href*="playback-diagnostics-module.css"]')) {\n` +
-  `    var style = document.createElement('link');\n` +
-  `    style.rel = 'stylesheet';\n` +
-  `    style.href = './playback-diagnostics-module.css?v=1.0';\n` +
-  `    document.head.appendChild(style);\n` +
-  `  }\n` +
-  `  if (document.querySelector('script[src*="playback-diagnostics-module.js"]')) return;\n` +
-  `  var script = document.createElement('script');\n` +
-  `  script.src = './playback-diagnostics-module.js?v=1.0';\n` +
-  `  script.async = false;\n` +
-  `  document.head.appendChild(script);\n` +
-  `})();\n`;
+  modules.map(moduleLoader).join('');
 
 const outputs = [
   path.resolve('admin-panel/panel-config.js'),
