@@ -45,6 +45,7 @@ set search_path = ''
 as $$
 declare
   v_requires_check boolean := false;
+  v_qualification_status text;
 begin
   if new.status <> 'active' or new.playlist_id is null then
     return new;
@@ -66,11 +67,22 @@ begin
   end if;
 
   if v_requires_check then
-    perform public.assert_playlist_commercially_usable_for_device(
+    perform public.assert_playlist_commercially_usable(
       new.playlist_id,
-      new.id,
       'Lista principal'
     );
+
+    select playlist.playlist_qualification_status
+    into v_qualification_status
+    from public.panel_playlists playlist
+    where playlist.id = new.playlist_id;
+
+    if v_qualification_status = 'ready_direct'
+       and lower(coalesce(new.device_type, '')) not in ('android', 'androidtv') then
+      raise exception using
+        errcode = 'P0001',
+        message = 'Lista principal utiliza acesso direto, que nesta etapa está homologado somente para Android.';
+    end if;
   end if;
   return new;
 end;
