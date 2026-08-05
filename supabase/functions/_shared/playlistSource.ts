@@ -83,8 +83,21 @@ export async function hmacSha256Hex(secret: string, value: string) {
     .join('');
 }
 
+export function playlistFingerprintSecret(fallbackSecret: string) {
+  let configured = '';
+  try {
+    configured = String(Deno.env.get('PLAYLIST_FINGERPRINT_SECRET') || '').trim();
+  } catch {
+    configured = '';
+  }
+  return configured || fallbackSecret;
+}
+
 export async function playlistSourceFingerprint(secret: string, playlistUrl: string) {
-  return hmacSha256Hex(secret, normalizedPlaylistSource(playlistUrl));
+  return hmacSha256Hex(
+    playlistFingerprintSecret(secret),
+    normalizedPlaylistSource(playlistUrl),
+  );
 }
 
 function maskPath(pathname: string) {
