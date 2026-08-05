@@ -1,0 +1,53 @@
+name: Terminal playlist diagnostics
+
+on:
+  push:
+    branches:
+      - diagnostics/terminal-playlists
+    paths:
+      - 'scripts/run-playlist-terminal-diagnostics.mjs'
+      - '.github/workflows/terminal-playlist-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terminal-playlist-diagnostics
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Test all active playlists without panel cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout diagnostics branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test active playlists directly
+        env:
+          SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DIAGNOSTIC_OUTPUT_DIR: artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY secret}"
+          node scripts/run-playlist-terminal-diagnostics.mjs
+
+      - name: Upload sanitized diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: playlist-terminal-diagnostics
+          path: |
+            artifacts/playlist-terminal-diagnostics.json
+            artifacts/playlist-terminal-diagnostics.md
+          if-no-files-found: error
+          retention-days: 3
