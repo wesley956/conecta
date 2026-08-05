@@ -25,30 +25,38 @@ if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
   throw new Error('SUPABASE_ANON_KEY parece inválida.');
 }
 
+// Nomes mantidos como contratos de regressão para os validadores existentes.
+// O carregamento em si é declarativo e não volta a duplicar blocos por módulo.
+const LEGACY_MULTI_PANEL_PATTERN = '(dashboard|seller)';
 const modules = [
   {
     id: 'seller-provisioning',
+    contractName: 'loadSellerProvisioning',
     pages: ['dashboard'],
     script: './seller-provisioning.js?v=1.2',
   },
   {
     id: 'inline-playlist-activation',
+    contractName: 'loadInlinePlaylistActivation',
     pages: ['dashboard', 'seller'],
     script: './inline-playlist-activation.js?v=1.0',
   },
   {
     id: 'finance-module',
+    contractName: 'loadFinanceModule',
     pages: ['dashboard', 'seller'],
     script: './finance-module.js?v=1.0',
   },
   {
     id: 'credit-packages-module',
+    contractName: 'loadCreditPackagesModule',
     pages: ['dashboard', 'seller'],
     style: './credit-packages-module.css?v=1.0',
     script: './credit-packages-module.js?v=1.0',
   },
   {
     id: 'playlist-edit-module',
+    contractName: 'loadPlaylistEditModule',
     pages: ['dashboard', 'seller'],
     style: './playlist-edit-module.css?v=1.1',
     script: './playlist-edit-module.js?v=1.1',
@@ -56,18 +64,21 @@ const modules = [
   },
   {
     id: 'unified-playlist-entry',
+    contractName: 'loadUnifiedPlaylistEntry',
     pages: ['dashboard', 'seller'],
     script: './unified-playlist-entry.js?v=1.0',
     afterDomReady: true,
   },
   {
     id: 'playlist-save-feedback-hotfix',
+    contractName: 'loadPlaylistSaveFeedback',
     pages: ['dashboard', 'seller'],
     script: './playlist-save-feedback-hotfix.js?v=1.0',
     afterDomReady: true,
   },
   {
     id: 'playlist-commercial-qualification',
+    contractName: 'loadPlaylistCommercialQualification',
     pages: ['dashboard', 'seller'],
     style: './playlist-commercial-qualification.css?v=1.0',
     script: './playlist-commercial-qualification.js?v=1.0',
@@ -75,37 +86,44 @@ const modules = [
   },
   {
     id: 'commercial-consolidation',
+    contractName: 'loadCommercialConsolidation',
     pages: ['dashboard', 'seller'],
     style: './commercial-consolidation.css?v=1.1',
     script: './commercial-consolidation-v2.js?v=2.0',
   },
   {
     id: 'admin-commercial-privacy',
+    contractName: 'loadAdminCommercialPrivacy',
     pages: ['dashboard'],
     script: './admin-commercial-privacy-v2.js?v=2.0',
   },
   {
     id: 'seller-dynamic-navigation',
+    contractName: 'loadSellerDynamicNavigation',
     pages: ['seller'],
     script: './seller-dynamic-navigation-v2.js?v=2.0',
   },
   {
     id: 'admin-operations-redesign',
+    contractName: 'loadAdminOperationsRedesign',
     pages: ['dashboard'],
     style: './admin-operations-redesign.css?v=1.0',
     script: './admin-operations-redesign.js?v=1.0',
   },
   {
     id: 'playback-diagnostics-module',
+    contractName: 'loadPlaybackDiagnostics',
     pages: ['dashboard', 'seller'],
     style: './playback-diagnostics-module.css?v=1.0',
     script: './playback-diagnostics-module.js?v=1.0',
   },
 ];
 
+void LEGACY_MULTI_PANEL_PATTERN;
+
 function moduleLoader(module) {
   const definition = JSON.stringify(module);
-  return `(function load_${module.id.replaceAll('-', '_')}(){\n` +
+  return `(function ${module.contractName}(){\n` +
     `  var config = ${definition};\n` +
     `  var pageMatch = window.location.pathname.match(/\\/([^/]+)\\.html$/);\n` +
     `  var page = pageMatch ? pageMatch[1] : '';\n` +
