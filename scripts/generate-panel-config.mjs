@@ -85,6 +85,13 @@ const modules = [
     afterDomReady: true,
   },
   {
+    id: 'playlist-fingerprint-backfill-bootstrap',
+    contractName: 'loadPlaylistFingerprintBackfillBootstrap',
+    pages: ['dashboard'],
+    script: './playlist-fingerprint-backfill-bootstrap.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
     id: 'commercial-consolidation',
     contractName: 'loadCommercialConsolidation',
     pages: ['dashboard', 'seller'],
