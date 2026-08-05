@@ -33,64 +33,63 @@ import java.util.UUID
 import javax.net.ssl.SSLException
 
 /**
- * Via rápida para o primeiro conteúdo de provedores Xtream.
- *
- * Ela consulta somente autenticação e get_live_streams, sem bloquear a tela
- * esperando categorias, filmes e séries. O catálogo completo continua sendo
- * hidratado em segundo plano pelo executor de compatibilidade.
+ * Via rápida para mostrar o primeiro conteúdo de uma conta Xtream.
+ * Consulta somente autenticação e get_live_streams, sem bloquear a tela
+ * aguardando categorias, filmes e séries.
  */
 internal class FastXtreamChannelClient(
     context: Context,
     private val reportAttempt: (ProviderAttemptReport) -> Unit = {},
 ) {
-    private val applicationContext = context.applicationContext
-    private val cacheDirectory = File(applicationContext.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }
+    private val appContext = context.applicationContext
+    private val cacheDirectory = File(appContext.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }
     private val authenticationMutex = Mutex()
     private val authenticationCache = mutableMapOf<String, Long>()
-    private val platform = detectPlatform(applicationContext)
+    private val platform = detectPlatform(appContext)
 
-    fun supports(markedUrl: String): Boolean = credentialsFrom(markedUrl) != null
+    fun supports(markedUrl: String): Boolean = parseCredentials(markedUrl) != null
 
     suspend fun loadChannels(
         markedUrl: String,
         attemptContext: ProviderAttemptContext,
     ): List<NativeChannel> = withContext(Dispatchers.IO) {
-        val credentials = credentialsFrom(markedUrl)
+        val credentials = parseCredentials(markedUrl)
             ?: throw CatalogLoadException(
                 "[XTREAM_AUTH_INVALID] A origem direta não contém credenciais Xtream válidas.",
             )
         val started = SystemClock.elapsedRealtime()
         val result = runCatching {
             verifyAuthentication(credentials)
-            val payload = requestText(
+            val text = request(
                 credentials = credentials,
                 action = "get_live_streams",
                 maximumBytes = MAX_CHANNEL_RESPONSE_BYTES,
-                allowStaleFallback = true,
+                allowStale = true,
             )
-            val items = runCatching { JSONArray(payload.text) }.getOrElse {
+            val array = runCatching { JSONArray(text) }.getOrElse {
                 throw CatalogLoadException(
                     "[XTREAM_RESPONSE_INVALID] A API Xtream retornou canais inválidos.",
                 )
             }
-            items.objects().mapNotNull { item ->
-                val streamId = item.optStringValue("stream_id") ?: return@mapNotNull null
-                val name = item.optStringValue("name") ?: return@mapNotNull null
+            array.jsonObjects().mapNotNull { item ->
+                val streamId = item.stringValue("stream_id") ?: return@mapNotNull null
+                val name = item.stringValue("name") ?: return@mapNotNull null
                 val playbackUrls = credentials.liveStreamUrls(streamId)
                 NativeChannel(
                     id = "xtream-fast-ch-$streamId",
                     name = name,
                     groupTitle = "Canais",
-                    logoUrl = item.optStringValue("stream_icon"),
+                    logoUrl = item.stringValue("stream_icon"),
                     primaryUrl = playbackUrls.first(),
                     playbackUrls = playbackUrls,
                 )
             }
         }
+
         val elapsed = (SystemClock.elapsedRealtime() - started).coerceAtLeast(0)
         val channels = result.getOrNull()
         val failure = result.exceptionOrNull()?.message
-        val facts = endpointFacts(credentials.apiUrl("get_live_streams"))
+        val endpoint = credentials.apiUrl("get_live_streams")
         runCatching {
             reportAttempt(
                 ProviderAttemptReport(
@@ -100,13 +99,13 @@ internal class FastXtreamChannelClient(
                     phase = "fast",
                     section = "channels",
                     transport = "xtream",
-                    strategyKey = "xtream_fast_first_content_${facts.protocol}_${facts.port}",
-                    protocol = facts.protocol,
-                    host = facts.host,
-                    port = facts.port,
-                    path = facts.path,
+                    strategyKey = "xtream_fast_first_content_${endpoint.protocol}_${endpoint.effectivePort()}",
+                    protocol = endpoint.protocol.lowercase(Locale.ROOT),
+                    host = endpoint.host.lowercase(Locale.ROOT),
+                    port = endpoint.effectivePort(),
+                    path = endpoint.path.ifBlank { "/" }.take(180),
                     requestProfile = USER_AGENT,
-                    outputFormat = credentials.output.ifBlank { null },
+                    outputFormat = credentials.output.takeIf(String::isNotBlank),
                     result = when {
                         result.isFailure -> "failure"
                         channels.isNullOrEmpty() -> "empty"
@@ -125,27 +124,27 @@ internal class FastXtreamChannelClient(
         result.getOrThrow()
     }
 
-    private suspend fun verifyAuthentication(credentials: Credentials) =
+    private suspend fun verifyAuthentication(credentials: FastCredentials) =
         authenticationMutex.withLock {
             val key = sha256("${credentials.server}|${credentials.username}|${credentials.password}")
             val now = System.currentTimeMillis()
-            authenticationCache[key]?.takeIf { it > now }?.let { return@withLock }
+            if ((authenticationCache[key] ?: 0L) > now) return@withLock
 
-            val payload = requestText(
+            val text = request(
                 credentials = credentials,
                 action = null,
                 maximumBytes = AUTH_RESPONSE_BYTES,
-                allowStaleFallback = false,
+                allowStale = false,
             )
-            val root = runCatching { JSONObject(payload.text) }.getOrElse {
+            val root = runCatching { JSONObject(text) }.getOrElse {
                 throw CatalogLoadException(
                     "[XTREAM_AUTH_INCOMPATIBLE] A autenticação Xtream retornou dados inválidos.",
                 )
             }
             val userInfo = root.optJSONObject("user_info") ?: root
-            val auth = userInfo.optStringValue("auth")
-            val status = userInfo.optStringValue("status")?.lowercase(Locale.ROOT).orEmpty()
-            val expiration = userInfo.optStringValue("exp_date")?.toLongOrNull()?.takeIf { it > 0L }
+            val auth = userInfo.stringValue("auth")
+            val status = userInfo.stringValue("status")?.lowercase(Locale.ROOT).orEmpty()
+            val expiration = userInfo.stringValue("exp_date")?.toLongOrNull()?.takeIf { it > 0L }
             val nowSeconds = now / 1_000L
 
             if (auth == "0" || status.contains("invalid") || status.contains("banned") ||
@@ -163,35 +162,34 @@ internal class FastXtreamChannelClient(
                     "[XTREAM_AUTH_INCOMPATIBLE] O servidor não confirmou uma sessão Xtream ativa.",
                 )
             }
+
             authenticationCache[key] = now + AUTH_CACHE_TTL_MS
-            if (authenticationCache.size > MAX_AUTH_CACHE_ENTRIES) {
-                authenticationCache.entries.removeIf { it.value <= now }
-                while (authenticationCache.size > MAX_AUTH_CACHE_ENTRIES) {
-                    authenticationCache.keys.firstOrNull()?.let(authenticationCache::remove) ?: break
-                }
+            authenticationCache.entries.removeIf { it.value <= now }
+            while (authenticationCache.size > MAX_AUTH_CACHE_ENTRIES) {
+                authenticationCache.keys.firstOrNull()?.let(authenticationCache::remove) ?: break
             }
         }
 
-    private fun requestText(
-        credentials: Credentials,
+    private fun request(
+        credentials: FastCredentials,
         action: String?,
         maximumBytes: Long,
-        allowStaleFallback: Boolean,
-    ): Payload {
-        val cacheKey = sha256(
+        allowStale: Boolean,
+    ): String {
+        val key = sha256(
             "${credentials.server}|${credentials.username}|${credentials.password}|${action ?: "auth"}",
         )
-        val cacheFile = File(cacheDirectory, "$cacheKey.json")
+        val cacheFile = File(cacheDirectory, "$key.json")
         val now = System.currentTimeMillis()
+
         if (
             action != null && cacheFile.isFile && cacheFile.length() in 1..maximumBytes &&
             now - cacheFile.lastModified() <= FRESH_CACHE_TTL_MS
         ) {
-            return Payload(cacheFile.readText(Charsets.UTF_8), stale = false)
+            return cacheFile.readText(Charsets.UTF_8)
         }
 
-        val endpoint = credentials.apiUrl(action)
-        val connection = (endpoint.openConnection() as HttpURLConnection).apply {
+        val connection = (credentials.apiUrl(action).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = if (action == null) AUTH_READ_TIMEOUT_MS else CATALOG_READ_TIMEOUT_MS
@@ -205,16 +203,16 @@ internal class FastXtreamChannelClient(
         return try {
             val status = connection.responseCode
             if (status !in 200..299) {
-                val message = when (status) {
-                    401, 403 -> "[XTREAM_AUTH_INVALID] O servidor recusou as credenciais Xtream (HTTP $status)."
-                    404 -> "[XTREAM_AUTH_ENDPOINT_NOT_FOUND] A API Xtream respondeu HTTP 404."
-                    408, 429 -> "[XTREAM_SERVER_BUSY] A API Xtream respondeu HTTP $status."
-                    else -> "[XTREAM_HTTP_ERROR] A API Xtream respondeu HTTP $status."
-                }
-                throw CatalogLoadException(message)
+                throw CatalogLoadException(
+                    when (status) {
+                        401, 403 -> "[XTREAM_AUTH_INVALID] O servidor recusou as credenciais Xtream (HTTP $status)."
+                        404 -> "[XTREAM_AUTH_ENDPOINT_NOT_FOUND] A API Xtream respondeu HTTP 404."
+                        408, 429 -> "[XTREAM_SERVER_BUSY] A API Xtream respondeu HTTP $status."
+                        else -> "[XTREAM_HTTP_ERROR] A API Xtream respondeu HTTP $status."
+                    },
+                )
             }
-            val declaredSize = connection.contentLengthLong
-            if (declaredSize > maximumBytes) {
+            if (connection.contentLengthLong > maximumBytes) {
                 throw CatalogLoadException(
                     "[XTREAM_RESPONSE_TOO_LARGE] A resposta Xtream excede o limite rápido.",
                 )
@@ -228,46 +226,50 @@ internal class FastXtreamChannelClient(
                     "[XTREAM_RESPONSE_HTML] A API Xtream devolveu HTML em vez de dados.",
                 )
             }
-            if (action != null) {
-                runCatching {
-                    val temporary = File(cacheDirectory, "$cacheKey.tmp")
-                    temporary.writeText(text, Charsets.UTF_8)
-                    if (!temporary.renameTo(cacheFile)) {
-                        cacheFile.writeText(text, Charsets.UTF_8)
-                        temporary.delete()
-                    }
-                }
-            }
-            Payload(text, stale = false)
-        } catch (error: Throwable) {
-            val stale = allowStaleFallback && cacheFile.isFile &&
+            if (action != null) saveCache(cacheFile, text)
+            text
+        } catch (error: Exception) {
+            val staleAvailable = allowStale && cacheFile.isFile &&
                 cacheFile.length() in 1..maximumBytes &&
                 now - cacheFile.lastModified() <= STALE_CACHE_TTL_MS
-            if (stale) return Payload(cacheFile.readText(Charsets.UTF_8), stale = true)
-            throw when (error) {
-                is CatalogLoadException -> error
-                is SocketTimeoutException -> CatalogLoadException(
-                    "[XTREAM_FAST_TIMEOUT] O servidor autenticou, mas não entregou os canais rapidamente.",
-                )
-                is UnknownHostException -> CatalogLoadException(
-                    "[XTREAM_DNS_FAILED] O domínio do servidor Xtream não foi encontrado.",
-                )
-                is SSLException -> CatalogLoadException(
-                    "[XTREAM_TLS_FAILED] A conexão segura com o servidor Xtream falhou.",
-                )
-                is SocketException -> CatalogLoadException(
-                    "[XTREAM_CONNECTION_RESET] O servidor Xtream encerrou a conexão.",
-                )
-                is IOException -> CatalogLoadException(
-                    "[XTREAM_CONNECTION_FAILED] Não foi possível conectar ao servidor Xtream.",
-                )
-                else -> CatalogLoadException(
-                    "[XTREAM_FAST_FAILED] O servidor não entregou o primeiro conteúdo.",
-                )
-            }
+            if (staleAvailable) return cacheFile.readText(Charsets.UTF_8)
+            throw mapConnectionError(error)
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun saveCache(cacheFile: File, text: String) {
+        runCatching {
+            val temporary = File(cacheDirectory, "${cacheFile.name}.tmp")
+            temporary.writeText(text, Charsets.UTF_8)
+            if (!temporary.renameTo(cacheFile)) {
+                cacheFile.writeText(text, Charsets.UTF_8)
+                temporary.delete()
+            }
+        }
+    }
+
+    private fun mapConnectionError(error: Exception): CatalogLoadException = when (error) {
+        is CatalogLoadException -> error
+        is SocketTimeoutException -> CatalogLoadException(
+            "[XTREAM_FAST_TIMEOUT] O servidor autenticou, mas não entregou os canais rapidamente.",
+        )
+        is UnknownHostException -> CatalogLoadException(
+            "[XTREAM_DNS_FAILED] O domínio do servidor Xtream não foi encontrado.",
+        )
+        is SSLException -> CatalogLoadException(
+            "[XTREAM_TLS_FAILED] A conexão segura com o servidor Xtream falhou.",
+        )
+        is SocketException -> CatalogLoadException(
+            "[XTREAM_CONNECTION_RESET] O servidor Xtream encerrou a conexão.",
+        )
+        is IOException -> CatalogLoadException(
+            "[XTREAM_CONNECTION_FAILED] Não foi possível conectar ao servidor Xtream.",
+        )
+        else -> CatalogLoadException(
+            "[XTREAM_FAST_FAILED] O servidor não entregou o primeiro conteúdo.",
+        )
     }
 
     private fun readLimitedUtf8(input: InputStream, maximumBytes: Long): String {
@@ -288,29 +290,6 @@ internal class FastXtreamChannelClient(
         return output.toString(StandardCharsets.UTF_8.name())
     }
 
-    private fun credentialsFrom(markedUrl: String): Credentials? {
-        val source = markedUrl.substringBefore(DirectM3uClient.DIRECT_MARKER).trim()
-        val url = runCatching { URL(source) }.getOrNull() ?: return null
-        if (url.protocol != "http" && url.protocol != "https") return null
-        val parameters = url.query.orEmpty().split('&').mapNotNull { part ->
-            val separator = part.indexOf('=')
-            if (separator <= 0) return@mapNotNull null
-            decode(part.substring(0, separator)).lowercase(Locale.ROOT) to
-                decode(part.substring(separator + 1))
-        }.toMap()
-        val username = parameters["username"]?.takeIf(String::isNotBlank) ?: return null
-        val password = parameters["password"]?.takeIf(String::isNotBlank) ?: return null
-        val output = parameters["output"].orEmpty()
-        val parentPath = url.path.substringBeforeLast('/', "")
-        val server = buildString {
-            append(url.protocol)
-            append("://")
-            append(url.authority)
-            if (parentPath.isNotBlank()) append(parentPath)
-        }.trimEnd('/')
-        return Credentials(server, username, password, output)
-    }
-
     private fun classifyError(message: String): String {
         val normalized = message.lowercase(Locale.ROOT)
         return when {
@@ -328,20 +307,6 @@ internal class FastXtreamChannelClient(
         }
     }
 
-    private fun endpointFacts(url: URL): EndpointFacts {
-        val port = when {
-            url.port > 0 -> url.port
-            url.protocol.equals("https", true) -> 443
-            else -> 80
-        }
-        return EndpointFacts(
-            protocol = url.protocol.lowercase(Locale.ROOT),
-            host = url.host.lowercase(Locale.ROOT),
-            port = port,
-            path = url.path.ifBlank { "/" }.take(180),
-        )
-    }
-
     private fun detectPlatform(context: Context): String {
         val manager = context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
         val mode = manager?.currentModeType
@@ -350,46 +315,6 @@ internal class FastXtreamChannelClient(
     }
 
     private fun nowIso(): String = ISO_FORMAT.get().format(Date())
-
-    private data class Payload(val text: String, val stale: Boolean)
-    private data class EndpointFacts(
-        val protocol: String,
-        val host: String,
-        val port: Int,
-        val path: String,
-    )
-
-    private data class Credentials(
-        val server: String,
-        val username: String,
-        val password: String,
-        val output: String,
-    ) {
-        fun apiUrl(action: String?): URL {
-            val query = buildList {
-                add("username=${encode(username)}")
-                add("password=${encode(password)}")
-                action?.let { add("action=${encode(it)}") }
-            }.joinToString("&")
-            return URL("$server/player_api.php?$query")
-        }
-
-        fun liveStreamUrls(streamId: String): List<String> {
-            val primary = if (output.equals("m3u8", true)) "m3u8" else "ts"
-            val alternate = if (primary == "m3u8") "ts" else "m3u8"
-            return listOf(
-                streamUrl("live", streamId, primary),
-                streamUrl("live", streamId, alternate),
-                streamUrl(null, streamId, primary),
-                streamUrl(null, streamId, alternate),
-            ).distinct()
-        }
-
-        private fun streamUrl(kind: String?, streamId: String, extension: String): String {
-            val prefix = kind?.let { "/$it" }.orEmpty()
-            return "$server$prefix/${encode(username)}/${encode(password)}/${encode(streamId)}.$extension"
-        }
-    }
 
     private companion object {
         const val CACHE_DIRECTORY = "fast_xtream_channels_v1"
@@ -409,26 +334,87 @@ internal class FastXtreamChannelClient(
                 Locale.US,
             ).apply { timeZone = TimeZone.getTimeZone("UTC") }
         }
-
-        fun decode(value: String): String =
-            runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }
-                .getOrDefault(value)
-
-        fun encode(value: String): String =
-            URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
-
-        fun sha256(value: String): String =
-            MessageDigest.getInstance("SHA-256")
-                .digest(value.toByteArray(StandardCharsets.UTF_8))
-                .joinToString("") { "%02x".format(it) }
     }
 }
 
-private fun JSONObject.optStringValue(key: String): String? {
+private data class FastCredentials(
+    val server: String,
+    val username: String,
+    val password: String,
+    val output: String,
+) {
+    fun apiUrl(action: String?): URL {
+        val query = buildList {
+            add("username=${urlEncode(username)}")
+            add("password=${urlEncode(password)}")
+            action?.let { add("action=${urlEncode(it)}") }
+        }.joinToString("&")
+        return URL("$server/player_api.php?$query")
+    }
+
+    fun liveStreamUrls(streamId: String): List<String> {
+        val primary = if (output.equals("m3u8", true)) "m3u8" else "ts"
+        val alternate = if (primary == "m3u8") "ts" else "m3u8"
+        return listOf(
+            streamUrl("live", streamId, primary),
+            streamUrl("live", streamId, alternate),
+            streamUrl(null, streamId, primary),
+            streamUrl(null, streamId, alternate),
+        ).distinct()
+    }
+
+    private fun streamUrl(kind: String?, streamId: String, extension: String): String {
+        val prefix = kind?.let { "/$it" }.orEmpty()
+        return "$server$prefix/${urlEncode(username)}/${urlEncode(password)}/" +
+            "${urlEncode(streamId)}.$extension"
+    }
+}
+
+private fun parseCredentials(markedUrl: String): FastCredentials? {
+    val source = markedUrl.substringBefore(DirectM3uClient.DIRECT_MARKER).trim()
+    val url = runCatching { URL(source) }.getOrNull() ?: return null
+    if (url.protocol != "http" && url.protocol != "https") return null
+    val parameters = url.query.orEmpty().split('&').mapNotNull { part ->
+        val separator = part.indexOf('=')
+        if (separator <= 0) return@mapNotNull null
+        urlDecode(part.substring(0, separator)).lowercase(Locale.ROOT) to
+            urlDecode(part.substring(separator + 1))
+    }.toMap()
+    val username = parameters["username"]?.takeIf(String::isNotBlank) ?: return null
+    val password = parameters["password"]?.takeIf(String::isNotBlank) ?: return null
+    val output = parameters["output"].orEmpty()
+    val parentPath = url.path.substringBeforeLast('/', "")
+    val server = buildString {
+        append(url.protocol)
+        append("://")
+        append(url.authority)
+        if (parentPath.isNotBlank()) append(parentPath)
+    }.trimEnd('/')
+    return FastCredentials(server, username, password, output)
+}
+
+private fun URL.effectivePort(): Int = when {
+    port > 0 -> port
+    protocol.equals("https", true) -> 443
+    else -> 80
+}
+
+private fun JSONObject.stringValue(key: String): String? {
     if (!has(key) || isNull(key)) return null
     return optString(key).trim().takeIf(String::isNotEmpty)
 }
 
-private fun JSONArray.objects(): List<JSONObject> = buildList {
+private fun JSONArray.jsonObjects(): List<JSONObject> = buildList {
     for (index in 0 until length()) optJSONObject(index)?.let(::add)
 }
+
+private fun urlDecode(value: String): String =
+    runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrDefault(value)
+
+private fun urlEncode(value: String): String =
+    URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
+
+private fun sha256(value: String): String =
+    MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(StandardCharsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
