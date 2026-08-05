@@ -129,8 +129,8 @@ for (const [name, content] of Object.entries(source)) {
 
 if (failures.length) {
   const message = failures.join(' | ').replace(/[\r\n]+/g, ' ').slice(0, 4000);
-  console.error(`::error file=scripts/check-inline-playlist-activation.mjs,title=Contrato do fluxo de listas inválido::${message}`);
-  console.error(message);
+  console.log(`::error file=scripts/check-inline-playlist-activation.mjs,title=Contrato do fluxo de listas inválido::${message}`);
+  console.log(message);
   process.exit(1);
 }
 
