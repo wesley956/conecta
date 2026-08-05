@@ -140,33 +140,46 @@ serve(async request => {
       return json({ error: 'Credencial do aparelho inválida.' }, 403);
     }
 
-    const { data: assignment } = await supabase
-      .from('panel_device_playlists')
-      .select('id, playlist_id, active, playlist:panel_playlists(id, name, active)')
-      .eq('device_id', device.id)
-      .eq('playlist_id', playlistId)
-      .maybeSingle();
+    const now = new Date().toISOString();
+    const [{ data: assignment, error: assignmentError }, { data: validationSession, error: validationError }] = await Promise.all([
+      supabase
+        .from('panel_device_playlists')
+        .select('id, playlist_id, active, playlist:panel_playlists(id, name, active)')
+        .eq('device_id', device.id)
+        .eq('playlist_id', playlistId)
+        .maybeSingle(),
+      supabase
+        .from('panel_playlist_validation_sessions')
+        .select('id, playlist_id, device_id, status, expires_at')
+        .eq('device_id', device.id)
+        .eq('playlist_id', playlistId)
+        .eq('status', 'active')
+        .gt('expires_at', now)
+        .maybeSingle(),
+    ]);
+    if (assignmentError || validationError) {
+      return json({ error: 'Não foi possível validar a autorização técnica da lista.' }, 500);
+    }
 
     const rawPlaylist = Array.isArray(assignment?.playlist) ? assignment?.playlist[0] : assignment?.playlist;
+    const assignmentAllowed = Boolean(assignment && assignment.active !== false && rawPlaylist?.active !== false);
     const legacyAllowed = String(device.playlist_id || '') === playlistId;
-    if ((!assignment || assignment.active === false || rawPlaylist?.active === false) && !legacyAllowed) {
-      return json({ error: 'A lista não pertence a este aparelho.' }, 403);
+    const validationAllowed = Boolean(validationSession?.id);
+    if (!assignmentAllowed && !legacyAllowed && !validationAllowed) {
+      return json({ error: 'A lista não pertence a este aparelho nem a uma homologação ativa.' }, 403);
     }
 
     let playlistName = rawPlaylist?.name ? String(rawPlaylist.name) : null;
-    if (!playlistName && legacyAllowed) {
-      const { data: legacyPlaylist } = await supabase
+    if (!playlistName) {
+      const { data: playlist } = await supabase
         .from('panel_playlists')
         .select('name, active')
         .eq('id', playlistId)
         .maybeSingle();
-      if (!legacyPlaylist || legacyPlaylist.active === false) {
-        return json({ error: 'A lista não está ativa.' }, 403);
-      }
-      playlistName = String(legacyPlaylist.name || 'Lista');
+      if (!playlist || playlist.active === false) return json({ error: 'A lista não está ativa.' }, 403);
+      playlistName = String(playlist.name || 'Lista');
     }
 
-    const now = new Date().toISOString();
     const platform = safeToken(payload.platform, 50) || text(device.device_type, 50);
     const appVersion = safeToken(payload.appVersion, 50) || text(device.app_version, 50);
     await supabase
@@ -179,11 +192,13 @@ serve(async request => {
       })
       .eq('id', device.id);
 
+    const correlationId = safeDiagnosticIdentifier(payload.correlationId)
+      || (validationAllowed ? `validation:${validationSession.id}` : null);
     const record = {
       client_event_id: clientEventId,
       device_id: device.id,
       playlist_id: playlistId,
-      assignment_id: assignment?.id || null,
+      assignment_id: assignmentAllowed ? assignment?.id || null : null,
       device_code_snapshot: device.device_code,
       playlist_name_snapshot: playlistName,
       platform,
@@ -209,7 +224,7 @@ serve(async request => {
       item_count: integer(payload.itemCount, 0),
       error_code: safeToken(payload.errorCode, 100),
       error_message: safeDiagnosticText(payload.errorMessage, 800),
-      correlation_id: safeDiagnosticIdentifier(payload.correlationId),
+      correlation_id: correlationId,
       occurred_at: text(payload.occurredAt, 80) || now,
       created_at: now,
     };
@@ -221,9 +236,16 @@ serve(async request => {
       .maybeSingle();
 
     if (insertError) throw new Error(insertError.message);
-    return json({ ok: true, id: inserted?.id || null, clientEventId });
+    return json({
+      ok: true,
+      id: inserted?.id || null,
+      clientEventId,
+      validationMode: validationAllowed,
+    });
   } catch (error) {
-    console.error('playlist-provider-attempt-report:', error);
+    console.error('playlist-provider-attempt-report:', {
+      message: safeDiagnosticText(error instanceof Error ? error.message : error, 300),
+    });
     return json({ error: 'Não foi possível registrar a tentativa da matriz.' }, 500);
   }
 });
