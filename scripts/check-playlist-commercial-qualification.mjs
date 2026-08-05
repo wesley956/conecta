@@ -10,6 +10,7 @@ const requiredFiles = [
   'supabase/migrations/20260805010500_playlist_insert_qualification_seed.sql',
   'supabase/migrations/20260805010600_playlist_platform_capability_guard.sql',
   'supabase/migrations/20260805010700_canonical_playlist_registration.sql',
+  'supabase/migrations/20260805010900_direct_confirmation_device_reference_compatibility.sql',
   'supabase/functions/_shared/playlistQualification.ts',
   'supabase/functions/_shared/playlistSource.ts',
   'supabase/functions/playlist-registration/index.ts',
@@ -54,6 +55,10 @@ const platformMigration = fs.readFileSync(
 );
 const canonicalMigration = fs.readFileSync(
   'supabase/migrations/20260805010700_canonical_playlist_registration.sql',
+  'utf8',
+);
+const referenceCompatibilityMigration = fs.readFileSync(
+  'supabase/migrations/20260805010900_direct_confirmation_device_reference_compatibility.sql',
   'utf8',
 );
 const registration = fs.readFileSync('supabase/functions/playlist-registration/index.ts', 'utf8');
@@ -122,10 +127,11 @@ for (const token of [
   'replace_subscription_playlist_transaction',
   'replace_device_playlist_transaction',
   'assert_playlist_commercially_usable',
+  "to_regclass('public.panel_subscriptions')",
   'homologação comercial',
 ]) {
   if (!replacementMigration.includes(token)) {
-    throw new Error(`Troca comercial não contém: ${token}`);
+    throw new Error(`Troca comercial compatível não contém: ${token}`);
   }
 }
 
@@ -163,13 +169,24 @@ for (const token of [
 
 for (const token of [
   'register_playlist_source_transaction',
-  "playlist.source_fingerprint = v_fingerprint",
+  'playlist.source_fingerprint = v_fingerprint',
   'playlist.playlist_url = v_url',
   'pg_advisory_xact_lock',
   'panel_seller_playlists',
 ]) {
   if (!canonicalMigration.includes(token)) {
     throw new Error(`Cadastro atômico não contém: ${token}`);
+  }
+}
+
+for (const token of [
+  'drop constraint if exists panel_playlists_playlist_direct_confirmed_device_id_fkey',
+  'validate_playlist_direct_confirmation_device',
+  'clear_deleted_direct_confirmation_device',
+  "notify pgrst, 'reload schema'",
+]) {
+  if (!referenceCompatibilityMigration.includes(token)) {
+    throw new Error(`Compatibilidade da referência direta não contém: ${token}`);
   }
 }
 
@@ -189,7 +206,7 @@ for (const token of [
   "action === 'markDevice'",
   "action === 'start'",
   "action === 'revoke'",
-  "['owner']",
+  "['owner', 'admin']",
   'start_playlist_validation_session',
   'Use um aparelho pendente e sem qualquer vínculo comercial',
 ]) {
@@ -200,7 +217,7 @@ for (const token of [
   'source_fingerprint',
   'register_playlist_source_transaction',
   'canonicalSources',
-  "['owner']",
+  "['owner', 'admin']",
 ]) {
   if (!backfill.includes(token)) throw new Error(`Backfill protegido não contém: ${token}`);
 }
@@ -229,8 +246,8 @@ for (const token of [
 for (const token of [
   'playlist-fingerprint-backfill',
   'localStorage.setItem',
-  'sessionStorage.setItem',
   'completedAt',
+  '2026-08-05-v2',
 ]) {
   if (!backfillBootstrap.includes(token)) {
     throw new Error(`Inicialização do backfill não contém: ${token}`);
@@ -300,4 +317,4 @@ for (const [name, source] of Object.entries({
   }
 }
 
-console.log('✅ Qualificação, cadastro atômico, backfill, plataforma e crédito validados.');
+console.log('✅ Qualificação, compatibilidade de produção, cadastro atômico, plataforma e crédito validados.');

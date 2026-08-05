@@ -66,7 +66,7 @@ serve(async request => {
     const supabase = createClient(getEnv('SUPABASE_URL'), getEnv('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    await requirePanelPrincipal(request, supabase, ['owner']);
+    await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
 
     const { data: legacyRows, error: legacyError } = await supabase
       .from('panel_playlists')

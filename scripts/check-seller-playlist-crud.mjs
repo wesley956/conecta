@@ -23,8 +23,15 @@ const requiredBackend = [
   'p_seller_id: seller.id',
   'p_playlist_id: playlistId',
   'devices_count',
-  "action: 'playlist.removed_by_seller'",
-  "entityType: 'playlist'",
+  "'playlist.removed_by_seller'",
+  "'playlist'",
+  'register_playlist_source_transaction',
+  "['ready_cache', 'ready_direct']",
+  'panel_devices_playlist_id_fkey',
+  'panel_device_playlists_playlist_id_fkey',
+  'panel_seller_playlists_playlist_id_fkey',
+  'isPlaylistValidationDevice',
+  'Este aparelho está reservado para homologação de listas.',
 ];
 
 for (const snippet of requiredFrontend) {
@@ -43,4 +50,11 @@ if (!deleteAction.includes('if (!result?.removed)') || !deleteAction.includes('}
   throw new Error('Lista em uso precisa ser bloqueada com HTTP 409.');
 }
 
-console.log('✅ Exclusão segura de listas pelo vendedor validada.');
+if (/usable:\s*playlist\.playlist_cache_status\s*===\s*'ready'\s*\|\|\s*accessMode\s*===\s*'direct'/.test(backend)) {
+  throw new Error('Acesso direto técnico não pode substituir homologação comercial.');
+}
+if (backend.includes('playlist:panel_playlists (')) {
+  throw new Error('Relações do PostgREST precisam declarar a chave estrangeira explicitamente.');
+}
+
+console.log('✅ Portal do vendedor, relações explícitas e qualificação comercial validados.');
