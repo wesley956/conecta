@@ -147,7 +147,16 @@ export function isPlaylistUsable(
     return qualification === 'ready_cache' || qualification === 'ready_direct';
   }
 
-  // Compatibilidade defensiva enquanto chamadas antigas são migradas. Sem um
-  // estado comercial explícito, apenas cache comprovado é considerado utilizável.
-  return cacheStatus === 'ready';
+  // Compatibilidade para consumidores antigos: o banco mantém erro ativo em
+  // listas diretas ainda pendentes e o limpa somente após confirmação real.
+  // Assim nenhum endpoint precisa deduzir a homologação por timeout.
+  const accessMode = resolvePlaylistAccessMode(
+    cacheStatus,
+    storedMode,
+    errorCode,
+    cacheError,
+    playlistType,
+  );
+  const confirmedDirect = accessMode === 'direct' && !errorCode && !cacheError;
+  return cacheStatus === 'ready' || confirmedDirect;
 }
