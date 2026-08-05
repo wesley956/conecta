@@ -464,7 +464,7 @@
     installSellerCreate();
     installCommercialPreflights();
     decorateKnownSelects();
-    scheduleRender();
+    if (!$('ronecaQualificationPanel') && qualificationMount()) scheduleRender();
   }
 
   function initialize() {
