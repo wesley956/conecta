@@ -49,17 +49,13 @@ function healthPayload(payload: Record<string, unknown>) {
 }
 
 function directParts(sourceUrl: string) {
-  const marked = `${sourceUrl.substringBefore?.(DIRECT_MARKER) ?? sourceUrl}${DIRECT_MARKER}`;
+  const marked = `${sourceUrl.split(DIRECT_MARKER)[0]}${DIRECT_MARKER}`;
   return {
     manifestUrl: null,
     channelsUrl: marked,
     moviesUrl: marked,
     seriesUrl: marked,
   };
-}
-
-function markDirectUrl(sourceUrl: string) {
-  return `${sourceUrl.split(DIRECT_MARKER)[0]}${DIRECT_MARKER}`;
 }
 
 async function proxyDeviceConfig(
