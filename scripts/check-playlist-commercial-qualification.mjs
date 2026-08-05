@@ -6,6 +6,9 @@ const requiredFiles = [
   'supabase/migrations/20260805010100_playlist_validation_device_safety.sql',
   'supabase/migrations/20260805010200_ready_direct_legacy_compatibility.sql',
   'supabase/migrations/20260805010300_commercial_playlist_replacement.sql',
+  'supabase/migrations/20260805010400_direct_confirmation_precedence.sql',
+  'supabase/migrations/20260805010500_playlist_insert_qualification_seed.sql',
+  'supabase/migrations/20260805010600_playlist_platform_capability_guard.sql',
   'supabase/functions/_shared/playlistQualification.ts',
   'supabase/functions/_shared/playlistSource.ts',
   'supabase/functions/playlist-registration/index.ts',
@@ -14,6 +17,7 @@ const requiredFiles = [
   'admin-panel/playlist-commercial-qualification.js',
   'admin-panel/playlist-commercial-qualification.css',
   'supabase/tests/playlist_commercial_qualification_test.sql',
+  'supabase/tests/playlist_platform_capability_test.sql',
 ];
 
 for (const file of requiredFiles) {
@@ -32,6 +36,18 @@ const replacementMigration = fs.readFileSync(
   'supabase/migrations/20260805010300_commercial_playlist_replacement.sql',
   'utf8',
 );
+const precedenceMigration = fs.readFileSync(
+  'supabase/migrations/20260805010400_direct_confirmation_precedence.sql',
+  'utf8',
+);
+const insertSeedMigration = fs.readFileSync(
+  'supabase/migrations/20260805010500_playlist_insert_qualification_seed.sql',
+  'utf8',
+);
+const platformMigration = fs.readFileSync(
+  'supabase/migrations/20260805010600_playlist_platform_capability_guard.sql',
+  'utf8',
+);
 const registration = fs.readFileSync('supabase/functions/playlist-registration/index.ts', 'utf8');
 const validation = fs.readFileSync('supabase/functions/playlist-validation/index.ts', 'utf8');
 const deviceConfig = fs.readFileSync('supabase/functions/device-config-qualified/index.ts', 'utf8');
@@ -43,6 +59,7 @@ const androidApi = fs.readFileSync(
   'utf8',
 );
 const pgTap = fs.readFileSync('supabase/tests/playlist_commercial_qualification_test.sql', 'utf8');
+const platformPgTap = fs.readFileSync('supabase/tests/playlist_platform_capability_test.sql', 'utf8');
 const supabaseConfig = fs.readFileSync('supabase/config.toml', 'utf8');
 
 const states = [
@@ -98,6 +115,38 @@ for (const token of [
 }
 
 for (const token of [
+  "playlist_qualification_status = 'ready_direct'",
+  'playlist_direct_confirmed_at is not null',
+  'DIRECT_ALREADY_CONFIRMED',
+]) {
+  if (!precedenceMigration.includes(token)) {
+    throw new Error(`Precedência da confirmação direta não contém: ${token}`);
+  }
+}
+
+for (const token of [
+  'aaa_panel_playlists_insert_qualification_seed',
+  "playlist_access_mode = 'direct'",
+  "playlist_cache_status = 'error'",
+  'INVALID_CREDENTIALS',
+]) {
+  if (!insertSeedMigration.includes(token)) {
+    throw new Error(`Classificação inicial não contém: ${token}`);
+  }
+}
+
+for (const token of [
+  'assert_playlist_commercially_usable_for_device',
+  "v_device_type not in ('android', 'androidtv')",
+  'panel_playlist_validation_device_capability_guard',
+  'homologado somente para Android',
+]) {
+  if (!platformMigration.includes(token)) {
+    throw new Error(`Proteção por plataforma não contém: ${token}`);
+  }
+}
+
+for (const token of [
   "action === 'create'",
   "action === 'retry'",
   'source_fingerprint',
@@ -114,6 +163,7 @@ for (const token of [
   "action === 'revoke'",
   "['owner']",
   'start_playlist_validation_session',
+  'Use um aparelho pendente e sem qualquer vínculo comercial',
 ]) {
   if (!validation.includes(token)) throw new Error(`Validação direta não contém: ${token}`);
 }
@@ -163,6 +213,14 @@ for (const token of testRequirements) {
   if (!pgTap.includes(token)) throw new Error(`Teste comercial não contém: ${token}`);
 }
 
+for (const token of [
+  'Tizen não consome uma lista somente direta',
+  'Recusa por plataforma preserva o saldo',
+  'Android pode ativar a lista direta homologada',
+]) {
+  if (!platformPgTap.includes(token)) throw new Error(`Teste de plataforma não contém: ${token}`);
+}
+
 const sensitiveLogPattern = /console\.(?:log|debug|info|warn|error)\s*\([^)]*(?:playlist_url|password|senha|username|usuario|token)/i;
 for (const [name, source] of Object.entries({ registration, validation, deviceConfig, panel })) {
   if (sensitiveLogPattern.test(source)) {
@@ -173,4 +231,4 @@ for (const [name, source] of Object.entries({ registration, validation, deviceCo
   }
 }
 
-console.log('✅ Qualificação comercial, validação direta e proteção de crédito validadas.');
+console.log('✅ Qualificação comercial, validação direta, plataforma e proteção de crédito validadas.');
