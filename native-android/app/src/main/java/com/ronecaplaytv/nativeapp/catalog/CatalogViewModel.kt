@@ -6,17 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.activation.DeviceSessionRepository
 import java.util.UUID
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.supervisorScope
 
 class CatalogViewModel(application: Application) : AndroidViewModel(application) {
     private val sessionRepository = DeviceSessionRepository(application)
-    private val client = CatalogPartClient(application) { attempt ->
+    private val sessionEngine = ProviderCatalogSessionEngine(application) { attempt ->
         viewModelScope.launch {
             runCatching { sessionRepository.reportProviderAttempt(attempt) }
         }
@@ -228,78 +226,27 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Channels, movies and series are independent Xtream endpoints. Running them
-     * concurrently removes the old wait in which every section blocked the next.
-     * A provider may return one section late or unavailable; successful sections
-     * are kept instead of leaving the whole application at zero.
+     * One compatibility session owns authentication, transport selection,
+     * catalog loading and fallback. Direct M3U content is downloaded once and
+     * split locally instead of running three competing matrices.
      */
     private suspend fun loadCompleteCatalog(
         candidate: DevicePlaylistConfig,
         prefix: String,
-    ): LoadedCatalog = supervisorScope {
-        mutableState.update { it.copy(loadingSection = "${prefix}consultando API") }
+    ): LoadedCatalog {
         val matrixCorrelationId = "matrix:${UUID.randomUUID()}"
-
-        val channelsDeferred = async {
-            runCatching {
-                candidate.channelsUrl?.let {
-                    client.loadChannels(
-                        it,
-                        ProviderAttemptContext(candidate.id, "channels", matrixCorrelationId),
-                    )
-                }.orEmpty()
-            }
-        }
-        val moviesDeferred = async {
-            runCatching {
-                candidate.moviesUrl?.let {
-                    client.loadMovies(
-                        it,
-                        ProviderAttemptContext(candidate.id, "movies", matrixCorrelationId),
-                    )
-                }.orEmpty()
-            }
-        }
-        val seriesDeferred = async {
-            runCatching {
-                candidate.seriesUrl?.let {
-                    client.loadSeries(
-                        it,
-                        ProviderAttemptContext(candidate.id, "series", matrixCorrelationId),
-                    )
-                }.orEmpty()
-            }
-        }
-
-        val channelsResult = channelsDeferred.await()
-        val moviesResult = moviesDeferred.await()
-        val seriesResult = seriesDeferred.await()
-        val channels = channelsResult.getOrDefault(emptyList())
-        val movies = moviesResult.getOrDefault(emptyList())
-        val series = seriesResult.getOrDefault(emptyList())
-
-        if (channels.isEmpty() && movies.isEmpty() && series.isEmpty()) {
-            val failures = listOf(channelsResult, moviesResult, seriesResult)
-                .mapNotNull { it.exceptionOrNull()?.message }
-                .distinct()
-                .joinToString(" ")
-            throw CatalogLoadException(
-                failures.ifBlank { "A lista retornou um catálogo vazio." },
-            )
-        }
-
-        val unavailableSections = buildList {
-            if (channelsResult.isFailure) add("canais")
-            if (moviesResult.isFailure) add("filmes")
-            if (seriesResult.isFailure) add("séries")
-        }
-        LoadedCatalog(
-            channels = channels,
-            movies = movies,
-            series = series,
-            warning = unavailableSections.takeIf { it.isNotEmpty() }?.let {
-                "Catálogo carregado. Tentaremos atualizar ${it.joinToString(" e ")} novamente."
+        val catalog = sessionEngine.load(
+            candidate = candidate,
+            correlationId = matrixCorrelationId,
+            onStage = { stage ->
+                mutableState.update { it.copy(loadingSection = "$prefix$stage") }
             },
+        )
+        return LoadedCatalog(
+            channels = catalog.channels,
+            movies = catalog.movies,
+            series = catalog.series,
+            warning = catalog.warning,
         )
     }
 
