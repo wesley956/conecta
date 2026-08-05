@@ -14,6 +14,27 @@ const TRANSPORTS = ['cache', 'xtream', 'm3u', 'local', 'unknown'] as const;
 const PROTOCOLS = ['http', 'https', 'local', 'unknown'] as const;
 const RESULTS = ['success', 'partial', 'empty', 'failure', 'skipped'] as const;
 
+type PlaylistSnapshot = {
+  id: string;
+  name: string | null;
+  active: boolean | null;
+};
+
+type AssignmentRow = {
+  id: string;
+  playlist_id: string;
+  active: boolean | null;
+  playlist: PlaylistSnapshot | PlaylistSnapshot[] | null;
+};
+
+type ValidationSessionRow = {
+  id: string;
+  playlist_id: string;
+  device_id: string;
+  status: string;
+  expires_at: string;
+};
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -141,30 +162,36 @@ serve(async request => {
     }
 
     const now = new Date().toISOString();
-    const [{ data: assignment, error: assignmentError }, { data: validationSession, error: validationError }] = await Promise.all([
-      supabase
-        .from('panel_device_playlists')
-        .select('id, playlist_id, active, playlist:panel_playlists(id, name, active)')
-        .eq('device_id', device.id)
-        .eq('playlist_id', playlistId)
-        .maybeSingle(),
-      supabase
-        .from('panel_playlist_validation_sessions')
-        .select('id, playlist_id, device_id, status, expires_at')
-        .eq('device_id', device.id)
-        .eq('playlist_id', playlistId)
-        .eq('status', 'active')
-        .gt('expires_at', now)
-        .maybeSingle(),
-    ]);
-    if (assignmentError || validationError) {
+    const assignmentResult = await supabase
+      .from('panel_device_playlists')
+      .select('id, playlist_id, active, playlist:panel_playlists(id, name, active)')
+      .eq('device_id', device.id)
+      .eq('playlist_id', playlistId)
+      .maybeSingle();
+    const validationResult = await supabase
+      .from('panel_playlist_validation_sessions')
+      .select('id, playlist_id, device_id, status, expires_at')
+      .eq('device_id', device.id)
+      .eq('playlist_id', playlistId)
+      .eq('status', 'active')
+      .gt('expires_at', now)
+      .maybeSingle();
+
+    if (assignmentResult.error || validationResult.error) {
       return json({ error: 'Não foi possível validar a autorização técnica da lista.' }, 500);
     }
 
-    const rawPlaylist = Array.isArray(assignment?.playlist) ? assignment?.playlist[0] : assignment?.playlist;
-    const assignmentAllowed = Boolean(assignment && assignment.active !== false && rawPlaylist?.active !== false);
+    const assignment = assignmentResult.data as AssignmentRow | null;
+    const validationSession = validationResult.data as ValidationSessionRow | null;
+    const rawPlaylist = assignment
+      ? (Array.isArray(assignment.playlist) ? assignment.playlist[0] || null : assignment.playlist)
+      : null;
+    const assignmentAllowed = Boolean(
+      assignment && assignment.active !== false && rawPlaylist?.active !== false,
+    );
     const legacyAllowed = String(device.playlist_id || '') === playlistId;
     const validationAllowed = Boolean(validationSession?.id);
+
     if (!assignmentAllowed && !legacyAllowed && !validationAllowed) {
       return json({ error: 'A lista não pertence a este aparelho nem a uma homologação ativa.' }, 403);
     }
@@ -193,7 +220,7 @@ serve(async request => {
       .eq('id', device.id);
 
     const correlationId = safeDiagnosticIdentifier(payload.correlationId)
-      || (validationAllowed ? `validation:${validationSession.id}` : null);
+      || (validationSession ? `validation:${validationSession.id}` : null);
     const record = {
       client_event_id: clientEventId,
       device_id: device.id,
