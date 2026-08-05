@@ -1,5 +1,13 @@
 import fs from 'node:fs';
 
+process.on('uncaughtException', error => {
+  const message = String(error?.message || error || 'Falha desconhecida')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 1000);
+  console.error(`::error file=scripts/check-inline-playlist-activation.mjs,title=Fluxo de listas inválido::${message}`);
+  process.exit(1);
+});
+
 const files = {
   controller: 'admin-panel/playlist-flow-controller.js',
   entry: 'admin-panel/unified-playlist-entry.js',
