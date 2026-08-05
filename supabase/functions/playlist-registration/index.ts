@@ -161,24 +161,6 @@ function mapPlaylist(row: Record<string, unknown>, reused = false) {
   };
 }
 
-async function ensureSellerPermission(
-  supabase: any,
-  sellerId: string | null,
-  playlistId: string,
-) {
-  if (!sellerId) throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
-  const now = new Date().toISOString();
-  const { error } = await supabase
-    .from('panel_seller_playlists')
-    .upsert({
-      seller_id: sellerId,
-      playlist_id: playlistId,
-      active: true,
-      updated_at: now,
-    }, { onConflict: 'seller_id,playlist_id' });
-  if (error) throw new Error('Não foi possível liberar a lista ao vendedor.');
-}
-
 async function loadAuthorizedPlaylist(
   supabase: any,
   principal: any,
@@ -195,6 +177,7 @@ async function loadAuthorizedPlaylist(
       .maybeSingle();
     if (permissionError || !permission) throw new PanelAuthError('Lista não pertence ao vendedor.', 403);
   }
+
   const { data, error } = await supabase
     .from('panel_playlists')
     .select(PLAYLIST_SELECT)
@@ -219,6 +202,7 @@ async function listAuthorizedPlaylists(supabase: any, principal: any) {
       return row ? mapPlaylist(row) : null;
     }).filter(Boolean);
   }
+
   const { data, error } = await supabase
     .from('panel_playlists')
     .select(PLAYLIST_SELECT)
@@ -227,6 +211,40 @@ async function listAuthorizedPlaylists(supabase: any, principal: any) {
     .limit(500);
   if (error) throw new Error('Não foi possível carregar as listas.');
   return (data || []).map((row: any) => mapPlaylist(row));
+}
+
+async function registerSource(
+  supabase: any,
+  principal: any,
+  input: {
+    name: string;
+    playlistUrl: string;
+    playlistType: string;
+    maxConnections: number;
+    fingerprint: string;
+  },
+) {
+  if (principal.role === 'seller' && !principal.sellerId) {
+    throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
+  }
+
+  const { data, error } = await supabase.rpc('register_playlist_source_transaction', {
+    p_name: input.name,
+    p_playlist_url: input.playlistUrl,
+    p_playlist_type: input.playlistType,
+    p_max_connections: input.maxConnections,
+    p_source_fingerprint: input.fingerprint,
+    p_seller_id: principal.role === 'seller' ? principal.sellerId : null,
+  });
+  if (error) {
+    throw new Error(error.message || 'Não foi possível salvar ou reutilizar a lista.');
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.playlist_id) throw new Error('O cadastro não retornou a lista salva.');
+  return {
+    playlistId: String(row.playlist_id),
+    created: row.created === true,
+  };
 }
 
 Deno.serve(async request => {
@@ -264,6 +282,7 @@ Deno.serve(async request => {
             : qualification.qualificationMessage,
         });
       }
+
       await supabase
         .from('panel_playlists')
         .update({
@@ -291,85 +310,33 @@ Deno.serve(async request => {
         getEnv('SUPABASE_SERVICE_ROLE_KEY'),
         playlistUrl,
       );
-      const now = new Date().toISOString();
 
-      const { data: existing, error: existingError } = await supabase
-        .from('panel_playlists')
-        .select(PLAYLIST_SELECT)
-        .eq('source_fingerprint', fingerprint)
-        .eq('active', true)
-        .maybeSingle();
-      if (existingError) throw new Error('Não foi possível verificar a origem da lista.');
+      const registration = await registerSource(supabase, principal, {
+        name,
+        playlistUrl,
+        playlistType,
+        maxConnections,
+        fingerprint,
+      });
+      const row = await loadAuthorizedPlaylist(supabase, principal, registration.playlistId);
+      const mapped = mapPlaylist(row, !registration.created);
 
-      if (existing) {
-        if (principal.role === 'seller') {
-          await ensureSellerPermission(supabase, principal.sellerId, String(existing.id));
-        }
-        const mapped = mapPlaylist(existing as Record<string, unknown>, true);
-        return json(request, {
-          ok: true,
-          created: false,
-          playlistId: mapped.id,
-          playlist: mapped,
-          source: inspectPlaylistSource(playlistUrl),
-          message: mapped.commerciallyUsable
-            ? 'Esta origem já estava cadastrada e homologada. Ela foi reutilizada.'
-            : 'Esta origem já estava cadastrada. Acompanhe a validação existente e não cadastre novamente.',
-        });
+      if (registration.created || mapped.canRetryCache) {
+        schedule(triggerCache(registration.playlistId));
       }
 
-      const { data: created, error: createError } = await supabase
-        .from('panel_playlists')
-        .insert({
-          name,
-          playlist_url: playlistUrl,
-          playlist_type: playlistType,
-          active: true,
-          max_connections: maxConnections,
-          source_fingerprint: fingerprint,
-          playlist_updated_at: now,
-          playlist_cache_status: 'missing',
-          playlist_cache_error: null,
-          playlist_cache_error_code: null,
-          playlist_cache_attempts: [],
-          playlist_access_mode: 'server_cache',
-          playlist_qualification_status: 'validating',
-          playlist_qualification_code: 'REGISTRATION_CREATED',
-          playlist_qualification_message: 'A lista foi salva e está sendo validada.',
-          playlist_qualification_updated_at: now,
-        })
-        .select(PLAYLIST_SELECT)
-        .single();
-
-      if (createError || !created) {
-        if (createError?.code === '23505') {
-          throw new Error('Esta origem já foi cadastrada. Atualize a lista antes de tentar novamente.');
-        }
-        throw new Error('Não foi possível salvar a lista.');
-      }
-
-      try {
-        if (principal.role === 'seller') {
-          await ensureSellerPermission(supabase, principal.sellerId, String(created.id));
-        }
-      } catch (error) {
-        await supabase
-          .from('panel_playlists')
-          .update({ active: false, archived_at: now })
-          .eq('id', created.id);
-        throw error;
-      }
-
-      schedule(triggerCache(String(created.id)));
-      const mapped = mapPlaylist(created as Record<string, unknown>);
       return json(request, {
         ok: true,
-        created: true,
-        playlistId: mapped.id,
+        created: registration.created,
+        playlistId: registration.playlistId,
         playlist: mapped,
         source: inspectPlaylistSource(playlistUrl),
-        message: 'Lista salva. A validação continuará sem prender esta tela. Não cadastre novamente.',
-      }, 202);
+        message: registration.created
+          ? 'Lista salva. A validação continuará sem prender esta tela. Não cadastre novamente.'
+          : mapped.commerciallyUsable
+          ? 'Esta origem já estava cadastrada e homologada. Ela foi reutilizada.'
+          : 'Esta origem já estava cadastrada. Acompanhe a validação existente e não cadastre novamente.',
+      }, registration.created || !mapped.commerciallyUsable ? 202 : 200);
     }
 
     return json(request, { error: 'Ação não suportada.' }, 400);
