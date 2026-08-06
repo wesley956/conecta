@@ -33,10 +33,10 @@ jobs:
 
       - name: Check Edge Functions
         run: |
-          deno check supabase/functions/_shared/universalOutboundFetch.ts
-          deno check supabase/functions/device-config-qualified/index.ts
-          deno check supabase/functions/playlist-cache/index.ts
-          deno check supabase/functions/playlist-source-manager/index.ts
+          deno check --node-modules-dir=auto supabase/functions/_shared/universalOutboundFetch.ts
+          deno check --node-modules-dir=auto supabase/functions/device-config-qualified/index.ts
+          deno check --node-modules-dir=auto supabase/functions/playlist-cache/index.ts
+          deno check --node-modules-dir=auto supabase/functions/playlist-source-manager/index.ts
 
       - name: Run universal importer tests
         run: npm run check:universal-playlist-source
