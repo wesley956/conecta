@@ -22,4 +22,4 @@ A reutilização é registrada na auditoria como `universal_playlist_reused`, se
 
 ## Validação automatizada
 
-As funções SQL qualificam explicitamente as colunas que podem coincidir com nomes de retorno do PL/pgSQL. O Deno usa resolução automática das dependências npm para que todas as Edge Functions sejam verificadas isoladamente no fluxo de integração contínua.
+As funções SQL qualificam explicitamente as colunas que podem coincidir com nomes de retorno do PL/pgSQL. O upsert do perfil de conexão referencia diretamente a chave primária `panel_playlist_connection_profiles_pkey`, evitando ambiguidade no lint. O Deno usa resolução automática das dependências npm para que todas as Edge Functions sejam verificadas isoladamente no fluxo de integração contínua.
