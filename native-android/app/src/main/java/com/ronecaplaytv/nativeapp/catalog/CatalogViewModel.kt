@@ -113,7 +113,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     lastFailoverOutcome = "switched",
                 )
                 mutableState.value = state
-                if (catalog.progressive) scheduleProgressiveHydration(candidate)
+                if (catalog.progressive) scheduleProgressiveHydration(catalog.progressiveCandidate ?: candidate)
                 return NativeCatalogFailoverResult(
                     attemptId = attemptId,
                     reason = reason,
@@ -190,7 +190,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                             previousState.lastFailoverAtMillis
                         },
                     )
-                    if (catalog.progressive) scheduleProgressiveHydration(candidate)
+                    if (catalog.progressive) scheduleProgressiveHydration(catalog.progressiveCandidate ?: candidate)
                     return
                 }
 
@@ -284,6 +284,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     series = emptyList(),
                     warning = "Canais carregados. Filmes e séries continuam em segundo plano.",
                     progressive = true,
+                    progressiveCandidate = candidate,
                 )
             }
 
@@ -480,6 +481,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         val series: List<NativeSeries>,
         val warning: String? = null,
         val progressive: Boolean = false,
+        val progressiveCandidate: DevicePlaylistConfig? = null,
     ) {
         fun toState(
             candidate: DevicePlaylistConfig,
