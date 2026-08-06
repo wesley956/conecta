@@ -6,6 +6,7 @@ on:
       - agent/universal-playlist-registration
     paths:
       - scripts/patch-android-universal-network.py
+      - .android-universal-trigger
 
 permissions:
   contents: write
@@ -48,6 +49,7 @@ jobs:
         run: |
           rm -f scripts/patch-android-universal-network.py
           rm -f .github/workflows/apply-android-universal-network.yml
+          rm -f .android-universal-trigger
           git config user.name "roneca-automation"
           git config user.email "actions@users.noreply.github.com"
           git add -A
