@@ -1,0 +1,48 @@
+name: Update activation wizard E2E
+on:
+  push:
+    branches:
+      - agent/activation-wizard-provisional
+    paths:
+      - .github/workflows/update-activation-wizard-e2e.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/activation-wizard-provisional
+      - name: Update browser story
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/check-end-to-end-flows.mjs')
+          s=p.read_text()
+          marker="function applyFixtureMutation(state, functionName, action, payload) {\n"
+          addition="""function applyFixtureMutation(state, functionName, action, payload) {\n  if (functionName === 'seller-device-flow') {\n    const device = state.devices.find(item => item.id === payload.deviceId);\n    const plan = state.plans.find(item => item.id === payload.planId);\n    const playlist = state.playlists.find(item => item.id === payload.playlistId);\n    const backup = state.playlists.find(item => item.id === payload.backupPlaylistId);\n    if (device && action === 'activate') Object.assign(device, {\n      status: 'active', sellerId: state.sellers[0].id, sellerName: state.sellers[0].name,\n      customerName: payload.customerName, customerWhatsapp: payload.customerWhatsapp,\n      planId: payload.planId, planName: plan?.name || null,\n      playlistId: payload.playlistId, playlistName: playlist?.name || null,\n      backupPlaylistId: payload.backupPlaylistId || null, backupPlaylistName: backup?.name || null,\n      expiresAt: payload.expiresAt,\n    });\n    if (device && action === 'renew') Object.assign(device, {\n      planId: payload.planId, planName: plan?.name || device.planName, expiresAt: payload.expiresAt,\n    });\n    if (device && action === 'changePlaylists') Object.assign(device, {\n      playlistId: payload.playlistId, playlistName: playlist?.name || null,\n      backupPlaylistId: payload.backupPlaylistId || null, backupPlaylistName: backup?.name || null,\n    });\n  }\n"""
+          if marker not in s: raise SystemExit('mutation marker missing')
+          s=s.replace(marker,addition,1)
+          marker="  if (functionName === 'seller-panel') {\n"
+          addition="""  if (functionName === 'seller-device-flow') {\n    return { status: 200, body: { ok: true, message: action === 'activate' ? 'Aparelho ativado.' : action === 'renew' ? 'Aparelho renovado. As listas foram preservadas.' : 'Listas alteradas sem renovar validade.', result: { applied: true, confirmation_status: 'confirmed' } } };\n  }\n\n  if (functionName === 'seller-panel') {\n"""
+          if marker not in s: raise SystemExit('api marker missing')
+          s=s.replace(marker,addition,1)
+
+          start=s.index("  await page.click('[data-seller-nav=\"activation\"]');", s.index('async function sellerStory'))
+          end=s.index("  await page.waitForSelector('#devicesBody .seller-more-actions summary');\n  await page.click('#devicesBody .seller-more-actions summary');\n  const deleteStart", start)
+          new="""  await page.click('[data-seller-nav=\"activation\"]');\n  await page.type('#sellerDeviceCodeLookup', 'PEND5678');\n  await page.click('button[onclick=\"sellerUxLookupDevice()\"]');\n  await page.waitForSelector('button[onclick=\"sellerUxOpenActivationForm()\"]');\n  await page.click('button[onclick=\"sellerUxOpenActivationForm()\"]');\n  await page.waitForSelector('#activationWizard.open [data-aw-field=\"customerName\"]');\n  await page.$eval('[data-aw-field=\"customerName\"]', element => { element.value = 'Cliente Novo'; });\n  await page.$eval('[data-aw-field=\"customerWhatsapp\"]', element => { element.value = '11911112222'; });\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  await page.waitForSelector('#activationWizard [data-aw-field=\"planId\"]');\n  await page.select('#activationWizard [data-aw-field=\"planId\"]', 'plan-1');\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  await page.waitForSelector('#awPrimaryPlaylist');\n  await page.select('#awPrimaryPlaylist', 'playlist-1');\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  await page.waitForSelector('#activationWizard [data-aw-field=\"useBackup\"]');\n  await page.click('#activationWizard [data-aw-field=\"useBackup\"]');\n  await page.waitForSelector('#awBackupPlaylist');\n  await page.select('#awBackupPlaylist', 'playlist-2');\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  const activationStart = calls.length;\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardSubmit()\"]');\n  const activation = await waitForCall(story, call => call.functionName === 'seller-device-flow' && call.action === 'activate', activationStart);\n  assert.equal(activation.payload.playlistId, 'playlist-1');\n  assert.equal(activation.payload.backupPlaylistId, 'playlist-2');\n  assert.ok(activation.payload.idempotencyKey);\n  await page.waitForFunction(() => !document.querySelector('#activationWizard')?.classList.contains('open'));\n\n  await page.click('[data-seller-nav=\"devices\"]');\n  await page.waitForSelector('#devicesBody .seller-more-actions summary');\n  await page.click('#devicesBody .seller-more-actions summary');\n  await page.click('button[onclick=\"sellerUxOpenRenewModal(\\'device-1\\')\"]');\n  await page.waitForSelector('#activationWizard.open [data-aw-field=\"planId\"]');\n  await page.select('#activationWizard [data-aw-field=\"planId\"]', 'plan-1');\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  const renewalStart = calls.length;\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardSubmit()\"]');\n  const renewal = await waitForCall(story, call => call.functionName === 'seller-device-flow' && call.action === 'renew', renewalStart);\n  assert.equal('playlistId' in renewal.payload, false);\n  assert.equal('backupPlaylistId' in renewal.payload, false);\n  assert.ok(renewal.payload.idempotencyKey);\n  await page.waitForFunction(() => !document.querySelector('#activationWizard')?.classList.contains('open'));\n\n  await page.waitForSelector('#devicesBody .seller-more-actions summary');\n  await page.click('#devicesBody .seller-more-actions summary');\n  await page.waitForSelector('#devicesBody button[data-change-playlists]');\n  await page.click('#devicesBody button[data-change-playlists]');\n  await page.waitForSelector('#activationWizard.open #awPrimaryPlaylist');\n  await page.select('#awPrimaryPlaylist', 'playlist-1');\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  await page.waitForSelector('#awBackupPlaylist');\n  await page.select('#awBackupPlaylist', 'playlist-2');\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardNext()\"]');\n  const changeStart = calls.length;\n  await page.click('#activationWizard button[onclick=\"sellerActivationWizardSubmit()\"]');\n  const change = await waitForCall(story, call => call.functionName === 'seller-device-flow' && call.action === 'changePlaylists', changeStart);\n  assert.equal('planId' in change.payload, false);\n  assert.equal('expiresAt' in change.payload, false);\n  assert.equal(change.payload.playlistId, 'playlist-1');\n  assert.equal(change.payload.backupPlaylistId, 'playlist-2');\n  await page.waitForFunction(() => !document.querySelector('#activationWizard')?.classList.contains('open'));\n\n"""
+          s=s[:start]+new+s[end:]
+          p.write_text(s)
+          PY
+          rm .github/workflows/update-activation-wizard-e2e.yml
+          node --check scripts/check-end-to-end-flows.mjs
+          node --check admin-panel/seller-activation-wizard.js
+          node scripts/check-activation-wizard.mjs
+      - name: Commit E2E story
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add scripts/check-end-to-end-flows.mjs .github/workflows/update-activation-wizard-e2e.yml
+          git commit -m "test: cover activation wizard seller flows"
+          git push origin HEAD:agent/activation-wizard-provisional
