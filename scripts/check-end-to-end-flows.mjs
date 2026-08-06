@@ -95,6 +95,27 @@ function sellerDashboard(state) {
 }
 
 function applyFixtureMutation(state, functionName, action, payload) {
+  if (functionName === 'seller-device-flow') {
+    const device = state.devices.find(item => item.id === payload.deviceId);
+    const plan = state.plans.find(item => item.id === payload.planId);
+    const playlist = state.playlists.find(item => item.id === payload.playlistId);
+    const backup = state.playlists.find(item => item.id === payload.backupPlaylistId);
+    if (device && action === 'activate') Object.assign(device, {
+      status: 'active', sellerId: state.sellers[0].id, sellerName: state.sellers[0].name,
+      customerName: payload.customerName, customerWhatsapp: payload.customerWhatsapp,
+      planId: payload.planId, planName: plan?.name || null,
+      playlistId: payload.playlistId, playlistName: playlist?.name || null,
+      backupPlaylistId: payload.backupPlaylistId || null, backupPlaylistName: backup?.name || null,
+      expiresAt: payload.expiresAt,
+    });
+    if (device && action === 'renew') Object.assign(device, {
+      planId: payload.planId, planName: plan?.name || device.planName, expiresAt: payload.expiresAt,
+    });
+    if (device && action === 'changePlaylists') Object.assign(device, {
+      playlistId: payload.playlistId, playlistName: playlist?.name || null,
+      backupPlaylistId: payload.backupPlaylistId || null, backupPlaylistName: backup?.name || null,
+    });
+  }
   if (functionName === 'finance-panel' && action === 'activateDeviceWithFinance') {
     const device = state.devices.find(item => item.id === payload.deviceId || item.deviceCode === payload.deviceCode);
     const customer = state.customers.find(item => item.id === payload.customerId);
@@ -141,6 +162,10 @@ function apiResult(functionName, action, role, story, payload) {
     if (action === 'listCommercialData') return { status: 200, body: adminDashboard(state) };
     if (action === 'listAuditLogs') return { status: 200, body: { logs: [] } };
     return { status: 200, body: { success: true, message: 'Operação administrativa simulada.' } };
+  }
+
+  if (functionName === 'seller-device-flow') {
+    return { status: 200, body: { ok: true, message: action === 'activate' ? 'Aparelho ativado.' : action === 'renew' ? 'Aparelho renovado. As listas foram preservadas.' : 'Listas alteradas sem renovar validade.', result: { applied: true, confirmation_status: 'confirmed' } } };
   }
 
   if (functionName === 'seller-panel') {
@@ -505,31 +530,62 @@ async function sellerStory(browser, origin) {
   await page.click('button[onclick="sellerUxLookupDevice()"]');
   await page.waitForSelector('button[onclick="sellerUxOpenActivationForm()"]');
   await page.click('button[onclick="sellerUxOpenActivationForm()"]');
-  await page.$eval('#sellerActivationCustomerName', element => { element.value = 'Cliente Novo'; });
-  await page.$eval('#sellerActivationCustomerWhatsapp', element => { element.value = '11911112222'; });
-  await page.select('#sellerActivationPlan', 'plan-1');
-  await page.select('#sellerActivationPlaylist', 'playlist-1');
-  await page.select('#sellerActivationBackupPlaylist', 'playlist-2');
+  await page.waitForSelector('#activationWizard.open [data-aw-field="customerName"]');
+  await page.$eval('[data-aw-field="customerName"]', element => { element.value = 'Cliente Novo'; });
+  await page.$eval('[data-aw-field="customerWhatsapp"]', element => { element.value = '11911112222'; });
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
+  await page.waitForSelector('#activationWizard [data-aw-field="planId"]');
+  await page.select('#activationWizard [data-aw-field="planId"]', 'plan-1');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
+  await page.waitForSelector('#awPrimaryPlaylist');
+  await page.select('#awPrimaryPlaylist', 'playlist-1');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
+  await page.waitForSelector('#activationWizard [data-aw-field="useBackup"]');
+  await page.click('#activationWizard [data-aw-field="useBackup"]');
+  await page.waitForSelector('#awBackupPlaylist');
+  await page.select('#awBackupPlaylist', 'playlist-2');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
   const activationStart = calls.length;
-  await page.click('button[onclick="sellerUxActivateDevice()"]');
-  const activation = await waitForCall(story, call => call.functionName === 'finance-panel' && call.action === 'activateDeviceWithFinance', activationStart);
+  await page.click('#activationWizard button[onclick="sellerActivationWizardSubmit()"]');
+  const activation = await waitForCall(story, call => call.functionName === 'seller-device-flow' && call.action === 'activate', activationStart);
   assert.equal(activation.payload.playlistId, 'playlist-1');
   assert.equal(activation.payload.backupPlaylistId, 'playlist-2');
   assert.ok(activation.payload.idempotencyKey);
+  await page.waitForFunction(() => !document.querySelector('#activationWizard')?.classList.contains('open'));
 
   await page.click('[data-seller-nav="devices"]');
   await page.waitForSelector('#devicesBody .seller-more-actions summary');
   await page.click('#devicesBody .seller-more-actions summary');
   await page.click('button[onclick="sellerUxOpenRenewModal(\'device-1\')"]');
-  await page.waitForSelector('#sellerUxModal.open #sellerRenewPlan');
-  await page.select('#sellerRenewPlan', 'plan-1');
-  await page.select('#sellerRenewPlaylist', 'playlist-1');
-  await page.select('#sellerRenewBackupPlaylist', 'playlist-2');
+  await page.waitForSelector('#activationWizard.open [data-aw-field="planId"]');
+  await page.select('#activationWizard [data-aw-field="planId"]', 'plan-1');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
   const renewalStart = calls.length;
-  await page.click('button[onclick="sellerUxRenewDevice()"]');
-  const renewal = await waitForCall(story, call => call.functionName === 'finance-panel' && call.action === 'renewDeviceWithFinance', renewalStart);
-  assert.equal(renewal.payload.backupPlaylistId, 'playlist-2');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardSubmit()"]');
+  const renewal = await waitForCall(story, call => call.functionName === 'seller-device-flow' && call.action === 'renew', renewalStart);
+  assert.equal('playlistId' in renewal.payload, false);
+  assert.equal('backupPlaylistId' in renewal.payload, false);
   assert.ok(renewal.payload.idempotencyKey);
+  await page.waitForFunction(() => !document.querySelector('#activationWizard')?.classList.contains('open'));
+
+  await page.waitForSelector('#devicesBody .seller-more-actions summary');
+  await page.click('#devicesBody .seller-more-actions summary');
+  await page.waitForSelector('#devicesBody button[data-change-playlists]');
+  await page.click('#devicesBody button[data-change-playlists]');
+  await page.waitForSelector('#activationWizard.open #awPrimaryPlaylist');
+  await page.select('#awPrimaryPlaylist', 'playlist-1');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
+  await page.waitForSelector('#awBackupPlaylist');
+  await page.select('#awBackupPlaylist', 'playlist-2');
+  await page.click('#activationWizard button[onclick="sellerActivationWizardNext()"]');
+  const changeStart = calls.length;
+  await page.click('#activationWizard button[onclick="sellerActivationWizardSubmit()"]');
+  const change = await waitForCall(story, call => call.functionName === 'seller-device-flow' && call.action === 'changePlaylists', changeStart);
+  assert.equal('planId' in change.payload, false);
+  assert.equal('expiresAt' in change.payload, false);
+  assert.equal(change.payload.playlistId, 'playlist-1');
+  assert.equal(change.payload.backupPlaylistId, 'playlist-2');
+  await page.waitForFunction(() => !document.querySelector('#activationWizard')?.classList.contains('open'));
 
   await page.waitForSelector('#devicesBody .seller-more-actions summary');
   await page.click('#devicesBody .seller-more-actions summary');

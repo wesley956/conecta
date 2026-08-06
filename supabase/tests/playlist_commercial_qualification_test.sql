@@ -113,6 +113,13 @@ insert into public.panel_devices (
     'pending',
     repeat('b', 64),
     true
+  ),
+  (
+    '00000000-0000-0000-0000-00000000a303',
+    'RPTV-QUAL02',
+    'pending',
+    repeat('c', 64),
+    false
   );
 
 select is(
@@ -147,7 +154,7 @@ select ok(
   'Mensagem comercial não expõe credenciais'
 );
 
-select throws_ok(
+select lives_ok(
   $$select * from public.apply_device_subscription_transaction(
     '00000000-0000-0000-0000-00000000a001',
     '00000000-0000-0000-0000-00000000a301',
@@ -156,19 +163,17 @@ select throws_ok(
     '2099-01-01 00:00:00+00',
     'activation',
     'qualification-test',
-    'pending-direct-must-fail',
+    'pending-direct-provisional-pass',
     null,
-    'Cliente Pendente',
+    'Cliente Provisório',
     true
   )$$,
-  'P0001',
-  'Lista principal ainda não está homologada para ativação. Estado: aguardando teste no aparelho.',
-  'Lista direta pendente é rejeitada antes da cobrança'
+  'Android pode ser ativado provisoriamente enquanto o aplicativo confirma a lista'
 );
 select is(
   (select credit_balance from public.panel_sellers where id = '00000000-0000-0000-0000-00000000a001'),
-  10,
-  'Falha de homologação preserva o saldo'
+  8,
+  'Ativação provisória consome o crédito normal do plano'
 );
 
 select lives_ok(
@@ -187,8 +192,8 @@ select is(
 );
 select is(
   (select count(*)::integer from public.panel_credit_ledger where seller_id = '00000000-0000-0000-0000-00000000a001'),
-  0,
-  'Sessão de validação não cria lançamento financeiro'
+  1,
+  'Sessão de validação não cria lançamento financeiro adicional'
 );
 select ok(
   public.mark_playlist_direct_success(
@@ -211,7 +216,7 @@ select is(
 select lives_ok(
   $$select * from public.apply_device_subscription_transaction(
     '00000000-0000-0000-0000-00000000a001',
-    '00000000-0000-0000-0000-00000000a301',
+    '00000000-0000-0000-0000-00000000a303',
     '00000000-0000-0000-0000-00000000a101',
     '00000000-0000-0000-0000-00000000a202',
     '2099-01-01 00:00:00+00',
@@ -226,13 +231,13 @@ select lives_ok(
 );
 select is(
   (select credit_balance from public.panel_sellers where id = '00000000-0000-0000-0000-00000000a001'),
-  8,
-  'Crédito é consumido somente após a homologação'
+  6,
+  'Uma nova ativação confirmada consome o crédito normal do plano'
 );
 select is(
-  (select status from public.panel_devices where id = '00000000-0000-0000-0000-00000000a301'),
+  (select status from public.panel_devices where id = '00000000-0000-0000-0000-00000000a303'),
   'active',
-  'Aparelho comercial é ativado após a homologação'
+  'Outro aparelho comercial usa a lista já confirmada'
 );
 
 update public.panel_playlists
