@@ -153,7 +153,11 @@ async function listState(supabase: any, playlistId: string | null = null) {
   };
 }
 
-async function requireDedicatedValidationDevice(supabase: any, deviceId: string) {
+async function requireDedicatedValidationDevice(
+  supabase: any,
+  deviceId: string,
+  playlistId: string | null = null,
+) {
   const { data, error } = await supabase
     .from('panel_devices')
     .select(`
@@ -174,18 +178,29 @@ async function requireDedicatedValidationDevice(supabase: any, deviceId: string)
     .maybeSingle();
   if (error || !data) throw new Error('Aparelho não encontrado.');
   if (data.status !== 'pending'
-      || data.seller_id
       || data.customer_id
       || data.playlist_id
       || data.plan_id
       || data.subscription_expires_at) {
-    throw new Error('Use um aparelho pendente e sem qualquer vínculo comercial para a validação.');
+    throw new Error('Use um aparelho pendente e sem cliente, plano, lista ou validade comercial para a validação.');
   }
   if (!data.device_credential_hash) {
     throw new Error('Abra o aplicativo nesse aparelho antes de marcá-lo para validação.');
   }
   if (!['android', 'androidtv'].includes(String(data.device_type || '').toLowerCase())) {
     throw new Error('A homologação direta exige um aparelho Android nesta etapa.');
+  }
+  if (playlistId && data.seller_id) {
+    const { data: permission, error: permissionError } = await supabase
+      .from('panel_seller_playlists')
+      .select('id')
+      .eq('seller_id', data.seller_id)
+      .eq('playlist_id', playlistId)
+      .eq('active', true)
+      .maybeSingle();
+    if (permissionError || !permission) {
+      throw new Error('A lista não pertence ao vendedor vinculado ao aparelho.');
+    }
   }
   return data;
 }
@@ -244,7 +259,7 @@ serve(async request => {
     if (action === 'start') {
       const playlistId = requiredUuid(body.playlistId, 'Lista');
       const deviceId = requiredUuid(body.deviceId, 'Aparelho');
-      await requireDedicatedValidationDevice(supabase, deviceId);
+      await requireDedicatedValidationDevice(supabase, deviceId, playlistId);
       const decision = await getPlaylistCommercialDecision(supabase, playlistId);
       if (!decision.requiresDeviceTest && decision.status !== 'retryable_error') {
         throw new Error(`Esta lista não precisa de teste direto. Estado atual: ${decision.label}.`);
