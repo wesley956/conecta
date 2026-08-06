@@ -20,6 +20,9 @@ jobs:
           ref: agent/universal-playlist-registration
           fetch-depth: 0
 
+      - name: Install project dependencies
+        run: npm ci
+
       - name: Apply guarded server patches
         run: python scripts/patch-universal-server-network.py
 
@@ -36,9 +39,7 @@ jobs:
           deno check supabase/functions/playlist-source-manager/index.ts
 
       - name: Run universal importer tests
-        run: |
-          npm ci
-          npm run check:universal-playlist-source
+        run: npm run check:universal-playlist-source
 
       - name: Commit verified server integration
         run: |
