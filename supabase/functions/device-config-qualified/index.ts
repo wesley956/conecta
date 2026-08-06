@@ -298,7 +298,7 @@ async function validationPlaylist(supabase: any, playlistId: string) {
         timeout_ms,
         follow_redirects
       ),
-      endpoints:panel_playlist_endpoints(
+      endpoints:panel_playlist_endpoints!panel_playlist_endpoints_playlist_id_fkey(
         id,
         endpoint_type,
         label,
