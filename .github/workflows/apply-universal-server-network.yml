@@ -26,6 +26,25 @@ jobs:
       - name: Apply guarded server patches
         run: python scripts/patch-universal-server-network.py
 
+      - name: Fix seller source-list narrowing
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('supabase/functions/playlist-source-manager/index.ts')
+          source = path.read_text()
+          old = """    playlistIds = (data || []).map((row: any) => String(row.playlist_id));
+    if (playlistIds.length === 0) return [];
+"""
+          new = """    const sellerPlaylistIds = (data || []).map((row: any) => String(row.playlist_id));
+    if (sellerPlaylistIds.length === 0) return [];
+    playlistIds = sellerPlaylistIds;
+"""
+          if source.count(old) != 1:
+              raise SystemExit('O estreitamento seguro das listas do vendedor não encontrou o trecho esperado.')
+          path.write_text(source.replace(old, new, 1))
+          PY
+
       - name: Set up Deno
         uses: denoland/setup-deno@v2
         with:
