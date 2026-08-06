@@ -6,11 +6,14 @@ import android.content.res.Configuration
 import android.os.SystemClock
 import com.ronecaplaytv.nativeapp.BuildConfig
 import com.ronecaplaytv.nativeapp.network.ProviderAttemptReport
+import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
+import com.ronecaplaytv.nativeapp.network.SourceNetworkScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import okhttp3.Request
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -206,53 +209,39 @@ internal class FastXtreamChannelClient(
             return cacheFile.readText(Charsets.UTF_8)
         }
 
-        val connection = (credentials.apiUrl(action).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = readTimeoutMs
-            instanceFollowRedirects = true
-            useCaches = false
-            setRequestProperty("Accept", "application/json, text/plain, */*")
-            setRequestProperty("Connection", "close")
-            setRequestProperty("User-Agent", USER_AGENT)
-        }
+        val endpoint = credentials.apiUrl(action)
+        val request = Request.Builder().url(endpoint).get()
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Connection", "close")
+            .header("User-Agent", USER_AGENT)
+            .build()
+        val client = SourceNetworkPolicyRegistry.clientFor(endpoint.toString(), SourceNetworkScope.Catalog)
+            .newBuilder()
+            .readTimeout(readTimeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .build()
 
         return try {
-            val status = connection.responseCode
-            if (status !in 200..299) {
-                throw CatalogLoadException(
-                    when (status) {
-                        401, 403 -> "[XTREAM_AUTH_INVALID] O servidor recusou as credenciais Xtream (HTTP $status)."
-                        404 -> "[XTREAM_AUTH_ENDPOINT_NOT_FOUND] A API Xtream respondeu HTTP 404."
-                        408, 429 -> "[XTREAM_SERVER_BUSY] A API Xtream respondeu HTTP $status."
-                        else -> "[XTREAM_HTTP_ERROR] A API Xtream respondeu HTTP $status."
-                    },
-                )
+            client.newCall(request).execute().use { response ->
+                val status = response.code
+                if (status !in 200..299) throw CatalogLoadException(when (status) {
+                    401, 403 -> "[XTREAM_AUTH_INVALID] O servidor recusou as credenciais Xtream (HTTP $status)."
+                    404 -> "[XTREAM_AUTH_ENDPOINT_NOT_FOUND] A API Xtream respondeu HTTP 404."
+                    408, 429 -> "[XTREAM_SERVER_BUSY] A API Xtream respondeu HTTP $status."
+                    else -> "[XTREAM_HTTP_ERROR] A API Xtream respondeu HTTP $status."
+                })
+                val body = response.body
+                if (body.contentLength() > maximumBytes) throw CatalogLoadException("[XTREAM_RESPONSE_TOO_LARGE] A resposta Xtream excede o limite rápido.")
+                val text = body.byteStream().use { readLimitedUtf8(it, maximumBytes) }
+                if (text.isBlank()) throw CatalogLoadException("[XTREAM_RESPONSE_EMPTY] A API Xtream retornou uma resposta vazia.")
+                if (text.trimStart().startsWith("<")) throw CatalogLoadException("[XTREAM_RESPONSE_HTML] A API Xtream devolveu HTML em vez de dados.")
+                if (action != null) saveCache(cacheFile, text)
+                text
             }
-            if (connection.contentLengthLong > maximumBytes) {
-                throw CatalogLoadException(
-                    "[XTREAM_RESPONSE_TOO_LARGE] A resposta Xtream excede o limite rápido.",
-                )
-            }
-            val text = connection.inputStream.use { readLimitedUtf8(it, maximumBytes) }
-            if (text.isBlank()) {
-                throw CatalogLoadException("[XTREAM_RESPONSE_EMPTY] A API Xtream retornou uma resposta vazia.")
-            }
-            if (text.trimStart().startsWith("<")) {
-                throw CatalogLoadException(
-                    "[XTREAM_RESPONSE_HTML] A API Xtream devolveu HTML em vez de dados.",
-                )
-            }
-            if (action != null) saveCache(cacheFile, text)
-            text
         } catch (error: Exception) {
-            val staleAvailable = allowStale && cacheFile.isFile &&
-                cacheFile.length() in 1..maximumBytes &&
+            val staleAvailable = allowStale && cacheFile.isFile && cacheFile.length() in 1..maximumBytes &&
                 now - cacheFile.lastModified() <= STALE_CACHE_TTL_MS
             if (staleAvailable) return cacheFile.readText(Charsets.UTF_8)
             throw mapConnectionError(error)
-        } finally {
-            connection.disconnect()
         }
     }
 
@@ -288,7 +277,11 @@ internal class FastXtreamChannelClient(
             "[XTREAM_CONNECTION_RESET] O servidor Xtream encerrou a conexão.",
         )
         is IOException -> CatalogLoadException(
-            "[XTREAM_CONNECTION_FAILED] Não foi possível conectar ao servidor Xtream.",
+            if (generateSequence(error as Throwable?) { it.cause }.any { it is SSLException }) {
+                "[XTREAM_TLS_FAILED] A conexão segura com o servidor Xtream falhou."
+            } else {
+                "[XTREAM_CONNECTION_FAILED] Não foi possível conectar ao servidor Xtream."
+            },
         )
         else -> CatalogLoadException(
             "[XTREAM_FAST_FAILED] O servidor não entregou o primeiro conteúdo.",

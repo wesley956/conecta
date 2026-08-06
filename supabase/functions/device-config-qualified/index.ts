@@ -58,6 +58,76 @@ function directParts(sourceUrl: string) {
   };
 }
 
+const BLOCKED_SOURCE_HEADERS = new Set([
+  'host',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'proxy-connection',
+  'upgrade',
+]);
+
+function connectionProfile(playlist: any) {
+  const raw = playlist?.connection_profile;
+  return Array.isArray(raw) ? raw[0] || null : raw || null;
+}
+
+function sourceHost(sourceUrl: unknown) {
+  try {
+    const parsed = new URL(String(sourceUrl || ''));
+    return parsed.hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function safeSourceHeaders(profile: any) {
+  const raw = profile?.request_headers;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const result: Record<string, string> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    const header = String(name || '').trim();
+    const normalized = header.toLowerCase();
+    const content = String(value ?? '').trim();
+    if (!/^[A-Za-z0-9-]{1,80}$/.test(header)) continue;
+    if (BLOCKED_SOURCE_HEADERS.has(normalized) || !content) continue;
+    result[header] = content.slice(0, 2048);
+  }
+  return result;
+}
+
+function playlistNetworkPolicy(playlist: any) {
+  const profile = connectionProfile(playlist);
+  const requestedMode = text(playlist?.tls_mode) || 'strict';
+  const tlsMode = ['strict', 'custom_ca', 'insecure'].includes(requestedMode)
+    ? requestedMode
+    : 'strict';
+  const hosts = new Set<string>();
+  for (const raw of Array.isArray(playlist?.tls_allowed_hosts) ? playlist.tls_allowed_hosts : []) {
+    const host = String(raw || '').trim().toLowerCase().split(':')[0];
+    if (host) hosts.add(host);
+  }
+  const originHost = sourceHost(playlist?.playlist_url);
+  if (originHost) hosts.add(originHost);
+
+  return {
+    tlsMode,
+    allowedHosts: [...hosts],
+    allowSubdomains: playlist?.tls_allow_subdomains === true,
+    allowRedirectHosts: playlist?.tls_allow_redirect_hosts === true,
+    scopes: {
+      validation: playlist?.tls_scope_validation !== false,
+      cache: playlist?.tls_scope_cache !== false,
+      catalog: playlist?.tls_scope_catalog !== false,
+      playback: playlist?.tls_scope_playback !== false,
+    },
+    customCaPem: tlsMode === 'custom_ca' ? text(profile?.custom_ca_pem) : null,
+    requestHeaders: safeSourceHeaders(profile),
+    followRedirects: profile?.follow_redirects !== false,
+    timeoutMs: Math.max(1000, Math.min(180000, Number(profile?.timeout_ms) || 45000)),
+  };
+}
+
 async function proxyDeviceConfig(
   supabaseUrl: string,
   request: Request,
@@ -99,12 +169,50 @@ async function resolveDevice(supabase: any, deviceCode: string) {
       client_name,
       status,
       is_playlist_validation_device,
-      playlist:panel_playlists(id, playlist_url, playlist_type, active),
+      playlist:panel_playlists(
+          id,
+          playlist_url,
+          playlist_type,
+          active,
+          tls_mode,
+          tls_allowed_hosts,
+          tls_allow_subdomains,
+          tls_allow_redirect_hosts,
+          tls_scope_validation,
+          tls_scope_cache,
+          tls_scope_catalog,
+          tls_scope_playback,
+          connection_profile:panel_playlist_connection_profiles(
+            custom_ca_pem,
+            request_headers,
+            timeout_ms,
+            follow_redirects
+          )
+        ),
       device_playlists:panel_device_playlists(
         playlist_id,
         priority,
         active,
-        playlist:panel_playlists(id, playlist_url, playlist_type, active)
+        playlist:panel_playlists(
+          id,
+          playlist_url,
+          playlist_type,
+          active,
+          tls_mode,
+          tls_allowed_hosts,
+          tls_allow_subdomains,
+          tls_allow_redirect_hosts,
+          tls_scope_validation,
+          tls_scope_cache,
+          tls_scope_catalog,
+          tls_scope_playback,
+          connection_profile:panel_playlist_connection_profiles(
+            custom_ca_pem,
+            request_headers,
+            timeout_ms,
+            follow_redirects
+          )
+        )
       )
     `)
     .eq('device_code', deviceCode)
@@ -135,7 +243,21 @@ async function validationPlaylist(supabase: any, playlistId: string) {
       playlist_qualification_status,
       playlist_cache_status,
       playlist_updated_at,
-      playlist_direct_confirmed_device_id
+      playlist_direct_confirmed_device_id,
+      tls_mode,
+      tls_allowed_hosts,
+      tls_allow_subdomains,
+      tls_allow_redirect_hosts,
+      tls_scope_validation,
+      tls_scope_cache,
+      tls_scope_catalog,
+      tls_scope_playback,
+      connection_profile:panel_playlist_connection_profiles(
+        custom_ca_pem,
+        request_headers,
+        timeout_ms,
+        follow_redirects
+      )
     `)
     .eq('id', playlistId)
     .maybeSingle();
@@ -211,12 +333,13 @@ async function applyHealth(
 }
 
 function sourceMap(device: any) {
-  const sources = new Map<string, { url: string; type: string }>();
+  const sources = new Map<string, { url: string; type: string; networkPolicy: Record<string, unknown> }>();
   const legacy = Array.isArray(device?.playlist) ? device.playlist[0] : device?.playlist;
   if (legacy?.id && legacy?.active !== false && text(legacy.playlist_url)) {
     sources.set(String(legacy.id), {
       url: String(legacy.playlist_url),
       type: text(legacy.playlist_type) || 'm3u',
+      networkPolicy: playlistNetworkPolicy(legacy),
     });
   }
   for (const assignment of device?.device_playlists || []) {
@@ -226,6 +349,7 @@ function sourceMap(device: any) {
     sources.set(String(playlist.id), {
       url: String(playlist.playlist_url),
       type: text(playlist.playlist_type) || 'm3u',
+      networkPolicy: playlistNetworkPolicy(playlist),
     });
   }
   return sources;
@@ -237,11 +361,17 @@ function injectCommercialDirectSources(payload: any, device: any) {
     ? payload.playlists.map((item: any) => {
         const id = text(item?.id);
         const source = id ? sources.get(id) : null;
+        if (!source) return item;
+        const enriched = {
+          ...item,
+          type: text(item?.type) || source.type,
+          networkPolicy: source.networkPolicy,
+        };
         const cacheReady = item?.cacheReady === true
           || Boolean(item?.cacheParts?.channelsUrl || item?.cacheSnapshotUrl);
-        if (!source || cacheReady || item?.accessMode !== 'direct') return item;
+        if (cacheReady || item?.accessMode !== 'direct') return enriched;
         return {
-          ...item,
+          ...enriched,
           type: source.type,
           cacheParts: directParts(source.url),
           cacheReady: true,
@@ -346,6 +476,7 @@ Deno.serve(async request => {
         cacheReady: true,
         directFallback: true,
         cacheParts: parts,
+        networkPolicy: playlistNetworkPolicy(playlist),
       };
       return json({
         active: true,

@@ -261,6 +261,7 @@ data class DeviceConfigResponse(
                                 channelsUrl = itemCacheParts?.optNullableString("channelsUrl"),
                                 moviesUrl = itemCacheParts?.optNullableString("moviesUrl"),
                                 seriesUrl = itemCacheParts?.optNullableString("seriesUrl"),
+                                networkPolicy = SourceNetworkPolicy.fromJson(item.optJSONObject("networkPolicy")),
                             ),
                         )
                     }
