@@ -1,0 +1,52 @@
+name: Apply universal server network policy
+
+on:
+  push:
+    branches:
+      - agent/universal-playlist-registration
+    paths:
+      - .server-universal-trigger
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/universal-playlist-registration
+          fetch-depth: 0
+
+      - name: Apply guarded server patches
+        run: python scripts/patch-universal-server-network.py
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check Edge Functions
+        run: |
+          deno check supabase/functions/_shared/universalOutboundFetch.ts
+          deno check supabase/functions/device-config-qualified/index.ts
+          deno check supabase/functions/playlist-cache/index.ts
+          deno check supabase/functions/playlist-source-manager/index.ts
+
+      - name: Run universal importer tests
+        run: |
+          npm ci
+          npm run check:universal-playlist-source
+
+      - name: Commit verified server integration
+        run: |
+          rm -f scripts/patch-universal-server-network.py
+          rm -f .github/workflows/apply-universal-server-network.yml
+          rm -f .server-universal-trigger
+          git config user.name "roneca-automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(server): apply source-scoped TLS to config and cache"
+          git push origin HEAD:agent/universal-playlist-registration
