@@ -1,0 +1,45 @@
+name: Apply universal SQL conflict fix
+
+on:
+  push:
+    branches:
+      - agent/universal-playlist-registration
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/universal-playlist-registration
+          fetch-depth: 0
+
+      - name: Qualify connection profile conflict target
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          for path in (
+              Path('supabase/migrations/20260805210500_universal_playlist_sources.sql'),
+              Path('supabase/migrations/20260806012800_universal_playlist_shared_source_guard.sql'),
+          ):
+              source = path.read_text()
+              old = '  on conflict (playlist_id) do update\n'
+              new = '  on conflict on constraint panel_playlist_connection_profiles_pkey do update\n'
+              assert old in source, path
+              path.write_text(source.replace(old, new, 1))
+          PY
+
+      - name: Commit final SQL lint correction
+        shell: bash
+        run: |
+          rm .github/workflows/apply-universal-sql-conflict-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: qualificar conflito do perfil de conexão"
+          git push origin HEAD:agent/universal-playlist-registration
