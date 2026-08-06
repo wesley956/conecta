@@ -110,33 +110,21 @@ Deno.serve(async req => {
       if (backupId) await assertPlaylist(supabase, seller.id, backupId, 'Lista reserva');
       const customerId = await upsertCustomer(supabase, seller.id, customerName, customerWhatsapp);
       const idempotencyKey = text(input.idempotencyKey, 'Chave de idempotência', 200);
-      const { data, error } = await supabase.rpc('apply_device_subscription_transaction', {
+      const { data, error } = await supabase.rpc('activate_device_provisional_transaction', {
         p_seller_id: seller.id,
         p_device_id: deviceId,
         p_plan_id: planId,
-        p_playlist_id: primaryId,
-        p_expires_at: expiresAt,
-        p_operation_type: 'activation',
-        p_performed_by: `seller:${seller.id}`,
-        p_idempotency_key: idempotencyKey,
-        p_customer_id: customerId,
-        p_client_name: customerName,
-        p_enforce_seller_ownership: true,
-      });
-      if (error) throw new Error(error.message || 'Falha na ativação.');
-      const subscription = Array.isArray(data) ? data[0] : data;
-      const { data: assignmentData, error: assignmentError } = await supabase.rpc('change_device_playlists_transaction', {
-        p_seller_id: seller.id,
-        p_device_id: deviceId,
         p_primary_playlist_id: primaryId,
         p_backup_playlist_id: backupId,
-        p_reason: 'Listas definidas pelo assistente de ativação',
+        p_expires_at: expiresAt,
+        p_customer_id: customerId,
+        p_client_name: customerName,
         p_performed_by: `seller:${seller.id}`,
-        p_idempotency_key: `${idempotencyKey}:playlists`,
+        p_idempotency_key: idempotencyKey,
       });
-      if (assignmentError) throw new Error(assignmentError.message || 'A ativação ocorreu, mas as listas não foram sincronizadas.');
-      const assignment = Array.isArray(assignmentData) ? assignmentData[0] : assignmentData;
-      return json({ ok: true, result: { subscription, assignment }, message: assignment?.confirmation_status === 'confirmed'
+      if (error) throw new Error(error.message || 'Falha na ativação.');
+      const result = Array.isArray(data) ? data[0] : data;
+      return json({ ok: true, result, message: result?.confirmation_status === 'confirmed'
         ? 'Aparelho ativado e lista confirmada.'
         : 'Aparelho ativado. O aplicativo confirmará a lista na primeira abertura.' });
     }
