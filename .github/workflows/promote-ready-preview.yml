@@ -1,0 +1,47 @@
+name: Promote validated activation wizard preview
+on:
+  push:
+    branches:
+      - agent/promote-activation-wizard
+    paths:
+      - .github/workflows/promote-ready-preview.yml
+permissions:
+  contents: write
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/promote-activation-wizard
+      - name: Promote existing READY deployment without rebuilding
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TEAM_ID: team_wJgepIgBUim8mQnFnLJUJR06
+          PROJECT_ID: prj_qZnsKJK28Y2pwLfG50CQABjCAKFy
+          DEPLOYMENT_ID: dpl_6F98dqCZCvTTkAvykVRsDescnc4h
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo '::error::VERCEL_TOKEN não está configurado no GitHub.'
+            exit 2
+          fi
+          status=$(curl -sS -o /tmp/promote.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v10/projects/${PROJECT_ID}/promote/${DEPLOYMENT_ID}?teamId=${TEAM_ID}")
+          if [ "$status" != "201" ] && [ "$status" != "202" ]; then
+            echo "::error::Promoção recusada pela Vercel (HTTP ${status})."
+            cat /tmp/promote.json
+            exit 1
+          fi
+          echo "Deployment READY promovido para produção (HTTP ${status})."
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          rm .github/workflows/promote-ready-preview.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/workflows/promote-ready-preview.yml
+          git commit -m "chore: remove temporary Vercel promotion workflow"
+          git push origin HEAD:agent/promote-activation-wizard
