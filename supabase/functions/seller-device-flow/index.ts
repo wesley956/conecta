@@ -51,7 +51,7 @@ async function getSeller(supabase: any, sellerId: string) {
 }
 async function assertDevice(supabase: any, sellerId: string, deviceId: string) {
   const { data, error } = await supabase.from('panel_devices')
-    .select('id,device_code,seller_id,status,device_type,is_playlist_validation_device,plan_id,customer_id,client_name,subscription_expires_at')
+    .select('id,device_code,seller_id,status,device_type,is_playlist_validation_device,plan_id,playlist_id,customer_id,client_name,subscription_expires_at')
     .eq('id', deviceId).maybeSingle();
   if (error || !data) throw new Error('Aparelho não encontrado.');
   if (data.is_playlist_validation_device === true) throw new Error('Este aparelho está reservado para diagnóstico administrativo.');
@@ -127,6 +127,34 @@ Deno.serve(async req => {
       return json({ ok: true, result, message: result?.confirmation_status === 'confirmed'
         ? 'Aparelho ativado e lista confirmada.'
         : 'Aparelho ativado. O aplicativo confirmará a lista na primeira abertura.' });
+    }
+
+    if (action === 'renew') {
+      const deviceId = text(input.deviceId, 'Aparelho', 80);
+      const device = await assertDevice(supabase, seller.id, deviceId);
+      if (device.status !== 'active') throw new Error('Somente aparelhos ativos podem ser renovados.');
+      const planId = text(input.planId, 'Plano', 80);
+      const expiresAt = text(input.expiresAt, 'Data de expiração', 80);
+      const primaryId = text(device.playlist_id, 'Lista principal atual', 80);
+      await assertPlaylist(supabase, seller.id, primaryId, 'Lista principal atual');
+      const { data, error } = await supabase.rpc('apply_device_subscription_transaction', {
+        p_seller_id: seller.id,
+        p_device_id: deviceId,
+        p_plan_id: planId,
+        p_playlist_id: primaryId,
+        p_expires_at: expiresAt,
+        p_operation_type: 'renewal',
+        p_performed_by: `seller:${seller.id}`,
+        p_idempotency_key: text(input.idempotencyKey, 'Chave de idempotência', 200),
+        p_customer_id: device.customer_id,
+        p_client_name: device.client_name,
+        p_enforce_seller_ownership: true,
+      });
+      if (error) throw new Error(error.message || 'Falha na renovação.');
+      const result = Array.isArray(data) ? data[0] : data;
+      return json({ ok: true, result, message: result?.applied === false
+        ? 'Esta renovação já havia sido processada.'
+        : 'Aparelho renovado. As listas foram preservadas.' });
     }
 
     if (action === 'changePlaylists') {
