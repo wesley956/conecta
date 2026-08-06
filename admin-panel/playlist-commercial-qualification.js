@@ -133,7 +133,6 @@
       const result = await invoke('admin-panel', { action: 'listDevices' });
       return (result.devices || []).filter(device =>
         device.status === 'pending'
-        && !device.sellerId
         && !device.customerId
         && !device.playlistId
         && !device.planId
@@ -191,7 +190,7 @@
           <label><span>Aparelho dedicado ao teste</span>
             <select id="qualificationDeviceSelect">
               <option value="">Selecione um aparelho pendente</option>
-              ${deviceOptions.map(device => `<option value="${esc(device.id)}" data-marked="${device.marked ? '1' : '0'}">${esc(device.deviceCode || device.id)}${device.clientName ? ` — ${esc(device.clientName)}` : ''}${device.marked ? ' — preparado' : ''}</option>`).join('')}
+              ${deviceOptions.map(device => `<option value="${esc(device.id)}" data-marked="${device.marked ? '1' : '0'}">${esc(device.deviceCode || device.id)}${device.clientName ? ` — ${esc(device.clientName)}` : ''}${device.sellerId ? ' — vendedor vinculado' : ''}${device.marked ? ' — preparado' : ''}</option>`).join('')}
             </select>
           </label>
           <label><span>Lista aguardando aparelho</span>
