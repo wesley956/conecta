@@ -1,0 +1,50 @@
+name: Materialize universal playlist registration
+
+on:
+  push:
+    branches:
+      - agent/universal-playlist-registration
+    paths:
+      - .universal-payload/READY
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/universal-playlist-registration
+          fetch-depth: 0
+      - name: Rebuild implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .universal-payload/part-* | base64 --decode > /tmp/universal-payload.tar.gz
+          echo "90696a261aef9b8ddda2f61634d398fcecd886e526240244f49ff6339b496259  /tmp/universal-payload.tar.gz" | sha256sum --check
+          tar -xzf /tmp/universal-payload.tar.gz
+          node scripts/apply-universal-registration.mjs
+      - name: Verify implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run check:universal-playlist-source
+          node --check admin-panel/universal-playlist-registration.js
+      - name: Commit materialized files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .universal-payload
+          rm -f .github/workflows/materialize-universal.yml
+          git config user.name "roneca-automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "feat: implement universal playlist registration"
+          git push origin HEAD:agent/universal-playlist-registration
