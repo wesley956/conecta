@@ -204,6 +204,15 @@
     modal.addEventListener('click', function (event) { if (event.target === modal) close(); });
     document.body.appendChild(modal);
 
+    if (state.surface === 'seller') {
+      modal.querySelectorAll('[data-upl-admin-security]').forEach(function (item) { item.remove(); });
+      var strictOnlyNote = document.createElement('div');
+      strictOnlyNote.className = 'upl-panel ok';
+      strictOnlyNote.textContent = 'Contas de vendedor usam validação segura de certificado. Exceções TLS são configuradas somente pelo administrador.';
+      var securityPanel = modal.querySelector('[data-upl-pane="2"] .upl-panel');
+      if (securityPanel) securityPanel.insertAdjacentElement('afterend', strictOnlyNote);
+    }
+
     document.querySelectorAll('input[name="uplMode"]').forEach(function (input) { input.addEventListener('change', syncMode); });
     document.querySelectorAll('input[name="uplTlsMode"]').forEach(function (input) { input.addEventListener('change', syncTls); });
     el('uplFile').addEventListener('change', readFile);
@@ -288,7 +297,7 @@
         <div class="upl-source-head"><div><h3>${esc(source.name)}</h3><p>${esc(source.providerName || 'Fornecedor não informado')} · ID ${esc(String(source.id || '').slice(-6).toUpperCase())}</p></div><span class="upl-chip ${statusInfo[1]}">${esc(statusInfo[0])}</span></div>
         <div class="upl-chip-row"><span class="upl-chip ${tlsInfo[1]}">${esc(tlsInfo[0])}</span>${expired ? '<span class="upl-chip err">Conta vencida</span>' : ''}<span class="upl-chip">${endpoints.length} endpoint(s)</span></div>
         <div class="upl-meta"><div><small>Origem principal</small><strong title="${esc(primary.preview || '')}">${esc(primary.host || '—')}${primary.port ? ':' + esc(primary.port) : ''}</strong></div><div><small>Formato</small><strong>${esc((primary.type || source.type || '—').toUpperCase())}</strong></div><div><small>Itens</small><strong>${number(source.cacheItemCount)}</strong></div><div><small>Vencimento</small><strong class="${expired ? 'upl-expired' : ''}">${fmt(source.providerExpiresAt)}</strong></div></div>
-        <div class="upl-actions"><button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.edit('${esc(source.id)}')">Editar</button><button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.testSaved('${esc(source.id)}')">Testar</button><button class="upl-btn danger" type="button" onclick="RonecaUniversalPlaylists.remove('${esc(source.id)}')">Excluir</button></div>
+        <div class="upl-actions">${state.surface === 'admin' ? `<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.edit('${esc(source.id)}')">Editar</button>` : ''}<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.testSaved('${esc(source.id)}')">Testar</button><button class="upl-btn danger" type="button" onclick="RonecaUniversalPlaylists.remove('${esc(source.id)}')">Excluir</button></div>
       </article>`;
     }).join('') : '<div class="upl-empty">Nenhuma fonte encontrada com esses filtros.</div>';
   }
@@ -415,8 +424,9 @@
   }
 
   function securityPayload() {
-    var selected = document.querySelector('input[name="uplTlsMode"]:checked'); var mode = selected ? selected.value : 'strict';
-    return { mode: mode, allowedHosts: value('uplAllowedHosts').split(/\n+/).map(function (item) { return item.trim(); }).filter(Boolean), allowSubdomains: checked('uplAllowSubdomains'), allowRedirectHosts: checked('uplAllowRedirectHosts'), riskAccepted: checked('uplRiskAccepted'), scopes: { validation: checked('uplScopeValidation', true), cache: checked('uplScopeCache', true), catalog: checked('uplScopeCatalog', true), playback: checked('uplScopePlayback', true) } };
+    var selected = document.querySelector('input[name="uplTlsMode"]:checked');
+    var mode = state.surface === 'seller' ? 'strict' : (selected ? selected.value : 'strict');
+    return { mode: mode, allowedHosts: value('uplAllowedHosts').split(/\n+/).map(function (item) { return item.trim(); }).filter(Boolean), allowSubdomains: state.surface === 'seller' ? false : checked('uplAllowSubdomains'), allowRedirectHosts: state.surface === 'seller' ? false : checked('uplAllowRedirectHosts'), riskAccepted: state.surface === 'seller' ? false : checked('uplRiskAccepted'), scopes: { validation: checked('uplScopeValidation', true), cache: checked('uplScopeCache', true), catalog: checked('uplScopeCatalog', true), playback: checked('uplScopePlayback', true) } };
   }
 
   function connectionPayload() {
@@ -502,6 +512,10 @@
   }
 
   async function edit(playlistId) {
+    if (state.surface === 'seller') {
+      global.alert('A edição da origem e da segurança é restrita ao administrador.');
+      return;
+    }
     ensureModal(); reset();
     try {
       setBusy(true, 'Carregando a fonte');

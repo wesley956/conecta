@@ -382,6 +382,12 @@ begin
   if v_role not in ('owner', 'admin', 'seller', 'system') then
     raise exception using errcode = '22023', message = 'Responsável inválido.';
   end if;
+  if v_role = 'seller' and p_existing_playlist_id is not null then
+    raise exception using errcode = '42501', message = 'Vendedor não pode editar uma origem compartilhada.';
+  end if;
+  if v_role = 'seller' and v_tls_mode <> 'strict' then
+    raise exception using errcode = '42501', message = 'Vendedor não pode configurar exceção de certificado.';
+  end if;
   if v_tls_mode = 'insecure' and coalesce((p_security ->> 'riskAccepted')::boolean, false) is not true then
     raise exception using errcode = '22023', message = 'É necessário confirmar o risco para ignorar certificados.';
   end if;
@@ -427,6 +433,30 @@ begin
 
     v_playlist_id := v_registration.playlist_id;
     v_created := v_registration.created;
+  end if;
+
+  -- Reutilização canônica é somente vínculo. Nunca sobrescreve uma origem
+  -- compartilhada com dados, endpoints ou segurança enviados por outro ator.
+  if p_existing_playlist_id is null and v_created is false then
+    select count(*)::integer
+    into v_endpoint_count
+    from public.panel_playlist_endpoints endpoint
+    where endpoint.playlist_id = v_playlist_id
+      and endpoint.active is true;
+
+    insert into public.panel_audit_logs (
+      action, entity_type, entity_id, description, metadata, performed_by
+    ) values (
+      'universal_playlist_reused',
+      'playlist',
+      v_playlist_id,
+      'Origem existente reutilizada sem alterar configuração, endpoints ou política TLS.',
+      jsonb_build_object('role', v_role, 'endpointCount', v_endpoint_count),
+      v_role || ':' || coalesce(p_created_by_user_id::text, 'system')
+    );
+
+    return query select v_playlist_id, false, v_endpoint_count;
+    return;
   end if;
 
   update public.panel_playlists playlist

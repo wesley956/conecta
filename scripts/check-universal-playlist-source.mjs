@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   parseProviderMessage,
   parseStructuredSource,
@@ -64,3 +65,30 @@ assert.equal(special.endpoints[1].protocol, 'rtsp');
 assert.equal(special.endpoints.filter(item => item.primary).length, 1);
 
 console.log('Cadastro universal: parser da mensagem Netplay e origens especiais aprovados.');
+
+
+const managerSource = await readFile(new URL('../supabase/functions/playlist-source-manager/index.ts', import.meta.url), 'utf8');
+const migrationSource = await readFile(new URL('../supabase/migrations/20260805210500_universal_playlist_sources.sql', import.meta.url), 'utf8');
+const guardMigrationSource = await readFile(new URL('../supabase/migrations/20260806012800_universal_playlist_shared_source_guard.sql', import.meta.url), 'utf8');
+const panelSource = await readFile(new URL('../admin-panel/universal-playlist-registration.js', import.meta.url), 'utf8');
+const authSource = await readFile(new URL('../admin-panel/panel-auth-session.js', import.meta.url), 'utf8');
+
+assert.match(managerSource, /principal\.role === 'seller' && security\.mode !== 'strict'/);
+assert.match(managerSource, /A edição da origem e da segurança é restrita ao administrador/);
+assert.match(managerSource, /Os detalhes sensíveis da origem são restritos ao administrador/);
+assert.match(managerSource, /if \(!created && !editing\)/);
+assert.match(managerSource, /sem alterar configuração, segurança ou endpoints/);
+assert.match(migrationSource, /v_role = 'seller' and p_existing_playlist_id is not null/);
+assert.match(migrationSource, /v_role = 'seller' and v_tls_mode <> 'strict'/);
+assert.match(migrationSource, /p_existing_playlist_id is null and v_created is false/);
+assert.match(guardMigrationSource, /v_role = 'seller' and p_existing_playlist_id is not null/);
+assert.match(guardMigrationSource, /v_role = 'seller' and v_tls_mode <> 'strict'/);
+assert.match(guardMigrationSource, /p_existing_playlist_id is null and v_created is false/);
+assert.match(guardMigrationSource, /universal_playlist_reused/);
+assert.match(panelSource, /data-upl-admin-security/);
+assert.match(panelSource, /state\.surface === 'seller' \? 'strict'/);
+assert.match(panelSource, /state\.surface === 'admin' \? `<button class="upl-btn"/);
+assert.match(authSource, /'playlist-source-manager': true/);
+assert.match(authSource, /subscription-panel\|playlist-source-manager\|app-release/);
+
+console.log('Cadastro universal: isolamento de fontes compartilhadas, autenticação e TLS administrativo aprovados.');

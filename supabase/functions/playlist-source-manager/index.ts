@@ -571,10 +571,22 @@ async function saveSource(
     1,
     50,
   );
-  const security = securityPayload(body, parsed);
-  const connectionProfile = connectionProfilePayload(body, security);
   const existingPlaylistId = uuid(body.playlistId, 'Lista', true);
+  if (existingPlaylistId && principal.role === 'seller') {
+    throw new PanelAuthError(
+      'A edição da origem e da segurança é restrita ao administrador.',
+      403,
+    );
+  }
   if (existingPlaylistId) await assertPlaylistAccess(supabase, principal, existingPlaylistId);
+  const security = securityPayload(body, parsed);
+  if (principal.role === 'seller' && security.mode !== 'strict') {
+    throw new PanelAuthError(
+      'Somente administradores podem configurar exceções de certificado.',
+      403,
+    );
+  }
+  const connectionProfile = connectionProfilePayload(body, security);
   const sellerId = principal.role === 'seller'
     ? principal.sellerId
     : uuid(body.sellerId, 'Vendedor', true);
@@ -607,6 +619,23 @@ async function saveSource(
   const result = Array.isArray(data) ? data[0] : data;
   if (!result?.playlist_id) throw new Error('O cadastro não retornou a fonte salva.');
   const playlistId = String(result.playlist_id);
+  const created = result.created === true;
+  const editing = Boolean(existingPlaylistId);
+
+  // O cadastro canônico pode reutilizar uma origem já compartilhada. Nessa
+  // situação, vincular a lista é permitido, mas a solicitação atual jamais
+  // pode sobrescrever endpoints, cabeçalhos ou a política TLS existente.
+  if (!created && !editing) {
+    return {
+      playlistId,
+      created: false,
+      reused: true,
+      endpointCount: Number(result.endpoint_count || 0),
+      source: parsed.redactedSummary,
+      security: null,
+      message: 'Esta origem já existia e foi apenas reutilizada, sem alterar configuração, segurança ou endpoints.',
+    };
+  }
 
   if (security.mode === 'strict' && security.scopes.cache) {
     schedule(triggerLegacyCache(playlistId));
@@ -629,16 +658,17 @@ async function saveSource(
 
   return {
     playlistId,
-    created: result.created === true,
+    created,
+    reused: false,
     endpointCount: Number(result.endpoint_count || parsed.endpoints.length),
     source: parsed.redactedSummary,
     security: {
       ...security,
       connection: safeConnectionProfileSummary(connectionProfile),
     },
-    message: result.created === true
+    message: created
       ? 'Fonte salva com todos os endpoints. A validação foi iniciada.'
-      : 'Fonte existente atualizada sem criar duplicação.',
+      : 'Fonte existente atualizada pelo administrador sem criar duplicação.',
   };
 }
 
@@ -770,7 +800,19 @@ async function testDraftOrSaved(
     profile = connectionProfilePayload({ connectionProfile: saved.connectionProfile }, security);
   } else {
     parsed = await parseInput(body);
+    if (playlistId && principal.role === 'seller') {
+      throw new PanelAuthError(
+        'A edição e o teste de uma configuração alterada são restritos ao administrador.',
+        403,
+      );
+    }
     security = securityPayload(body, parsed);
+    if (principal.role === 'seller' && security.mode !== 'strict') {
+      throw new PanelAuthError(
+        'Somente administradores podem testar exceções de certificado.',
+        403,
+      );
+    }
     profile = connectionProfilePayload(body, security);
     if (playlistId) await assertPlaylistAccess(supabase, principal, playlistId);
   }
@@ -871,6 +913,9 @@ Deno.serve(async request => {
       return json(request, { ok: true, sources: await listSources(supabase, principal) });
     }
     if (action === 'details') {
+      if (principal.role === 'seller') {
+        throw new PanelAuthError('Os detalhes sensíveis da origem são restritos ao administrador.', 403);
+      }
       const playlistId = uuid(body.playlistId, 'Lista')!;
       return json(request, { ok: true, ...(await details(supabase, principal, playlistId)) });
     }
