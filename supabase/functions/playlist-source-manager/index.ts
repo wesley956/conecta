@@ -278,8 +278,9 @@ async function listSources(supabase: any, principal: PanelPrincipal) {
       .eq('seller_id', principal.sellerId)
       .eq('active', true);
     if (error) throw new Error('Não foi possível carregar as permissões do vendedor.');
-    playlistIds = (data || []).map((row: any) => String(row.playlist_id));
-    if (playlistIds.length === 0) return [];
+    const sellerPlaylistIds = (data || []).map((row: any) => String(row.playlist_id));
+    if (sellerPlaylistIds.length === 0) return [];
+    playlistIds = sellerPlaylistIds;
   }
 
   let query = supabase

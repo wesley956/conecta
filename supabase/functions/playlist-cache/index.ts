@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
-import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
+import { fetchUniversalPlaylistText } from '../_shared/universalOutboundFetch.ts';
 import {
   buildXtreamApiUrl,
   buildXtreamStreamUrl,
@@ -170,17 +170,83 @@ function cleanMovieName(name: string) {
   return cleaned || name.trim() || 'Filme sem nome';
 }
 
-async function fetchJson(url: string, label: string, allowedOrigin?: string) {
-  const raw = await safeFetchPlaylistText(url, {
+const BLOCKED_CACHE_HEADERS = new Set([
+  'host',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'proxy-connection',
+  'upgrade',
+]);
+
+function cacheConnectionProfile(playlist: any) {
+  const raw = playlist?.connection_profile;
+  return Array.isArray(raw) ? raw[0] || null : raw || null;
+}
+
+function cacheRequestHeaders(playlist: any, defaults: Record<string, string>) {
+  const result: Record<string, string> = { ...defaults };
+  const raw = cacheConnectionProfile(playlist)?.request_headers;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return result;
+  for (const [name, value] of Object.entries(raw)) {
+    const header = String(name || '').trim();
+    const normalized = header.toLowerCase();
+    const content = String(value ?? '').trim();
+    if (!/^[A-Za-z0-9-]{1,80}$/.test(header)) continue;
+    if (BLOCKED_CACHE_HEADERS.has(normalized) || !content) continue;
+    result[header] = content.slice(0, 2048);
+  }
+  return result;
+}
+
+function cacheFetchOptions(
+  playlist: any,
+  label: string,
+  maxBytes: number,
+  defaults: Record<string, string>,
+  allowedOrigin?: string,
+) {
+  const profile = cacheConnectionProfile(playlist);
+  const requested = text(playlist?.tls_mode, 'strict');
+  const mode = playlist?.tls_scope_cache === false
+    ? 'strict'
+    : ['strict', 'custom_ca', 'insecure'].includes(requested) ? requested : 'strict';
+  const hosts = new Set<string>();
+  for (const raw of Array.isArray(playlist?.tls_allowed_hosts) ? playlist.tls_allowed_hosts : []) {
+    const host = String(raw || '').trim().toLowerCase().split(':')[0];
+    if (host) hosts.add(host);
+  }
+  try {
+    hosts.add(new URL(String(playlist?.playlist_url || '')).hostname.toLowerCase());
+  } catch {
+    // A validação principal produzirá uma mensagem específica para URL inválida.
+  }
+  return {
     label,
-    timeoutMs: 45_000,
-    maxBytes: 30 * 1024 * 1024,
+    timeoutMs: Math.max(1000, Math.min(180000, Number(profile?.timeout_ms) || 60000)),
+    maxBytes,
     allowedOrigins: allowedOrigin ? [allowedOrigin] : undefined,
-    headers: {
+    headers: cacheRequestHeaders(playlist, defaults),
+    followRedirects: profile?.follow_redirects !== false,
+    tlsMode: mode as 'strict' | 'custom_ca' | 'insecure',
+    customCaPem: mode === 'custom_ca' ? text(profile?.custom_ca_pem) || null : null,
+    allowedTlsHosts: [...hosts],
+    allowSubdomains: playlist?.tls_allow_subdomains === true,
+    allowRedirectHosts: playlist?.tls_allow_redirect_hosts === true,
+  };
+}
+
+async function fetchJson(url: string, label: string, playlist: any, allowedOrigin?: string) {
+  const raw = await fetchUniversalPlaylistText(url, cacheFetchOptions(
+    playlist,
+    label,
+    30 * 1024 * 1024,
+    {
       Accept: 'application/json, text/plain, */*',
       'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
     },
-  });
+    allowedOrigin,
+  ));
 
   try {
     return JSON.parse(raw);
@@ -189,16 +255,16 @@ async function fetchJson(url: string, label: string, allowedOrigin?: string) {
   }
 }
 
-async function fetchText(url: string, label: string) {
-  return await safeFetchPlaylistText(url, {
+async function fetchText(url: string, label: string, playlist: any) {
+  return await fetchUniversalPlaylistText(url, cacheFetchOptions(
+    playlist,
     label,
-    timeoutMs: 60_000,
-    maxBytes: 80 * 1024 * 1024,
-    headers: {
+    80 * 1024 * 1024,
+    {
       Accept: '*/*',
       'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
     },
-  });
+  ));
 }
 
 function buildCategoryMap(items: any[]) {
@@ -261,7 +327,7 @@ async function buildXtreamSnapshot(playlist: any, reportProgress: ProgressReport
   if (!source) return null;
 
   await reportProgress('xtream_profile');
-  const profile = await fetchJson(buildXtreamApiUrl(source), 'Login Xtream', source.origin);
+  const profile = await fetchJson(buildXtreamApiUrl(source), 'Login Xtream', playlist, source.origin);
   const userInfo = profile?.user_info ?? {};
 
   if (String(userInfo.auth) !== '1') {
@@ -270,9 +336,9 @@ async function buildXtreamSnapshot(playlist: any, reportProgress: ProgressReport
 
   await reportProgress('xtream_categories');
   const [liveCategories, vodCategories, seriesCategories] = await runTasksWithConcurrency([
-    () => fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais', source.origin).catch(() => []),
-    () => fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes', source.origin).catch(() => []),
-    () => fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries', source.origin).catch(() => []),
+    () => fetchJson(buildXtreamApiUrl(source, 'get_live_categories'), 'Categorias de canais', playlist, source.origin).catch(() => []),
+    () => fetchJson(buildXtreamApiUrl(source, 'get_vod_categories'), 'Categorias de filmes', playlist, source.origin).catch(() => []),
+    () => fetchJson(buildXtreamApiUrl(source, 'get_series_categories'), 'Categorias de séries', playlist, source.origin).catch(() => []),
   ], XTREAM_FETCH_CONCURRENCY);
 
   const liveCategoryMap = buildCategoryMap(liveCategories);
@@ -280,7 +346,7 @@ async function buildXtreamSnapshot(playlist: any, reportProgress: ProgressReport
   const seriesCategoryMap = buildCategoryMap(seriesCategories);
 
   await reportProgress('xtream_live');
-  let liveStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais', source.origin);
+  let liveStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_live_streams'), 'Canais', playlist, source.origin);
   const channels = await mapDefinedInBatches(
     Array.isArray(liveStreams) ? liveStreams : [],
     item => {
@@ -304,7 +370,7 @@ async function buildXtreamSnapshot(playlist: any, reportProgress: ProgressReport
   liveStreams = null;
 
   await reportProgress('xtream_movies');
-  let vodStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes', source.origin);
+  let vodStreams: any = await fetchJson(buildXtreamApiUrl(source, 'get_vod_streams'), 'Filmes', playlist, source.origin);
   const movies = await mapDefinedInBatches(
     Array.isArray(vodStreams) ? vodStreams : [],
     item => {
@@ -331,7 +397,7 @@ async function buildXtreamSnapshot(playlist: any, reportProgress: ProgressReport
   vodStreams = null;
 
   await reportProgress('xtream_series');
-  let seriesItems: any = await fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries', source.origin);
+  let seriesItems: any = await fetchJson(buildXtreamApiUrl(source, 'get_series'), 'Séries', playlist, source.origin);
   const series = await mapDefinedInBatches(
     Array.isArray(seriesItems) ? seriesItems : [],
     item => {
@@ -527,7 +593,7 @@ function parseEpisodeInfo(name: string) {
 
 async function buildM3USnapshot(playlist: any, reportProgress: ProgressReporter) {
   await reportProgress('m3u_download');
-  const raw = await fetchText(playlist.playlist_url, 'Lista M3U');
+  const raw = await fetchText(playlist.playlist_url, 'Lista M3U', playlist);
 
   if (!raw.includes('#EXTINF')) {
     throw new Error('A URL não retornou uma lista M3U válida.');
@@ -1163,7 +1229,7 @@ serve(async req => {
 
       const { data: playlist, error } = await supabase
         .from('panel_playlists')
-        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_status, playlist_cache_manifest_path, playlist_cache_channels_path, playlist_cache_movies_path, playlist_cache_series_path, playlist_cache_item_count')
+        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_status, playlist_cache_manifest_path, playlist_cache_channels_path, playlist_cache_movies_path, playlist_cache_series_path, playlist_cache_item_count, tls_mode, tls_allowed_hosts, tls_allow_subdomains, tls_allow_redirect_hosts, tls_scope_cache, connection_profile:panel_playlist_connection_profiles(custom_ca_pem, request_headers, timeout_ms, follow_redirects)')
         .eq('id', playlistId)
         .single();
 
@@ -1177,7 +1243,7 @@ serve(async req => {
 
       const { data: playlists, error } = await supabase
         .from('panel_playlists')
-        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_updated_at, playlist_cache_status, playlist_cache_manifest_path, playlist_cache_channels_path, playlist_cache_movies_path, playlist_cache_series_path, playlist_cache_item_count')
+        .select('id, name, playlist_url, playlist_type, active, playlist_updated_at, playlist_cache_updated_at, playlist_cache_status, playlist_cache_manifest_path, playlist_cache_channels_path, playlist_cache_movies_path, playlist_cache_series_path, playlist_cache_item_count, tls_mode, tls_allowed_hosts, tls_allow_subdomains, tls_allow_redirect_hosts, tls_scope_cache, connection_profile:panel_playlist_connection_profiles(custom_ca_pem, request_headers, timeout_ms, follow_redirects)')
         .eq('active', true)
         .order('playlist_cache_updated_at', { ascending: true, nullsFirst: true })
         .limit(limit);
