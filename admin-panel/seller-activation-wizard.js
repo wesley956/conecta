@@ -88,7 +88,9 @@
   function steps() {
     return state.mode === 'activation'
       ? ['Cliente', 'Plano', 'Lista', 'Reserva', 'Confirmar']
-      : ['Lista', 'Reserva', 'Confirmar'];
+      : state.mode === 'renewal'
+        ? ['Plano', 'Confirmar']
+        : ['Lista', 'Reserva', 'Confirmar'];
   }
   function draft() {
     if (!state.draft) state.draft = {};
@@ -123,10 +125,13 @@
     ensureModal();
     const allSteps = steps();
     state.step = Math.min(Math.max(1, state.step), allSteps.length);
-    $('activationWizardTitle').textContent = state.mode === 'activation' ? 'Ativar aparelho' : 'Alterar listas';
+    $('activationWizardTitle').textContent = state.mode === 'activation' ? 'Ativar aparelho' : state.mode === 'renewal' ? 'Renovar aparelho' : 'Alterar listas';
     $('activationWizardSubtitle').textContent = state.mode === 'activation'
       ? `${state.device?.deviceCode || ''} · apenas o próximo passo aparece na tela`
-      : `${state.device?.deviceCode || ''} · sem renovar validade e sem consumir crédito`;
+      : state.mode === 'renewal'
+        ? `${state.device?.deviceCode || ''} · a renovação preserva as listas atuais`
+        : `${state.device?.deviceCode || ''} · sem renovar validade e sem consumir crédito`;
+    $('activationWizardSteps').style.gridTemplateColumns = `repeat(${allSteps.length}, minmax(0, 1fr))`;
     $('activationWizardSteps').innerHTML = allSteps.map((label, index) => {
       const number = index + 1;
       return `<button type="button" class="aw-step ${number === state.step ? 'active' : ''} ${number < state.step ? 'done' : ''}" onclick="sellerActivationWizardGo(${number})"><span>${number < state.step ? '✓' : number}</span>${esc(label)}</button>`;
@@ -138,12 +143,17 @@
         <button type="button" class="btn" onclick="sellerActivationWizardClose()">Cancelar</button>
         ${state.step < allSteps.length
           ? '<button type="button" class="btn primary" onclick="sellerActivationWizardNext()">Continuar</button>'
-          : `<button type="button" class="btn primary" onclick="sellerActivationWizardSubmit()">${state.mode === 'activation' ? 'Ativar aparelho' : 'Salvar novas listas'}</button>`}
+          : `<button type="button" class="btn primary" onclick="sellerActivationWizardSubmit()">${state.mode === 'activation' ? 'Ativar aparelho' : state.mode === 'renewal' ? 'Renovar aparelho' : 'Salvar novas listas'}</button>`}
       </div>`;
   }
 
   function renderStep() {
     const d = draft();
+    if (state.mode === 'renewal') {
+      if (state.step === 1) return `<section class="aw-pane"><h3>Escolha o plano da renovação</h3><p>As listas principal e reserva serão preservadas exatamente como estão.</p><div class="aw-grid"><label>Plano<select data-aw-field="planId">${planOptions(d.planId || state.device?.planId || '')}</select></label><label>Validade personalizada <span class="muted">(opcional)</span><input type="date" data-aw-field="expiresAt" value="${esc(d.expiresAt || '')}"></label></div><div class="aw-notice ok"><strong>Listas preservadas</strong><span>${esc(state.device?.playlistName || 'Lista principal atual')} · Reserva: ${esc(state.device?.backupPlaylistName || 'não configurada')}</span></div></section>`;
+      const plan = planById(d.planId || state.device?.planId);
+      return `<section class="aw-pane"><h3>Confira a renovação</h3><p>Somente plano, validade e crédito serão atualizados.</p><div class="aw-review"><div><small>Aparelho</small><strong>${esc(state.device?.deviceCode || '—')}</strong><span>${esc(state.device?.customerName || '')}</span></div><div><small>Plano</small><strong>${esc(plan?.name || '—')}</strong><span>${Number(plan?.creditCost || 0)} crédito(s)</span></div><div><small>Lista principal</small><strong>${esc(state.device?.playlistName || '—')}</strong><span>Será preservada</span></div><div><small>Lista reserva</small><strong>${esc(state.device?.backupPlaylistName || 'Não configurada')}</strong><span>Será preservada</span></div></div><div id="awSubmitStatus" class="aw-submit-status"></div></section>`;
+    }
     const offset = state.mode === 'activation' ? 0 : 2;
     const logical = state.step + offset;
     if (logical === 1) return `<section class="aw-pane"><h3>Quem vai usar o aparelho?</h3><p>Somente os dados essenciais. O WhatsApp ajuda a localizar e atender o cliente.</p><div class="aw-grid"><label>Nome do cliente<input data-aw-field="customerName" value="${esc(d.customerName || state.device?.customerName || '')}" placeholder="Ex: João Silva"></label><label>WhatsApp<input data-aw-field="customerWhatsapp" value="${esc(d.customerWhatsapp || state.device?.customerWhatsapp || '')}" placeholder="Ex: 19999999999"></label></div></section>`;
@@ -159,6 +169,10 @@
   function validateStep() {
     syncInputs();
     const d = draft();
+    if (state.mode === 'renewal') {
+      if (!d.planId) throw new Error('Escolha um plano.');
+      return;
+    }
     const offset = state.mode === 'activation' ? 0 : 2;
     const logical = state.step + offset;
     if (logical === 1 && (!d.customerName?.trim() || !d.customerWhatsapp?.replace(/\D/g,''))) throw new Error('Informe o nome e o WhatsApp do cliente.');
@@ -176,6 +190,26 @@
     state.mode = 'activation'; state.step = 1; state.device = lookup.device; state.draft = {}; await refreshData();
     ensureModal(); $('activationWizard').classList.add('open'); render();
   }
+  function renewalExpiryIso() {
+    const value = draft().expiresAt;
+    if (value) return new Date(`${value}T23:59:59.999Z`).toISOString();
+    const plan = planById(draft().planId || state.device?.planId);
+    const now = new Date();
+    const current = state.device?.expiresAt ? new Date(state.device.expiresAt) : null;
+    const date = current && !Number.isNaN(current.getTime()) && current > now ? new Date(current) : now;
+    date.setUTCDate(date.getUTCDate() + Math.max(1, Number(plan?.durationDays || 30)));
+    date.setUTCHours(23,59,59,999);
+    return date.toISOString();
+  }
+  async function openRenewal(deviceId) {
+    await refreshData();
+    const device = (state.data.devices || []).find(item => item.id === deviceId);
+    if (!device) throw new Error('Aparelho não encontrado.');
+    state.mode = 'renewal'; state.step = 1; state.device = device;
+    state.draft = { planId: device.planId || '', expiresAt: '' };
+    ensureModal(); $('activationWizard').classList.add('open'); render();
+  }
+
   async function openChange(deviceId) {
     await refreshData();
     const device = (state.data.devices || []).find(item => item.id === deviceId);
@@ -227,6 +261,13 @@
           expiresAt: expiryIso(),
           idempotencyKey: key('activation-wizard'),
         });
+      } else if (state.mode === 'renewal') {
+        result = await flowApi('renew', {
+          deviceId: state.device.id,
+          planId: d.planId,
+          expiresAt: renewalExpiryIso(),
+          idempotencyKey: key('renewal-wizard'),
+        });
       } else {
         result = await flowApi('changePlaylists', {
           deviceId: state.device.id,
@@ -269,6 +310,10 @@
   window.sellerUxOpenActivationForm.__ronecaPlaylistFlowController = true;
   window.sellerUxActivateDevice = submit;
   window.sellerUxActivateDevice.__ronecaPlaylistFlowController = true;
+  window.sellerUxOpenRenewModal = deviceId => openRenewal(deviceId).catch(error => alert(error.message));
+  window.sellerUxOpenRenewModal.__ronecaPlaylistFlowController = true;
+  window.sellerUxRenewDevice = submit;
+  window.sellerUxRenewDevice.__ronecaPlaylistFlowController = true;
   window.sellerUxOpenChangePlaylists = deviceId => openChange(deviceId).catch(error => alert(error.message));
 
   function boot() {
