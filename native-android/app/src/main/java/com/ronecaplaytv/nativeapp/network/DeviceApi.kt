@@ -1,6 +1,7 @@
 package com.ronecaplaytv.nativeapp.network
 
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
+import com.ronecaplaytv.nativeapp.activation.DeviceSourceEndpoint
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import kotlinx.coroutines.Dispatchers
@@ -251,6 +252,28 @@ data class DeviceConfigResponse(
                         val item = playlistsJson.optJSONObject(index) ?: continue
                         val id = item.optNullableString("id") ?: continue
                         val itemCacheParts = item.optJSONObject("cacheParts")
+                        val sourceEndpointsJson = item.optJSONArray("sourceEndpoints")
+                        val sourceEndpoints = buildList {
+                            if (sourceEndpointsJson != null) {
+                                for (sourceIndex in 0 until sourceEndpointsJson.length()) {
+                                    val source = sourceEndpointsJson.optJSONObject(sourceIndex) ?: continue
+                                    val sourceId = source.optNullableString("id") ?: continue
+                                    val sourceParts = source.optJSONObject("cacheParts")
+                                    add(
+                                        DeviceSourceEndpoint(
+                                            id = sourceId,
+                                            label = source.optNullableString("label") ?: "Origem ${sourceIndex + 1}",
+                                            type = source.optNullableString("type") ?: "m3u",
+                                            priority = source.optInt("priority", sourceIndex + 1).coerceAtLeast(1),
+                                            primary = source.optBoolean("primary", sourceIndex == 0),
+                                            channelsUrl = sourceParts?.optNullableString("channelsUrl"),
+                                            moviesUrl = sourceParts?.optNullableString("moviesUrl"),
+                                            seriesUrl = sourceParts?.optNullableString("seriesUrl"),
+                                        ),
+                                    )
+                                }
+                            }
+                        }.sortedBy(DeviceSourceEndpoint::priority)
                         add(
                             DevicePlaylistConfig(
                                 id = id,
@@ -262,6 +285,7 @@ data class DeviceConfigResponse(
                                 moviesUrl = itemCacheParts?.optNullableString("moviesUrl"),
                                 seriesUrl = itemCacheParts?.optNullableString("seriesUrl"),
                                 networkPolicy = SourceNetworkPolicy.fromJson(item.optJSONObject("networkPolicy")),
+                                sourceEndpoints = sourceEndpoints,
                             ),
                         )
                     }

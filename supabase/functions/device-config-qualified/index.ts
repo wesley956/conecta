@@ -58,6 +58,46 @@ function directParts(sourceUrl: string) {
   };
 }
 
+function validationSources(playlist: any) {
+  const endpoints = (Array.isArray(playlist?.endpoints) ? playlist.endpoints : [])
+    .filter((endpoint: any) => endpoint?.active !== false && text(endpoint?.endpoint_url))
+    .sort((left: any, right: any) => {
+      const primaryDifference = Number(right?.is_primary === true) - Number(left?.is_primary === true);
+      if (primaryDifference !== 0) return primaryDifference;
+      return Number(left?.priority || 999) - Number(right?.priority || 999);
+    })
+    .map((endpoint: any, index: number) => ({
+      id: String(endpoint.id),
+      label: text(endpoint.label) || `Origem ${index + 1}`,
+      type: text(endpoint.endpoint_type) || 'm3u',
+      priority: index + 1,
+      primary: index === 0,
+      protocol: text(endpoint.protocol),
+      host: text(endpoint.host),
+      port: endpoint.port == null ? null : Number(endpoint.port),
+      path: text(endpoint.path) || '/',
+      outputFormat: text(endpoint.output_format),
+      cacheParts: directParts(String(endpoint.endpoint_url)),
+    }));
+
+  if (endpoints.length > 0) return endpoints;
+  const sourceUrl = text(playlist?.playlist_url);
+  if (!sourceUrl) return [];
+  return [{
+    id: `legacy:${playlist.id}`,
+    label: 'Origem principal',
+    type: text(playlist?.playlist_type) || 'm3u',
+    priority: 1,
+    primary: true,
+    protocol: null,
+    host: sourceHost(sourceUrl),
+    port: null,
+    path: '/',
+    outputFormat: null,
+    cacheParts: directParts(sourceUrl),
+  }];
+}
+
 const BLOCKED_SOURCE_HEADERS = new Set([
   'host',
   'content-length',
@@ -257,6 +297,20 @@ async function validationPlaylist(supabase: any, playlistId: string) {
         request_headers,
         timeout_ms,
         follow_redirects
+      ),
+      endpoints:panel_playlist_endpoints(
+        id,
+        endpoint_type,
+        label,
+        endpoint_url,
+        protocol,
+        host,
+        port,
+        path,
+        output_format,
+        priority,
+        is_primary,
+        active
       )
     `)
     .eq('id', playlistId)
@@ -453,8 +507,8 @@ Deno.serve(async request => {
           message: 'A sessão de validação não possui uma lista direta disponível.',
         });
       }
-      const sourceUrl = text(playlist.playlist_url);
-      if (!sourceUrl) {
+      const sources = validationSources(playlist);
+      if (sources.length === 0) {
         return json({
           active: false,
           status: 'pending',
@@ -462,7 +516,7 @@ Deno.serve(async request => {
           message: 'A origem da lista de validação não está disponível.',
         });
       }
-      const parts = directParts(sourceUrl);
+      const parts = sources[0].cacheParts;
       const item = {
         id: playlist.id,
         priority: 1,
@@ -476,6 +530,7 @@ Deno.serve(async request => {
         cacheReady: true,
         directFallback: true,
         cacheParts: parts,
+        sourceEndpoints: sources,
         networkPolicy: playlistNetworkPolicy(playlist),
       };
       return json({

@@ -104,3 +104,16 @@ assert.match(authSource, /'playlist-source-manager': true/);
 assert.match(authSource, /subscription-panel\|playlist-source-manager\|app-release/);
 
 console.log('Cadastro universal: isolamento de fontes compartilhadas, autenticação e TLS administrativo aprovados.');
+
+
+const qualifiedConfigSource = await readFile(new URL('../supabase/functions/device-config-qualified/index.ts', import.meta.url), 'utf8');
+const deviceApiSource = await readFile(new URL('../native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/DeviceApi.kt', import.meta.url), 'utf8');
+const sessionStateSource = await readFile(new URL('../native-android/app/src/main/java/com/ronecaplaytv/nativeapp/activation/DeviceSessionState.kt', import.meta.url), 'utf8');
+const catalogSource = await readFile(new URL('../native-android/app/src/main/java/com/ronecaplaytv/nativeapp/catalog/CatalogViewModel.kt', import.meta.url), 'utf8');
+assert.match(qualifiedConfigSource, /sourceEndpoints: sources/);
+assert.match(qualifiedConfigSource, /panel_playlist_endpoints/);
+assert.match(deviceApiSource, /DeviceSourceEndpoint/);
+assert.match(sessionStateSource, /sourceEndpoints: List<DeviceSourceEndpoint>/);
+assert.match(catalogSource, /loadSingleEndpointCatalog/);
+assert.match(catalogSource, /endpointCandidates/);
+console.log('Homologação universal: matriz de endpoints enviada e testada dentro da mesma lista.');
