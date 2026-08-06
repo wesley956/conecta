@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.activation.DeviceSessionRepository
 import com.ronecaplaytv.nativeapp.network.ProviderAttemptReport
+import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
 import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +48,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             playlists,
         )
         val key = candidates.joinToString("|") {
-            listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl).joinToString(":")
+            listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl, it.networkPolicy.cacheKey).joinToString(":")
         }
         availablePlaylists = candidates
 
@@ -241,6 +242,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         candidate: DevicePlaylistConfig,
         prefix: String,
     ): LoadedCatalog {
+        SourceNetworkPolicyRegistry.activate(candidate.networkPolicy)
         val channelsUrl = candidate.channelsUrl
         if (channelsUrl != null && fastXtreamClient.supports(channelsUrl)) {
             mutableState.update { it.copy(loadingSection = "${prefix}abrindo primeiro conteúdo") }

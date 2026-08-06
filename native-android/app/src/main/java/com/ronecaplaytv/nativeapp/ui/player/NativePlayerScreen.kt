@@ -49,12 +49,14 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
+import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
+import com.ronecaplaytv.nativeapp.network.SourceNetworkScope
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -113,19 +115,11 @@ fun NativePlayerScreen(
         ronecaLoadControl(isTelevision, bufferSeconds)
     }
 
-    val mediaSourceFactory = remember(context) {
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(IPTV_USER_AGENT)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(35_000)
-            .setDefaultRequestProperties(
-                mapOf(
-                    "Accept" to "*/*",
-                    "Connection" to "keep-alive",
-                    "Icy-MetaData" to "1",
-                ),
-            )
+    val mediaSourceFactory = remember(context, sources) {
+        val client = SourceNetworkPolicyRegistry.clientFor(sources.firstOrNull(), SourceNetworkScope.Playback)
+        val httpDataSourceFactory = OkHttpDataSource.Factory(client).setDefaultRequestProperties(mapOf(
+            "Accept" to "*/*", "Connection" to "keep-alive", "Icy-MetaData" to "1", "User-Agent" to IPTV_USER_AGENT,
+        ))
         DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
     }
 

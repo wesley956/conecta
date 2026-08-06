@@ -1,5 +1,7 @@
 package com.ronecaplaytv.nativeapp.activation
 
+import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicy
+
 enum class DeviceAccessStatus {
     Loading,
     Pending,
@@ -36,6 +38,7 @@ data class DevicePlaylistConfig(
     val channelsUrl: String?,
     val moviesUrl: String?,
     val seriesUrl: String?,
+    val networkPolicy: SourceNetworkPolicy = SourceNetworkPolicy.strict(),
 ) {
     val hasCatalogParts: Boolean
         get() = channelsUrl != null || moviesUrl != null || seriesUrl != null

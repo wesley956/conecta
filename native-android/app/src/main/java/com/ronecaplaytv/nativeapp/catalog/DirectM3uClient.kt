@@ -1,5 +1,7 @@
 package com.ronecaplaytv.nativeapp.catalog
 
+import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
+import com.ronecaplaytv.nativeapp.network.SourceNetworkScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -21,14 +23,6 @@ internal data class DirectM3uCatalog(
 )
 
 internal class DirectM3uClient {
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .retryOnConnectionFailure(true)
-        .build()
-
     @Volatile
     private var cachedSourceUrl: String? = null
 
@@ -49,6 +43,7 @@ internal class DirectM3uClient {
 
     private fun downloadAndParse(sourceUrl: String): DirectM3uCatalog {
         val failures = mutableListOf<String>()
+        val httpClient = SourceNetworkPolicyRegistry.clientFor(sourceUrl, SourceNetworkScope.Catalog)
 
         for ((index, profile) in REQUEST_PROFILES.withIndex()) {
             val request = buildRequest(sourceUrl, profile)
