@@ -21,6 +21,20 @@ jobs:
           ref: agent/universal-playlist-registration
           fetch-depth: 0
 
+      - name: Adjust import patch for both player screens
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/patch-android-universal-network.py')
+          source = path.read_text()
+          old = """for path in ['native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/NativePlayerScreen.kt','native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/SeriesNativePlayerScreen.kt']:\n    rep(path,'import androidx.media3.datasource.DefaultHttpDataSource\\n','import androidx.media3.datasource.okhttp.OkHttpDataSource\\n')\n    rep(path,'import com.ronecaplaytv.nativeapp.catalog.','import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry\\nimport com.ronecaplaytv.nativeapp.network.SourceNetworkScope\\nimport com.ronecaplaytv.nativeapp.catalog.')\n"""
+          new = """native_player='native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/NativePlayerScreen.kt'\nseries_player='native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/SeriesNativePlayerScreen.kt'\nfor path in [native_player, series_player]:\n    rep(path,'import androidx.media3.datasource.DefaultHttpDataSource\\n','import androidx.media3.datasource.okhttp.OkHttpDataSource\\n')\nrep(native_player,'import com.ronecaplaytv.nativeapp.catalog.NativeChannel\\n','import com.ronecaplaytv.nativeapp.catalog.NativeChannel\\nimport com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry\\nimport com.ronecaplaytv.nativeapp.network.SourceNetworkScope\\n')\nrep(series_player,'import com.ronecaplaytv.nativeapp.catalog.NativeEpisode\\n','import com.ronecaplaytv.nativeapp.catalog.NativeEpisode\\nimport com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry\\nimport com.ronecaplaytv.nativeapp.network.SourceNetworkScope\\n')\n"""
+          if source.count(old) != 1:
+              raise SystemExit('O bloco antigo de imports não foi encontrado exatamente uma vez.')
+          path.write_text(source.replace(old, new, 1))
+          PY
+
       - name: Apply guarded patches
         run: python scripts/patch-android-universal-network.py
 
