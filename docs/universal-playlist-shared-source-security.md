@@ -19,3 +19,7 @@ A proteção existe em três camadas:
 3. função SQL transacional, que impede sobrescrita mesmo diante de uma chamada direta do backend.
 
 A reutilização é registrada na auditoria como `universal_playlist_reused`, sem URL completa, usuário, senha, token ou cabeçalhos sensíveis.
+
+## Validação automatizada
+
+As funções SQL qualificam explicitamente as colunas que podem coincidir com nomes de retorno do PL/pgSQL. O Deno usa resolução automática das dependências npm para que todas as Edge Functions sejam verificadas isoladamente no fluxo de integração contínua.
