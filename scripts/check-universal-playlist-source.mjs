@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import {
   parseProviderMessage,
   parseStructuredSource,
+  resolveSafePrimaryIndex,
   safeEndpointPreview,
 } from '../supabase/functions/_shared/universalPlaylistSource.ts';
 
@@ -53,6 +54,16 @@ assert.ok(!JSON.stringify(parsed.redactedSummary).includes('48181525422'));
 assert.ok(!safeEndpointPreview(parsed.endpoints[0].url).includes('48181525422'));
 assert.ok(parsed.endpoints.some(item => item.host === 'spd.blc-atena.com'));
 
+const protectedPrimary = resolveSafePrimaryIndex([
+  { type: 'xtream', path: '/player_api.php', active: true },
+  { type: 'direct', path: '/', active: true },
+], 1, 0);
+assert.equal(protectedPrimary, 0, 'Domínio raiz genérico não substitui Xtream completo');
+const standaloneDirect = resolveSafePrimaryIndex([
+  { type: 'direct', path: '/', active: true },
+], 0, 0);
+assert.equal(standaloneDirect, 0, 'Origem direta isolada continua permitida');
+
 const special = await parseStructuredSource({
   sourceKind: 'direct',
   endpoints: [
@@ -73,6 +84,7 @@ const guardMigrationSource = await readFile(new URL('../supabase/migrations/2026
 const panelSource = await readFile(new URL('../admin-panel/universal-playlist-registration.js', import.meta.url), 'utf8');
 const authSource = await readFile(new URL('../admin-panel/panel-auth-session.js', import.meta.url), 'utf8');
 
+assert.match(managerSource, /resolveSafePrimaryIndex/);
 assert.match(managerSource, /principal\.role === 'seller' && security\.mode !== 'strict'/);
 assert.match(managerSource, /A edição da origem e da segurança é restrita ao administrador/);
 assert.match(managerSource, /Os detalhes sensíveis da origem são restritos ao administrador/);

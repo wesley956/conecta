@@ -9,6 +9,7 @@ import {
   legacyPlaylistType,
   parseProviderMessage,
   parseStructuredSource,
+  resolveSafePrimaryIndex,
   safeConnectionProfileSummary,
   sanitizeConnectionHeaders,
   type ParsedEndpoint,
@@ -201,9 +202,16 @@ function connectionProfilePayload(body: Record<string, unknown>, security: Retur
 
 function setPrimary(parsed: ParsedUniversalSource, value: unknown) {
   const requested = Number(value ?? parsed.recommendation.primaryIndex);
-  const index = Number.isSafeInteger(requested) && requested >= 0 && requested < parsed.endpoints.length
-    ? requested
-    : parsed.recommendation.primaryIndex;
+  const index = resolveSafePrimaryIndex(
+    parsed.endpoints,
+    requested,
+    parsed.recommendation.primaryIndex,
+  );
+  if (index !== requested) {
+    parsed.warnings.push(
+      'Um domínio raiz genérico não pode substituir uma origem completa; o endpoint mais seguro foi mantido como principal.',
+    );
+  }
   parsed.endpoints.forEach((endpoint, endpointIndex) => {
     endpoint.primary = endpointIndex === index;
     endpoint.priority = endpointIndex + 1;
