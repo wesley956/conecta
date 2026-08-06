@@ -587,7 +587,7 @@ begin
     coalesce((p_connection_profile ->> 'followRedirects')::boolean, true),
     v_now
   )
-  on conflict (playlist_id) do update
+  on conflict on constraint panel_playlist_connection_profiles_pkey do update
   set custom_ca_pem = excluded.custom_ca_pem,
       request_headers = excluded.request_headers,
       request_method = excluded.request_method,
