@@ -22,7 +22,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .universal-payload/part-* | base64 --decode > /tmp/universal-payload.tar.gz
+          cat .universal-payload/part-000 .universal-payload/part-001 .universal-payload/part-002 .universal-payload/part-003 .universal-payload/part-004 .universal-payload/part-005 .universal-payload/part-006 > /tmp/universal-payload.b64
+          jq -r '.data' .universal-payload/final-segment.json >> /tmp/universal-payload.b64
+          base64 --decode /tmp/universal-payload.b64 > /tmp/universal-payload.tar.gz
           echo "90696a261aef9b8ddda2f61634d398fcecd886e526240244f49ff6339b496259  /tmp/universal-payload.tar.gz" | sha256sum --check
           tar -xzf /tmp/universal-payload.tar.gz
           node scripts/apply-universal-registration.mjs
