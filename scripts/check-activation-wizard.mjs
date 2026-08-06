@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const page=fs.readFileSync('admin-panel/seller.html','utf8');
+const ui=fs.readFileSync('admin-panel/seller-activation-wizard.js','utf8');
+const edge=fs.readFileSync('supabase/functions/seller-device-flow/index.ts','utf8');
+const migration=fs.readFileSync('supabase/migrations/20260806050000_provisional_activation_and_playlist_change.sql','utf8');
+assert.ok(page.includes('seller-activation-wizard.css'));
+assert.ok(page.includes('seller-activation-wizard.js'));
+for(const item of ['Cliente','Plano','Lista','Reserva','Confirmar','changePlaylists','RonecaUniversalPlaylists.open']) assert.ok(ui.includes(item), item);
+assert.ok(ui.includes('__ronecaPlaylistFlowController'));
+assert.ok(edge.includes("action === 'activate'"));
+assert.ok(edge.includes("action === 'changePlaylists'"));
+assert.ok(edge.includes('apply_device_subscription_transaction'));
+assert.ok(edge.includes('change_device_playlists_transaction'));
+assert.ok(migration.includes("'validating','awaiting_device_test','retryable_error'"));
+assert.ok(migration.includes('device.playlists_changed_without_renewal'));
+console.log('Activation wizard contracts validated.');
