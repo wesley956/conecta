@@ -263,6 +263,7 @@
   .upl-meta { grid-template-columns: 1fr; }
 }
 
+
 .upl-btn.danger {
   border-color: rgba(255, 84, 105, .45);
   color: #ffd2d8;
