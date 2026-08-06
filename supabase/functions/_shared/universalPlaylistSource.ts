@@ -287,6 +287,35 @@ function endpointScore(type: UniversalEndpointType, label: string, parsed: URL) 
   return score;
 }
 
+export function resolveSafePrimaryIndex(
+  endpoints: ParsedEndpoint[],
+  requestedIndex: number,
+  fallbackIndex = 0,
+) {
+  const fallback = Number.isSafeInteger(fallbackIndex)
+    && fallbackIndex >= 0
+    && fallbackIndex < endpoints.length
+    ? fallbackIndex
+    : 0;
+  const requested = Number.isSafeInteger(requestedIndex)
+    && requestedIndex >= 0
+    && requestedIndex < endpoints.length
+    ? requestedIndex
+    : fallback;
+  const selected = endpoints[requested];
+  const selectedPath = String(selected?.path || '/').replace(/\/+$/, '') || '/';
+  const genericRoot = selected?.type === 'direct' && selectedPath === '/';
+  if (!genericRoot) return requested;
+
+  const richerIndex = endpoints.findIndex(endpoint => {
+    if (endpoint.active === false) return false;
+    const path = String(endpoint.path || '/').replace(/\/+$/, '') || '/';
+    return ['xtream', 'm3u', 'hls', 'api', 'stalker'].includes(endpoint.type)
+      && path !== '/';
+  });
+  return richerIndex >= 0 ? richerIndex : requested;
+}
+
 function credentialsFromUrl(url: URL) {
   const username = url.searchParams.get('username') || url.searchParams.get('user');
   const password = url.searchParams.get('password') || url.searchParams.get('pass');
