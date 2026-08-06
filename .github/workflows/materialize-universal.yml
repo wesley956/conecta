@@ -22,6 +22,41 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          expected = {
+              '.universal-payload/part-002': '14719a0622de48bb5d69ef4651004a6bc0e47386',
+              '.universal-payload/part-006': '26b0c07ca2fc40ce8fd456ab3fe37420b40f4eb3',
+          }
+          alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
+
+          def blob_sha(value: str) -> str:
+              raw = value.encode()
+              return hashlib.sha1(f'blob {len(raw)}\0'.encode() + raw).hexdigest()
+
+          for filename, target in expected.items():
+              path = Path(filename)
+              current = path.read_text().strip()
+              if blob_sha(current) == target:
+                  continue
+              found = None
+              for position in range(len(current) + 1):
+                  prefix = current[:position]
+                  suffix = current[position:]
+                  for character in alphabet:
+                      candidate = prefix + character + suffix
+                      if blob_sha(candidate) == target:
+                          found = candidate
+                          break
+                  if found is not None:
+                      break
+              if found is None:
+                  raise SystemExit(f'Não foi possível recuperar {filename}.')
+              path.write_text(found)
+              print(f'Recuperado {filename} com hash {target}.')
+          PY
           {
             cat .universal-payload/part-000 .universal-payload/part-001 .universal-payload/part-002 .universal-payload/part-003 .universal-payload/part-004 .universal-payload/part-005 .universal-payload/part-006
             jq -r '.data' .universal-payload/final-segment.json
