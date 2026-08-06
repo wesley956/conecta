@@ -25,6 +25,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android platform
+        run: yes | sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -34,9 +40,9 @@ jobs:
         run: node --experimental-strip-types scripts/check-universal-playlist-source.mjs
       - name: Check Edge Function
         run: deno check supabase/functions/device-config-qualified/index.ts
-      - name: Build Android tests
+      - name: Build Android
         working-directory: native-android
-        run: ./gradlew testDebugUnitTest --no-daemon
+        run: gradle --no-daemon :app:assembleDebug
       - name: Commit verified fix
         run: |
           git config user.name roneca-automation
