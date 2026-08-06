@@ -1,13 +1,12 @@
-# RonecaPlayTV Native 2.7.0
+# RonecaPlayTV Native 2.7.1
 
-Homologação segura de listas e proteção de créditos.
+Compatibilidade universal de endpoints dentro da mesma lista.
 
-- adiciona o fluxo qualificado de configuração do aparelho;
-- permite testar uma lista direta em aparelho Android dedicado sem criar venda;
-- confirma automaticamente a lista quando o catálogo realmente abre no aparelho autorizado;
-- impede novas ativações, renovações e trocas com lista ainda não homologada;
-- preserva o saldo quando a lista é recusada antes da ativação;
-- mantém clientes e vínculos atuais funcionando durante a migração;
-- continua respeitando lista principal e lista reserva;
-- preserva cache local, carregamento progressivo e matriz de compatibilidade Xtream;
-- não envia credenciais para logs nem para serviços externos.
+- recebe no aparelho todos os endpoints ativos encontrados na mensagem do fornecedor;
+- tenta as alternativas da mesma lista em sequência antes de considerar a fonte indisponível;
+- separa o failover entre endpoints do failover comercial entre lista principal e reserva;
+- evita repetir `/player_api.php` como M3U quando existe um `/get.php` completo cadastrado;
+- preserva a ordem definida no painel, incluindo Xtream, M3U, HLS e links curtos;
+- mantém a política TLS, os domínios autorizados e os cabeçalhos configurados para a fonte;
+- registra as tentativas individuais sem expor usuário, senha ou URL completa;
+- não cria venda, não consome crédito e não altera cliente durante a homologação.

@@ -39,7 +39,20 @@ data class DevicePlaylistConfig(
     val moviesUrl: String?,
     val seriesUrl: String?,
     val networkPolicy: SourceNetworkPolicy = SourceNetworkPolicy.strict(),
+    val sourceEndpoints: List<DeviceSourceEndpoint> = emptyList(),
 ) {
     val hasCatalogParts: Boolean
         get() = channelsUrl != null || moviesUrl != null || seriesUrl != null
 }
+
+
+data class DeviceSourceEndpoint(
+    val id: String,
+    val label: String,
+    val type: String,
+    val priority: Int,
+    val primary: Boolean,
+    val channelsUrl: String?,
+    val moviesUrl: String?,
+    val seriesUrl: String?,
+)

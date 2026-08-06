@@ -48,7 +48,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             playlists,
         )
         val key = candidates.joinToString("|") {
-            listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl, it.networkPolicy.cacheKey).joinToString(":")
+            listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl, it.networkPolicy.cacheKey, it.sourceEndpoints.joinToString(",") { source -> listOf(source.id, source.channelsUrl, source.moviesUrl, source.seriesUrl).joinToString("~") }).joinToString(":")
         }
         availablePlaylists = candidates
 
@@ -113,7 +113,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     lastFailoverOutcome = "switched",
                 )
                 mutableState.value = state
-                if (catalog.progressive) scheduleProgressiveHydration(candidate)
+                if (catalog.progressive) scheduleProgressiveHydration(catalog.progressiveCandidate ?: candidate)
                 return NativeCatalogFailoverResult(
                     attemptId = attemptId,
                     reason = reason,
@@ -190,7 +190,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                             previousState.lastFailoverAtMillis
                         },
                     )
-                    if (catalog.progressive) scheduleProgressiveHydration(candidate)
+                    if (catalog.progressive) scheduleProgressiveHydration(catalog.progressiveCandidate ?: candidate)
                     return
                 }
 
@@ -243,6 +243,29 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         prefix: String,
     ): LoadedCatalog {
         SourceNetworkPolicyRegistry.activate(candidate.networkPolicy)
+        val endpointCandidates = candidate.sourceEndpoints.map { source ->
+            candidate.copy(
+                channelsUrl = source.channelsUrl,
+                moviesUrl = source.moviesUrl,
+                seriesUrl = source.seriesUrl,
+                sourceEndpoints = emptyList(),
+            )
+        }.ifEmpty { listOf(candidate) }
+
+        var lastEndpointFailure: Throwable? = null
+        for ((sourceIndex, endpointCandidate) in endpointCandidates.withIndex()) {
+            val sourcePrefix = if (sourceIndex == 0) prefix else "${prefix}alternativa ${sourceIndex + 1}: "
+            val result = runCatching { loadSingleEndpointCatalog(endpointCandidate, sourcePrefix) }
+            result.getOrNull()?.let { return it }
+            lastEndpointFailure = result.exceptionOrNull()
+        }
+        throw lastEndpointFailure ?: CatalogLoadException("Nenhuma origem desta lista pôde ser carregada.")
+    }
+
+    private suspend fun loadSingleEndpointCatalog(
+        candidate: DevicePlaylistConfig,
+        prefix: String,
+    ): LoadedCatalog {
         val channelsUrl = candidate.channelsUrl
         if (channelsUrl != null && fastXtreamClient.supports(channelsUrl)) {
             mutableState.update { it.copy(loadingSection = "${prefix}abrindo primeiro conteúdo") }
@@ -261,6 +284,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     series = emptyList(),
                     warning = "Canais carregados. Filmes e séries continuam em segundo plano.",
                     progressive = true,
+                    progressiveCandidate = candidate,
                 )
             }
 
@@ -457,6 +481,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         val series: List<NativeSeries>,
         val warning: String? = null,
         val progressive: Boolean = false,
+        val progressiveCandidate: DevicePlaylistConfig? = null,
     ) {
         fun toState(
             candidate: DevicePlaylistConfig,
