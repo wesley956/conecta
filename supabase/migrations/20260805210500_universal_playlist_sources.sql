@@ -486,10 +486,10 @@ begin
   where playlist.id = v_playlist_id;
 
   -- Remove a marca de principal antes do upsert para respeitar o índice parcial.
-  update public.panel_playlist_endpoints
+  update public.panel_playlist_endpoints endpoint
   set is_primary = false,
       updated_at = v_now
-  where playlist_id = v_playlist_id;
+  where endpoint.playlist_id = v_playlist_id;
 
   for v_endpoint in select value from jsonb_array_elements(p_endpoints)
   loop
@@ -557,10 +557,10 @@ begin
     raise exception using errcode = '22023', message = 'Não foi possível definir o endpoint principal.';
   end if;
 
-  update public.panel_playlist_endpoints
-  set is_primary = (id = v_first_endpoint_id),
+  update public.panel_playlist_endpoints endpoint
+  set is_primary = (endpoint.id = v_first_endpoint_id),
       updated_at = v_now
-  where playlist_id = v_playlist_id;
+  where endpoint.playlist_id = v_playlist_id;
 
   update public.panel_playlists
   set primary_endpoint_id = v_first_endpoint_id
