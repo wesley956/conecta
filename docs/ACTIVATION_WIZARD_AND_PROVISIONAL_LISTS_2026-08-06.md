@@ -32,3 +32,8 @@ O cadastro universal pode ser aberto dentro da escolha da lista, sem retornar ao
 - Validação de propriedade do aparelho e permissão das listas.
 - Aparelhos de diagnóstico não entram no fluxo comercial.
 - Nenhuma cobrança é confirmada se a configuração completa da ativação falhar.
+- O gatilho de qualificação usa o tipo do aparelho durante a própria inserção, sem depender de uma consulta antecipada.
+
+## Cobertura automatizada
+
+A suíte verifica ativação provisória em Android, bloqueio de lista inválida, restrição de acesso direto em plataformas não compatíveis, renovação sem troca de lista e alteração de listas sem consumo de crédito.
