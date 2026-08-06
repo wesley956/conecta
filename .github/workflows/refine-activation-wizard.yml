@@ -1,0 +1,60 @@
+name: Refine activation wizard
+on:
+  push:
+    branches:
+      - agent/activation-wizard-provisional
+    paths:
+      - .github/workflows/refine-activation-wizard.yml
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/activation-wizard-provisional
+      - name: Refine renewal experience
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('admin-panel/seller-activation-wizard.js')
+          s=p.read_text()
+          s=s.replace("return state.mode === 'activation'\n      ? ['Cliente', 'Plano', 'Lista', 'Reserva', 'Confirmar']\n      : ['Lista', 'Reserva', 'Confirmar'];", "return state.mode === 'activation'\n      ? ['Cliente', 'Plano', 'Lista', 'Reserva', 'Confirmar']\n      : state.mode === 'renewal'\n        ? ['Plano', 'Confirmar']\n        : ['Lista', 'Reserva', 'Confirmar'];")
+          s=s.replace("$('activationWizardTitle').textContent = state.mode === 'activation' ? 'Ativar aparelho' : 'Alterar listas';\n    $('activationWizardSubtitle').textContent = state.mode === 'activation'\n      ? `${state.device?.deviceCode || ''} · apenas o próximo passo aparece na tela`\n      : `${state.device?.deviceCode || ''} · sem renovar validade e sem consumir crédito`;", "$('activationWizardTitle').textContent = state.mode === 'activation' ? 'Ativar aparelho' : state.mode === 'renewal' ? 'Renovar aparelho' : 'Alterar listas';\n    $('activationWizardSubtitle').textContent = state.mode === 'activation'\n      ? `${state.device?.deviceCode || ''} · apenas o próximo passo aparece na tela`\n      : state.mode === 'renewal'\n        ? `${state.device?.deviceCode || ''} · a renovação preserva as listas atuais`\n        : `${state.device?.deviceCode || ''} · sem renovar validade e sem consumir crédito`;\n    $('activationWizardSteps').style.gridTemplateColumns = `repeat(${allSteps.length}, minmax(0, 1fr))`;")
+          s=s.replace("${state.mode === 'activation' ? 'Ativar aparelho' : 'Salvar novas listas'}", "${state.mode === 'activation' ? 'Ativar aparelho' : state.mode === 'renewal' ? 'Renovar aparelho' : 'Salvar novas listas'}")
+          marker="  function renderStep() {\n    const d = draft();\n"
+          renewal="""  function renderStep() {\n    const d = draft();\n    if (state.mode === 'renewal') {\n      if (state.step === 1) return `<section class=\"aw-pane\"><h3>Escolha o plano da renovação</h3><p>As listas principal e reserva serão preservadas exatamente como estão.</p><div class=\"aw-grid\"><label>Plano<select data-aw-field=\"planId\">${planOptions(d.planId || state.device?.planId || '')}</select></label><label>Validade personalizada <span class=\"muted\">(opcional)</span><input type=\"date\" data-aw-field=\"expiresAt\" value=\"${esc(d.expiresAt || '')}\"></label></div><div class=\"aw-notice ok\"><strong>Listas preservadas</strong><span>${esc(state.device?.playlistName || 'Lista principal atual')} · Reserva: ${esc(state.device?.backupPlaylistName || 'não configurada')}</span></div></section>`;\n      const plan = planById(d.planId || state.device?.planId);\n      return `<section class=\"aw-pane\"><h3>Confira a renovação</h3><p>Somente plano, validade e crédito serão atualizados.</p><div class=\"aw-review\"><div><small>Aparelho</small><strong>${esc(state.device?.deviceCode || '—')}</strong><span>${esc(state.device?.customerName || '')}</span></div><div><small>Plano</small><strong>${esc(plan?.name || '—')}</strong><span>${Number(plan?.creditCost || 0)} crédito(s)</span></div><div><small>Lista principal</small><strong>${esc(state.device?.playlistName || '—')}</strong><span>Será preservada</span></div><div><small>Lista reserva</small><strong>${esc(state.device?.backupPlaylistName || 'Não configurada')}</strong><span>Será preservada</span></div></div><div id=\"awSubmitStatus\" class=\"aw-submit-status\"></div></section>`;\n    }\n"""
+          if marker not in s: raise SystemExit('render marker missing')
+          s=s.replace(marker,renewal,1)
+          marker="  function validateStep() {\n    syncInputs();\n    const d = draft();\n"
+          validation="""  function validateStep() {\n    syncInputs();\n    const d = draft();\n    if (state.mode === 'renewal') {\n      if (!d.planId) throw new Error('Escolha um plano.');\n      return;\n    }\n"""
+          if marker not in s: raise SystemExit('validation marker missing')
+          s=s.replace(marker,validation,1)
+          marker="  async function openChange(deviceId) {\n"
+          opener="""  function renewalExpiryIso() {\n    const value = draft().expiresAt;\n    if (value) return new Date(`${value}T23:59:59.999Z`).toISOString();\n    const plan = planById(draft().planId || state.device?.planId);\n    const now = new Date();\n    const current = state.device?.expiresAt ? new Date(state.device.expiresAt) : null;\n    const date = current && !Number.isNaN(current.getTime()) && current > now ? new Date(current) : now;\n    date.setUTCDate(date.getUTCDate() + Math.max(1, Number(plan?.durationDays || 30)));\n    date.setUTCHours(23,59,59,999);\n    return date.toISOString();\n  }\n  async function openRenewal(deviceId) {\n    await refreshData();\n    const device = (state.data.devices || []).find(item => item.id === deviceId);\n    if (!device) throw new Error('Aparelho não encontrado.');\n    state.mode = 'renewal'; state.step = 1; state.device = device;\n    state.draft = { planId: device.planId || '', expiresAt: '' };\n    ensureModal(); $('activationWizard').classList.add('open'); render();\n  }\n\n  async function openChange(deviceId) {\n"""
+          if marker not in s: raise SystemExit('open marker missing')
+          s=s.replace(marker,opener,1)
+          s=s.replace("      } else {\n        result = await flowApi('changePlaylists', {", "      } else if (state.mode === 'renewal') {\n        result = await flowApi('renew', {\n          deviceId: state.device.id,\n          planId: d.planId,\n          expiresAt: renewalExpiryIso(),\n          idempotencyKey: key('renewal-wizard'),\n        });\n      } else {\n        result = await flowApi('changePlaylists', {",1)
+          marker="  window.sellerUxOpenChangePlaylists = deviceId => openChange(deviceId).catch(error => alert(error.message));\n"
+          globals="""  window.sellerUxOpenRenewModal = deviceId => openRenewal(deviceId).catch(error => alert(error.message));\n  window.sellerUxOpenRenewModal.__ronecaPlaylistFlowController = true;\n  window.sellerUxRenewDevice = submit;\n  window.sellerUxRenewDevice.__ronecaPlaylistFlowController = true;\n  window.sellerUxOpenChangePlaylists = deviceId => openChange(deviceId).catch(error => alert(error.message));\n"""
+          if marker not in s: raise SystemExit('global marker missing')
+          s=s.replace(marker,globals,1)
+          p.write_text(s)
+
+          check=Path('scripts/check-activation-wizard.mjs')
+          c=check.read_text()
+          c=c.replace("assert.ok(edge.includes(\"action === 'changePlaylists'\"));", "assert.ok(edge.includes(\"action === 'renew'\"));\nassert.ok(edge.includes(\"action === 'changePlaylists'\"));")
+          c=c.replace("assert.ok(ui.includes('__ronecaPlaylistFlowController'));", "assert.ok(ui.includes('__ronecaPlaylistFlowController'));\nassert.ok(ui.includes('preserva as listas atuais'));\nassert.ok(ui.includes('sellerUxOpenRenewModal')); ")
+          check.write_text(c)
+          PY
+          rm .github/workflows/refine-activation-wizard.yml
+          node --check admin-panel/seller-activation-wizard.js
+          node scripts/check-activation-wizard.mjs
+      - name: Commit refinement
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add admin-panel/seller-activation-wizard.js scripts/check-activation-wizard.mjs .github/workflows/refine-activation-wizard.yml
+          git commit -m "feat: separate renewal from playlist changes"
+          git push origin HEAD:agent/activation-wizard-provisional
