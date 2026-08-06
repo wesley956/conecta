@@ -29,21 +29,7 @@ jobs:
       - name: Fix seller source-list narrowing
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('supabase/functions/playlist-source-manager/index.ts')
-          source = path.read_text()
-          old = """    playlistIds = (data || []).map((row: any) => String(row.playlist_id));
-    if (playlistIds.length === 0) return [];
-"""
-          new = """    const sellerPlaylistIds = (data || []).map((row: any) => String(row.playlist_id));
-    if (sellerPlaylistIds.length === 0) return [];
-    playlistIds = sellerPlaylistIds;
-"""
-          if source.count(old) != 1:
-              raise SystemExit('O estreitamento seguro das listas do vendedor não encontrou o trecho esperado.')
-          path.write_text(source.replace(old, new, 1))
-          PY
+          python -c "from pathlib import Path; p=Path('supabase/functions/playlist-source-manager/index.ts'); s=p.read_text(); old='    playlistIds = (data || []).map((row: any) => String(row.playlist_id));\n    if (playlistIds.length === 0) return [];\n'; new='    const sellerPlaylistIds = (data || []).map((row: any) => String(row.playlist_id));\n    if (sellerPlaylistIds.length === 0) return [];\n    playlistIds = sellerPlaylistIds;\n'; assert s.count(old) == 1, 'Trecho de listas do vendedor inesperado'; p.write_text(s.replace(old,new,1))"
 
       - name: Set up Deno
         uses: denoland/setup-deno@v2
