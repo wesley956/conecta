@@ -174,11 +174,7 @@ function mapPlaylist(row: Record<string, unknown>, reused = false) {
 }
 
 function nextActionFor(playlist: ReturnType<typeof mapPlaylist>) {
-  if (playlist.commerciallyUsable) return 'activate';
-  if (playlist.qualificationStatus === 'awaiting_device_test') return 'test_on_android';
-  if (playlist.qualificationStatus === 'retryable_error') return 'retry_cache';
-  if (playlist.qualificationStatus === 'blocked') return 'edit_source';
-  return 'wait';
+  return playlist.recommendedAction || 'wait';
 }
 
 async function loadAuthorizedPlaylist(
@@ -249,10 +245,7 @@ async function registerSource(
     throw new PanelAuthError('Conta de vendedor sem vínculo comercial.', 403);
   }
 
-  const targetSellerId = principal.role === 'seller'
-    ? principal.sellerId
-    : input.sellerId;
-
+  const targetSellerId = principal.role === 'seller' ? principal.sellerId : input.sellerId;
   const { data, error } = await supabase.rpc('register_playlist_source_transaction', {
     p_name: input.name,
     p_playlist_url: input.playlistUrl,
@@ -261,16 +254,10 @@ async function registerSource(
     p_source_fingerprint: input.fingerprint,
     p_seller_id: targetSellerId,
   });
-  if (error) {
-    throw new Error(error.message || 'Não foi possível salvar ou reutilizar a lista.');
-  }
+  if (error) throw new Error(error.message || 'Não foi possível salvar ou reutilizar a lista.');
   const row = Array.isArray(data) ? data[0] : data;
   if (!row?.playlist_id) throw new Error('O cadastro não retornou a lista salva.');
-  return {
-    playlistId: String(row.playlist_id),
-    created: row.created === true,
-    sellerId: targetSellerId,
-  };
+  return { playlistId: String(row.playlist_id), created: row.created === true, sellerId: targetSellerId };
 }
 
 Deno.serve(async request => {
@@ -291,15 +278,19 @@ Deno.serve(async request => {
 
     if (action === 'status') {
       const playlistId = requiredUuid(body.playlistId, 'Lista');
-      const row = await loadAuthorizedPlaylist(supabase, principal, playlistId);
-      const playlist = mapPlaylist(row);
+      const playlist = mapPlaylist(await loadAuthorizedPlaylist(supabase, principal, playlistId));
       return json(request, {
         ok: true,
         saved: true,
         playlistId,
         playlist,
+        lifecycleStatus: playlist.lifecycleStatus,
+        lifecycleLabel: playlist.lifecycleLabel,
+        lifecycleMessage: playlist.lifecycleMessage,
+        platformCapabilities: playlist.platformCapabilities,
         qualificationStatus: playlist.qualificationStatus,
         commerciallyUsable: playlist.commerciallyUsable,
+        androidActivationAllowed: playlist.androidActivationAllowed,
         nextAction: nextActionFor(playlist),
       });
     }
@@ -308,19 +299,18 @@ Deno.serve(async request => {
       const playlistId = requiredUuid(body.playlistId, 'Lista');
       const row = await loadAuthorizedPlaylist(supabase, principal, playlistId);
       const qualification = playlistQualificationPayload(row);
-      if (!qualification.canRetryCache && !qualification.requiresDeviceTest) {
+      if (!qualification.canRetryCache && !qualification.adminDiagnosticRecommended) {
         const playlist = mapPlaylist(row);
         return json(request, {
           ok: true,
           saved: true,
           playlistId,
           playlist,
-          qualificationStatus: playlist.qualificationStatus,
-          commerciallyUsable: playlist.commerciallyUsable,
+          lifecycleStatus: playlist.lifecycleStatus,
           nextAction: nextActionFor(playlist),
-          message: qualification.commerciallyUsable
-            ? 'A lista já está homologada.'
-            : qualification.qualificationMessage,
+          message: playlist.commerciallyUsable
+            ? `${playlist.lifecycleLabel}. Nenhuma nova tentativa de cache é necessária.`
+            : playlist.lifecycleMessage,
         });
       }
 
@@ -329,11 +319,11 @@ Deno.serve(async request => {
         .update({
           playlist_qualification_status: 'validating',
           playlist_qualification_code: 'MANUAL_RETRY',
-          playlist_qualification_message: 'Nova validação iniciada.',
+          playlist_qualification_message: 'Nova tentativa de cache iniciada.',
           playlist_qualification_updated_at: new Date().toISOString(),
         })
         .eq('id', playlistId);
-      if (updateError) throw new Error('Não foi possível reiniciar a validação da lista.');
+      if (updateError) throw new Error('Não foi possível reiniciar o processamento da lista.');
 
       schedule(triggerCache(playlistId));
       const playlist = mapPlaylist(await loadAuthorizedPlaylist(supabase, principal, playlistId));
@@ -342,10 +332,9 @@ Deno.serve(async request => {
         saved: true,
         playlistId,
         playlist,
-        qualificationStatus: playlist.qualificationStatus,
-        commerciallyUsable: playlist.commerciallyUsable,
+        lifecycleStatus: playlist.lifecycleStatus,
         nextAction: nextActionFor(playlist),
-        message: 'Nova validação iniciada. Não cadastre a lista novamente.',
+        message: 'Nova tentativa de cache iniciada. Não cadastre a lista novamente.',
       }, 202);
     }
 
@@ -355,34 +344,22 @@ Deno.serve(async request => {
       const playlistType = inferPlaylistType(playlistUrl, body.playlistType);
       const maxConnections = positiveInteger(body.maxConnections, 1, 50);
       const requestId = safeRequestId(body.requestId);
-      const sellerId = principal.role === 'seller'
-        ? principal.sellerId
-        : optionalUuid(body.sellerId, 'Vendedor');
-      const fingerprint = await playlistSourceFingerprint(
-        getEnv('SUPABASE_SERVICE_ROLE_KEY'),
-        playlistUrl,
-      );
+      const sellerId = principal.role === 'seller' ? principal.sellerId : optionalUuid(body.sellerId, 'Vendedor');
+      const fingerprint = await playlistSourceFingerprint(getEnv('SUPABASE_SERVICE_ROLE_KEY'), playlistUrl);
 
       const registration = await registerSource(supabase, principal, {
-        name,
-        playlistUrl,
-        playlistType,
-        maxConnections,
-        fingerprint,
-        sellerId,
+        name, playlistUrl, playlistType, maxConnections, fingerprint, sellerId,
       });
       const row = await loadAuthorizedPlaylist(supabase, principal, registration.playlistId);
       const playlist = mapPlaylist(row, !registration.created);
 
-      if (registration.created || playlist.canRetryCache) {
-        schedule(triggerCache(registration.playlistId));
-      }
+      if (registration.created || playlist.canRetryCache) schedule(triggerCache(registration.playlistId));
 
       const message = registration.created
-        ? 'Lista salva. A validação continuará sem prender esta tela. Não cadastre novamente.'
+        ? 'Lista salva. O servidor tentará gerar o cache sem prender esta tela. Não cadastre novamente.'
         : playlist.commerciallyUsable
-        ? 'Esta origem já estava cadastrada e homologada. Ela foi reutilizada.'
-        : 'Esta origem já estava cadastrada. Acompanhe a validação existente e não cadastre novamente.';
+        ? `Esta origem já estava cadastrada como ${playlist.lifecycleLabel.toLowerCase()} e foi reutilizada.`
+        : 'Esta origem já estava cadastrada. O processamento existente será reaproveitado; não cadastre novamente.';
 
       return json(request, {
         ok: true,
@@ -391,8 +368,13 @@ Deno.serve(async request => {
         reused: !registration.created,
         playlistId: registration.playlistId,
         playlist,
+        lifecycleStatus: playlist.lifecycleStatus,
+        lifecycleLabel: playlist.lifecycleLabel,
+        lifecycleMessage: playlist.lifecycleMessage,
+        platformCapabilities: playlist.platformCapabilities,
         qualificationStatus: playlist.qualificationStatus,
         commerciallyUsable: playlist.commerciallyUsable,
+        androidActivationAllowed: playlist.androidActivationAllowed,
         nextAction: nextActionFor(playlist),
         requestId,
         source: inspectPlaylistSource(playlistUrl),
@@ -402,9 +384,7 @@ Deno.serve(async request => {
 
     return json(request, { error: 'Ação não suportada.' }, 400);
   } catch (error) {
-    if (error instanceof PanelAuthError) {
-      return panelAuthErrorResponse(error, corsHeaders(request));
-    }
+    if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, corsHeaders(request));
     const message = redactPlaylistSecrets(
       error instanceof Error ? error.message : 'Falha no cadastro da lista.',
       500,
