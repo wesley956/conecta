@@ -1,0 +1,168 @@
+name: Lote 6 Edge DB Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - 'scripts/check-lote6-edge-db-integration.mjs'
+      - '.github/workflows/lote6-edge-db-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lote6-edge-db-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  edge-auth-postgres:
+    name: HTTP Edge → Auth → PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      OPENAI_API_KEY: unused-in-ci
+      LOTE6_TEST_SELLER_ID: '00000000-0000-4000-8000-000000009699'
+      LOTE6_TEST_IDEMPOTENCY_KEY: 'lote6-edge-db-integration:v1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Start isolated Supabase stack
+        run: npx supabase start
+
+      - name: Export local Supabase credentials
+        shell: bash
+        run: npx supabase status -o env > "${RUNNER_TEMP}/supabase-local.env"
+
+      - name: Create isolated seller fixture directly in PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_workspace psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          insert into public.panel_sellers(
+            id,
+            name,
+            whatsapp,
+            email,
+            status,
+            credit_balance,
+            can_go_negative
+          ) values (
+            '00000000-0000-4000-8000-000000009699',
+            'Vendedor integração Lote 6',
+            '551199996099',
+            'lote6-edge-seller@example.invalid',
+            'active',
+            10,
+            false
+          );
+          SQL
+
+      - name: Serve admin credit Edge Function
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx supabase functions serve admin-credit-adjust --no-verify-jwt > "${RUNNER_TEMP}/admin-credit-adjust.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/admin-credit-adjust.pid"
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --silent --show-error --fail --request OPTIONS \
+              'http://127.0.0.1:54321/functions/v1/admin-credit-adjust' >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo '::error::admin-credit-adjust não ficou disponível no Supabase local.'
+            tail -n 100 "${RUNNER_TEMP}/admin-credit-adjust.log" || true
+            exit 1
+          fi
+
+      - name: Exercise Edge Auth and PostgreSQL together
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "${RUNNER_TEMP}/supabase-local.env"
+          set +a
+
+          export SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
+          export SUPABASE_ANON_KEY="${ANON_KEY}"
+          export SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
+          node scripts/check-lote6-edge-db-integration.mjs
+
+      - name: Verify persisted balance ledger and audit directly in PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_workspace psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_balance integer;
+            v_ledger integer;
+            v_audit integer;
+          begin
+            select credit_balance
+              into v_balance
+              from public.panel_sellers
+             where id = '00000000-0000-4000-8000-000000009699';
+
+            select count(*)
+              into v_ledger
+              from public.panel_credit_ledger
+             where seller_id = '00000000-0000-4000-8000-000000009699'
+               and idempotency_key = 'lote6-edge-db-integration:v1'
+               and amount = 5
+               and type = 'manual_add'
+               and balance_after = 15;
+
+            select count(*)
+              into v_audit
+              from public.panel_audit_logs
+             where entity_id = '00000000-0000-4000-8000-000000009699'
+               and action = 'credit.added';
+
+            if v_balance <> 15 then
+              raise exception 'Saldo persistido inesperado: %', v_balance;
+            end if;
+            if v_ledger <> 1 then
+              raise exception 'Ledger idempotente deveria ter exatamente 1 linha; encontrado %', v_ledger;
+            end if;
+            if v_audit <> 1 then
+              raise exception 'Auditoria idempotente deveria ter exatamente 1 linha; encontrado %', v_audit;
+            end if;
+          end
+          $$;
+          SQL
+
+      - name: Upload Edge integration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lote6-edge-db-integration-logs
+          path: ${{ runner.temp }}/admin-credit-adjust.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: npx supabase stop --no-backup

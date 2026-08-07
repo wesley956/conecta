@@ -7,6 +7,7 @@
   var MAX_TOKEN_LENGTH = 16 * 1024;
   var PANEL_FUNCTIONS = Object.freeze({
     'admin-panel': true,
+    'admin-credit-adjust': true,
     'seller-panel': true,
     'seller-device-flow': true,
     'seller-provision': true,
