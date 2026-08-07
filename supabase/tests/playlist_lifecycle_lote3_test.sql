@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(18);
+select plan(22);
 
 insert into public.panel_playlists (
   id, name, playlist_url, playlist_type, active, playlist_access_mode,
@@ -15,7 +15,13 @@ insert into public.panel_playlists (
   ('00000000-0000-0000-0000-00000000c104','L3 Confirmada','http://l3-direct.test/get.php?username=a&password=b','xtream',true,'direct','error',0,'DATACENTER_BLOCKED','Datacenter sem acesso.'),
   ('00000000-0000-0000-0000-00000000c105','L3 Falha','http://l3-failed.test/get.php?username=a&password=b','xtream',true,'direct','error',0,'DATACENTER_BLOCKED','Datacenter sem acesso.'),
   ('00000000-0000-0000-0000-00000000c106','L3 Bloqueada','http://l3-blocked.test/get.php?username=a&password=b','xtream',true,'blocked','error',0,'INVALID_CREDENTIALS','Credenciais inválidas.'),
-  ('00000000-0000-0000-0000-00000000c107','L3 Arquivada','http://l3-archived.test/list.m3u','m3u',false,'server_cache','missing',0,null,null);
+  ('00000000-0000-0000-0000-00000000c107','L3 Arquivada','http://l3-archived.test/list.m3u','m3u',false,'server_cache','missing',0,null,null),
+  ('00000000-0000-0000-0000-00000000c109','L3 Salvando','http://l3-saving.test/get.php?username=a&password=b','xtream',true,'server_cache','missing',0,null,null);
+
+-- Distingue o instante de cadastro (missing = Salvando) da geração já iniciada (building = Gerando cache).
+update public.panel_playlists
+set playlist_cache_status='building'
+where id='00000000-0000-0000-0000-00000000c101';
 
 update public.panel_playlists
 set playlist_qualification_status='ready_direct',
@@ -34,7 +40,8 @@ update public.panel_playlists
 set archived_at=now(), active=false
 where id='00000000-0000-0000-0000-00000000c107';
 
-select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c101')), 'generating_cache', 'Lista em processamento aparece como Gerando cache');
+select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c109')), 'saving', 'Cadastro recém salvo aparece como Salvando');
+select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c101')), 'generating_cache', 'Cache iniciado aparece como Gerando cache');
 select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c102')), 'ready_cache', 'Cache pronto usa o estado oficial Pronta com cache');
 select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c103')), 'awaiting_device_confirmation', 'Bloqueio de datacenter vira confirmação automática no aparelho');
 select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c104')), 'confirmed_by_device', 'Sucesso direto usa Confirmada pelo aparelho');
@@ -43,9 +50,12 @@ select is((select lifecycle_status from public.get_playlist_lifecycle_decision('
 select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c107')), 'archived', 'Lista arquivada usa o estado Arquivada');
 
 select is((select android_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c103')), 'provisional', 'Android aceita provisoriamente lista não confirmada pelo servidor');
+select is((select android_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c105')), 'blocked', 'Falha confirmada pelo aparelho bloqueia nova ativação até retry ou correção');
 select is((select lg_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c103')), 'unavailable', 'LG não recebe lista sem cache');
 select is((select samsung_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c102')), 'available_by_cache', 'Samsung recebe lista com cache pronto');
 select is((select lg_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c102')), 'available_by_cache', 'LG recebe lista com cache pronto');
+
+select is(public.playlist_safe_profile_path('/live/usuario-secreto/senha-secreta/12345.ts'), '/live/{credential}/{credential}/{resource}', 'Perfil de servidor transforma caminho com credenciais em template seguro');
 
 insert into public.panel_playlist_endpoints (
   id, playlist_id, endpoint_type, label, endpoint_url, protocol, host, port, path,
@@ -113,6 +123,12 @@ insert into public.panel_devices (
 
 select ok(public.mark_playlist_validation_failure('00000000-0000-0000-0000-00000000c103','00000000-0000-0000-0000-00000000c501','PLAYBACK_FAILED','Falha controlada'), 'O próprio aparelho comercial pode registrar falha de confirmação');
 select is((select lifecycle_status from public.get_playlist_lifecycle_decision('00000000-0000-0000-0000-00000000c103')), 'device_failed', 'Falha do aparelho comercial aparece no estado oficial');
+select throws_ok(
+  $$select public.assert_playlist_commercially_usable_for_device('00000000-0000-0000-0000-00000000c103','00000000-0000-0000-0000-00000000c501','Lista principal')$$,
+  'P0001',
+  'Lista principal falhou na confirmação do aparelho. Revise os dados ou tente novamente antes de ativar.',
+  'Lista que falhou no aparelho não pode ser ativada de novo sem retry ou correção'
+);
 
 select * from finish();
 rollback;
