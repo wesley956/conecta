@@ -29,7 +29,12 @@
     const accessToken = await window.RonecaPanelAuth.getAccessToken();
     const response = await fetch(`${base}/functions/v1/playlist-registration`, {
       method: 'POST', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: config.anonKey, Authorization: `Bearer ${accessToken}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        apikey: config.anonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
       body: JSON.stringify(payload),
     });
     const data = await response.json().catch(() => ({}));
@@ -46,7 +51,7 @@
       target.playlists = legacy.length
         ? legacy.map(item => ({ ...item, ...(byId.get(String(item.id)) || {}) }))
         : [...byId.values()];
-    } catch { /* o portal legado continua disponível como fallback visual */ }
+    } catch { /* mantém apenas dados de leitura já carregados se a API oficial estiver momentaneamente indisponível */ }
     return target;
   }
 
@@ -59,24 +64,26 @@
   function lifecycleInfo(playlist) {
     const technical = String(playlist.lifecycleStatus || playlist.qualificationStatus || 'validating');
     const code = String(playlist.qualificationCode || playlist.cacheErrorCode || '');
-    const cacheReady = String(playlist.cacheStatus || '') === 'ready' && Number(playlist.cacheItemCount || 0) > 0;
+    const cacheStatus = String(playlist.cacheStatus || 'missing');
+    const cacheReady = cacheStatus === 'ready' && Number(playlist.cacheItemCount || 0) > 0;
     let status = technical;
     if (!playlist.lifecycleStatus) {
       if (playlist.active === false) status = 'archived';
       else if (technical === 'blocked' || playlist.accessMode === 'blocked') status = 'blocked';
       else if (cacheReady || technical === 'ready_cache') status = 'ready_cache';
-      else if (technical === 'ready_direct') status = 'confirmed_by_device';
       else if (code === 'DEVICE_TEST_FAILED') status = 'device_failed';
+      else if (technical === 'ready_direct') status = 'confirmed_by_device';
       else if (technical === 'awaiting_device_test' || technical === 'retryable_error') status = 'awaiting_device_confirmation';
+      else if (technical === 'validating' && cacheStatus === 'missing') status = 'saving';
       else status = 'generating_cache';
     }
     const table = {
-      saving: ['Salvando', 'O cadastro ainda está sendo processado.'],
+      saving: ['Salvando', 'O cadastro da lista ainda está sendo processado.'],
       generating_cache: ['Gerando cache', 'O servidor está tentando autenticar a origem e gerar o cache.'],
       ready_cache: ['Pronta com cache', 'O cache foi gerado e a lista está pronta nas plataformas compatíveis.'],
       awaiting_device_confirmation: ['Aguardando confirmação no aparelho', 'O servidor não confirmou a origem. No Android, ela pode ser ativada provisoriamente.'],
       confirmed_by_device: ['Confirmada pelo aparelho', 'Um aparelho Android abriu o conteúdo e confirmou esta lista.'],
-      device_failed: ['Falhou no aparelho', 'O aparelho não conseguiu abrir esta lista. Revise os dados ou tente novamente.'],
+      device_failed: ['Falhou no aparelho', 'O aparelho tentou esta lista e não confirmou o acesso. Revise os dados ou tente novamente antes de uma nova ativação.'],
       blocked: ['Bloqueada', 'A origem precisa ser corrigida antes de uma nova ativação.'],
       archived: ['Arquivada', 'A lista foi arquivada.'],
     };
@@ -91,7 +98,7 @@
 
   function platformCapabilities(playlist, info) {
     const supplied = playlist.platformCapabilities || {};
-    const blocked = info.status === 'blocked' || info.status === 'archived';
+    const blocked = ['blocked', 'archived', 'device_failed'].includes(info.status);
     return {
       android: supplied.android || (blocked ? 'blocked' : ['ready_cache','confirmed_by_device'].includes(info.status) ? 'available' : 'provisional'),
       lg: supplied.lg || (info.cacheReady || info.status === 'ready_cache' ? 'available_by_cache' : 'unavailable'),
@@ -131,23 +138,6 @@
     msg.textContent = text || '';
   }
 
-  function inferPlaylistTypeFromUrl(rawUrl) {
-    try {
-      const url = new URL(String(rawUrl || '').trim());
-      const path = url.pathname.toLowerCase().replace(/\/+$/, '');
-      const hasCredentials = Boolean(url.searchParams.get('username') && url.searchParams.get('password'));
-      return hasCredentials && (path.endsWith('/get.php') || path.endsWith('/player_api.php')) ? 'xtream' : null;
-    } catch { return null; }
-  }
-
-  function syncDetectedPlaylistType() {
-    const detected = inferPlaylistTypeFromUrl($('sellerPlaylistUrl')?.value);
-    if (detected && $('sellerPlaylistType')) {
-      $('sellerPlaylistType').value = detected;
-      showListMsg('Formato Xtream identificado automaticamente.');
-    }
-  }
-
   function ensureListsCard() {
     if ($('sellerListsCard')) return;
     const dashboard = $('dashboardView');
@@ -167,26 +157,17 @@
       <div class="seller-playlist-head">
         <div>
           <h2>Minhas listas</h2>
-          <p class="muted">Cadastre a origem. O painel tenta gerar o cache; se não conseguir, o Android pode confirmar a lista na primeira abertura.</p>
+          <p class="muted">Cadastre pela entrada universal. O painel identifica a origem e tenta gerar o cache; se o servidor não confirmar, o Android pode validar na primeira abertura.</p>
         </div>
         <div class="actions" style="margin-top:0;">
-          <button class="primary" type="button" onclick="sellerListsToggleForm()">Adicionar lista</button>
+          <button class="primary" type="button" onclick="sellerListsOpenUniversal()">Adicionar lista</button>
           <button type="button" onclick="sellerListsUxRender()">Atualizar</button>
         </div>
-      </div>
-      <div id="sellerPlaylistForm" class="seller-playlist-form">
-        <div class="seller-form-grid">
-          <div><label for="sellerPlaylistName">Nome da lista</label><input id="sellerPlaylistName" placeholder="Ex: Minha lista premium" /></div>
-          <div><label for="sellerPlaylistType">Tipo (automático)</label><select id="sellerPlaylistType"><option value="m3u">M3U</option><option value="xtream">Xtream</option><option value="stalker">Stalker</option></select></div>
-          <div class="wide"><label for="sellerPlaylistUrl">URL da lista</label><input id="sellerPlaylistUrl" placeholder="https://..." /></div>
-        </div>
-        <div class="actions"><button class="primary" type="button" onclick="sellerListsCreate()">Salvar lista</button><button type="button" onclick="sellerListsToggleForm(false)">Cancelar</button></div>
       </div>
       <div id="sellerListsMsg" class="seller-msg"></div>
       <div id="sellerPlaylistsList" class="seller-playlist-list"></div>`;
 
     anchor.insertAdjacentElement('afterend', card);
-    $('sellerPlaylistUrl')?.addEventListener('input', syncDetectedPlaylistType);
     window.sellerPortalRefreshNavigation?.();
   }
 
@@ -198,13 +179,15 @@
     host.innerHTML = playlists.length ? playlists.map(playlist => {
       const info = lifecycleInfo(playlist);
       const platforms = platformCapabilities(playlist, info);
+      const tone = ['blocked','device_failed'].includes(info.status) ? 'err'
+        : ['ready_cache','confirmed_by_device'].includes(info.status) ? 'ok' : '';
       return `<div class="seller-playlist-item">
         <div>
           <strong>${esc(playlist.name)}</strong>
           <div class="muted">Tipo: ${esc(playlist.playlistType || playlist.type || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
           <div class="muted">Atualizado: ${formatDate(playlist.cacheUpdatedAt || playlist.playlistUpdatedAt || playlist.sourceUpdatedAt)}</div>
           ${lifecyclePill(playlist)}
-          <div class="seller-msg ${['ready_cache','confirmed_by_device'].includes(info.status) ? 'ok' : info.status === 'blocked' ? 'err' : ''}">${esc(info.message)}</div>
+          <div class="seller-msg ${tone}">${esc(info.message)}</div>
           <div class="muted">${esc(platformText('Android', platforms.android))} · ${esc(platformText('LG', platforms.lg))} · ${esc(platformText('Samsung', platforms.samsung))}</div>
           ${cacheAttemptDetails(playlist)}
         </div>
@@ -223,37 +206,25 @@
     renderPlaylists();
   }
 
-  window.sellerListsToggleForm = function sellerListsToggleForm(force) {
+  window.sellerListsOpenUniversal = function sellerListsOpenUniversal() {
     ensureListsCard();
-    const form = $('sellerPlaylistForm');
-    if (!form) return;
-    const shouldOpen = typeof force === 'boolean' ? force : !form.classList.contains('open');
-    form.classList.toggle('open', shouldOpen);
-    if (shouldOpen) setTimeout(() => $('sellerPlaylistName')?.focus(), 0);
+    if (!window.RonecaUniversalPlaylists?.open) {
+      showListMsg('O cadastro universal ainda está carregando. Tente novamente em alguns segundos.', 'err');
+      return;
+    }
+    window.RonecaUniversalPlaylists.open();
   };
 
-  window.sellerListsCreate = async function sellerListsCreate() {
-    try {
-      const name = $('sellerPlaylistName')?.value.trim() || '';
-      const playlistUrl = $('sellerPlaylistUrl')?.value.trim() || '';
-      const playlistType = inferPlaylistTypeFromUrl(playlistUrl) || $('sellerPlaylistType')?.value || 'm3u';
-      if (!name) throw new Error('Digite o nome da lista.');
-      if (!playlistUrl) throw new Error('Digite a URL da lista.');
-      showListMsg('Salvando lista...');
-      const result = await api('createSellerPlaylist', { name, playlistUrl, playlistType });
-      showListMsg(result.message || 'Lista salva. O processamento continuará automaticamente.', 'ok');
-      $('sellerPlaylistName').value = '';
-      $('sellerPlaylistUrl').value = '';
-      sellerListsToggleForm(false);
-      await loadLists();
-      if (typeof window.loadPortal === 'function') await window.loadPortal();
-    } catch (err) { showListMsg(err.message || 'Erro ao cadastrar lista.', 'err'); }
-  };
+  // Compatibilidade com botões antigos sem manter um segundo formulário de cadastro.
+  window.sellerListsToggleForm = function sellerListsToggleForm() { window.sellerListsOpenUniversal(); };
+  window.sellerListsCreate = function sellerListsCreate() { window.sellerListsOpenUniversal(); };
 
   window.sellerListsRefreshCache = async function sellerListsRefreshCache(playlistId) {
     try {
       showListMsg('Tentando gerar o cache novamente...');
-      const result = await api('refreshSellerPlaylistCache', { playlistId });
+      const result = window.RonecaPanelAuth
+        ? await officialApi({ action: 'retry', playlistId })
+        : await api('refreshSellerPlaylistCache', { playlistId });
       showListMsg(result.message || 'Nova tentativa iniciada.', result.ok === false ? 'err' : 'ok');
       await loadLists();
       if (typeof window.loadPortal === 'function') await window.loadPortal();
