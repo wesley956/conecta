@@ -7,7 +7,7 @@
   const ADMIN_FUNCTION = 'admin-panel';
   const attempts = new Map();
   const locks = new Set();
-  const $ = id => document.getElementById(id);
+  const $ = key => /^[#.\[]/.test(String(key || '')) ? document.querySelector(key) : document.getElementById(key);
   const esc = value => String(value ?? '')
     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
     .replaceAll('"','&quot;').replaceAll("'",'&#039;');
