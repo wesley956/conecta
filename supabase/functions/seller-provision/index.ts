@@ -84,10 +84,6 @@ function graceHours(value: unknown) {
   return parsed;
 }
 
-function createLegacySellerAccessToken() {
-  return crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '');
-}
-
 function duplicateEmailMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? '');
   return /already|registered|exists|duplicate/i.test(message);
@@ -173,7 +169,8 @@ serve(async request => {
           status: 'active',
           credit_balance: initialCredits,
           can_go_negative: canGoNegative,
-          access_token: createLegacySellerAccessToken(),
+          access_token: null,
+          public_code: null,
           updated_at: new Date().toISOString(),
         })
         .select('id')
@@ -231,6 +228,7 @@ serve(async request => {
         accessDurationHours: durationHours,
         autoDeleteAfterExpiry: autoDelete,
         autoDeleteGraceHours: deleteGraceHours,
+        legacyCredentialsCreated: false,
       },
     });
     if (auditError) throw new Error(`Não foi possível registrar a auditoria: ${auditError.message}.`);
