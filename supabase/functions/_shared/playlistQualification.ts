@@ -77,17 +77,19 @@ function archived(row: Record<string, unknown>) {
 function lifecycleOf(row: Record<string, unknown>): PlaylistLifecycleStatus {
   const status = statusOf(row.playlist_qualification_status);
   const code = String(row.playlist_qualification_code || '');
+  const cacheStatus = String(row.playlist_cache_status || 'missing');
   if (archived(row)) return 'archived';
   if (status === 'blocked') return 'blocked';
   if (cacheReady(row) || status === 'ready_cache') return 'ready_cache';
   if (status === 'ready_direct' && row.playlist_direct_confirmed_at) return 'confirmed_by_device';
   if (code === 'DEVICE_TEST_FAILED') return 'device_failed';
   if (status === 'awaiting_device_test' || status === 'retryable_error') return 'awaiting_device_confirmation';
+  if (status === 'validating' && cacheStatus === 'missing') return 'saving';
   return 'generating_cache';
 }
 
 function platformCapabilities(row: Record<string, unknown>, lifecycle: PlaylistLifecycleStatus): PlaylistPlatformCapabilities {
-  if (lifecycle === 'archived' || lifecycle === 'blocked') {
+  if (lifecycle === 'archived' || lifecycle === 'blocked' || lifecycle === 'device_failed') {
     return { android: 'blocked', lg: 'unavailable', samsung: 'unavailable' };
   }
   const hasCache = cacheReady(row) || lifecycle === 'ready_cache';
@@ -121,7 +123,7 @@ function presentation(lifecycle: PlaylistLifecycleStatus, row: Record<string, un
     case 'device_failed':
       return {
         label: 'Falhou no aparelho',
-        message: 'O aparelho não conseguiu abrir esta lista. Revise os dados ou tente novamente; uma única falha não bloqueia a origem automaticamente.',
+        message: 'O aparelho tentou esta lista e não conseguiu confirmar o acesso. Revise os dados ou tente novamente antes de uma nova ativação.',
         recommendedAction: 'review_or_retry' as const,
       };
     case 'blocked':
@@ -227,7 +229,7 @@ export async function getPlaylistCommercialDecision(
     adminDiagnosticRecommended: row.admin_diagnostic_recommended === true,
     platformCapabilities: platforms,
     qualifiedAt: null,
-    directConfirmedAt: row.confirmed_by_device === true ? new Date().toISOString() : null,
+    directConfirmedAt: null,
   };
 }
 
