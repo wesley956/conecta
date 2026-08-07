@@ -83,7 +83,7 @@ for (const token of [
   "return '/get.php'",
   "return '/player_api.php'",
   "return '/{resource}'",
-  "'{credential}/{credential}/{resource}'",
+  '/{credential}/{credential}/{resource}',
 ]) {
   if (!source.edgeFix.includes(token)) throw new Error(`Template seguro de caminho incompleto: ${token}`);
 }
@@ -121,7 +121,8 @@ if (!source.sellerWizard.includes("info.status === 'device_failed'")) {
 }
 
 for (const token of [
-  "if (!/\\/dashboard\\.html$/.test(location.pathname)) return",
+  'function isAdminPage()',
+  'if (!isAdminPage()) return',
   'Diagnóstico técnico de listas',
   'Esta área não é etapa da ativação do vendedor',
   'Iniciar diagnóstico',
