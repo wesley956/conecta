@@ -19,6 +19,12 @@ function createStorage() {
 
 const source = fs.readFileSync('admin-panel/panel-auth-session.js', 'utf8');
 const sessionStorage = createStorage();
+const localStorage = createStorage();
+const retiredKeys = ['roneca_admin_token', 'cruz-stars-admin-token', 'roneca_seller_token'];
+for (const key of retiredKeys) {
+  sessionStorage.setItem(key, 'legacy-secret-session');
+  localStorage.setItem(key, 'legacy-secret-local');
+}
 const requests = [];
 let refreshMode = 'success';
 
@@ -71,6 +77,7 @@ async function originalFetch(input, init = {}) {
 const windowObject = {
   fetch: originalFetch,
   sessionStorage,
+  localStorage,
   location: {
     href: 'https://wesley956.github.io/conecta/index.html',
   },
@@ -90,12 +97,17 @@ vm.runInNewContext(source, {
 });
 
 assert.ok(windowObject.RonecaPanelAuth, 'Cliente de autenticação não foi instalado.');
+for (const key of retiredKeys) {
+  assert.equal(sessionStorage.getItem(key), null, `Chave legada ${key} deve ser removida do sessionStorage no boot.`);
+  assert.equal(localStorage.getItem(key), null, `Chave legada ${key} deve ser removida do localStorage no boot.`);
+}
 
 await windowObject.RonecaPanelAuth.signIn('ADMIN@EXAMPLE.COM', 'password-test');
 assert.equal(windowObject.RonecaPanelAuth.hasSession(), true, 'Sessão deveria existir após login.');
-assert.equal(sessionStorage.getItem('roneca_admin_token'), 'supabase-session');
-assert.equal(sessionStorage.getItem('cruz-stars-admin-token'), 'supabase-session');
-assert.equal(sessionStorage.getItem('roneca_seller_token'), 'supabase-session');
+for (const key of retiredKeys) {
+  assert.equal(sessionStorage.getItem(key), null, `Login moderno não pode recriar ${key}.`);
+  assert.equal(localStorage.getItem(key), null, `Login moderno não pode persistir ${key}.`);
+}
 
 requests.length = 0;
 await windowObject.fetch('https://evil.example/functions/v1/admin-panel?source=legacy', {
@@ -115,12 +127,19 @@ assert.equal(
   'Função do painel deveria ser reescrita para a origem Supabase configurada.',
 );
 assert.equal(requests[0].headers.get('authorization'), 'Bearer access-token-test');
-assert.equal(
-  requests[0].headers.get('apikey'),
-  'public-anon-key-for-test-only-abcdefghijklmnopqrstuvwxyz',
-);
+assert.equal(requests[0].headers.get('apikey'), 'public-anon-key-for-test-only-abcdefghijklmnopqrstuvwxyz');
 assert.equal(requests[0].headers.has('x-admin-token'), false);
 assert.equal(requests[0].headers.has('x-seller-token'), false);
+
+requests.length = 0;
+await windowObject.fetch('https://evil.example/functions/v1/seller-device-flow', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'noop' }),
+});
+assert.equal(requests.length, 1);
+assert.equal(requests[0].url, 'https://project-test.supabase.co/functions/v1/seller-device-flow');
+assert.equal(requests[0].headers.get('authorization'), 'Bearer access-token-test');
 
 requests.length = 0;
 await windowObject.fetch('https://evil.example/not-a-panel-function', {
@@ -129,11 +148,7 @@ await windowObject.fetch('https://evil.example/not-a-panel-function', {
 
 assert.equal(requests.length, 1);
 assert.equal(requests[0].url, 'https://evil.example/not-a-panel-function');
-assert.equal(
-  requests[0].headers.has('authorization'),
-  false,
-  'JWT não pode ser enviado para uma URL externa não reconhecida.',
-);
+assert.equal(requests[0].headers.has('authorization'), false, 'JWT não pode ser enviado para uma URL externa não reconhecida.');
 assert.equal(requests[0].headers.has('apikey'), false);
 
 const STORAGE_KEY = 'roneca-panel-auth-session-v1';
@@ -165,14 +180,16 @@ await assert.rejects(
   'Refresh inválido precisa encerrar a sessão expirada.',
 );
 assert.equal(windowObject.RonecaPanelAuth.hasSession(), false, 'Sessão irrecuperável deve ser removida.');
-assert.equal(sessionStorage.getItem('roneca_admin_token'), null);
-assert.equal(sessionStorage.getItem('cruz-stars-admin-token'), null);
-assert.equal(sessionStorage.getItem('roneca_seller_token'), null);
+for (const key of retiredKeys) {
+  assert.equal(sessionStorage.getItem(key), null);
+  assert.equal(localStorage.getItem(key), null);
+}
 
 windowObject.RonecaPanelAuth.clearSession();
 assert.equal(windowObject.RonecaPanelAuth.hasSession(), false);
-assert.equal(sessionStorage.getItem('roneca_admin_token'), null);
-assert.equal(sessionStorage.getItem('cruz-stars-admin-token'), null);
-assert.equal(sessionStorage.getItem('roneca_seller_token'), null);
+for (const key of retiredKeys) {
+  assert.equal(sessionStorage.getItem(key), null);
+  assert.equal(localStorage.getItem(key), null);
+}
 
-console.log('✅ Sessão do painel validada: origem, JWT, refresh de expiração e limpeza segura.');
+console.log('✅ Sessão do painel validada: somente Supabase Auth, refresh controlado e nenhuma chave legada.');
