@@ -24,8 +24,6 @@ if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
   throw new Error('SUPABASE_ANON_KEY parece inválida.');
 }
 
-// Contrato legado mantido apenas para validadores de arquitetura. O carregador
-// abaixo não injeta mais o editor comercial antigo de assinaturas/listas.
 const LEGACY_MULTI_PANEL_PATTERN = '(dashboard|seller)';
 const modules = [
   {
@@ -64,9 +62,16 @@ const modules = [
   {
     id: 'playlist-commercial-qualification',
     contractName: 'loadPlaylistCommercialQualification',
-    pages: ['dashboard', 'seller'],
+    pages: ['dashboard'],
     style: './playlist-commercial-qualification.css?v=1.0',
-    script: './playlist-commercial-qualification.js?v=2.0',
+    script: './playlist-commercial-qualification.js?v=3.0',
+    afterDomReady: true,
+  },
+  {
+    id: 'playlist-lifecycle-ui',
+    contractName: 'loadPlaylistLifecycleUi',
+    pages: ['dashboard'],
+    script: './playlist-lifecycle-ui.js?v=1.0',
     afterDomReady: true,
   },
   {

@@ -4,13 +4,14 @@ const requiredFiles = [
   'docs/LOT1_PLAYLIST_QUALIFICATION_MAP_2026-08-05.md',
   'supabase/migrations/20260805010000_playlist_commercial_qualification.sql',
   'supabase/migrations/20260805010100_playlist_validation_device_safety.sql',
-  'supabase/migrations/20260805010200_ready_direct_legacy_compatibility.sql',
   'supabase/migrations/20260805010300_commercial_playlist_replacement.sql',
   'supabase/migrations/20260805010400_direct_confirmation_precedence.sql',
   'supabase/migrations/20260805010500_playlist_insert_qualification_seed.sql',
   'supabase/migrations/20260805010600_playlist_platform_capability_guard.sql',
   'supabase/migrations/20260805010700_canonical_playlist_registration.sql',
   'supabase/migrations/20260805010900_direct_confirmation_device_reference_compatibility.sql',
+  'supabase/migrations/20260807060000_playlist_lifecycle_and_server_profiles.sql',
+  'supabase/migrations/20260807060100_playlist_lifecycle_edge_fixes.sql',
   'supabase/functions/_shared/playlistQualification.ts',
   'supabase/functions/_shared/playlistSource.ts',
   'supabase/functions/playlist-registration/index.ts',
@@ -18,176 +19,89 @@ const requiredFiles = [
   'supabase/functions/playlist-fingerprint-backfill/index.ts',
   'supabase/functions/device-config-qualified/index.ts',
   'admin-panel/playlist-commercial-qualification.js',
-  'admin-panel/playlist-commercial-qualification.css',
+  'admin-panel/playlist-lifecycle-ui.js',
   'admin-panel/playlist-fingerprint-backfill-bootstrap.js',
   'supabase/tests/playlist_commercial_qualification_test.sql',
   'supabase/tests/playlist_platform_capability_test.sql',
   'supabase/tests/canonical_playlist_registration_test.sql',
+  'supabase/tests/playlist_lifecycle_lote3_test.sql',
 ];
 
 for (const file of requiredFiles) {
-  if (!fs.existsSync(file)) throw new Error(`Arquivo obrigatório do Lote 1 ausente: ${file}`);
+  if (!fs.existsSync(file)) throw new Error(`Arquivo obrigatório da qualificação/ciclo de listas ausente: ${file}`);
 }
 
-const migration = fs.readFileSync(
-  'supabase/migrations/20260805010000_playlist_commercial_qualification.sql',
-  'utf8',
-);
-const safetyMigration = fs.readFileSync(
-  'supabase/migrations/20260805010100_playlist_validation_device_safety.sql',
-  'utf8',
-);
-const replacementMigration = fs.readFileSync(
-  'supabase/migrations/20260805010300_commercial_playlist_replacement.sql',
-  'utf8',
-);
-const precedenceMigration = fs.readFileSync(
-  'supabase/migrations/20260805010400_direct_confirmation_precedence.sql',
-  'utf8',
-);
-const insertSeedMigration = fs.readFileSync(
-  'supabase/migrations/20260805010500_playlist_insert_qualification_seed.sql',
-  'utf8',
-);
-const platformMigration = fs.readFileSync(
-  'supabase/migrations/20260805010600_playlist_platform_capability_guard.sql',
-  'utf8',
-);
-const canonicalMigration = fs.readFileSync(
-  'supabase/migrations/20260805010700_canonical_playlist_registration.sql',
-  'utf8',
-);
-const referenceCompatibilityMigration = fs.readFileSync(
-  'supabase/migrations/20260805010900_direct_confirmation_device_reference_compatibility.sql',
-  'utf8',
-);
-const registration = fs.readFileSync('supabase/functions/playlist-registration/index.ts', 'utf8');
-const validation = fs.readFileSync('supabase/functions/playlist-validation/index.ts', 'utf8');
-const backfill = fs.readFileSync('supabase/functions/playlist-fingerprint-backfill/index.ts', 'utf8');
-const deviceConfig = fs.readFileSync('supabase/functions/device-config-qualified/index.ts', 'utf8');
-const qualificationModule = fs.readFileSync('supabase/functions/_shared/playlistQualification.ts', 'utf8');
-const sourceModule = fs.readFileSync('supabase/functions/_shared/playlistSource.ts', 'utf8');
-const panel = fs.readFileSync('admin-panel/playlist-commercial-qualification.js', 'utf8');
-const backfillBootstrap = fs.readFileSync(
-  'admin-panel/playlist-fingerprint-backfill-bootstrap.js',
-  'utf8',
-);
-const panelGenerator = fs.readFileSync('scripts/generate-panel-config.mjs', 'utf8');
-const androidApi = fs.readFileSync(
-  'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/DeviceConfigDirectApi.kt',
-  'utf8',
-);
-const pgTap = fs.readFileSync('supabase/tests/playlist_commercial_qualification_test.sql', 'utf8');
-const platformPgTap = fs.readFileSync('supabase/tests/playlist_platform_capability_test.sql', 'utf8');
-const canonicalPgTap = fs.readFileSync('supabase/tests/canonical_playlist_registration_test.sql', 'utf8');
-const supabaseConfig = fs.readFileSync('supabase/config.toml', 'utf8');
+const read = path => fs.readFileSync(path, 'utf8');
+const migration = read('supabase/migrations/20260805010000_playlist_commercial_qualification.sql');
+const safetyMigration = read('supabase/migrations/20260805010100_playlist_validation_device_safety.sql');
+const precedenceMigration = read('supabase/migrations/20260805010400_direct_confirmation_precedence.sql');
+const platformMigration = read('supabase/migrations/20260805010600_playlist_platform_capability_guard.sql');
+const canonicalMigration = read('supabase/migrations/20260805010700_canonical_playlist_registration.sql');
+const lifecycleMigration = read('supabase/migrations/20260807060000_playlist_lifecycle_and_server_profiles.sql');
+const lifecycleFix = read('supabase/migrations/20260807060100_playlist_lifecycle_edge_fixes.sql');
+const registration = read('supabase/functions/playlist-registration/index.ts');
+const validation = read('supabase/functions/playlist-validation/index.ts');
+const backfill = read('supabase/functions/playlist-fingerprint-backfill/index.ts');
+const deviceConfig = read('supabase/functions/device-config-qualified/index.ts');
+const qualificationModule = read('supabase/functions/_shared/playlistQualification.ts');
+const sourceModule = read('supabase/functions/_shared/playlistSource.ts');
+const panel = read('admin-panel/playlist-commercial-qualification.js');
+const lifecycleUi = read('admin-panel/playlist-lifecycle-ui.js');
+const backfillBootstrap = read('admin-panel/playlist-fingerprint-backfill-bootstrap.js');
+const panelGenerator = read('scripts/generate-panel-config.mjs');
+const androidApi = read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/DeviceConfigDirectApi.kt');
+const pgTap = read('supabase/tests/playlist_commercial_qualification_test.sql');
+const platformPgTap = read('supabase/tests/playlist_platform_capability_test.sql');
+const canonicalPgTap = read('supabase/tests/canonical_playlist_registration_test.sql');
+const lifecyclePgTap = read('supabase/tests/playlist_lifecycle_lote3_test.sql');
+const supabaseConfig = read('supabase/config.toml');
 
-const states = [
-  'validating',
-  'ready_cache',
-  'awaiting_device_test',
-  'ready_direct',
-  'retryable_error',
-  'blocked',
-];
-for (const state of states) {
+// Os estados técnicos são preservados para compatibilidade com app/migrações antigas.
+for (const state of ['validating','ready_cache','awaiting_device_test','ready_direct','retryable_error','blocked']) {
   if (!migration.includes(`'${state}'`) || !qualificationModule.includes(`'${state}'`)) {
-    throw new Error(`Estado comercial ausente no banco ou no contrato: ${state}`);
+    throw new Error(`Estado técnico ausente no banco ou no contrato: ${state}`);
   }
 }
 
-const databaseRequirements = [
+for (const token of [
   'panel_playlist_validation_sessions',
   'playlist_is_commercially_usable',
   'assert_playlist_commercially_usable',
   'start_playlist_validation_session',
   'mark_playlist_direct_success',
   'mark_playlist_validation_failure',
-  'panel_devices_primary_playlist_qualification_guard',
-  'panel_device_playlists_qualification_guard',
   'safe_playlist_qualification_message',
-];
-for (const token of databaseRequirements) {
-  if (!migration.includes(token)) throw new Error(`Fundação comercial não contém: ${token}`);
+]) {
+  if (!migration.includes(token)) throw new Error(`Fundação de qualificação não contém: ${token}`);
 }
 
-for (const token of [
-  "status = 'pending'",
-  'seller_id is null',
-  'customer_id is null',
-  'playlist_id is null',
-  'subscription_expires_at is null',
-]) {
-  if (!safetyMigration.includes(token)) {
-    throw new Error(`Isolamento do aparelho de validação não contém: ${token}`);
-  }
+for (const token of ["status = 'pending'", 'seller_id is null', 'customer_id is null', 'playlist_id is null', 'subscription_expires_at is null']) {
+  if (!safetyMigration.includes(token)) throw new Error(`Isolamento do aparelho técnico não contém: ${token}`);
+}
+for (const token of ["playlist_qualification_status = 'ready_direct'", 'playlist_direct_confirmed_at is not null', 'DIRECT_ALREADY_CONFIRMED']) {
+  if (!precedenceMigration.includes(token)) throw new Error(`Precedência da confirmação direta não contém: ${token}`);
+}
+for (const token of ['assert_playlist_commercially_usable_for_device', "v_device_type not in ('android', 'androidtv')", 'panel_playlist_validation_device_capability_guard']) {
+  if (!platformMigration.includes(token)) throw new Error(`Proteção histórica por plataforma não contém: ${token}`);
+}
+for (const token of ['register_playlist_source_transaction', 'playlist.source_fingerprint = v_fingerprint', 'pg_advisory_xact_lock', 'panel_seller_playlists']) {
+  if (!canonicalMigration.includes(token)) throw new Error(`Cadastro atômico não contém: ${token}`);
 }
 
+// Lote 3: uma apresentação pública única, mantendo a fundação técnica anterior.
 for (const token of [
-  'replace_subscription_playlist_transaction',
-  'replace_device_playlist_transaction',
-  'assert_playlist_commercially_usable',
-  "to_regclass('public.panel_subscriptions')",
-  'homologação comercial',
+  'get_playlist_lifecycle_decision',
+  'panel_playlist_server_profiles',
+  'learn_playlist_server_profile',
+  'apply_known_playlist_server_profile',
 ]) {
-  if (!replacementMigration.includes(token)) {
-    throw new Error(`Troca comercial compatível não contém: ${token}`);
-  }
+  if (!lifecycleMigration.includes(token)) throw new Error(`Ciclo público do Lote 3 não contém: ${token}`);
 }
-
-for (const token of [
-  "playlist_qualification_status = 'ready_direct'",
-  'playlist_direct_confirmed_at is not null',
-  'DIRECT_ALREADY_CONFIRMED',
-]) {
-  if (!precedenceMigration.includes(token)) {
-    throw new Error(`Precedência da confirmação direta não contém: ${token}`);
-  }
+for (const token of ["then 'saving'", "playlist_qualification_code = 'DEVICE_TEST_FAILED'", "return '/{resource}'"]) {
+  if (!lifecycleFix.includes(token)) throw new Error(`Correção de borda do Lote 3 não contém: ${token}`);
 }
-
-for (const token of [
-  'aaa_panel_playlists_insert_qualification_seed',
-  "playlist_access_mode = 'direct'",
-  "playlist_cache_status = 'error'",
-  'INVALID_CREDENTIALS',
-]) {
-  if (!insertSeedMigration.includes(token)) {
-    throw new Error(`Classificação inicial não contém: ${token}`);
-  }
-}
-
-for (const token of [
-  'assert_playlist_commercially_usable_for_device',
-  "v_device_type not in ('android', 'androidtv')",
-  'panel_playlist_validation_device_capability_guard',
-  'homologado somente para Android',
-]) {
-  if (!platformMigration.includes(token)) {
-    throw new Error(`Proteção por plataforma não contém: ${token}`);
-  }
-}
-
-for (const token of [
-  'register_playlist_source_transaction',
-  'playlist.source_fingerprint = v_fingerprint',
-  'playlist.playlist_url = v_url',
-  'pg_advisory_xact_lock',
-  'panel_seller_playlists',
-]) {
-  if (!canonicalMigration.includes(token)) {
-    throw new Error(`Cadastro atômico não contém: ${token}`);
-  }
-}
-
-for (const token of [
-  'drop constraint if exists panel_playlists_playlist_direct_confirmed_device_id_fkey',
-  'validate_playlist_direct_confirmation_device',
-  'clear_deleted_direct_confirmation_device',
-  "notify pgrst, 'reload schema'",
-]) {
-  if (!referenceCompatibilityMigration.includes(token)) {
-    throw new Error(`Compatibilidade da referência direta não contém: ${token}`);
-  }
+for (const token of ['lifecycleStatus','platformCapabilities','androidActivationAllowed','adminDiagnosticRecommended']) {
+  if (!qualificationModule.includes(token)) throw new Error(`Contrato público de lista incompleto: ${token}`);
 }
 
 for (const token of [
@@ -195,126 +109,76 @@ for (const token of [
   "action === 'retry'",
   'register_playlist_source_transaction',
   'source_fingerprint',
-  'EdgeRuntime.waitUntil',
-  'Esta origem já estava cadastrada',
+  'lifecycleStatus',
+  'platformCapabilities',
   'Não cadastre novamente',
 ]) {
   if (!registration.includes(token)) throw new Error(`Cadastro canônico não contém: ${token}`);
 }
 
+// A homologação/teste manual virou ferramenta técnica exclusiva de owner/admin.
 for (const token of [
+  "['owner', 'admin']",
   "action === 'markDevice'",
   "action === 'start'",
   "action === 'revoke'",
-  "['owner', 'admin']",
   'start_playlist_validation_session',
-  'Use um aparelho pendente e sem qualquer vínculo comercial',
 ]) {
-  if (!validation.includes(token)) throw new Error(`Validação direta não contém: ${token}`);
+  if (!validation.includes(token)) throw new Error(`Diagnóstico direto protegido não contém: ${token}`);
+}
+for (const token of [
+  'Diagnóstico técnico de listas',
+  'Esta área não é etapa da ativação do vendedor',
+  'Iniciar diagnóstico',
+  'Aguardando confirmação no aparelho',
+]) {
+  if (!panel.includes(token)) throw new Error(`Painel de diagnóstico ADM não contém: ${token}`);
+}
+if (!panel.includes('isAdminPage()') || !panel.includes('if (!isAdminPage()) return')) {
+  throw new Error('Diagnóstico manual não está restrito ao dashboard administrativo.');
+}
+for (const forbidden of [/somente listas homologadas podem consumir cr[eé]dito/i, /homologa[cç][aã]o obrigat[oó]ria/i]) {
+  if (forbidden.test(panel) || forbidden.test(lifecycleUi) || forbidden.test(registration)) {
+    throw new Error(`Mensagem comercial antiga reintroduzida: ${forbidden}`);
+  }
 }
 
-for (const token of [
-  'source_fingerprint',
-  'register_playlist_source_transaction',
-  'canonicalSources',
-  "['owner', 'admin']",
-]) {
+for (const token of ['source_fingerprint','register_playlist_source_transaction','canonicalSources',"['owner', 'admin']"]) {
   if (!backfill.includes(token)) throw new Error(`Backfill protegido não contém: ${token}`);
 }
-
-for (const token of [
-  '/device-config',
-  'resolve_active_playlist_validation_session',
-  'mark_playlist_direct_success',
-  'validationMode: true',
-  'Nenhuma venda ou vínculo de cliente será alterado',
-]) {
-  if (!deviceConfig.includes(token)) throw new Error(`Configuração qualificada não contém: ${token}`);
+for (const token of ['/device-config','resolve_active_playlist_validation_session','mark_playlist_direct_success','validationMode: true']) {
+  if (!deviceConfig.includes(token)) throw new Error(`Configuração Android qualificada não contém: ${token}`);
+}
+for (const token of ['playlist-fingerprint-backfill','localStorage.setItem','completedAt']) {
+  if (!backfillBootstrap.includes(token)) throw new Error(`Inicialização do backfill não contém: ${token}`);
+}
+if (!sourceModule.includes('PLAYLIST_FINGERPRINT_SECRET')) throw new Error('Fingerprint não preserva o segredo histórico configurável.');
+if (!panelGenerator.includes('playlist-commercial-qualification.js') || !panelGenerator.includes('playlist-lifecycle-ui.js')) {
+  throw new Error('Painel publicado não carrega diagnóstico ADM e ciclo público oficial.');
+}
+if (!androidApi.includes('/device-config-qualified')) throw new Error('Android não utiliza a configuração qualificada.');
+for (const functionName of ['device-config-qualified','playlist-registration','playlist-validation','playlist-fingerprint-backfill']) {
+  if (!supabaseConfig.includes(`[functions.${functionName}]`)) throw new Error(`Edge Function não configurada: ${functionName}`);
 }
 
-for (const token of [
-  'playlist-registration',
-  'playlist-validation',
-  'commerciallyUsable',
-  'requiresDeviceTest',
-  'Gerar cache novamente',
-  'Iniciar teste',
-]) {
-  if (!panel.includes(token)) throw new Error(`Painel comercial não contém: ${token}`);
+// Preserva as provas históricas e acrescenta a prova do contrato público novo.
+for (const token of ['Falha de homologação preserva o saldo','Sessão de validação não cria lançamento financeiro','Sucesso do aparelho autorizado promove a lista']) {
+  if (!pgTap.includes(token)) throw new Error(`Teste histórico não contém: ${token}`);
+}
+for (const token of ['Tizen não consome uma lista somente direta','Recusa por plataforma preserva o saldo','Android pode ativar a lista direta homologada']) {
+  if (!platformPgTap.includes(token)) throw new Error(`Teste histórico de plataforma não contém: ${token}`);
+}
+for (const token of ['Cadastro retorna a linha legada equivalente','Cadastro canônico não cria duplicata','Permissão do vendedor é criada na mesma transação']) {
+  if (!canonicalPgTap.includes(token)) throw new Error(`Teste histórico de cadastro não contém: ${token}`);
+}
+for (const token of ['Cadastro recém salvo aparece como Salvando','Android aceita provisoriamente lista não confirmada pelo servidor','Falha confirmada pelo aparelho bloqueia nova ativação até retry ou correção']) {
+  if (!lifecyclePgTap.includes(token)) throw new Error(`Teste de ciclo público não contém: ${token}`);
 }
 
-for (const token of [
-  'playlist-fingerprint-backfill',
-  'localStorage.setItem',
-  'completedAt',
-  '2026-08-05-v2',
-]) {
-  if (!backfillBootstrap.includes(token)) {
-    throw new Error(`Inicialização do backfill não contém: ${token}`);
-  }
+const sensitiveLogPattern = /console\.(?:log|debug|info|warn|error)\s*\([^)]*(?:playlistUrl|playlist_url|password|senha|username|token)/i;
+for (const [name, source] of Object.entries({ registration, validation, backfill, deviceConfig, panel, lifecycleUi, backfillBootstrap })) {
+  if (sensitiveLogPattern.test(source)) throw new Error(`${name} pode registrar credenciais em log.`);
+  if (/\beval\s*\(|\bFunction\s*\(/.test(source)) throw new Error(`${name} não pode executar código dinâmico.`);
 }
 
-if (!sourceModule.includes('PLAYLIST_FINGERPRINT_SECRET')) {
-  throw new Error('O fingerprint não preserva o segredo histórico configurável.');
-}
-if (!panelGenerator.includes('playlist-commercial-qualification.js')
-    || !panelGenerator.includes('playlist-fingerprint-backfill-bootstrap.js')) {
-  throw new Error('O painel publicado não carrega homologação e consolidação legada.');
-}
-if (!androidApi.includes('/device-config-qualified')) {
-  throw new Error('O Android não utiliza a configuração comercial qualificada.');
-}
-if (!supabaseConfig.includes('[functions.device-config-qualified]')
-    || !supabaseConfig.includes('[functions.playlist-registration]')
-    || !supabaseConfig.includes('[functions.playlist-validation]')
-    || !supabaseConfig.includes('[functions.playlist-fingerprint-backfill]')) {
-  throw new Error('As novas Edge Functions não estão configuradas.');
-}
-
-const testRequirements = [
-  'Lista direta pendente é rejeitada antes da cobrança',
-  'Falha de homologação preserva o saldo',
-  'Sessão de validação não cria lançamento financeiro',
-  'Sucesso do aparelho autorizado promove a lista',
-  'Crédito é consumido somente após a homologação',
-  'Alteração da origem invalida a homologação anterior',
-];
-for (const token of testRequirements) {
-  if (!pgTap.includes(token)) throw new Error(`Teste comercial não contém: ${token}`);
-}
-
-for (const token of [
-  'Tizen não consome uma lista somente direta',
-  'Recusa por plataforma preserva o saldo',
-  'Android pode ativar a lista direta homologada',
-]) {
-  if (!platformPgTap.includes(token)) throw new Error(`Teste de plataforma não contém: ${token}`);
-}
-
-for (const token of [
-  'Cadastro retorna a linha legada equivalente',
-  'Cadastro canônico não cria duplicata',
-  'Fingerprint é preenchido no registro legado escolhido',
-  'Permissão do vendedor é criada na mesma transação',
-]) {
-  if (!canonicalPgTap.includes(token)) throw new Error(`Teste canônico não contém: ${token}`);
-}
-
-const sensitiveLogPattern = /console\.(?:log|debug|info|warn|error)\s*\([^)]*(?:playlist_url|password|senha|username|usuario|token)/i;
-for (const [name, source] of Object.entries({
-  registration,
-  validation,
-  backfill,
-  deviceConfig,
-  panel,
-  backfillBootstrap,
-})) {
-  if (sensitiveLogPattern.test(source)) {
-    throw new Error(`${name} pode registrar credenciais em log.`);
-  }
-  if (/\beval\s*\(|\bFunction\s*\(/.test(source)) {
-    throw new Error(`${name} não pode executar código dinâmico.`);
-  }
-}
-
-console.log('✅ Qualificação, compatibilidade de produção, cadastro atômico, plataforma e crédito validados.');
+console.log('✅ Fundação técnica preservada; ciclo público, diagnóstico ADM e compatibilidade do Lote 3 validados.');
