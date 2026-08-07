@@ -111,6 +111,7 @@ async function activationViewport(browser, origin, width, height, label) {
 
   await page.click('[data-aw-action="next"]');
   assert.ok(await page.$$eval('.aw-field-error', nodes => nodes.length) >= 2, `${label}: erros devem aparecer dentro da etapa`);
+  await page.waitForFunction(() => document.activeElement?.dataset?.awField === 'customerName');
   assert.equal(await page.evaluate(() => document.activeElement?.dataset?.awField), 'customerName', `${label}: primeiro erro deve receber foco`);
 
   await page.type('[data-aw-field="customerName"]', 'Cliente UX');
