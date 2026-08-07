@@ -1,0 +1,76 @@
+name: Deploy Supabase Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-supabase-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production
+  cancel-in-progress: false
+
+jobs:
+  disabled-notice:
+    if: ${{ vars.SUPABASE_PRODUCTION_DEPLOY_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain deployment gate
+        run: |
+          echo '::notice title=Supabase production deploy disabled::Set repository variable SUPABASE_PRODUCTION_DEPLOY_ENABLED=true only after the remote migration baseline is aligned and required secrets are configured.'
+
+  deploy:
+    if: ${{ vars.SUPABASE_PRODUCTION_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error title=Missing Supabase secret::${name} is required for production deployment."
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: latest
+
+      - name: Link production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Show migration state
+        run: supabase migration list
+
+      - name: Preflight pending migrations
+        run: supabase db push --dry-run
+
+      - name: Apply pending migrations
+        run: supabase db push
+
+      - name: Deploy Edge Functions from the same commit
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Verify migration state after deploy
+        run: supabase migration list
