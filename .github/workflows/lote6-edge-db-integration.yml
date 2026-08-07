@@ -27,7 +27,7 @@ jobs:
     env:
       SUPABASE_TELEMETRY_DISABLED: '1'
       OPENAI_API_KEY: unused-in-ci
-      LOTE6_TEST_SELLER_ID: '00000000-0000-0000-0000-000000009699'
+      LOTE6_TEST_SELLER_ID: '00000000-0000-4000-8000-000000009699'
       LOTE6_TEST_IDEMPOTENCY_KEY: 'lote6-edge-db-integration:v1'
 
     steps:
@@ -64,7 +64,7 @@ jobs:
             credit_balance,
             can_go_negative
           ) values (
-            '00000000-0000-0000-0000-000000009699',
+            '00000000-0000-4000-8000-000000009699',
             'Vendedor integração Lote 6',
             '551199996099',
             'lote6-edge-seller@example.invalid',
@@ -124,12 +124,12 @@ jobs:
             select credit_balance
               into v_balance
               from public.panel_sellers
-             where id = '00000000-0000-0000-0000-000000009699';
+             where id = '00000000-0000-4000-8000-000000009699';
 
             select count(*)
               into v_ledger
               from public.panel_credit_ledger
-             where seller_id = '00000000-0000-0000-0000-000000009699'
+             where seller_id = '00000000-0000-4000-8000-000000009699'
                and idempotency_key = 'lote6-edge-db-integration:v1'
                and amount = 5
                and type = 'manual_add'
@@ -138,7 +138,7 @@ jobs:
             select count(*)
               into v_audit
               from public.panel_audit_logs
-             where entity_id = '00000000-0000-0000-0000-000000009699'
+             where entity_id = '00000000-0000-4000-8000-000000009699'
                and action = 'credit.added';
 
             if v_balance <> 15 then
