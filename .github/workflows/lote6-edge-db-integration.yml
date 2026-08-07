@@ -27,6 +27,8 @@ jobs:
     env:
       SUPABASE_TELEMETRY_DISABLED: '1'
       OPENAI_API_KEY: unused-in-ci
+      LOTE6_TEST_SELLER_ID: '00000000-0000-0000-0000-000000009699'
+      LOTE6_TEST_IDEMPOTENCY_KEY: 'lote6-edge-db-integration:v1'
 
     steps:
       - name: Checkout repository
@@ -47,6 +49,30 @@ jobs:
       - name: Export local Supabase credentials
         shell: bash
         run: npx supabase status -o env > "${RUNNER_TEMP}/supabase-local.env"
+
+      - name: Create isolated seller fixture directly in PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_workspace psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          insert into public.panel_sellers(
+            id,
+            name,
+            whatsapp,
+            email,
+            status,
+            credit_balance,
+            can_go_negative
+          ) values (
+            '00000000-0000-0000-0000-000000009699',
+            'Vendedor integração Lote 6',
+            '551199996099',
+            'lote6-edge-seller@example.invalid',
+            'active',
+            10,
+            false
+          );
+          SQL
 
       - name: Serve admin credit Edge Function
         shell: bash
@@ -83,6 +109,50 @@ jobs:
           export SUPABASE_ANON_KEY="${ANON_KEY}"
           export SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
           node scripts/check-lote6-edge-db-integration.mjs
+
+      - name: Verify persisted balance ledger and audit directly in PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker exec -i supabase_db_workspace psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_balance integer;
+            v_ledger integer;
+            v_audit integer;
+          begin
+            select credit_balance
+              into v_balance
+              from public.panel_sellers
+             where id = '00000000-0000-0000-0000-000000009699';
+
+            select count(*)
+              into v_ledger
+              from public.panel_credit_ledger
+             where seller_id = '00000000-0000-0000-0000-000000009699'
+               and idempotency_key = 'lote6-edge-db-integration:v1'
+               and amount = 5
+               and type = 'manual_add'
+               and balance_after = 15;
+
+            select count(*)
+              into v_audit
+              from public.panel_audit_logs
+             where entity_id = '00000000-0000-0000-0000-000000009699'
+               and action = 'credit.added';
+
+            if v_balance <> 15 then
+              raise exception 'Saldo persistido inesperado: %', v_balance;
+            end if;
+            if v_ledger <> 1 then
+              raise exception 'Ledger idempotente deveria ter exatamente 1 linha; encontrado %', v_ledger;
+            end if;
+            if v_audit <> 1 then
+              raise exception 'Auditoria idempotente deveria ter exatamente 1 linha; encontrado %', v_audit;
+            end if;
+          end
+          $$;
+          SQL
 
       - name: Upload Edge integration logs
         if: always()
