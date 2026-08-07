@@ -20,13 +20,12 @@ try {
 if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password) {
   throw new Error('SUPABASE_URL precisa usar HTTPS e não pode conter credenciais.');
 }
-
 if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
   throw new Error('SUPABASE_ANON_KEY parece inválida.');
 }
 
-// Nomes mantidos como contratos de regressão para os validadores existentes.
-// O carregamento em si é declarativo e não volta a duplicar blocos por módulo.
+// Contrato legado mantido apenas para validadores de arquitetura. O carregador
+// abaixo não injeta mais o editor comercial antigo de assinaturas/listas.
 const LEGACY_MULTI_PANEL_PATTERN = '(dashboard|seller)';
 const modules = [
   {
@@ -38,8 +37,8 @@ const modules = [
   {
     id: 'finance-module',
     contractName: 'loadFinanceModule',
-    pages: ['dashboard', 'seller'],
-    script: './finance-module.js?v=1.0',
+    pages: ['seller'],
+    script: './finance-module.js?v=2.0',
   },
   {
     id: 'credit-packages-module',
@@ -49,25 +48,17 @@ const modules = [
     script: './credit-packages-module.js?v=1.0',
   },
   {
-    id: 'playlist-edit-module',
-    contractName: 'loadPlaylistEditModule',
-    pages: ['dashboard', 'seller'],
-    style: './playlist-edit-module.css?v=1.1',
-    script: './playlist-edit-module.js?v=1.1',
-    afterDomReady: true,
-  },
-  {
     id: 'unified-playlist-entry',
     contractName: 'loadUnifiedPlaylistEntry',
     pages: ['dashboard', 'seller'],
-    script: './unified-playlist-entry.js?v=1.1',
+    script: './unified-playlist-entry.js?v=2.0',
     afterDomReady: true,
   },
   {
     id: 'playlist-flow-controller',
     contractName: 'loadPlaylistFlowController',
     pages: ['dashboard', 'seller'],
-    script: './playlist-flow-controller.js?v=1.0',
+    script: './playlist-flow-controller.js?v=2.0',
     afterDomReady: true,
   },
   {
@@ -75,7 +66,7 @@ const modules = [
     contractName: 'loadPlaylistCommercialQualification',
     pages: ['dashboard', 'seller'],
     style: './playlist-commercial-qualification.css?v=1.0',
-    script: './playlist-commercial-qualification.js?v=1.1',
+    script: './playlist-commercial-qualification.js?v=2.0',
     afterDomReady: true,
   },
   {
@@ -90,7 +81,7 @@ const modules = [
     contractName: 'loadCommercialConsolidation',
     pages: ['dashboard', 'seller'],
     style: './commercial-consolidation.css?v=1.1',
-    script: './commercial-consolidation-v2.js?v=2.0',
+    script: './commercial-consolidation-v2.js?v=3.0',
   },
   {
     id: 'admin-commercial-privacy',
@@ -110,6 +101,13 @@ const modules = [
     pages: ['dashboard'],
     style: './admin-operations-redesign.css?v=1.0',
     script: './admin-operations-redesign.js?v=1.0',
+  },
+  {
+    id: 'admin-device-flow',
+    contractName: 'loadAdminDeviceFlow',
+    pages: ['dashboard'],
+    script: './admin-device-flow.js?v=1.0',
+    afterDomReady: true,
   },
   {
     id: 'admin-integrity-lote1',
@@ -171,7 +169,6 @@ const outputs = [
   path.resolve('admin-panel/panel-config.js'),
   path.resolve('public/panel-config.js'),
 ];
-
 for (const output of outputs) {
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, payload, { encoding: 'utf8', mode: 0o644 });
