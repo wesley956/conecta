@@ -94,6 +94,9 @@ verify_jwt = true
 [functions.admin-inline-playlist]
 verify_jwt = true
 
+[functions.admin-credit-adjust]
+verify_jwt = true
+
 [functions.seller-provision]
 verify_jwt = true
 
