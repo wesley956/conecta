@@ -251,31 +251,15 @@ async function updatePayment(supabase: any, principal: Principal, body: JsonBody
   const status = String(body.paymentStatus || '').toLowerCase();
   if (!['paid', 'pending', 'overdue', 'cancelled'].includes(status)) throw new Error('Status inválido.');
 
-  const { data: current, error: currentError } = await supabase.from('panel_credit_orders').select('*').eq('id', orderId).single();
-  if (currentError) throw new Error('Pedido não encontrado.');
-  if (current.credits_status === 'released' && status === 'cancelled') {
-    throw new Error('Créditos já liberados não podem ser cancelados sem um estorno específico.');
-  }
-
-  const updates: Record<string, unknown> = {
-    payment_status: status,
-    paid_at: status === 'paid' ? current.paid_at || new Date().toISOString() : null,
-    updated_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from('panel_credit_orders').update(updates).eq('id', orderId);
+  const { data, error } = await supabase.rpc('update_credit_order_payment_transaction', {
+    p_order_id: orderId,
+    p_payment_status: status,
+    p_performed_by_user_id: principal.userId,
+  });
   if (error) throw new Error(error.message);
+  if (!data) throw new Error('A atualização do pagamento não retornou resultado.');
 
-  await supabase.from('panel_financial_records').update({
-    status,
-    paid_at: status === 'paid' ? updates.paid_at : null,
-    updated_at: new Date().toISOString(),
-  }).eq('idempotency_key', `credit-order-finance:${orderId}`);
-
-  if (status === 'paid' && current.credits_status === 'waiting_payment') {
-    const { error: releaseError } = await supabase.rpc('release_credit_order', { p_order_id: orderId });
-    if (releaseError) throw new Error(releaseError.message);
-  }
-  return { ok: true };
+  return { ok: true, order: mapOrder(data) };
 }
 
 async function updateSellerTerms(supabase: any, principal: Principal, body: JsonBody) {
