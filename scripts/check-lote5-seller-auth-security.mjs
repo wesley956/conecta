@@ -5,6 +5,7 @@ const files = {
   deletion: 'supabase/functions/seller-delete/index.ts',
   activation: 'supabase/functions/device-activate/index.ts',
   session: 'admin-panel/panel-auth-session.js',
+  sellerUi: 'admin-panel/seller-provisioning.js',
   migration: 'supabase/migrations/20260807190000_lote5_seller_auth_security.sql',
   pgTap: 'supabase/tests/lote5_seller_auth_security_test.sql',
 };
@@ -75,11 +76,23 @@ for (const forbidden of [
 }
 
 for (const token of [
+  "['renderSellerReports', 'renderCommercial', 'showSellerDetails']",
+  'removeLegacyAccessControls',
+  "callProtectedFunction('seller-provision'",
+  "callProtectedFunction('seller-delete'",
+]) {
+  if (!source.sellerUi.includes(token)) throw new Error(`Gestão visual do vendedor incompleta: ${token}`);
+}
+if (source.sellerUi.includes('MutationObserver')) {
+  throw new Error('Gestão de vendedor não pode observar o DOM inteiro para esconder controles legados.');
+}
+
+for (const token of [
   'panel_sellers_legacy_access_token_retired_check',
   'panel_sellers_public_code_retired_check',
   'delete_seller_account_transaction',
   "set search_path = ''",
-  'alter function public.panel_finance_scope_for_role(text)',
+  'panel_finance_scope_for_role(text)',
   'revoke all on function public.learn_playlist_server_profile()',
 ]) {
   if (!source.migration.includes(token)) throw new Error(`Migração de segurança incompleta: ${token}`);
