@@ -5,11 +5,8 @@
 
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
   function token() { return sessionStorage.getItem(TOKEN_KEY) || ''; }
 
@@ -22,6 +19,35 @@
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || data.message || 'Erro no portal do vendedor.');
     return data;
+  }
+
+  async function officialApi(payload = {}) {
+    if (!window.RonecaPanelAuth) return { playlists: [] };
+    const config = window.RONECA_PANEL_CONFIG || {};
+    const base = String(config.supabaseUrl || '').replace(/\/$/, '');
+    if (!base || !config.anonKey) return { playlists: [] };
+    const accessToken = await window.RonecaPanelAuth.getAccessToken();
+    const response = await fetch(`${base}/functions/v1/playlist-registration`, {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: config.anonKey, Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || data.message || 'Não foi possível carregar o estado oficial das listas.');
+    return data;
+  }
+
+  async function mergeOfficial(data) {
+    const target = data && typeof data === 'object' ? data : { playlists: [] };
+    try {
+      const official = await officialApi({ action: 'list' });
+      const byId = new Map((official.playlists || []).map(item => [String(item.id), item]));
+      const legacy = Array.isArray(target.playlists) ? target.playlists : [];
+      target.playlists = legacy.length
+        ? legacy.map(item => ({ ...item, ...(byId.get(String(item.id)) || {}) }))
+        : [...byId.values()];
+    } catch { /* o portal legado continua disponível como fallback visual */ }
+    return target;
   }
 
   function formatDate(value) {
@@ -175,8 +201,8 @@
       return `<div class="seller-playlist-item">
         <div>
           <strong>${esc(playlist.name)}</strong>
-          <div class="muted">Tipo: ${esc(playlist.playlistType || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
-          <div class="muted">Atualizado: ${formatDate(playlist.cacheUpdatedAt || playlist.playlistUpdatedAt)}</div>
+          <div class="muted">Tipo: ${esc(playlist.playlistType || playlist.type || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
+          <div class="muted">Atualizado: ${formatDate(playlist.cacheUpdatedAt || playlist.playlistUpdatedAt || playlist.sourceUpdatedAt)}</div>
           ${lifecyclePill(playlist)}
           <div class="seller-msg ${['ready_cache','confirmed_by_device'].includes(info.status) ? 'ok' : info.status === 'blocked' ? 'err' : ''}">${esc(info.message)}</div>
           <div class="muted">${esc(platformText('Android', platforms.android))} · ${esc(platformText('LG', platforms.lg))} · ${esc(platformText('Samsung', platforms.samsung))}</div>
@@ -191,8 +217,9 @@
   }
 
   async function loadLists() {
-    if (!token()) return;
-    listsData = await api('dashboard');
+    if (!token() && !window.RonecaPanelAuth) return;
+    const dashboard = token() ? await api('dashboard') : (listsData || { playlists: [] });
+    listsData = await mergeOfficial(dashboard);
     renderPlaylists();
   }
 
@@ -212,11 +239,9 @@
       const playlistType = inferPlaylistTypeFromUrl(playlistUrl) || $('sellerPlaylistType')?.value || 'm3u';
       if (!name) throw new Error('Digite o nome da lista.');
       if (!playlistUrl) throw new Error('Digite a URL da lista.');
-
       showListMsg('Salvando lista...');
       const result = await api('createSellerPlaylist', { name, playlistUrl, playlistType });
       showListMsg(result.message || 'Lista salva. O processamento continuará automaticamente.', 'ok');
-
       $('sellerPlaylistName').value = '';
       $('sellerPlaylistUrl').value = '';
       sellerListsToggleForm(false);
@@ -264,9 +289,10 @@
         ensureListsCard();
         window.sellerPortalRefreshNavigation?.();
         renderPlaylists();
+        mergeOfficial(listsData).then(() => renderPlaylists()).catch(() => {});
       };
     }
-    if (token()) loadLists().catch(() => {});
+    if (token() || window.RonecaPanelAuth) loadLists().catch(() => {});
   }
 
   document.addEventListener('DOMContentLoaded', boot);
