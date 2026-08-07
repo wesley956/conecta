@@ -2,16 +2,24 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const files = {
-  migration: 'supabase/migrations/20260801032340_commercial_consistency_transactions.sql',
-  test: 'supabase/tests/commercial_consistency_transactions_test.sql',
-  admin: 'supabase/functions/admin-panel/index.ts',
-  seller: 'supabase/functions/seller-panel/index.ts',
+  historicalMigration: 'supabase/migrations/20260801032340_commercial_consistency_transactions.sql',
+  historicalTest: 'supabase/tests/commercial_consistency_transactions_test.sql',
+  canonicalMigration: 'supabase/migrations/20260807053000_canonical_seller_device_flow.sql',
+  legacyBoundary: 'supabase/migrations/20260807053100_disable_legacy_device_commercial_paths.sql',
+  playlistBoundary: 'supabase/migrations/20260807053200_enforce_canonical_device_mutations.sql',
+  canonicalEdge: 'supabase/functions/seller-device-flow/index.ts',
+  adminEdge: 'supabase/functions/admin-panel/index.ts',
+  sellerEdge: 'supabase/functions/seller-panel/index.ts',
+  adminUi: 'admin-panel/admin-device-flow.js',
+  sellerUi: 'admin-panel/seller-activation-wizard.js',
+  canonicalTest: 'supabase/tests/canonical_seller_device_flow_test.sql',
 };
 
 const source = Object.fromEntries(await Promise.all(
   Object.entries(files).map(async ([name, path]) => [name, await readFile(path, 'utf8')]),
 ));
 
+// O núcleo histórico continua existindo para migrações/compatibilidade interna.
 for (const required of [
   'apply_device_subscription_complete_transaction',
   'set_device_playlists_transaction',
@@ -20,12 +28,11 @@ for (const required of [
   'pg_advisory_xact_lock',
   "set search_path = ''",
   'for update',
-  "pg_catalog.to_regclass('public.panel_subscriptions')",
-  "pg_catalog.to_regclass('public.panel_subscription_playlists')",
-  'from public, anon, authenticated',
-  'to service_role',
 ]) {
-  assert.ok(source.migration.includes(required), `Proteção transacional ausente na migration: ${required}`);
+  assert.ok(
+    source.historicalMigration.includes(required),
+    `Proteção transacional histórica ausente: ${required}`,
+  );
 }
 
 for (const required of [
@@ -34,27 +41,101 @@ for (const required of [
   'A mesma chave não pode trocar a reserva',
   'Vendedor não remove lista usada',
   'Aparelho promove a reserva na mesma transação',
-  'Exclusão sem reserva é bloqueada',
-  'Legado sem domínio de assinaturas exclui a lista atomicamente',
-  'Legado sem domínio de assinaturas preserva a reserva promovida',
 ]) {
-  assert.ok(source.test.includes(required), `Cobertura pgTAP ausente: ${required}`);
-}
-
-for (const [name, edge] of [['admin', source.admin], ['seller', source.seller]]) {
   assert.ok(
-    edge.includes("rpc('apply_device_subscription_complete_transaction'"),
-    `${name} não usa a ativação comercial completa.`,
-  );
-  assert.ok(
-    !edge.includes("rpc('apply_device_subscription_transaction'"),
-    `${name} ainda chama a cobrança sem reserva transacional.`,
+    source.historicalTest.includes(required),
+    `Cobertura histórica pgTAP ausente: ${required}`,
   );
 }
 
-assert.ok(source.admin.includes("rpc('set_device_playlists_transaction'"));
-assert.ok(source.admin.includes("rpc('delete_playlist_with_reassignment'"));
-assert.ok(source.seller.includes("rpc('remove_seller_playlist_transaction'"));
-assert.ok(!source.seller.includes('setSellerDeviceBackupPlaylist'));
+// A partir do Lote 2 há um único dono comercial.
+for (const required of [
+  'panel_device_commercial_operations',
+  'seller_device_flow_transaction',
+  "v_operation in ('activation', 'renewal')",
+  "v_operation = 'change_playlists'",
+  'v_old_primary',
+  'v_old_backup',
+  'panel_device_playlist_revisions',
+  'device.playlists_changed_canonical',
+  'idempotency_key',
+]) {
+  assert.ok(
+    source.canonicalMigration.includes(required),
+    `Transação canônica incompleta: ${required}`,
+  );
+}
 
-console.log('Consistência comercial validada: cobrança, reserva e exclusões usam RPCs transacionais e idempotentes.');
+for (const required of [
+  "['activate', 'renew', 'changePlaylists']",
+  "rpc('seller_device_flow_transaction'",
+  'Renovação não altera cliente nem listas',
+  'Alterar listas não muda cliente, plano ou validade',
+  'idempotencyKey',
+]) {
+  assert.ok(source.canonicalEdge.includes(required), `seller-device-flow incompleto: ${required}`);
+}
+
+for (const [name, ui] of [['admin', source.adminUi], ['seller', source.sellerUi]]) {
+  assert.ok(ui.includes("seller-device-flow"), `${name} não aponta para seller-device-flow.`);
+  assert.ok(ui.includes("action: 'activate'"), `${name} não usa ativação canônica.`);
+  assert.ok(ui.includes("action: 'renew'"), `${name} não usa renovação canônica.`);
+  assert.ok(ui.includes("action: 'changePlaylists'"), `${name} não usa troca canônica.`);
+}
+
+// seller-panel mantém leitura/CRUD, mas as operações antigas morrem antes dos handlers legados.
+const sellerDeprecation = source.sellerEdge.indexOf("if (action === 'activateDeviceByCode' || action === 'renewDevice')");
+const sellerLegacyActivation = source.sellerEdge.indexOf("if (action === 'activateDeviceByCode')");
+const sellerLegacyRenewal = source.sellerEdge.indexOf("if (action === 'renewDevice')");
+assert.ok(sellerDeprecation >= 0, 'seller-panel não possui barreira explícita para ações comerciais antigas.');
+assert.ok(sellerLegacyActivation > sellerDeprecation, 'Ativação antiga do seller-panel pode executar antes da barreira.');
+assert.ok(sellerLegacyRenewal > sellerDeprecation, 'Renovação antiga do seller-panel pode executar antes da barreira.');
+for (const required of [
+  "canonicalFunction: 'seller-device-flow'",
+  "canonicalAction",
+  '}, 410)',
+]) {
+  assert.ok(source.sellerEdge.includes(required), `Depreciação do seller-panel sem orientação: ${required}`);
+}
+
+// Mesmo código administrativo histórico que reste no arquivo não pode atravessar a fronteira Edge.
+for (const required of [
+  "v_request_role = 'service_role'",
+  'Operação comercial antiga desativada. Use seller-device-flow.',
+  'Troca comercial antiga desativada. Use seller-device-flow.',
+]) {
+  assert.ok(source.legacyBoundary.includes(required), `Barreira de RPC comercial antiga ausente: ${required}`);
+}
+for (const required of [
+  "v_request_role = 'service_role'",
+  'Troca de listas por RPC genérica desativada. Use seller-device-flow',
+  'repair_device_playlists_transaction',
+  'set_device_playlists_transaction_legacy_core',
+]) {
+  assert.ok(source.playlistBoundary.includes(required), `Barreira de lista genérica ausente: ${required}`);
+}
+
+assert.ok(
+  source.adminEdge.includes("rpc('apply_device_subscription_complete_transaction'"),
+  'A compatibilidade administrativa histórica deveria permanecer identificável até sua remoção definitiva.',
+);
+assert.ok(
+  source.adminEdge.includes("rpc('set_device_playlists_transaction'"),
+  'A compatibilidade administrativa de listas deveria permanecer identificável e bloqueada na fronteira.',
+);
+
+for (const required of [
+  'Ativação canônica com lista reserva é aplicada',
+  'Retry idêntico da ativação retorna replay idempotente',
+  'Renovação preserva o cliente',
+  'Renovação preserva a lista principal',
+  'Renovação preserva a lista reserva',
+  'Troca de listas não consome crédito',
+  'Troca de listas não altera a validade',
+  'Saldo insuficiente aborta a ativação canônica',
+  'Falha por saldo não persiste operação parcial',
+]) {
+  assert.ok(source.canonicalTest.includes(required), `Cobertura canônica ausente: ${required}`);
+}
+
+console.log('✅ Consistência comercial Lote 2: um backend canônico; caminhos antigos apenas bloqueados/compatíveis internamente.');
