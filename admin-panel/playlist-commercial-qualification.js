@@ -38,27 +38,30 @@
 
   function lifecycle(item) {
     const technical = String(item?.qualificationStatus || 'validating');
-    const code = String(item?.qualificationCode || '');
+    const code = String(item?.qualificationCode || item?.cacheErrorCode || '');
+    const cacheStatus = String(item?.cacheStatus || 'missing');
     const archived = item?.active === false || Boolean(item?.archivedAt);
-    const cacheReady = String(item?.cacheStatus || '') === 'ready' && Number(item?.cacheItemCount || 0) > 0;
+    const cacheReady = cacheStatus === 'ready' && Number(item?.cacheItemCount || 0) > 0;
     if (item?.lifecycleStatus) return String(item.lifecycleStatus);
     if (archived) return 'archived';
     if (technical === 'blocked') return 'blocked';
     if (cacheReady || technical === 'ready_cache') return 'ready_cache';
-    if (technical === 'ready_direct') return 'confirmed_by_device';
     if (code === 'DEVICE_TEST_FAILED') return 'device_failed';
+    if (technical === 'ready_direct') return 'confirmed_by_device';
     if (technical === 'awaiting_device_test' || technical === 'retryable_error') return 'awaiting_device_confirmation';
+    if (technical === 'validating' && cacheStatus === 'missing') return 'saving';
     return 'generating_cache';
   }
 
   function lifecyclePresentation(item) {
     const status = lifecycle(item);
     const table = {
+      saving: ['Salvando', 'O cadastro da lista ainda está sendo processado.'],
       generating_cache: ['Gerando cache', 'O servidor está tentando autenticar a origem e gerar o cache.'],
       ready_cache: ['Pronta com cache', 'O cache foi gerado e a lista está pronta nas plataformas compatíveis.'],
       awaiting_device_confirmation: ['Aguardando confirmação no aparelho', 'O servidor não confirmou a origem. O Android pode confirmar automaticamente na primeira abertura.'],
       confirmed_by_device: ['Confirmada pelo aparelho', 'Um aparelho Android abriu o conteúdo e confirmou esta lista.'],
-      device_failed: ['Falhou no aparelho', 'O aparelho não conseguiu abrir esta lista. Revise os dados ou tente novamente.'],
+      device_failed: ['Falhou no aparelho', 'O aparelho tentou esta lista e não confirmou o acesso. Revise os dados ou tente novamente antes de uma nova ativação.'],
       blocked: ['Bloqueada', 'A origem precisa ser corrigida antes de uma nova ativação.'],
       archived: ['Arquivada', 'A lista foi arquivada e não aparece em novas ativações.'],
     };
@@ -74,7 +77,7 @@
     const lifecycleInfo = lifecyclePresentation(item);
     const supplied = item?.platformCapabilities || {};
     const cacheReady = String(item?.cacheStatus || '') === 'ready' && Number(item?.cacheItemCount || 0) > 0;
-    const blocked = lifecycleInfo.status === 'blocked' || lifecycleInfo.status === 'archived';
+    const blocked = ['blocked', 'archived', 'device_failed'].includes(lifecycleInfo.status);
     return {
       android: supplied.android || (blocked ? 'blocked' : ['ready_cache','confirmed_by_device'].includes(lifecycleInfo.status) ? 'available' : 'provisional'),
       lg: supplied.lg || (cacheReady || lifecycleInfo.status === 'ready_cache' ? 'available_by_cache' : 'unavailable'),
