@@ -8,7 +8,7 @@
     "panel:config": "node scripts/generate-panel-config.mjs",
     "smart-tv:hosted": "npm ci --prefix smart-tv && npm run build --prefix smart-tv && node scripts/stage-hosted-tv.mjs",
     "serve:proxy": "node server.mjs",
-    "check:end-to-end": "node scripts/check-end-to-end-flows-v2.mjs",
+    "check:end-to-end": "node scripts/check-lote2-browser-e2e.mjs",
     "check:m3u-parser": "echo '::notice title=Painel etapa 1::m3u-parser' && node scripts/check-m3u-parser.mjs",
     "check:migration-versions": "node scripts/check-migration-versions.mjs",
     "check:seller-playlist-crud": "node --check admin-panel/seller-lists-ux.js && node scripts/check-seller-playlist-crud.mjs",
