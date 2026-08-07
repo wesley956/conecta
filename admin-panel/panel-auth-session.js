@@ -302,6 +302,21 @@
     return await originalFetch(nextInput(), Object.assign({}, nextInit, { headers: headers }));
   };
 
+  function installSellerAccessShortcut() {
+    if (!/\/dashboard\.html$/.test(global.location.pathname)) return;
+    if (document.querySelector('[data-seller-access-shortcut]')) return;
+
+    var actions = document.querySelector('.topbar .actions');
+    if (!actions) return;
+
+    var link = document.createElement('a');
+    link.href = './seller-access.html';
+    link.className = 'btn green';
+    link.textContent = 'Acessos de vendedores';
+    link.setAttribute('data-seller-access-shortcut', 'true');
+    actions.insertBefore(link, actions.firstChild);
+  }
+
   global.RonecaPanelAuth = Object.freeze({
     signIn: signIn,
     signOut: signOut,
@@ -315,4 +330,10 @@
       return session ? session.user || null : null;
     },
   });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installSellerAccessShortcut, { once: true });
+  } else {
+    installSellerAccessShortcut();
+  }
 })(window);

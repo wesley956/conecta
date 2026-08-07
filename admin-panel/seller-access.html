@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cruz Stars — Acessos de vendedores</title>
+  <style>
+    :root { --bg:#050505; --card:#0d0d0d; --raised:#15120d; --line:#3a3020; --text:#fff; --muted:#b8aa91; --gold:#d4a84f; --red:#bb1e2d; --green:#38d996; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at 85% 0%,rgba(187,30,45,.12),transparent 28%),radial-gradient(circle at 10% 10%,rgba(212,168,79,.10),transparent 30%),var(--bg); color:var(--text); font-family:Inter,Segoe UI,Arial,sans-serif; }
+    .app { max-width:1320px; margin:auto; padding:24px; }
+    .topbar,.card { border:1px solid var(--line); background:linear-gradient(180deg,rgba(20,17,12,.96),rgba(9,9,9,.96)); border-radius:22px; }
+    .topbar { display:flex; justify-content:space-between; gap:16px; align-items:center; padding:18px 20px; margin-bottom:18px; }
+    h1,h2,h3,p { margin-top:0; }
+    .muted { color:var(--muted); }
+    .actions { display:flex; gap:9px; flex-wrap:wrap; }
+    .btn { border:1px solid var(--line); border-radius:11px; background:#18140d; color:#fff; padding:11px 14px; font-weight:800; cursor:pointer; text-decoration:none; }
+    .btn:hover { border-color:var(--gold); }
+    .btn.primary { background:linear-gradient(90deg,#8e1c24 0 8px,#b78b39 8px 100%); border-color:#d4a84f; color:#080706; }
+    .btn.red { border-color:rgba(187,30,45,.7); color:#ffdce0; background:rgba(187,30,45,.13); }
+    .btn.green { border-color:rgba(56,217,150,.5); color:#cffff0; background:rgba(56,217,150,.10); }
+    .grid { display:grid; grid-template-columns:minmax(300px,420px) 1fr; gap:18px; }
+    .card { padding:20px; min-width:0; }
+    label { display:block; margin:13px 0 7px; font-size:13px; font-weight:800; color:#eadfc9; }
+    input,select { width:100%; border:1px solid var(--line); border-radius:11px; padding:12px; background:#090909; color:#fff; outline:none; }
+    input:focus,select:focus { border-color:var(--gold); box-shadow:0 0 0 3px rgba(212,168,79,.10); }
+    .check { display:flex; align-items:center; gap:9px; margin:14px 0; color:var(--muted); }
+    .check input { width:auto; }
+    .msg { margin-top:14px; border:1px solid var(--line); border-radius:12px; padding:12px; color:#efe4cf; }
+    .msg.err { border-color:rgba(187,30,45,.7); color:#ffdce0; background:rgba(187,30,45,.10); }
+    .toolbar { display:grid; grid-template-columns:1fr auto; gap:10px; margin-bottom:12px; }
+    .list { display:grid; gap:10px; max-height:72vh; overflow:auto; padding-right:3px; }
+    .seller { border:1px solid var(--line); border-radius:15px; padding:14px; background:rgba(255,255,255,.025); }
+    .seller-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    .seller h3 { margin-bottom:5px; }
+    .seller-meta { display:flex; flex-wrap:wrap; gap:7px; margin:10px 0; }
+    .badge { border:1px solid var(--line); border-radius:999px; padding:5px 8px; font-size:11px; color:var(--muted); }
+    .badge.ok { color:#cffff0; border-color:rgba(56,217,150,.42); }
+    .badge.bad { color:#ffdce0; border-color:rgba(187,30,45,.62); }
+    .access-form { display:grid; grid-template-columns:minmax(180px,1fr) minmax(160px,.8fr) auto; gap:8px; align-items:end; margin-top:10px; }
+    .access-form label { margin-top:0; }
+    @media(max-width:900px){ .grid{grid-template-columns:1fr;} .access-form{grid-template-columns:1fr;} .topbar{align-items:flex-start;flex-direction:column;} }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>Acessos de vendedores</h1>
+        <p class="muted">Crie o vendedor junto com e-mail e senha do portal. A senha nunca é armazenada no banco.</p>
+      </div>
+      <div class="actions">
+        <a class="btn" href="./dashboard.html">Voltar ao painel</a>
+        <a class="btn" href="./seller.html" target="_blank" rel="noreferrer">Abrir portal do vendedor</a>
+        <button class="btn red" type="button" onclick="logout()">Sair</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Novo vendedor com acesso</h2>
+        <p class="muted">Esta operação cria cadastro comercial, usuário Supabase Auth e papel seller.</p>
+        <label for="name">Nome</label><input id="name" autocomplete="name" placeholder="Ex: Revendedor João" />
+        <label for="whatsapp">WhatsApp</label><input id="whatsapp" inputmode="tel" placeholder="Ex: 19999999999" />
+        <label for="email">E-mail de acesso</label><input id="email" type="email" autocomplete="email" placeholder="vendedor@exemplo.com" />
+        <label for="password">Senha inicial</label><input id="password" type="password" autocomplete="new-password" minlength="8" placeholder="Mínimo de 8 caracteres" />
+        <label for="credits">Créditos iniciais</label><input id="credits" type="number" min="0" value="0" />
+        <label class="check"><input id="negative" type="checkbox" /> Permitir saldo negativo</label>
+        <button id="createButton" class="btn primary" type="button" onclick="createSeller()">Criar vendedor e acesso</button>
+        <div id="msg" class="msg">Pronto para cadastrar.</div>
+      </section>
+
+      <section class="card">
+        <div class="toolbar">
+          <input id="search" placeholder="Buscar vendedor ou e-mail" oninput="render()" />
+          <button class="btn" type="button" onclick="loadSellers()">Atualizar</button>
+        </div>
+        <div id="list" class="list"><div class="muted">Carregando...</div></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="./panel-config.js"></script>
+  <script src="./panel-auth-session.js"></script>
+  <script>
+    let sellers = [];
+    const $ = id => document.getElementById(id);
+
+    function show(message, error = false) {
+      $('msg').textContent = message;
+      $('msg').className = error ? 'msg err' : 'msg';
+    }
+
+    function esc(value) {
+      return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+    }
+
+    async function api(action, payload = {}) {
+      const config = window.RONECA_PANEL_CONFIG || {};
+      const url = String(config.supabaseUrl || '').replace(/\/$/, '') + '/functions/v1/admin-seller-access';
+      const token = await RonecaPanelAuth.getAccessToken();
+      const response = await fetch(url, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: config.anonKey,
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify({ action, ...payload }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || 'Falha ao processar acesso.');
+      return data;
+    }
+
+    async function loadSellers() {
+      try {
+        const result = await api('listSellerAccess');
+        sellers = result.sellers || [];
+        render();
+      } catch (error) {
+        if (/sessão|401|autentica/i.test(error.message || '')) location.href = './index.html';
+        show(error.message || 'Erro ao carregar vendedores.', true);
+      }
+    }
+
+    function render() {
+      const term = String($('search').value || '').trim().toLowerCase();
+      const filtered = sellers.filter(seller => !term || [seller.name, seller.email, seller.whatsapp].some(value => String(value || '').toLowerCase().includes(term)));
+      $('list').innerHTML = filtered.length ? filtered.map(seller => {
+        const access = seller.access;
+        return `<article class="seller">
+          <div class="seller-head">
+            <div><h3>${esc(seller.name)}</h3><div class="muted">${esc(seller.whatsapp || 'Sem WhatsApp')} · ${esc(seller.email || 'Sem e-mail')}</div></div>
+            <span class="badge ${access && access.active ? 'ok' : 'bad'}">${access ? (access.active ? 'ACESSO ATIVO' : 'ACESSO BLOQUEADO') : 'SEM ACESSO AUTH'}</span>
+          </div>
+          <div class="seller-meta">
+            <span class="badge">${Number(seller.creditBalance || 0)} crédito(s)</span>
+            <span class="badge">Comercial: ${esc(seller.status || 'active')}</span>
+            ${access?.lastSignInAt ? `<span class="badge">Último login: ${new Date(access.lastSignInAt).toLocaleString('pt-BR')}</span>` : ''}
+          </div>
+          ${access ? `<div class="access-form">
+            <div><label>Nova senha</label><input id="password-${esc(seller.id)}" type="password" minlength="8" placeholder="Mínimo de 8 caracteres"></div>
+            <button class="btn" onclick="resetPassword('${esc(seller.id)}')">Redefinir senha</button>
+            <button class="btn ${access.active ? 'red' : 'green'}" onclick="setAccess('${esc(seller.id)}', ${access.active ? 'false' : 'true'})">${access.active ? 'Bloquear acesso' : 'Reativar acesso'}</button>
+          </div>` : `<div class="access-form">
+            <div><label>E-mail</label><input id="email-${esc(seller.id)}" type="email" value="${esc(seller.email || '')}" placeholder="vendedor@exemplo.com"></div>
+            <div><label>Senha inicial</label><input id="password-${esc(seller.id)}" type="password" minlength="8" placeholder="Mínimo de 8 caracteres"></div>
+            <button class="btn primary" onclick="provision('${esc(seller.id)}')">Criar acesso</button>
+          </div>`}
+        </article>`;
+      }).join('') : '<div class="muted">Nenhum vendedor encontrado.</div>';
+    }
+
+    async function createSeller() {
+      const button = $('createButton');
+      try {
+        button.disabled = true;
+        show('Criando vendedor e acesso...');
+        await api('createSellerWithAccess', {
+          name: $('name').value.trim(),
+          whatsapp: $('whatsapp').value.trim(),
+          email: $('email').value.trim(),
+          password: $('password').value,
+          initialCredits: Number($('credits').value || 0),
+          canGoNegative: $('negative').checked,
+        });
+        ['name','whatsapp','email','password'].forEach(id => $(id).value = '');
+        $('credits').value = '0'; $('negative').checked = false;
+        show('Vendedor e acesso criados com sucesso.');
+        await loadSellers();
+      } catch (error) { show(error.message || 'Erro ao criar vendedor.', true); }
+      finally { button.disabled = false; }
+    }
+
+    async function provision(sellerId) {
+      try {
+        await api('provisionSellerAccess', { sellerId, email: $('email-' + sellerId).value.trim(), password: $('password-' + sellerId).value });
+        show('Acesso Auth criado para o vendedor.'); await loadSellers();
+      } catch (error) { show(error.message, true); }
+    }
+
+    async function resetPassword(sellerId) {
+      try {
+        await api('resetSellerPassword', { sellerId, password: $('password-' + sellerId).value });
+        $('password-' + sellerId).value = '';
+        show('Senha redefinida.');
+      } catch (error) { show(error.message, true); }
+    }
+
+    async function setAccess(sellerId, active) {
+      try {
+        await api('setSellerAccessActive', { sellerId, active });
+        show(active ? 'Acesso reativado.' : 'Acesso bloqueado.'); await loadSellers();
+      } catch (error) { show(error.message, true); }
+    }
+
+    async function logout() { await RonecaPanelAuth.signOut(); location.href = './index.html'; }
+
+    if (!RonecaPanelAuth.hasSession()) location.href = './index.html'; else loadSellers();
+  </script>
+</body>
+</html>
