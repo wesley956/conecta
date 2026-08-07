@@ -67,11 +67,13 @@ for (const required of [
   'idempotencyKey',
 ]) assert.ok(source.canonicalEdge.includes(required), `seller-device-flow v4 incompleto: ${required}`);
 
-for (const [name, ui] of [['admin', source.adminUi], ['seller', source.sellerUi]]) {
-  assert.ok(ui.includes('seller-device-flow'), `${name} não aponta para seller-device-flow.`);
-  assert.ok(ui.includes("action: 'activate'"), `${name} não usa ativação canônica.`);
-  assert.ok(ui.includes("action: 'renew'"), `${name} não usa renovação canônica.`);
-  assert.ok(ui.includes("action: 'changePlaylists'"), `${name} não usa troca canônica.`);
+assert.ok(source.adminUi.includes('seller-device-flow'), 'ADM não aponta para seller-device-flow.');
+for (const action of ["action: 'activate'", "action: 'renew'", "action: 'changePlaylists'"]) {
+  assert.ok(source.adminUi.includes(action), `ADM não usa operação canônica: ${action}`);
+}
+assert.ok(source.sellerUi.includes('seller-device-flow'), 'Vendedor não aponta para seller-device-flow.');
+for (const action of ["action = 'activate'", "action = 'renew'", "action = 'changePlaylists'"]) {
+  assert.ok(source.sellerUi.includes(action), `Wizard não usa operação canônica: ${action}`);
 }
 
 const sellerDeprecation = source.sellerEdge.indexOf("if (action === 'activateDeviceByCode' || action === 'renewDevice')");
