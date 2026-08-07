@@ -9,6 +9,7 @@ const files = {
   creditEdge: 'supabase/functions/credit-packages-panel/index.ts',
   financeMigration: 'supabase/migrations/2026072101_financial_module.sql',
   packageMigration: 'supabase/migrations/2026072601_credit_packages_private_finance.sql',
+  atomicPackageMigration: 'supabase/migrations/20260807201000_lote6_atomic_credit_order_payment.sql',
   scopeGuardMigration: 'supabase/migrations/20260726125413_financial_scope_guard.sql',
   test: 'supabase/tests/financial_module_test.sql',
   loader: 'scripts/generate-panel-config.mjs',
@@ -51,7 +52,9 @@ const required = {
   ],
   creditEdge: [
     "requirePanelPrincipal(request, supabase, ['owner', 'admin', 'seller'])",
-    "from('panel_credit_orders')", "rpc('create_credit_package_order'", "rpc('release_credit_order'",
+    "from('panel_credit_orders')",
+    "rpc('create_credit_package_order'",
+    "rpc('update_credit_order_payment_transaction'",
     'Somente o administrador pode vender créditos',
   ],
   financeMigration: [
@@ -61,6 +64,12 @@ const required = {
   packageMigration: [
     'panel_credit_packages', 'panel_credit_orders', 'panel_credit_lots', 'financial_scope',
     "('AVULSO_10', 'Pacote Avulso', 10, 3000", "('INTERMEDIARIO_25', 'Pacote Intermediário', 25, 3750", "('BASICO_50', 'Plano Básico', 50, 5000",
+  ],
+  atomicPackageMigration: [
+    'update_credit_order_payment_transaction',
+    'panel_financial_records',
+    'release_credit_order(p_order_id)',
+    "set search_path = ''",
   ],
   scopeGuardMigration: ['enforce_panel_financial_scope', "new.source = 'credit_sale'", "new.financial_scope := 'seller_private'", 'panel_financial_records_scope_guard'],
   test: ["has_table('public', 'panel_financial_records'", 'Retry não duplica a receita'],
@@ -80,6 +89,13 @@ for (const forbidden of [
 ]) {
   if (source.financeUi.includes(forbidden)) throw new Error(`Módulo financeiro voltou a controlar aparelhos: ${forbidden}`);
 }
+for (const forbidden of [
+  ".from('panel_credit_orders').update",
+  ".from('panel_financial_records').update",
+  "rpc('release_credit_order'",
+]) {
+  if (source.creditEdge.includes(forbidden)) throw new Error(`Pagamento de pacote voltou a usar etapas separadas: ${forbidden}`);
+}
 if (/requirePanelPrincipal\(request, supabase, \[[^\]]*(owner|admin)/.test(source.financeEdge)) {
   throw new Error('A API do financeiro privado não pode autorizar administrador ou proprietário.');
 }
@@ -88,4 +104,4 @@ if (!source.creditEdge.includes('SUPABASE_SERVICE_ROLE_KEY') || !source.financeE
 }
 if (/comiss[aã]o estimada/i.test(source.financeUi)) throw new Error('O portal do vendedor não deve exibir comissão estimada.');
 
-console.log('✅ Financeiro isolado do fluxo de aparelhos; crédito comercial pertence ao seller-device-flow v4.');
+console.log('✅ Financeiro isolado do fluxo de aparelhos; pagamentos de pacotes e créditos usam RPCs atômicas.');
