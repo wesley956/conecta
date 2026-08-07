@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(14);
+select plan(17);
 
 select has_column('public', 'panel_customers', 'notes', 'Cliente possui observação opcional');
 
