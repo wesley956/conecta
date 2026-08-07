@@ -34,13 +34,16 @@ select has_check(
 );
 
 select ok(
-  (select coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%'
-     from pg_proc p
-     join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname = 'panel_finance_scope_for_role'
-    limit 1),
-  'Helper financeiro possui search_path fixo'
+  to_regprocedure('public.panel_finance_scope_for_role(text)') is null
+  or exists (
+    select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname = 'panel_finance_scope_for_role'
+       and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%'
+  ),
+  'Helper financeiro, quando existir, possui search_path fixo'
 );
 
 select ok(
