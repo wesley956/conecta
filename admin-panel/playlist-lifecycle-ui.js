@@ -33,12 +33,12 @@
   function lifecycle(item) {
     const status = String(item?.lifecycleStatus || 'generating_cache');
     const table = {
-      saving: ['Salvando', 'O cadastro ainda está sendo processado.'],
+      saving: ['Salvando', 'O cadastro da lista ainda está sendo processado.'],
       generating_cache: ['Gerando cache', 'O servidor está tentando autenticar a origem e gerar o cache.'],
       ready_cache: ['Pronta com cache', 'O cache foi gerado e a lista está pronta nas plataformas compatíveis.'],
       awaiting_device_confirmation: ['Aguardando confirmação no aparelho', 'O servidor não confirmou a origem. No Android, ela pode ser ativada provisoriamente.'],
       confirmed_by_device: ['Confirmada pelo aparelho', 'Um aparelho Android abriu o conteúdo e confirmou esta lista.'],
-      device_failed: ['Falhou no aparelho', 'O aparelho não conseguiu abrir esta lista. Revise os dados ou tente novamente.'],
+      device_failed: ['Falhou no aparelho', 'O aparelho tentou esta lista e não confirmou o acesso. Revise os dados ou tente novamente antes de uma nova ativação.'],
       blocked: ['Bloqueada', 'A origem precisa ser corrigida antes de uma nova ativação.'],
       archived: ['Arquivada', 'A lista foi arquivada e não aparece em novas ativações.'],
     };
@@ -52,6 +52,11 @@
     if (status === 'available_by_cache') return `${platform}: disponível por cache`;
     if (status === 'blocked') return `${platform}: bloqueada`;
     return `${platform}: indisponível`;
+  }
+
+  function unavailableForNewActivation(item) {
+    const status = lifecycle(item).status;
+    return status === 'blocked' || status === 'device_failed';
   }
 
   function mergeOfficial() {
@@ -72,7 +77,7 @@
       return ['<option value="">Sem lista</option>']
         .concat(playlistRows()
           .filter(item => lifecycle(item).status !== 'archived')
-          .map(item => `<option value="${esc(item.id)}" ${item.id === selectedId ? 'selected' : ''} ${lifecycle(item).status === 'blocked' ? 'disabled' : ''}>${esc(optionLabel(item))}</option>`))
+          .map(item => `<option value="${esc(item.id)}" ${item.id === selectedId ? 'selected' : ''} ${unavailableForNewActivation(item) ? 'disabled' : ''}>${esc(optionLabel(item))}</option>`))
         .join('');
     };
     wrapped.__lote3Lifecycle = true;
@@ -113,7 +118,7 @@
       capability.className = 'small muted playlist-lifecycle-platforms';
       capability.style.marginTop = '5px';
       capability.textContent = [
-        platformText('Android', platforms.android || 'blocked'),
+        platformText('Android', platforms.android || (unavailableForNewActivation(item) ? 'blocked' : 'provisional')),
         platformText('LG', platforms.lg || 'unavailable'),
         platformText('Samsung', platforms.samsung || 'unavailable'),
       ].join(' · ');
