@@ -112,6 +112,14 @@ const modules = [
     script: './admin-operations-redesign.js?v=1.0',
   },
   {
+    id: 'admin-integrity-lote1',
+    contractName: 'loadAdminIntegrityLote1',
+    pages: ['dashboard'],
+    style: './admin-integrity-lote1.css?v=1.0',
+    script: './admin-integrity-lote1.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
     id: 'playback-diagnostics-module',
     contractName: 'loadPlaybackDiagnostics',
     pages: ['dashboard', 'seller'],
