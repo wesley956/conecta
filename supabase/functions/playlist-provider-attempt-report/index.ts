@@ -13,6 +13,7 @@ const SECTIONS = ['authentication', 'channels', 'movies', 'series', 'epg', 'm3u'
 const TRANSPORTS = ['cache', 'xtream', 'm3u', 'local', 'unknown'] as const;
 const PROTOCOLS = ['http', 'https', 'local', 'unknown'] as const;
 const RESULTS = ['success', 'partial', 'empty', 'failure', 'skipped'] as const;
+const VALIDATION_REPORT_GRACE_MS = 10 * 60 * 1000;
 
 type PlaylistSnapshot = {
   id: string;
@@ -32,7 +33,12 @@ type ValidationSessionRow = {
   playlist_id: string;
   device_id: string;
   status: string;
+  starts_at: string;
   expires_at: string;
+  succeeded_at: string | null;
+  failed_at: string | null;
+  revoked_at: string | null;
+  updated_at: string;
 };
 
 function json(body: unknown, status = 200) {
@@ -104,6 +110,30 @@ function safeRedirect(value: unknown) {
   }
 }
 
+function timestamp(value: unknown) {
+  const parsed = Date.parse(String(value ?? ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function validationAuthorization(session: ValidationSessionRow | null, nowMs: number) {
+  if (!session?.id || session.revoked_at) {
+    return { allowed: false, grace: false };
+  }
+
+  if (session.status === 'active') {
+    const expiresAt = timestamp(session.expires_at);
+    return { allowed: expiresAt !== null && expiresAt > nowMs, grace: false };
+  }
+
+  if (!['succeeded', 'failed'].includes(session.status)) {
+    return { allowed: false, grace: false };
+  }
+
+  const closedAt = timestamp(session.succeeded_at || session.failed_at || session.updated_at);
+  const withinGrace = closedAt !== null && nowMs >= closedAt && nowMs - closedAt <= VALIDATION_REPORT_GRACE_MS;
+  return { allowed: withinGrace, grace: withinGrace };
+}
+
 async function sha256Hex(value: string) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -161,7 +191,8 @@ serve(async request => {
       return json({ error: 'Credencial do aparelho inválida.' }, 403);
     }
 
-    const now = new Date().toISOString();
+    const nowDate = new Date();
+    const now = nowDate.toISOString();
     const assignmentResult = await supabase
       .from('panel_device_playlists')
       .select('id, playlist_id, active, playlist:panel_playlists(id, name, active)')
@@ -170,11 +201,12 @@ serve(async request => {
       .maybeSingle();
     const validationResult = await supabase
       .from('panel_playlist_validation_sessions')
-      .select('id, playlist_id, device_id, status, expires_at')
+      .select('id, playlist_id, device_id, status, starts_at, expires_at, succeeded_at, failed_at, revoked_at, updated_at')
       .eq('device_id', device.id)
       .eq('playlist_id', playlistId)
-      .eq('status', 'active')
-      .gt('expires_at', now)
+      .in('status', ['active', 'succeeded', 'failed'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (assignmentResult.error || validationResult.error) {
@@ -183,6 +215,7 @@ serve(async request => {
 
     const assignment = assignmentResult.data as AssignmentRow | null;
     const validationSession = validationResult.data as ValidationSessionRow | null;
+    const validation = validationAuthorization(validationSession, nowDate.getTime());
     const rawPlaylist = assignment
       ? (Array.isArray(assignment.playlist) ? assignment.playlist[0] || null : assignment.playlist)
       : null;
@@ -190,10 +223,10 @@ serve(async request => {
       assignment && assignment.active !== false && rawPlaylist?.active !== false,
     );
     const legacyAllowed = String(device.playlist_id || '') === playlistId;
-    const validationAllowed = Boolean(validationSession?.id);
+    const validationAllowed = validation.allowed;
 
     if (!assignmentAllowed && !legacyAllowed && !validationAllowed) {
-      return json({ error: 'A lista não pertence a este aparelho nem a uma homologação ativa.' }, 403);
+      return json({ error: 'A lista não pertence a este aparelho nem a uma homologação ativa ou recém-concluída.' }, 403);
     }
 
     let playlistName = rawPlaylist?.name ? String(rawPlaylist.name) : null;
@@ -268,6 +301,7 @@ serve(async request => {
       id: inserted?.id || null,
       clientEventId,
       validationMode: validationAllowed,
+      validationGrace: validation.grace,
     });
   } catch (error) {
     console.error('playlist-provider-attempt-report:', {
