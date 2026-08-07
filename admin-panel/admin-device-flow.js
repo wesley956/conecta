@@ -126,7 +126,7 @@
         <div id="adminDeviceFlowBody"></div>
       </div>`;
     modal.addEventListener('click', event => { if (event.target === modal) closeModal(); });
-    modal.querySelector('[data-adf-close]').addEventListener('click', closeModal);
+    modal.querySelector('[data-adf-close]').addEventListener('click', () => closeModal());
     document.body.appendChild(modal);
 
     const style = document.createElement('style');
@@ -140,18 +140,24 @@
     document.head.appendChild(style);
   }
 
-  function openModal(title, subtitle, html) {
+  function openModal(title, subtitle, html, operation = '') {
     ensureModal();
+    const modal = $('adminDeviceFlowModal');
     $('adminDeviceFlowTitle').textContent = title;
     $('adminDeviceFlowSubtitle').textContent = subtitle || '';
     $('adminDeviceFlowBody').innerHTML = html;
-    $('adminDeviceFlowModal').classList.add('open');
-    $('adminDeviceFlowModal').setAttribute('aria-hidden', 'false');
+    modal.dataset.flowOperation = operation;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
   }
 
-  function closeModal() {
-    $('adminDeviceFlowModal')?.classList.remove('open');
-    $('adminDeviceFlowModal')?.setAttribute('aria-hidden', 'true');
+  function closeModal(expectedOperation = '') {
+    const modal = $('adminDeviceFlowModal');
+    if (!modal) return;
+    if (expectedOperation && modal.dataset.flowOperation !== expectedOperation) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    delete modal.dataset.flowOperation;
   }
 
   async function activatePending(deviceId) {
@@ -187,19 +193,20 @@
       if (!device) throw new Error('Aparelho não encontrado.');
       if (device.status !== 'active') throw new Error('Somente aparelhos ativos podem ser renovados.');
       if (!device.sellerId) throw new Error('O aparelho não possui vendedor.');
+      const modalOperation = `renew:${deviceId}`;
       openModal('Renovar aparelho', `${device.deviceCode} · cliente e listas serão preservados`, `
         <div class="admin-device-flow-grid">
           <label class="wide">Plano<select class="table-select" id="adfRenewPlan">${planOptions(device.planId || '')}</select></label>
           <label class="wide">Nova validade <span class="muted">(opcional)</span><input class="table-input" id="adfRenewExpiry" type="date"><small class="muted">Em branco: o backend soma a duração do plano à validade atual.</small></label>
         </div>
         <div class="admin-device-flow-note"><strong>Preservado:</strong> cliente ${esc(device.customerName || 'atual')}, principal ${esc(device.playlistName || 'atual')} e reserva ${esc(device.backupPlaylistName || 'não configurada')}.</div>
-        <div class="admin-device-flow-actions"><button type="button" class="btn" data-adf-cancel>Cancelar</button><button type="button" class="btn primary" data-adf-renew>Confirmar renovação</button></div>`);
-      $('[data-adf-cancel]').addEventListener('click', closeModal);
-      $('[data-adf-renew]').addEventListener('click', () => submitRenewal(deviceId));
+        <div class="admin-device-flow-actions"><button type="button" class="btn" data-adf-cancel>Cancelar</button><button type="button" class="btn primary" data-adf-renew>Confirmar renovação</button></div>`, modalOperation);
+      $('[data-adf-cancel]').addEventListener('click', () => closeModal(modalOperation));
+      $('[data-adf-renew]').addEventListener('click', () => submitRenewal(deviceId, modalOperation));
     } catch (error) { notify(error.message, true); }
   }
 
-  async function submitRenewal(deviceId) {
+  async function submitRenewal(deviceId, modalOperation = `renew:${deviceId}`) {
     try {
       const device = rows('devices').find(item => item.id === deviceId);
       if (!device) throw new Error('Aparelho não encontrado.');
@@ -213,7 +220,7 @@
         const button = $('[data-adf-renew]'); if (button) button.disabled = true;
         try {
           const result = await invoke(FLOW_FUNCTION, { action: 'renew', ...payload, idempotencyKey: operationKey('renew', deviceId, payload) });
-          clearAttempt('renew', deviceId); closeModal();
+          clearAttempt('renew', deviceId); closeModal(modalOperation);
           if (typeof window.loadAll === 'function') await window.loadAll();
           notify(result.message || 'Aparelho renovado.');
         } finally { if (button) button.disabled = false; }
@@ -227,19 +234,20 @@
       if (!device) throw new Error('Aparelho não encontrado.');
       if (device.status !== 'active') throw new Error('Somente aparelhos ativos podem trocar listas comercialmente.');
       if (!device.sellerId) throw new Error('O aparelho não possui vendedor.');
+      const modalOperation = `changePlaylists:${deviceId}`;
       openModal('Alterar listas', `${device.deviceCode} · sem crédito, plano ou validade`, `
         <div class="admin-device-flow-grid">
           <label class="wide">Lista principal<select class="table-select" id="adfChangePrimary">${playlistOptions(device.playlistId || '', false)}</select></label>
           <label class="wide">Lista reserva<select class="table-select" id="adfChangeBackup">${playlistOptions(device.backupPlaylistId || '', true)}</select></label>
         </div>
         <div class="admin-device-flow-note"><strong>Sem cobrança:</strong> cliente, vendedor, plano e validade permanecem exatamente como estão.</div>
-        <div class="admin-device-flow-actions"><button type="button" class="btn" data-adf-cancel>Cancelar</button><button type="button" class="btn primary" data-adf-change>Salvar listas</button></div>`);
-      $('[data-adf-cancel]').addEventListener('click', closeModal);
-      $('[data-adf-change]').addEventListener('click', () => submitPlaylistChange(deviceId));
+        <div class="admin-device-flow-actions"><button type="button" class="btn" data-adf-cancel>Cancelar</button><button type="button" class="btn primary" data-adf-change>Salvar listas</button></div>`, modalOperation);
+      $('[data-adf-cancel]').addEventListener('click', () => closeModal(modalOperation));
+      $('[data-adf-change]').addEventListener('click', () => submitPlaylistChange(deviceId, modalOperation));
     } catch (error) { notify(error.message, true); }
   }
 
-  async function submitPlaylistChange(deviceId) {
+  async function submitPlaylistChange(deviceId, modalOperation = `changePlaylists:${deviceId}`) {
     try {
       const device = rows('devices').find(item => item.id === deviceId);
       if (!device) throw new Error('Aparelho não encontrado.');
@@ -252,7 +260,7 @@
         const button = $('[data-adf-change]'); if (button) button.disabled = true;
         try {
           const result = await invoke(FLOW_FUNCTION, { action: 'changePlaylists', ...payload, idempotencyKey: operationKey('changePlaylists', deviceId, payload) });
-          clearAttempt('changePlaylists', deviceId); closeModal();
+          clearAttempt('changePlaylists', deviceId); closeModal(modalOperation);
           if (typeof window.loadAll === 'function') await window.loadAll();
           notify(result.message || 'Listas alteradas.');
         } finally { if (button) button.disabled = false; }
