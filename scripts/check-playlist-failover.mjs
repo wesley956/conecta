@@ -46,7 +46,8 @@ const required = {
     "const action = requiredText(input.action",
     "['activate', 'renew', 'changePlaylists']",
     'backupPlaylistId',
-    "rpc('seller_device_flow_transaction'",
+    "rpc('seller_device_flow_transaction_v4'",
+    'p_backup_playlist_id',
   ],
   deviceBackend: ['playlistHealth', 'cooldown_until', 'selectedPlaylistId', 'playlists: playlistConfigs'],
   seriesDetail: ['device_playlists:panel_device_playlists', 'requestedPlaylistId', 'attemptedPlaylistIds', 'sourcePlaylistId'],
@@ -81,7 +82,7 @@ const required = {
   ],
   smartPlayer: ['onTerminalPlaybackFailure', '20_000', '12_000', '25_000'],
   adminUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'openPlaylistChange'],
-  sellerUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'toggle-backup'],
+  sellerUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'useBackup'],
   sellerDelete: ["update({ seller_id: null", "action: 'seller.deleted'", 'histórico foram preservados'],
   redesign: ['body.admin-v2 .tabs::before', 'content: none !important'],
 };
@@ -94,4 +95,4 @@ for (const [key, snippets] of Object.entries(required)) {
   }
 }
 
-console.log('✅ Lista principal/reserva, failover e fluxo comercial canônico validados.');
+console.log('✅ Lista principal/reserva, failover e fluxo comercial canônico v4 validados.');
