@@ -31,18 +31,15 @@ function getClientIp(request: Request) {
 function makeDeviceCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let suffix = '';
-
   crypto.getRandomValues(new Uint8Array(6)).forEach(value => {
     suffix += chars[value % chars.length];
   });
-
   return `RPTV-${suffix}`;
 }
 
 function makeDeviceCredential() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
-
   const binary = String.fromCharCode(...bytes);
   return btoa(binary)
     .replaceAll('+', '-')
@@ -51,20 +48,14 @@ function makeDeviceCredential() {
 }
 
 async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(value),
-  );
-
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return [...new Uint8Array(digest)]
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
 }
 
 function normalizeWhatsapp(value: unknown) {
-  return String(value ?? '')
-    .replace(/[^\d+]/g, '')
-    .trim();
+  return String(value ?? '').replace(/[^\d+]/g, '').trim();
 }
 
 function textOrNull(value: unknown) {
@@ -74,9 +65,7 @@ function textOrNull(value: unknown) {
 
 async function readPayload(request: Request): Promise<Record<string, unknown>> {
   const declaredLength = Number(request.headers.get('content-length') || 0);
-  if (declaredLength > MAX_REQUEST_BYTES) {
-    throw new Error('PAYLOAD_TOO_LARGE');
-  }
+  if (declaredLength > MAX_REQUEST_BYTES) throw new Error('PAYLOAD_TOO_LARGE');
 
   try {
     const raw = await request.text();
@@ -84,9 +73,7 @@ async function readPayload(request: Request): Promise<Record<string, unknown>> {
       throw new Error('PAYLOAD_TOO_LARGE');
     }
     const payload = JSON.parse(raw);
-    return payload && typeof payload === 'object'
-      ? payload as Record<string, unknown>
-      : {};
+    return payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
   } catch (error) {
     if (error instanceof Error && error.message === 'PAYLOAD_TOO_LARGE') throw error;
     return {};
@@ -106,33 +93,8 @@ async function consumeActivationLimit(
     p_window_seconds: 3600,
     p_metadata: metadata,
   });
-
   if (error) throw new Error(`Falha ao validar limite de ativação: ${error.message}`);
   return data === true;
-}
-
-async function findSellerByCode(supabase: any, sellerCode: string | null) {
-  if (!sellerCode) return null;
-
-  const { data, error } = await supabase
-    .from('panel_sellers')
-    .select('id, name, status, public_code, access_expires_at, deleted_at')
-    .eq('public_code', sellerCode.toLowerCase())
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Falha ao localizar vendedor: ${error.message}`);
-  }
-
-  if (!data) return null;
-
-  const accessExpired = data.access_expires_at &&
-    new Date(data.access_expires_at).getTime() <= Date.now();
-  if (data.deleted_at || data.status !== 'active' || accessExpired) {
-    throw new Error('Código de vendedor bloqueado ou inativo.');
-  }
-
-  return data;
 }
 
 async function upsertBasicCustomer(
@@ -144,43 +106,29 @@ async function upsertBasicCustomer(
   if (!customerWhatsapp) return null;
 
   const safeName = customerName || 'Cliente sem nome';
-  const safeWhatsapp = customerWhatsapp;
-
   const normalizedWhatsapp = customerWhatsapp.replace(/\D/g, '');
   let existingQuery = supabase
-      .from('panel_customers')
-      .select('id, name, whatsapp, seller_id')
-      .eq('whatsapp_normalized', normalizedWhatsapp);
+    .from('panel_customers')
+    .select('id, name, whatsapp, seller_id')
+    .eq('whatsapp_normalized', normalizedWhatsapp);
+
   existingQuery = sellerId
     ? existingQuery.eq('seller_id', sellerId)
     : existingQuery.is('seller_id', null);
 
-  const { data: existing, error: findError } = await existingQuery
-      .limit(1)
-      .maybeSingle();
-
-  if (findError) {
-    throw new Error(`Falha ao buscar cliente: ${findError.message}`);
-  }
+  const { data: existing, error: findError } = await existingQuery.limit(1).maybeSingle();
+  if (findError) throw new Error(`Falha ao buscar cliente: ${findError.message}`);
 
   if (existing) {
-    const updates: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
-
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (customerName && existing.name !== customerName) updates.name = customerName;
-
     if (Object.keys(updates).length > 1) {
       const { error: updateError } = await supabase
         .from('panel_customers')
         .update(updates)
         .eq('id', existing.id);
-
-      if (updateError) {
-        throw new Error(`Falha ao atualizar cliente: ${updateError.message}`);
-      }
+      if (updateError) throw new Error(`Falha ao atualizar cliente: ${updateError.message}`);
     }
-
     return existing.id;
   }
 
@@ -188,7 +136,7 @@ async function upsertBasicCustomer(
     .from('panel_customers')
     .insert({
       name: safeName,
-      whatsapp: safeWhatsapp,
+      whatsapp: customerWhatsapp,
       status: 'active',
       seller_id: sellerId,
       updated_at: new Date().toISOString(),
@@ -196,10 +144,7 @@ async function upsertBasicCustomer(
     .select('id')
     .single();
 
-  if (createError) {
-    throw new Error(`Falha ao criar cliente básico: ${createError.message}`);
-  }
-
+  if (createError) throw new Error(`Falha ao criar cliente básico: ${createError.message}`);
   return created.id;
 }
 
@@ -226,30 +171,17 @@ async function issueCredentialIfMissing(
     .select('id')
     .maybeSingle();
 
-  if (error) {
-    throw new Error(`Falha ao emitir credencial do aparelho: ${error.message}`);
-  }
-
-  // Outra requisição pode ter emitido a credencial primeiro. Nesse caso, não
-  // revelamos um segredo que não corresponde ao hash salvo.
+  if (error) throw new Error(`Falha ao emitir credencial do aparelho: ${error.message}`);
   return data ? deviceCredential : null;
 }
 
 serve(async request => {
-  if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  if (request.method !== 'POST') {
-    return json({ active: false, message: 'Método não permitido.' }, 405);
-  }
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (request.method !== 'POST') return json({ active: false, message: 'Método não permitido.' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return json({ active: false, message: 'Servidor não configurado.' }, 500);
-  }
+  if (!supabaseUrl || !serviceRoleKey) return json({ active: false, message: 'Servidor não configurado.' }, 500);
 
   let payload: Record<string, unknown>;
   try {
@@ -261,33 +193,22 @@ serve(async request => {
       message: 'Solicitação de ativação excede o tamanho permitido.',
     }, 413);
   }
+
   const deviceUuid = String(payload.deviceUuid ?? '').trim();
   const deviceType = String(payload.deviceType ?? 'androidtv').trim() || 'androidtv';
   const appVersion = textOrNull(payload.appVersion);
   const customerName = textOrNull(payload.customerName);
   const customerWhatsapp = normalizeWhatsapp(payload.customerWhatsapp) || null;
-  const sellerCode = textOrNull(payload.sellerCode);
   const lastIp = getClientIp(request);
 
   if (!deviceUuid) {
-    return json({
-      active: false,
-      status: 'pending',
-      message: 'Identificador do aparelho não informado.',
-    }, 400);
+    return json({ active: false, status: 'pending', message: 'Identificador do aparelho não informado.' }, 400);
   }
-
   if (deviceUuid.length > 160) {
-    return json({
-      active: false,
-      status: 'pending',
-      message: 'Identificador do aparelho inválido.',
-    }, 400);
+    return json({ active: false, status: 'pending', message: 'Identificador do aparelho inválido.' }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
+  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
   try {
     const limitMetadata = {
@@ -298,12 +219,7 @@ serve(async request => {
     const ipAllowed = lastIp
       ? await consumeActivationLimit(supabase, `ip:${lastIp}`, 30, limitMetadata)
       : true;
-    const deviceAllowed = await consumeActivationLimit(
-      supabase,
-      `device:${deviceUuid}`,
-      10,
-      limitMetadata,
-    );
+    const deviceAllowed = await consumeActivationLimit(supabase, `device:${deviceUuid}`, 10, limitMetadata);
 
     if (!ipAllowed || !deviceAllowed) {
       return json({
@@ -312,24 +228,6 @@ serve(async request => {
         message: 'Muitas tentativas de ativação. Aguarde antes de tentar novamente.',
       }, 429);
     }
-
-    const seller = sellerCode ? await findSellerByCode(supabase, sellerCode) : null;
-
-    if (sellerCode && !seller) {
-      return json({
-        active: false,
-        status: 'pending',
-        message: 'Código público do vendedor não encontrado.',
-      }, 404);
-    }
-
-    const sellerId = seller?.id ?? null;
-    const customerId = await upsertBasicCustomer(
-      supabase,
-      customerName,
-      customerWhatsapp,
-      sellerId,
-    );
 
     const { data: existingDevice, error: existingError } = await supabase
       .from('panel_devices')
@@ -351,6 +249,17 @@ serve(async request => {
       return json({ active: false, status: 'pending', message: existingError.message }, 500);
     }
 
+    // O vendedor nunca é escolhido pelo aplicativo. Em aparelho existente o
+    // vínculo atual é apenas preservado; em aparelho novo ele nasce nulo e o
+    // código RPTV é usado no painel para vincular/ativar comercialmente.
+    const preservedSellerId = existingDevice?.seller_id || null;
+    const customerId = await upsertBasicCustomer(
+      supabase,
+      customerName,
+      customerWhatsapp,
+      preservedSellerId,
+    );
+
     const baseUpdate: Record<string, unknown> = {
       device_type: deviceType,
       app_version: appVersion,
@@ -358,10 +267,8 @@ serve(async request => {
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-
     if (customerName) baseUpdate.client_name = customerName;
     if (customerId) baseUpdate.customer_id = customerId;
-    if (sellerId) baseUpdate.seller_id = sellerId;
 
     if (existingDevice) {
       const { error: updateError } = await supabase
@@ -371,11 +278,7 @@ serve(async request => {
         .eq('device_uuid', deviceUuid);
 
       if (updateError) {
-        return json({
-          active: false,
-          status: 'pending',
-          message: updateError.message,
-        }, 500);
+        return json({ active: false, status: 'pending', message: updateError.message }, 500);
       }
 
       const deviceCredential = await issueCredentialIfMissing(
@@ -393,8 +296,8 @@ serve(async request => {
         clientName: customerName || existingDevice.client_name,
         customerName,
         customerWhatsapp,
-        sellerLinked: Boolean(sellerId || existingDevice.seller_id),
-        sellerName: seller?.name ?? null,
+        sellerLinked: Boolean(preservedSellerId),
+        sellerName: null,
         expiresAt: existingDevice.subscription_expires_at,
         message: existingDevice.status === 'active'
           ? 'Aparelho já ativo.'
@@ -408,7 +311,6 @@ serve(async request => {
 
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const deviceCode = makeDeviceCode();
-
       const { data, error } = await supabase
         .from('panel_devices')
         .insert({
@@ -418,7 +320,7 @@ serve(async request => {
           credential_issued_at: issuedAt,
           client_name: customerName,
           customer_id: customerId,
-          seller_id: sellerId,
+          seller_id: null,
           status: 'pending',
           device_type: deviceType,
           app_version: appVersion,
@@ -439,24 +341,18 @@ serve(async request => {
           clientName: customerName,
           customerName,
           customerWhatsapp,
-          sellerLinked: Boolean(sellerId),
-          sellerName: seller?.name ?? null,
+          sellerLinked: false,
+          sellerName: null,
           message: 'Código criado. Envie este código ao vendedor/admin para liberar o acesso.',
         });
       }
 
       const message = String(error?.message ?? '');
-
       if (!message.includes('duplicate') && !message.includes('unique')) {
         return json({ active: false, status: 'pending', message }, 500);
       }
 
-      // Se o conflito foi no UUID ou no hash, outra requisição criou o aparelho.
-      // O cliente deve repetir a ativação para consultar o registro já existente.
-      if (
-        message.includes('device_uuid') ||
-        message.includes('device_credential_hash')
-      ) {
+      if (message.includes('device_uuid') || message.includes('device_credential_hash')) {
         return json({
           active: false,
           status: 'pending',

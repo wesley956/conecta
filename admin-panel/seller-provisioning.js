@@ -120,15 +120,12 @@
       if (typeof original !== 'function' || original.__sellerManagementWrapped) return;
       var wrapped = function () {
         var result = original.apply(this, arguments);
-        global.setTimeout(function () { polishSellerUi(global.document); }, 0);
+        polishSellerUi(global.document);
         return result;
       };
       wrapped.__sellerManagementWrapped = true;
       global[name] = wrapped;
     });
-
-    var observer = new MutationObserver(function () { polishSellerUi(global.document); });
-    observer.observe(global.document.body, { childList: true, subtree: true });
   }
 
   function installForms() {

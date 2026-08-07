@@ -83,7 +83,12 @@ const required = {
   smartPlayer: ['onTerminalPlaybackFailure', '20_000', '12_000', '25_000'],
   adminUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'openPlaylistChange'],
   sellerUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'useBackup'],
-  sellerDelete: ["update({ seller_id: null", "action: 'seller.deleted'", 'histórico foram preservados'],
+  sellerDelete: [
+    "rpc('delete_seller_account_transaction'",
+    'preservedHistory',
+    'supabase.auth.admin.deleteUser(authUserId)',
+    "action: authRevoked ? 'seller.auth_revoked' : 'seller.auth_revoke_pending'",
+  ],
   redesign: ['body.admin-v2 .tabs::before', 'content: none !important'],
 };
 

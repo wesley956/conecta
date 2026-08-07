@@ -21,6 +21,14 @@ function env(name: string) {
   return value;
 }
 
+function requiredSellerId(value: unknown) {
+  const id = String(value || '').trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error('ID do vendedor inválido.');
+  }
+  return id;
+}
+
 serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
@@ -31,72 +39,72 @@ serve(async request => {
     });
     const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin']);
     const body = await request.json().catch(() => ({}));
-    const sellerId = String(body?.sellerId || '').trim();
-    if (!sellerId) return json({ error: 'ID do vendedor é obrigatório.' }, 400);
+    const sellerId = requiredSellerId(body?.sellerId);
 
-    const { data: seller, error: sellerError } = await supabase
-      .from('panel_sellers')
-      .select('id, name, email')
-      .eq('id', sellerId)
-      .maybeSingle();
-    if (sellerError) throw new Error(`Não foi possível localizar o vendedor: ${sellerError.message}.`);
-    if (!seller) return json({ error: 'Vendedor não encontrado.' }, 404);
+    const { data, error } = await supabase.rpc('delete_seller_account_transaction', {
+      p_seller_id: sellerId,
+      p_performed_by_user_id: principal.userId,
+      p_reason: 'manual_admin_delete',
+    });
+    if (error) throw new Error(`Não foi possível excluir o vendedor: ${error.message}.`);
 
-    const { data: role, error: roleError } = await supabase
-      .from('panel_user_roles')
-      .select('user_id')
-      .eq('seller_id', sellerId)
-      .maybeSingle();
-    if (roleError) throw new Error(`Não foi possível localizar o acesso do vendedor: ${roleError.message}.`);
+    const result = data && typeof data === 'object' ? data as Record<string, unknown> : {};
+    const authUserId = String(result.authUserId || '').trim() || null;
+    let authRevoked = !authUserId;
+    let authWarning: string | null = null;
 
-    const { count: linkedDevices, error: unlinkDevicesError } = await supabase
-      .from('panel_devices')
-      .update({ seller_id: null, updated_at: new Date().toISOString() }, { count: 'exact' })
-      .eq('seller_id', sellerId);
-    if (unlinkDevicesError) throw new Error(`Não foi possível liberar os aparelhos do vendedor: ${unlinkDevicesError.message}.`);
-
-    const { count: linkedCustomers, error: unlinkCustomersError } = await supabase
-      .from('panel_customers')
-      .update({ seller_id: null }, { count: 'exact' })
-      .eq('seller_id', sellerId);
-    if (unlinkCustomersError) throw new Error(`Não foi possível liberar os clientes do vendedor: ${unlinkCustomersError.message}.`);
-
-    const { error: deleteSellerError } = await supabase
-      .from('panel_sellers')
-      .delete()
-      .eq('id', sellerId);
-    if (deleteSellerError) throw new Error(`Não foi possível excluir o vendedor: ${deleteSellerError.message}.`);
-
-    if (role?.user_id) {
-      const { error: authDeleteError } = await supabase.auth.admin.deleteUser(String(role.user_id));
+    if (authUserId) {
+      const { error: authDeleteError } = await supabase.auth.admin.deleteUser(authUserId);
       if (authDeleteError) {
-        console.error('Vendedor removido, mas houve falha ao excluir usuário Auth.', authDeleteError);
+        // O papel e o vendedor já foram revogados atomicamente no banco, portanto
+        // esta conta não recupera acesso ao painel mesmo se a limpeza do Auth falhar.
+        authWarning = 'O acesso ao painel foi revogado, mas a limpeza final do usuário Auth precisa ser repetida.';
+        console.error('Falha ao remover usuário Auth após exclusão lógica do vendedor.', {
+          sellerId,
+          authUserId,
+          message: authDeleteError.message,
+        });
+      } else {
+        authRevoked = true;
       }
     }
 
-    await supabase.from('panel_audit_logs').insert({
-      action: 'seller.deleted',
+    const { error: auditError } = await supabase.from('panel_audit_logs').insert({
+      action: authRevoked ? 'seller.auth_revoked' : 'seller.auth_revoke_pending',
       entity_type: 'seller',
       entity_id: sellerId,
-      description: `Vendedor excluído: ${seller.name}`,
+      description: authRevoked
+        ? 'Usuário Auth do vendedor removido após exclusão lógica.'
+        : 'Acesso local revogado; remoção final do usuário Auth ficou pendente.',
+      performed_by: `${principal.role}:${principal.userId}`,
       metadata: {
-        email: seller.email || null,
-        authUserId: role?.user_id || null,
-        unlinkedDevices: linkedDevices || 0,
-        unlinkedCustomers: linkedCustomers || 0,
-        performedByUserId: principal.userId,
+        authUserId,
+        authRevoked,
+        preservedHistory: true,
       },
     });
+    if (auditError) {
+      console.error('Falha ao registrar resultado da revogação Auth.', {
+        sellerId,
+        message: auditError.message,
+      });
+    }
 
     return json({
       ok: true,
-      unlinkedDevices: linkedDevices || 0,
-      unlinkedCustomers: linkedCustomers || 0,
-      message: 'Vendedor e acesso excluídos. Aparelhos, clientes e histórico foram preservados.',
+      sellerId,
+      authRevoked,
+      unlinkedDevices: Number(result.unlinkedDevices || 0),
+      unlinkedCustomers: Number(result.unlinkedCustomers || 0),
+      preservedHistory: result.preservedHistory === true,
+      warning: authWarning,
+      message: authWarning || 'Vendedor excluído logicamente, acesso revogado e histórico preservado.',
     });
   } catch (error) {
     if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, corsHeaders);
-    console.error('Falha ao excluir vendedor.', error);
+    console.error('Falha ao excluir vendedor.', {
+      message: error instanceof Error ? error.message : String(error),
+    });
     return json({ error: error instanceof Error ? error.message : 'Falha inesperada ao excluir vendedor.' }, 400);
   }
 });
