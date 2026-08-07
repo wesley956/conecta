@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const files = {
   migration: 'supabase/migrations/20260807060000_playlist_lifecycle_and_server_profiles.sql',
+  edgeFix: 'supabase/migrations/20260807060100_playlist_lifecycle_edge_fixes.sql',
   shared: 'supabase/functions/_shared/playlistQualification.ts',
   registration: 'supabase/functions/playlist-registration/index.ts',
   validation: 'supabase/functions/playlist-validation/index.ts',
@@ -19,6 +20,7 @@ for (const path of Object.values(files)) {
   if (!fs.existsSync(path)) throw new Error(`Arquivo obrigatório do Lote 3 ausente: ${path}`);
 }
 const source = Object.fromEntries(Object.entries(files).map(([key, path]) => [key, fs.readFileSync(path, 'utf8')]));
+const sql = `${source.migration}\n${source.edgeFix}`;
 
 const officialStates = [
   'saving',
@@ -38,6 +40,7 @@ for (const label of [
   'Confirmada pelo aparelho', 'Falhou no aparelho', 'Bloqueada', 'Arquivada',
 ]) {
   if (!source.shared.includes(label)) throw new Error(`Rótulo oficial ausente no contrato compartilhado: ${label}`);
+  if (!sql.includes(label)) throw new Error(`Rótulo oficial ausente na decisão SQL: ${label}`);
 }
 
 for (const token of [
@@ -52,7 +55,14 @@ for (const token of [
   "then 'available_by_cache'",
   "then 'provisional'",
 ]) {
-  if (!source.migration.includes(token)) throw new Error(`Migração do Lote 3 não contém: ${token}`);
+  if (!sql.includes(token)) throw new Error(`Migrações do Lote 3 não contêm: ${token}`);
+}
+if (!source.edgeFix.includes("then 'saving'")) throw new Error('SQL não distingue Salvando de Gerando cache.');
+if (!source.edgeFix.includes("playlist.playlist_qualification_code = 'DEVICE_TEST_FAILED' then 'blocked'")) {
+  throw new Error('Falhou no aparelho precisa bloquear nova ativação Android até retry/correção.');
+}
+if (!source.edgeFix.includes("v_playlist.playlist_qualification_code = 'DEVICE_TEST_FAILED'")) {
+  throw new Error('Guard transacional não bloqueia lista já falhada no aparelho.');
 }
 
 const safeHeaderFunction = source.migration.match(/create or replace function public\.playlist_safe_profile_headers[\s\S]*?\$\$;/i)?.[0] || '';
@@ -69,6 +79,17 @@ if (/username|password|senha|passwd|token\s+text/i.test(
 )) {
   throw new Error('Tabela de perfil do servidor não pode armazenar credenciais do cliente.');
 }
+for (const token of [
+  "return '/get.php'",
+  "return '/player_api.php'",
+  "return '/{resource}'",
+  "'{credential}/{credential}/{resource}'",
+]) {
+  if (!source.edgeFix.includes(token)) throw new Error(`Template seguro de caminho incompleto: ${token}`);
+}
+if (!source.edgeFix.includes('on conflict (profile_key) do nothing')) {
+  throw new Error('Backfill de perfis conhecidos não é idempotente.');
+}
 
 for (const token of [
   'get_playlist_lifecycle_decision',
@@ -79,17 +100,24 @@ for (const token of [
 ]) {
   if (!source.shared.includes(token)) throw new Error(`Contrato de ciclo de vida incompleto: ${token}`);
 }
+if (!source.shared.includes("lifecycle === 'device_failed'")) {
+  throw new Error('Contrato compartilhado não trata falha do aparelho como indisponível.');
+}
 
 for (const token of [
   "PLAYLIST_FUNCTION = 'playlist-registration'",
   "panelApi(PLAYLIST_FUNCTION, { action: 'list' })",
   'lifecycleStatus',
   'Aguardando confirmação no aparelho',
+  'playlistUnavailable',
 ]) {
   if (!source.sellerWizard.includes(token)) throw new Error(`Assistente do vendedor não usa o estado canônico: ${token}`);
 }
 if (source.sellerWizard.includes("playlist-validation")) {
   throw new Error('Fluxo comercial do vendedor não pode chamar a homologação/diagnóstico manual.');
+}
+if (!source.sellerWizard.includes("info.status === 'device_failed'")) {
+  throw new Error('Wizard precisa impedir seleção de lista que falhou no aparelho.');
 }
 
 for (const token of [
@@ -110,6 +138,7 @@ for (const token of [
   'playlist-lifecycle-platforms',
   'platformCapabilities',
   'playlistOptions',
+  'unavailableForNewActivation',
 ]) {
   if (!source.adminLifecycle.includes(token)) throw new Error(`ADM não apresenta o estado oficial: ${token}`);
 }
@@ -117,9 +146,14 @@ for (const token of [
   'officialApi',
   'mergeOfficial',
   'playlist-registration',
+  'sellerListsOpenUniversal',
+  'RonecaUniversalPlaylists',
   'Android', 'LG', 'Samsung',
 ]) {
-  if (!source.sellerLists.includes(token)) throw new Error(`Portal do vendedor não apresenta o estado oficial: ${token}`);
+  if (!source.sellerLists.includes(token)) throw new Error(`Portal do vendedor não apresenta/usa o fluxo oficial: ${token}`);
+}
+if (source.sellerLists.includes("api('createSellerPlaylist'")) {
+  throw new Error('Portal do vendedor não pode manter um segundo cadastro simples fora da entrada universal.');
 }
 
 for (const token of [
@@ -138,6 +172,7 @@ const forbiddenSellerMessages = [
   /ainda n[aã]o est[aá] homologada/i,
   /precisa ser homologada antes/i,
   /homologa[cç][aã]o obrigat[oó]ria/i,
+  /acesso direto homologado/i,
 ];
 for (const pattern of forbiddenSellerMessages) {
   for (const text of userFacing) {
@@ -154,12 +189,15 @@ for (const token of [
 }
 
 for (const token of [
+  'Cadastro recém salvo aparece como Salvando',
   'Perfil compartilhado nunca guarda Authorization ou Cookie',
   'Nova conta no mesmo servidor reaproveita o perfil técnico conhecido',
   'Android aceita provisoriamente lista não confirmada pelo servidor',
+  'Falha confirmada pelo aparelho bloqueia nova ativação até retry ou correção',
   'LG não recebe lista sem cache',
   'Samsung recebe lista com cache pronto',
   'Falha do aparelho comercial aparece no estado oficial',
+  'Lista que falhou no aparelho não pode ser ativada de novo sem retry ou correção',
 ]) {
   if (!source.pgTap.includes(token)) throw new Error(`pgTAP do Lote 3 não contém: ${token}`);
 }
