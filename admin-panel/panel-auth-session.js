@@ -2,19 +2,32 @@
   'use strict';
 
   var STORAGE_KEY = 'roneca-panel-auth-session-v1';
-  var LEGACY_SESSION_MARKER = 'supabase-session';
-  var LEGACY_KEYS = ['roneca_admin_token', 'cruz-stars-admin-token', 'roneca_seller_token'];
+  var RETIRED_KEYS = ['roneca_admin_token', 'cruz-stars-admin-token', 'roneca_seller_token'];
   var REFRESH_MARGIN_SECONDS = 90;
   var MAX_TOKEN_LENGTH = 16 * 1024;
   var PANEL_FUNCTIONS = Object.freeze({
     'admin-panel': true,
     'seller-panel': true,
+    'seller-device-flow': true,
+    'seller-provision': true,
+    'seller-delete': true,
+    'admin-integrity-panel': true,
     'subscription-panel': true,
+    'playlist-registration': true,
     'playlist-source-manager': true,
+    'finance-panel': true,
+    'credit-packages-panel': true,
     'app-release': true,
   });
   var originalFetch = global.fetch.bind(global);
   var refreshPromise = null;
+
+  function retireLegacyStorage() {
+    RETIRED_KEYS.forEach(function removeRetiredKey(key) {
+      try { global.sessionStorage.removeItem(key); } catch (_error) { /* storage indisponível */ }
+      try { global.localStorage?.removeItem(key); } catch (_error) { /* storage indisponível */ }
+    });
+  }
 
   function getConfig() {
     var config = global.RONECA_PANEL_CONFIG || {};
@@ -41,16 +54,6 @@
       supabaseOrigin: parsed.origin,
       anonKey: anonKey,
     };
-  }
-
-  function syncLegacySessionMarkers(enabled) {
-    LEGACY_KEYS.forEach(function updateMarker(key) {
-      if (enabled) {
-        global.sessionStorage.setItem(key, LEGACY_SESSION_MARKER);
-      } else {
-        global.sessionStorage.removeItem(key);
-      }
-    });
   }
 
   function readSession() {
@@ -103,19 +106,18 @@
     };
 
     global.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(safeSession));
-    syncLegacySessionMarkers(true);
+    retireLegacyStorage();
     return safeSession;
   }
 
   function clearSession() {
     global.sessionStorage.removeItem(STORAGE_KEY);
-    syncLegacySessionMarkers(false);
+    retireLegacyStorage();
   }
 
   function hasSession() {
-    var present = Boolean(readSession());
-    syncLegacySessionMarkers(present);
-    return present;
+    retireLegacyStorage();
+    return Boolean(readSession());
   }
 
   async function parseJson(response) {
@@ -235,8 +237,7 @@
     try {
       var config = getConfig();
       var url = new URL(String(value), global.location.href);
-      var match = url.pathname.match(/^\/functions\/v1\/(admin-panel|seller-panel|subscription-panel|playlist-source-manager|app-release)(?:\/|$)/);
-
+      var match = url.pathname.match(/^\/functions\/v1\/([a-z0-9-]+)(?:\/|$)/);
       if (!match || !PANEL_FUNCTIONS[match[1]]) return null;
       return new URL(url.pathname + url.search, config.supabaseOrigin).toString();
     } catch (_error) {
@@ -301,6 +302,8 @@
     headers.set('Authorization', 'Bearer ' + await getAccessToken());
     return await originalFetch(nextInput(), Object.assign({}, nextInit, { headers: headers }));
   };
+
+  retireLegacyStorage();
 
   global.RonecaPanelAuth = Object.freeze({
     signIn: signIn,
