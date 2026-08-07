@@ -18,6 +18,8 @@ declare
   v_order public.panel_credit_orders%rowtype;
   v_status text;
   v_paid_at timestamptz;
+  v_previous_status text;
+  v_previous_credits_status text;
 begin
   if p_order_id is null then
     raise exception using errcode = '22023', message = 'Pedido é obrigatório.';
@@ -42,6 +44,8 @@ begin
     raise exception using errcode = 'P0001', message = 'Créditos já liberados não podem ser cancelados sem um estorno específico.';
   end if;
 
+  v_previous_status := v_order.payment_status;
+  v_previous_credits_status := v_order.credits_status;
   v_paid_at := case
     when v_status = 'paid' then coalesce(v_order.paid_at, now())
     else null
@@ -64,29 +68,34 @@ begin
     v_order := public.release_credit_order(p_order_id);
   end if;
 
-  insert into public.panel_audit_logs(
-    action,
-    entity_type,
-    entity_id,
-    description,
-    metadata,
-    performed_by
-  ) values (
-    'credits.package_order.payment_updated',
-    'credit_order',
-    p_order_id,
-    'Status de pagamento do pacote de créditos atualizado.',
-    jsonb_build_object(
-      'paymentStatus', v_status,
-      'creditsStatus', v_order.credits_status,
-      'paidAt', v_order.paid_at,
-      'performedByUserId', p_performed_by_user_id
-    ),
-    case
-      when p_performed_by_user_id is null then 'admin'
-      else 'panel-user:' || p_performed_by_user_id::text
-    end
-  );
+  if v_previous_status is distinct from v_status
+     or v_previous_credits_status is distinct from v_order.credits_status then
+    insert into public.panel_audit_logs(
+      action,
+      entity_type,
+      entity_id,
+      description,
+      metadata,
+      performed_by
+    ) values (
+      'credits.package_order.payment_updated',
+      'credit_order',
+      p_order_id,
+      'Status de pagamento do pacote de créditos atualizado.',
+      jsonb_build_object(
+        'previousPaymentStatus', v_previous_status,
+        'paymentStatus', v_status,
+        'previousCreditsStatus', v_previous_credits_status,
+        'creditsStatus', v_order.credits_status,
+        'paidAt', v_order.paid_at,
+        'performedByUserId', p_performed_by_user_id
+      ),
+      case
+        when p_performed_by_user_id is null then 'admin'
+        else 'panel-user:' || p_performed_by_user_id::text
+      end
+    );
+  end if;
 
   return v_order;
 end;
