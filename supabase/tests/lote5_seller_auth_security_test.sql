@@ -24,12 +24,22 @@ select ok(
   'somente o servidor executa a exclusão lógica'
 );
 
-select has_check(
-  'public', 'panel_sellers', 'panel_sellers_legacy_access_token_retired_check',
+select ok(
+  exists (
+    select 1
+      from pg_constraint
+     where conname = 'panel_sellers_legacy_access_token_retired_check'
+       and conrelid = 'public.panel_sellers'::regclass
+  ),
   'Token legado de vendedor não pode voltar a receber valor'
 );
-select has_check(
-  'public', 'panel_sellers', 'panel_sellers_public_code_retired_check',
+select ok(
+  exists (
+    select 1
+      from pg_constraint
+     where conname = 'panel_sellers_public_code_retired_check'
+       and conrelid = 'public.panel_sellers'::regclass
+  ),
   'Código público legado não pode voltar a receber valor'
 );
 
