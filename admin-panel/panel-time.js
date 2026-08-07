@@ -11,8 +11,7 @@
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: TIME_ZONE,
       year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      hourCycle: 'h23',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
     }).formatToParts(date);
     const result = Object.fromEntries(parts.map(part => [part.type, part.value]));
     return {
@@ -30,10 +29,7 @@
   function zonedDateTimeToIso(dateText, hour = 23, minute = 59, second = 59, millisecond = 999) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateText || '').trim());
     if (!match) throw new Error('Data inválida.');
-    const desired = {
-      year: Number(match[1]), month: Number(match[2]), day: Number(match[3]),
-      hour, minute, second,
-    };
+    const desired = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]), hour, minute, second };
     const desiredNaive = Date.UTC(desired.year, desired.month - 1, desired.day, hour, minute, second, millisecond);
     let candidate = desiredNaive;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -57,9 +53,7 @@
     return date.toISOString().slice(0, 10);
   }
 
-  function endOfDayIso(dateText) {
-    return zonedDateTimeToIso(dateText, 23, 59, 59, 999);
-  }
+  function endOfDayIso(dateText) { return zonedDateTimeToIso(dateText, 23, 59, 59, 999); }
 
   function projectedExpiry({ currentExpiry = null, durationDays = 30, customDate = '', renewal = false } = {}) {
     if (customDate) return endOfDayIso(customDate);
@@ -74,11 +68,7 @@
     if (!value) return '—';
     const date = value instanceof Date ? value : new Date(value);
     if (Number.isNaN(date.getTime())) return '—';
-    const formatted = new Intl.DateTimeFormat(locale, {
-      timeZone: TIME_ZONE,
-      dateStyle: 'short',
-      timeStyle: 'medium',
-    }).format(date);
+    const formatted = new Intl.DateTimeFormat(locale, { timeZone: TIME_ZONE, dateStyle: 'short', timeStyle: 'medium' }).format(date);
     return includeZone ? `${formatted} · Brasília (${TIME_ZONE})` : formatted;
   }
 
@@ -95,13 +85,17 @@
     return Number.isFinite(time) ? Math.max(0, Math.floor((Date.now() - time) / 60000)) : null;
   }
 
-  window.RonecaPanelTime = Object.freeze({
-    TIME_ZONE,
-    isoDate,
-    endOfDayIso,
-    projectedExpiry,
-    formatDateTime,
-    formatDate,
-    minutesSince,
-  });
+  const api = Object.freeze({ TIME_ZONE, isoDate, endOfDayIso, projectedExpiry, formatDateTime, formatDate, minutesSince });
+  window.RonecaPanelTime = api;
+
+  let attempts = 0;
+  const bridge = setInterval(() => {
+    attempts += 1;
+    if (typeof window.fmtDate === 'function' && !window.fmtDate.__ronecaSaoPaulo) {
+      const replacement = value => formatDateTime(value, { includeZone: false });
+      replacement.__ronecaSaoPaulo = true;
+      window.fmtDate = replacement;
+    }
+    if (attempts >= 30) clearInterval(bridge);
+  }, 100);
 })();
