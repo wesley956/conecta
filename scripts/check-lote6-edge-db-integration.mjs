@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 const baseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const anonKey = String(process.env.SUPABASE_ANON_KEY || '');
 const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
-const sellerId = String(process.env.LOTE6_TEST_SELLER_ID || '00000000-0000-0000-0000-000000009699');
+const sellerId = String(process.env.LOTE6_TEST_SELLER_ID || '00000000-0000-4000-8000-000000009699');
 const idempotencyKey = String(process.env.LOTE6_TEST_IDEMPOTENCY_KEY || 'lote6-edge-db-integration:v1');
 
 assert.ok(baseUrl, 'SUPABASE_URL local não informado.');
