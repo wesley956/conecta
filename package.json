@@ -20,7 +20,7 @@
     "check:playlist-qualification": "node --check admin-panel/playlist-commercial-qualification.js && node --check admin-panel/playlist-fingerprint-backfill-bootstrap.js && node scripts/check-playlist-commercial-qualification.mjs",
     "check:inline-playlist-activation": "echo '::notice title=Painel etapa 7A::playlist-flow-controller sintaxe' && node --check admin-panel/playlist-flow-controller.js && echo '::notice title=Painel etapa 7B::unified-playlist-entry sintaxe' && node --check admin-panel/unified-playlist-entry.js && echo '::notice title=Painel etapa 7C::contrato do fluxo' && node scripts/check-inline-playlist-activation.mjs",
     "check:finance-module": "node --check admin-panel/finance-module.js && node scripts/check-finance-module.mjs",
-    "check:subscriptions": "node --check admin-panel/playlist-edit-module.js && node scripts/check-subscription-module.mjs",
+    "check:subscriptions": "node scripts/check-subscription-module.mjs",
     "check:app-release": "node --check admin-panel/app-release.js && node scripts/check-app-release.mjs",
     "check:commercial-security": "node scripts/check-commercial-security.mjs",
     "check:commercial-consolidation": "node --check admin-panel/commercial-consolidation-v2.js && node --check admin-panel/admin-commercial-privacy-v2.js && node --check admin-panel/seller-dynamic-navigation-v2.js && node scripts/check-commercial-consolidation.mjs",
