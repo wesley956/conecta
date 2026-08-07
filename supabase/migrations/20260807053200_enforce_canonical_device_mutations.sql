@@ -1,6 +1,7 @@
 -- Lote 2: defesa em profundidade. Mesmo com service_role, mudanças comerciais
--- sensíveis no aparelho exigem o contexto seller-device-flow. O reparo de
--- integridade possui um contexto separado e não pode alterar plano/validade.
+-- sensíveis no aparelho exigem o contexto seller-device-flow. Reparos e o
+-- arquivamento seguro do Lote 1 usam contextos separados e não podem alterar
+-- plano, validade ou ativar aparelhos.
 
 alter function public.seller_device_flow_transaction(
   uuid,uuid,text,text,uuid,uuid,uuid,timestamptz,uuid,text,text,text,text,uuid
@@ -102,6 +103,43 @@ grant execute on function public.set_device_playlists_transaction_legacy_core(uu
 revoke all on function public.repair_device_playlists_transaction(uuid,uuid,uuid) from public, anon, authenticated;
 grant execute on function public.repair_device_playlists_transaction(uuid,uuid,uuid) to service_role;
 
+-- O Lote 1 promove uma reserva válida para principal ao arquivar uma lista em
+-- uso. Essa operação continua permitida, mas recebe um contexto estreito para
+-- que o novo guard não abra uma rota comercial genérica.
+alter function public.archive_playlist_safe_transaction(uuid,boolean)
+  rename to archive_playlist_safe_transaction_lote1_core;
+
+create or replace function public.archive_playlist_safe_transaction(
+  p_playlist_id uuid,
+  p_confirm boolean default false
+)
+returns table (
+  archived boolean,
+  requires_confirmation boolean,
+  blocking_device_codes text[],
+  primary_devices_promoted integer,
+  reserve_assignments_removed integer,
+  seller_links_disabled integer,
+  validation_sessions_revoked integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform pg_catalog.set_config('roneca.device_commercial_context', 'archive', true);
+  return query select * from public.archive_playlist_safe_transaction_lote1_core(
+    p_playlist_id,
+    p_confirm
+  );
+end;
+$$;
+
+revoke all on function public.archive_playlist_safe_transaction(uuid,boolean) from public, anon, authenticated;
+grant execute on function public.archive_playlist_safe_transaction(uuid,boolean) to service_role;
+revoke all on function public.archive_playlist_safe_transaction_lote1_core(uuid,boolean) from public, anon, authenticated;
+grant execute on function public.archive_playlist_safe_transaction_lote1_core(uuid,boolean) to service_role;
+
 create or replace function public.enforce_canonical_device_commercial_mutation()
 returns trigger
 language plpgsql
@@ -112,11 +150,12 @@ declare
 begin
   if v_context = 'canonical' then return new; end if;
 
-  if v_context = 'repair' then
+  if v_context in ('repair', 'archive') then
     if new.plan_id is distinct from old.plan_id
        or new.subscription_expires_at is distinct from old.subscription_expires_at
        or (old.status <> 'active' and new.status = 'active') then
-      raise exception using errcode = 'P0001', message = 'Reparo de listas não pode alterar plano, validade ou ativação.';
+      raise exception using errcode = 'P0001',
+        message = 'Operação de integridade não pode alterar plano, validade ou ativação.';
     end if;
     return new;
   end if;
