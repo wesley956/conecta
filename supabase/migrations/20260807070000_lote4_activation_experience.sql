@@ -58,6 +58,18 @@ begin
     raise exception using errcode = '22023', message = 'Renovação e troca de listas não alteram a observação do cliente.';
   end if;
 
+  -- Compatibilidade com formulários antigos que transformavam uma data sem hora
+  -- em 23:59:59.999 UTC. A intenção sempre foi "fim daquele dia no Brasil".
+  if v_operation in ('activation', 'renewal')
+     and v_effective_expiry is not null
+     and to_char(v_effective_expiry at time zone 'UTC', 'HH24:MI:SS.MS') = '23:59:59.999' then
+    v_target_date := (v_effective_expiry at time zone 'UTC')::date;
+    v_effective_expiry := (
+      ((v_target_date + 1)::timestamp at time zone 'America/Sao_Paulo')
+      - interval '1 millisecond'
+    );
+  end if;
+
   if v_operation in ('activation', 'renewal') and v_effective_expiry is null then
     select greatest(1, coalesce(plan.duration_days, 30))
       into v_plan_days
