@@ -170,9 +170,16 @@ revoke all on function public.delete_seller_account_transaction(uuid,uuid,text)
 grant execute on function public.delete_seller_account_transaction(uuid,uuid,text)
   to service_role;
 
--- 5.6: corrige o aviso de search_path mutável identificado pelo advisor.
-alter function public.panel_finance_scope_for_role(text)
-  set search_path = '';
+-- 5.6: a produção histórica ainda pode conter este helper, enquanto uma
+-- reconstrução limpa já pode não criá-lo. Corrigimos somente quando existir.
+do $hardening$
+begin
+  if to_regprocedure('public.panel_finance_scope_for_role(text)') is not null then
+    alter function public.panel_finance_scope_for_role(text)
+      set search_path = '';
+  end if;
+end;
+$hardening$;
 
 -- Funções abaixo existem exclusivamente como trigger/helper interno do servidor.
 -- Não devem aparecer como RPC executável para anon ou usuário autenticado.
