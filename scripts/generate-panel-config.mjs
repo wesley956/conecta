@@ -27,6 +27,25 @@ if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
 const LEGACY_MULTI_PANEL_PATTERN = '(dashboard|seller)';
 const modules = [
   {
+    id: 'panel-time',
+    contractName: 'loadPanelTime',
+    pages: ['dashboard', 'seller'],
+    script: './panel-time.js?v=1.0',
+  },
+  {
+    id: 'universal-playlist-registration',
+    contractName: 'loadUniversalPlaylistRegistration',
+    pages: ['dashboard', 'seller'],
+    style: './universal-playlist-registration.css?v=2.0',
+    script: './universal-playlist-registration.js?v=2.0',
+  },
+  {
+    id: 'universal-playlist-inline',
+    contractName: 'loadUniversalPlaylistInline',
+    pages: ['seller'],
+    script: './universal-playlist-inline.js?v=1.0',
+  },
+  {
     id: 'seller-provisioning',
     contractName: 'loadSellerProvisioning',
     pages: ['dashboard'],

@@ -52,16 +52,14 @@ for (const [name, source] of [['vendedor', wizard], ['ADM', adminFlow]]) {
     if (!source.includes(token)) throw new Error(`Fluxo ${name} não usa o backend canônico: ${token}`);
   }
 }
-for (const token of ["['activate', 'renew', 'changePlaylists']", "rpc('seller_device_flow_transaction'", 'idempotencyKey']) {
-  if (!canonical.includes(token)) throw new Error(`seller-device-flow não contém: ${token}`);
+for (const token of ["['activate', 'renew', 'changePlaylists']", "rpc('seller_device_flow_transaction_v4'", 'p_customer_notes', 'idempotencyKey']) {
+  if (!canonical.includes(token)) throw new Error(`seller-device-flow v4 não contém: ${token}`);
 }
 
 for (const token of ['register_playlist_source_transaction', 'commerciallyUsable', 'source_fingerprint']) {
   if (!registration.includes(token)) throw new Error(`Cadastro de listas não contém: ${token}`);
 }
 
-// O domínio histórico de assinaturas continua íntegro para dados existentes e
-// migrações antigas, mas não é mais carregado como autoridade comercial do painel.
 for (const token of ['panel_subscriptions', 'panel_subscription_devices', 'panel_subscription_playlists', 'panel_lab_sessions', 'panel_subscription_playlists_exclusive_uidx']) {
   if (!migration.includes(token)) throw new Error(`Migração histórica de assinatura perdeu: ${token}`);
 }
@@ -75,8 +73,6 @@ for (const token of ["['owner', 'admin', 'seller']", 'create_customer_subscripti
   if (!subscriptionApi.includes(token)) throw new Error(`API histórica de assinatura perdeu compatibilidade de leitura/laboratório: ${token}`);
 }
 if (!legacyEditApi.includes('subscription-playlist-edit')) {
-  // O nome pode aparecer apenas em comentário/import no futuro; o arquivo precisa
-  // continuar reconhecível até a remoção definitiva em um lote de limpeza.
   if (!legacyEditApi.includes("action === 'replace'")) throw new Error('API histórica de edição de assinatura ficou irreconhecível para migração controlada.');
 }
 
@@ -94,4 +90,4 @@ if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(
   throw new Error('Cadastro de listas não pode registrar credenciais no console.');
 }
 
-console.log('✅ Assinaturas históricas preservadas; runtime comercial publicado pertence ao seller-device-flow.');
+console.log('✅ Assinaturas históricas preservadas; runtime comercial publicado pertence ao seller-device-flow v4.');

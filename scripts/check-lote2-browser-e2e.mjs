@@ -123,7 +123,6 @@ async function installNetwork(page, story) {
       let payload = {};
       try { payload = JSON.parse(request.postData() || '{}'); } catch { payload = {}; }
       calls.push({ story, functionName, action: payload.action || null, payload });
-
       if (functionName === 'seller-panel') {
         if (payload.action === 'lookupDeviceCode') {
           return request.respond({ status: 200, contentType: 'application/json', headers: cors(), body: JSON.stringify({ ok: true, device: { ...fixture.pending, canActivate: true, canClaim: true, belongsToAnotherSeller: false } }) });
@@ -236,6 +235,7 @@ async function sellerStory(browser, origin) {
       window.RonecaSellerPortal={refresh:async()=>{}};
       window.RonecaUniversalPlaylists={open:()=>{}};
     </script>
+    <script src="${origin}/admin/panel-time.js"></script>
     <script src="${origin}/admin/seller-activation-wizard.js"></script>
   </body></html>`, { waitUntil: 'networkidle0' });
   await page.waitForFunction(() => Boolean(window.RonecaSellerDeviceFlowUI));

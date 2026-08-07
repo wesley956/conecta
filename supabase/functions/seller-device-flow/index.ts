@@ -110,6 +110,7 @@ Deno.serve(async request => {
     let customerId: string | null = null;
     let customerName: string | null = null;
     let customerWhatsapp: string | null = null;
+    let customerNotes: string | null = null;
     let reason: string | null = null;
 
     if (action === 'activate') {
@@ -120,6 +121,7 @@ Deno.serve(async request => {
       if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) throw new Error('A lista reserva deve ser diferente da principal.');
       expiresAt = optionalTimestamp(input.expiresAt);
       customerId = uuid(input.customerId, 'Cliente', false);
+      customerNotes = optionalText(input.customerNotes, 1000);
       if (!customerId) {
         customerName = requiredText(input.customerName, 'Nome do cliente', 180);
         const phone = normalizedPhone(input.customerWhatsapp);
@@ -128,14 +130,14 @@ Deno.serve(async request => {
       }
     } else if (action === 'renew') {
       operationType = 'renewal';
-      if (hasAny(input, ['customerId', 'customerName', 'customerWhatsapp', 'playlistId', 'backupPlaylistId'])) {
+      if (hasAny(input, ['customerId', 'customerName', 'customerWhatsapp', 'customerNotes', 'playlistId', 'backupPlaylistId'])) {
         throw new Error('Renovação não altera cliente nem listas. Use a ação correspondente para essas mudanças.');
       }
       planId = uuid(input.planId, 'Plano');
       expiresAt = optionalTimestamp(input.expiresAt);
     } else {
       operationType = 'change_playlists';
-      if (hasAny(input, ['customerId', 'customerName', 'customerWhatsapp', 'planId', 'expiresAt'])) {
+      if (hasAny(input, ['customerId', 'customerName', 'customerWhatsapp', 'customerNotes', 'planId', 'expiresAt'])) {
         throw new Error('Alterar listas não muda cliente, plano ou validade.');
       }
       primaryPlaylistId = uuid(input.playlistId, 'Lista principal');
@@ -144,7 +146,7 @@ Deno.serve(async request => {
       reason = optionalText(input.reason, 500) || 'Alteração solicitada no painel';
     }
 
-    const { data, error } = await supabase.rpc('seller_device_flow_transaction', {
+    const { data, error } = await supabase.rpc('seller_device_flow_transaction_v4', {
       p_seller_id: sellerId,
       p_device_id: deviceId,
       p_operation_type: operationType,
@@ -156,6 +158,7 @@ Deno.serve(async request => {
       p_customer_id: customerId,
       p_customer_name: customerName,
       p_customer_whatsapp: customerWhatsapp,
+      p_customer_notes: customerNotes,
       p_reason: reason,
       p_performed_by: `seller-device-flow:${principal.role}:${principal.userId}`,
       p_performed_by_user_id: principal.userId,

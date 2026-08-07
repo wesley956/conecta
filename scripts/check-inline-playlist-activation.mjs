@@ -137,7 +137,8 @@ for (const token of [
 
 for (const token of [
   "['activate', 'renew', 'changePlaylists']",
-  "rpc('seller_device_flow_transaction'",
+  "rpc('seller_device_flow_transaction_v4'",
+  'p_customer_notes',
   'idempotencyKey',
   'Renovação não altera cliente nem listas',
   'Alterar listas não muda cliente, plano ou validade',
@@ -158,4 +159,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('✅ Cadastro de listas desacoplado; ativação, renovação e troca pertencem somente ao seller-device-flow.');
+console.log('✅ Cadastro de listas desacoplado; ativação, renovação e troca pertencem somente ao seller-device-flow v4.');

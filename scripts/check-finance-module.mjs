@@ -65,7 +65,7 @@ const required = {
   scopeGuardMigration: ['enforce_panel_financial_scope', "new.source = 'credit_sale'", "new.financial_scope := 'seller_private'", 'panel_financial_records_scope_guard'],
   test: ["has_table('public', 'panel_financial_records'", 'Retry não duplica a receita'],
   loader: ['loadFinanceModule', "pages: ['seller']", 'finance-module.js?v=2.0', 'loadCreditPackagesModule'],
-  canonical: ["['activate', 'renew', 'changePlaylists']", "rpc('seller_device_flow_transaction'"],
+  canonical: ["['activate', 'renew', 'changePlaylists']", "rpc('seller_device_flow_transaction_v4'", 'p_customer_notes'],
 };
 
 for (const [name, snippets] of Object.entries(required)) {
@@ -88,4 +88,4 @@ if (!source.creditEdge.includes('SUPABASE_SERVICE_ROLE_KEY') || !source.financeE
 }
 if (/comiss[aã]o estimada/i.test(source.financeUi)) throw new Error('O portal do vendedor não deve exibir comissão estimada.');
 
-console.log('✅ Financeiro isolado do fluxo de aparelhos; crédito comercial pertence ao seller-device-flow.');
+console.log('✅ Financeiro isolado do fluxo de aparelhos; crédito comercial pertence ao seller-device-flow v4.');
