@@ -1,0 +1,98 @@
+name: Lote 6 Edge DB Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - 'scripts/check-lote6-edge-db-integration.mjs'
+      - '.github/workflows/lote6-edge-db-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lote6-edge-db-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  edge-auth-postgres:
+    name: HTTP Edge → Auth → PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      OPENAI_API_KEY: unused-in-ci
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --silent
+
+      - name: Start isolated Supabase stack
+        run: npx supabase start
+
+      - name: Export local Supabase credentials
+        shell: bash
+        run: npx supabase status -o env > "${RUNNER_TEMP}/supabase-local.env"
+
+      - name: Serve admin credit Edge Function
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx supabase functions serve admin-credit-adjust --no-verify-jwt > "${RUNNER_TEMP}/admin-credit-adjust.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/admin-credit-adjust.pid"
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --silent --show-error --fail --request OPTIONS \
+              'http://127.0.0.1:54321/functions/v1/admin-credit-adjust' >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo '::error::admin-credit-adjust não ficou disponível no Supabase local.'
+            tail -n 100 "${RUNNER_TEMP}/admin-credit-adjust.log" || true
+            exit 1
+          fi
+
+      - name: Exercise Edge Auth and PostgreSQL together
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source "${RUNNER_TEMP}/supabase-local.env"
+          set +a
+
+          export SUPABASE_URL="${API_URL:-http://127.0.0.1:54321}"
+          export SUPABASE_ANON_KEY="${ANON_KEY}"
+          export SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
+          node scripts/check-lote6-edge-db-integration.mjs
+
+      - name: Upload Edge integration logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lote6-edge-db-integration-logs
+          path: ${{ runner.temp }}/admin-credit-adjust.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: npx supabase stop --no-backup
