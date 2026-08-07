@@ -8,6 +8,7 @@ on:
       - 'supabase/migrations/**'
       - 'supabase/functions/**'
       - 'supabase/config.toml'
+      - 'scripts/assert-supabase-safe-dry-run.mjs'
       - '.github/workflows/deploy-supabase-production.yml'
   workflow_dispatch:
 
@@ -64,7 +65,11 @@ jobs:
         run: supabase migration list
 
       - name: Preflight pending migrations
-        run: supabase db push --dry-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --dry-run 2>&1 | tee "${RUNNER_TEMP}/supabase-db-dry-run.log"
+          node scripts/assert-supabase-safe-dry-run.mjs "${RUNNER_TEMP}/supabase-db-dry-run.log"
 
       - name: Apply pending migrations
         run: supabase db push
