@@ -6,12 +6,20 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const MAX_BODY_BYTES = 64 * 1024;
+const MAX_BODY_BYTES = 32 * 1024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type Input = Record<string, unknown>;
 
 function json(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    headers: {
+      ...CORS,
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    },
   });
 }
 function env(name: string) {
@@ -19,169 +27,142 @@ function env(name: string) {
   if (!value) throw new Error(`Variável ${name} não configurada.`);
   return value;
 }
-async function body(req: Request) {
-  const raw = await req.text();
+async function readBody(request: Request): Promise<Input> {
+  const raw = await request.text();
   if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) throw new Error('Requisição excede o limite permitido.');
-  try { return JSON.parse(raw || '{}') as Record<string, unknown>; } catch { return {}; }
+  try {
+    const parsed = JSON.parse(raw || '{}');
+    return parsed && typeof parsed === 'object' ? parsed as Input : {};
+  } catch {
+    throw new Error('Corpo JSON inválido.');
+  }
 }
-function text(value: unknown, label: string, max = 500) {
-  const result = String(value ?? '').trim();
-  if (!result) throw new Error(`${label} é obrigatório.`);
-  if (result.length > max) throw new Error(`${label} excede o limite permitido.`);
-  return result;
+function requiredText(value: unknown, label: string, max = 500) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) throw new Error(`${label} é obrigatório.`);
+  if (normalized.length > max) throw new Error(`${label} excede o limite permitido.`);
+  return normalized;
 }
-function optional(value: unknown, max = 500) {
-  const result = String(value ?? '').trim();
-  if (!result) return null;
-  if (result.length > max) throw new Error('Texto excede o limite permitido.');
-  return result;
+function optionalText(value: unknown, max = 500) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  if (normalized.length > max) throw new Error('Texto excede o limite permitido.');
+  return normalized;
 }
-function whatsapp(value: unknown) { return String(value ?? '').replace(/[^\d+]/g, '').trim(); }
+function uuid(value: unknown, label: string, required = true) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    if (required) throw new Error(`${label} é obrigatório.`);
+    return null;
+  }
+  if (!UUID.test(normalized)) throw new Error(`${label} inválido.`);
+  return normalized;
+}
+function optionalTimestamp(value: unknown) {
+  const normalized = optionalText(value, 80);
+  if (!normalized) return null;
+  if (!Number.isFinite(Date.parse(normalized))) throw new Error('Data de validade inválida.');
+  return normalized;
+}
+function normalizedPhone(value: unknown) { return String(value ?? '').replace(/\D/g, ''); }
+function hasAny(input: Input, names: string[]) {
+  return names.some(name => Object.prototype.hasOwnProperty.call(input, name)
+    && input[name] !== null && input[name] !== undefined && String(input[name]).trim() !== '');
+}
 function safeMessage(value: unknown) {
   return String(value ?? 'Falha inesperada.')
-    .replace(/([?&](?:username|user|login|password|pass|token|key|secret|auth)=)[^&\s]+/gi, '$1••••')
+    .replace(/([?&](?:username|user|login|password|pass|token|key|secret|auth)=)[^&\s]+/gi, '$1[protegido]')
+    .replace(/\bBearer\s+\S+/gi, 'Bearer [protegido]')
     .slice(0, 500);
 }
-async function getSeller(supabase: any, sellerId: string) {
-  const { data, error } = await supabase.from('panel_sellers')
-    .select('id,name,status,credit_balance,can_go_negative')
-    .eq('id', sellerId).maybeSingle();
-  if (error || !data || data.status !== 'active') throw new Error('Vendedor bloqueado, inativo ou não encontrado.');
-  return data;
-}
-async function assertDevice(supabase: any, sellerId: string, deviceId: string) {
-  const { data, error } = await supabase.from('panel_devices')
-    .select('id,device_code,seller_id,status,device_type,is_playlist_validation_device,plan_id,playlist_id,customer_id,client_name,subscription_expires_at')
-    .eq('id', deviceId).maybeSingle();
-  if (error || !data) throw new Error('Aparelho não encontrado.');
-  if (data.is_playlist_validation_device === true) throw new Error('Este aparelho está reservado para diagnóstico administrativo.');
-  if (data.seller_id && data.seller_id !== sellerId) throw new Error('Este aparelho pertence a outro vendedor.');
-  return data;
-}
-async function assertPlaylist(supabase: any, sellerId: string, playlistId: string, label: string) {
-  const { data: permission, error: permissionError } = await supabase.from('panel_seller_playlists')
-    .select('id').eq('seller_id', sellerId).eq('playlist_id', playlistId).eq('active', true).maybeSingle();
-  if (permissionError || !permission) throw new Error(`${label} não está liberada para este vendedor.`);
-  const { data, error } = await supabase.from('panel_playlists')
-    .select('id,name,active,playlist_qualification_status,playlist_qualification_message,playlist_access_mode')
-    .eq('id', playlistId).maybeSingle();
-  if (error || !data || data.active !== true) throw new Error(`${label} não existe ou está inativa.`);
-  if (data.playlist_qualification_status === 'blocked') throw new Error(`${label} está bloqueada. Corrija os dados antes de utilizar.`);
-  return data;
-}
-async function upsertCustomer(supabase: any, sellerId: string, name: string, phone: string) {
-  const { data: existing } = await supabase.from('panel_customers')
-    .select('id').eq('seller_id', sellerId).eq('whatsapp', phone).maybeSingle();
-  if (existing?.id) {
-    const { error } = await supabase.from('panel_customers').update({ name, whatsapp: phone, status: 'active', updated_at: new Date().toISOString() }).eq('id', existing.id);
-    if (error) throw new Error('Não foi possível atualizar o cliente.');
-    return existing.id;
-  }
-  const { data, error } = await supabase.from('panel_customers')
-    .insert({ seller_id: sellerId, name, whatsapp: phone, status: 'active', updated_at: new Date().toISOString() })
-    .select('id').single();
-  if (error || !data) throw new Error('Não foi possível criar o cliente.');
-  return data.id;
+function successMessage(action: string, result: Record<string, unknown>) {
+  if (result.idempotentReplay === true || result.applied === false) return 'Esta operação já havia sido processada. Nenhuma cobrança foi duplicada.';
+  if (action === 'renew') return 'Aparelho renovado. Cliente e listas foram preservados.';
+  if (action === 'changePlaylists') return result.confirmationStatus === 'confirmed'
+    ? 'Listas alteradas sem consumir crédito ou mudar a validade.'
+    : 'Listas alteradas. O aplicativo fará a confirmação automática.';
+  return result.confirmationStatus === 'confirmed'
+    ? 'Aparelho ativado com sucesso.'
+    : 'Aparelho ativado. O aplicativo confirmará a lista automaticamente.';
 }
 
-Deno.serve(async req => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (req.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
+Deno.serve(async request => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
   try {
-    const supabase = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } });
-    const principal = await requirePanelPrincipal(req, supabase, ['seller']);
-    const seller = await getSeller(supabase, principal.sellerId!);
-    const input = await body(req);
-    const action = text(input.action, 'Ação', 80);
+    const supabase = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin', 'seller']);
+    const input = await readBody(request);
+    const action = requiredText(input.action, 'Ação', 80);
+    if (!['activate', 'renew', 'changePlaylists'].includes(action)) return json({ error: 'Ação comercial inválida.' }, 400);
+
+    const sellerId = principal.role === 'seller' ? principal.sellerId! : uuid(input.sellerId, 'Vendedor');
+    const deviceId = uuid(input.deviceId, 'Aparelho');
+    const idempotencyKey = requiredText(input.idempotencyKey, 'Chave de idempotência', 200);
+
+    let operationType: 'activation' | 'renewal' | 'change_playlists';
+    let planId: string | null = null;
+    let primaryPlaylistId: string | null = null;
+    let backupPlaylistId: string | null = null;
+    let expiresAt: string | null = null;
+    let customerId: string | null = null;
+    let customerName: string | null = null;
+    let customerWhatsapp: string | null = null;
+    let reason: string | null = null;
 
     if (action === 'activate') {
-      const deviceId = text(input.deviceId, 'Aparelho', 80);
-      const device = await assertDevice(supabase, seller.id, deviceId);
-      if (device.status === 'active') throw new Error('O aparelho já está ativo. Use renovação ou alteração de listas.');
-      const planId = text(input.planId, 'Plano', 80);
-      const primaryId = text(input.playlistId, 'Lista principal', 80);
-      const backupId = optional(input.backupPlaylistId, 80);
-      if (backupId && backupId === primaryId) throw new Error('A lista reserva deve ser diferente da principal.');
-      const customerName = text(input.customerName, 'Nome do cliente', 180);
-      const customerWhatsapp = whatsapp(input.customerWhatsapp);
-      if (!customerWhatsapp) throw new Error('WhatsApp do cliente é obrigatório.');
-      const expiresAt = text(input.expiresAt, 'Data de expiração', 80);
-      await assertPlaylist(supabase, seller.id, primaryId, 'Lista principal');
-      if (backupId) await assertPlaylist(supabase, seller.id, backupId, 'Lista reserva');
-      const customerId = await upsertCustomer(supabase, seller.id, customerName, customerWhatsapp);
-      const idempotencyKey = text(input.idempotencyKey, 'Chave de idempotência', 200);
-      const { data, error } = await supabase.rpc('activate_device_provisional_transaction', {
-        p_seller_id: seller.id,
-        p_device_id: deviceId,
-        p_plan_id: planId,
-        p_primary_playlist_id: primaryId,
-        p_backup_playlist_id: backupId,
-        p_expires_at: expiresAt,
-        p_customer_id: customerId,
-        p_client_name: customerName,
-        p_performed_by: `seller:${seller.id}`,
-        p_idempotency_key: idempotencyKey,
-      });
-      if (error) throw new Error(error.message || 'Falha na ativação.');
-      const result = Array.isArray(data) ? data[0] : data;
-      return json({ ok: true, result, message: result?.confirmation_status === 'confirmed'
-        ? 'Aparelho ativado e lista confirmada.'
-        : 'Aparelho ativado. O aplicativo confirmará a lista na primeira abertura.' });
+      operationType = 'activation';
+      planId = uuid(input.planId, 'Plano');
+      primaryPlaylistId = uuid(input.playlistId, 'Lista principal');
+      backupPlaylistId = uuid(input.backupPlaylistId, 'Lista reserva', false);
+      if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) throw new Error('A lista reserva deve ser diferente da principal.');
+      expiresAt = optionalTimestamp(input.expiresAt);
+      customerId = uuid(input.customerId, 'Cliente', false);
+      if (!customerId) {
+        customerName = requiredText(input.customerName, 'Nome do cliente', 180);
+        const phone = normalizedPhone(input.customerWhatsapp);
+        if (phone.length < 10 || phone.length > 15) throw new Error('WhatsApp do cliente inválido.');
+        customerWhatsapp = phone;
+      }
+    } else if (action === 'renew') {
+      operationType = 'renewal';
+      if (hasAny(input, ['customerId', 'customerName', 'customerWhatsapp', 'playlistId', 'backupPlaylistId'])) {
+        throw new Error('Renovação não altera cliente nem listas. Use a ação correspondente para essas mudanças.');
+      }
+      planId = uuid(input.planId, 'Plano');
+      expiresAt = optionalTimestamp(input.expiresAt);
+    } else {
+      operationType = 'change_playlists';
+      if (hasAny(input, ['customerId', 'customerName', 'customerWhatsapp', 'planId', 'expiresAt'])) {
+        throw new Error('Alterar listas não muda cliente, plano ou validade.');
+      }
+      primaryPlaylistId = uuid(input.playlistId, 'Lista principal');
+      backupPlaylistId = uuid(input.backupPlaylistId, 'Lista reserva', false);
+      if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) throw new Error('A lista reserva deve ser diferente da principal.');
+      reason = optionalText(input.reason, 500) || 'Alteração solicitada no painel';
     }
 
-    if (action === 'renew') {
-      const deviceId = text(input.deviceId, 'Aparelho', 80);
-      const device = await assertDevice(supabase, seller.id, deviceId);
-      if (device.status !== 'active') throw new Error('Somente aparelhos ativos podem ser renovados.');
-      const planId = text(input.planId, 'Plano', 80);
-      const expiresAt = text(input.expiresAt, 'Data de expiração', 80);
-      const primaryId = text(device.playlist_id, 'Lista principal atual', 80);
-      await assertPlaylist(supabase, seller.id, primaryId, 'Lista principal atual');
-      const { data, error } = await supabase.rpc('apply_device_subscription_transaction', {
-        p_seller_id: seller.id,
-        p_device_id: deviceId,
-        p_plan_id: planId,
-        p_playlist_id: primaryId,
-        p_expires_at: expiresAt,
-        p_operation_type: 'renewal',
-        p_performed_by: `seller:${seller.id}`,
-        p_idempotency_key: text(input.idempotencyKey, 'Chave de idempotência', 200),
-        p_customer_id: device.customer_id,
-        p_client_name: device.client_name,
-        p_enforce_seller_ownership: true,
-      });
-      if (error) throw new Error(error.message || 'Falha na renovação.');
-      const result = Array.isArray(data) ? data[0] : data;
-      return json({ ok: true, result, message: result?.applied === false
-        ? 'Esta renovação já havia sido processada.'
-        : 'Aparelho renovado. As listas foram preservadas.' });
-    }
-
-    if (action === 'changePlaylists') {
-      const deviceId = text(input.deviceId, 'Aparelho', 80);
-      await assertDevice(supabase, seller.id, deviceId);
-      const primaryId = text(input.playlistId, 'Lista principal', 80);
-      const backupId = optional(input.backupPlaylistId, 80);
-      if (backupId && backupId === primaryId) throw new Error('A lista reserva deve ser diferente da principal.');
-      await assertPlaylist(supabase, seller.id, primaryId, 'Lista principal');
-      if (backupId) await assertPlaylist(supabase, seller.id, backupId, 'Lista reserva');
-      const { data, error } = await supabase.rpc('change_device_playlists_transaction', {
-        p_seller_id: seller.id,
-        p_device_id: deviceId,
-        p_primary_playlist_id: primaryId,
-        p_backup_playlist_id: backupId,
-        p_reason: optional(input.reason, 500) || 'Troca de lista solicitada pelo vendedor',
-        p_performed_by: `seller:${seller.id}`,
-        p_idempotency_key: text(input.idempotencyKey, 'Chave de idempotência', 200),
-      });
-      if (error) throw new Error(error.message || 'Falha ao alterar as listas.');
-      const result = Array.isArray(data) ? data[0] : data;
-      return json({ ok: true, result, message: result?.confirmation_status === 'confirmed'
-        ? 'Listas alteradas com sucesso, sem renovar a validade.'
-        : 'Listas alteradas. O aplicativo fará a confirmação automática.' });
-    }
-
-    return json({ error: 'Ação inválida.' }, 400);
+    const { data, error } = await supabase.rpc('seller_device_flow_transaction', {
+      p_seller_id: sellerId,
+      p_device_id: deviceId,
+      p_operation_type: operationType,
+      p_idempotency_key: idempotencyKey,
+      p_plan_id: planId,
+      p_primary_playlist_id: primaryPlaylistId,
+      p_backup_playlist_id: backupPlaylistId,
+      p_expires_at: expiresAt,
+      p_customer_id: customerId,
+      p_customer_name: customerName,
+      p_customer_whatsapp: customerWhatsapp,
+      p_reason: reason,
+      p_performed_by: `seller-device-flow:${principal.role}:${principal.userId}`,
+      p_performed_by_user_id: principal.userId,
+    });
+    if (error) throw new Error(error.message || 'Falha na operação comercial.');
+    const result = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    return json({ ok: true, result, message: successMessage(action, result) });
   } catch (error) {
     if (error instanceof PanelAuthError) return panelAuthErrorResponse(error, CORS);
     return json({ error: safeMessage(error instanceof Error ? error.message : error) }, 400);

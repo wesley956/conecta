@@ -1,86 +1,33 @@
 (() => {
-  const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
-  const TOKEN_KEY = 'roneca_seller_token';
-  let sellerUxData = null;
-  let lookupDevice = null;
-  let renewDeviceTarget = null;
-  let activationAttempt = null;
-  let renewalAttempt = null;
-
-  function newOperationKey(prefix) {
-    const random = globalThis.crypto?.randomUUID?.()
-      || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    return `${prefix}:${random}`;
-  }
-
-  function selectedPlan(planId) {
-    return (sellerUxData?.plans || []).find(plan => plan.id === planId) || null;
-  }
-
-  function resolveExpiry(dateValue, planId, currentExpiresAt = null) {
-    if (dateValue) {
-      const explicit = new Date(`${dateValue}T23:59:59.999Z`);
-      if (Number.isNaN(explicit.getTime())) throw new Error('Data de validade inválida.');
-      return explicit.toISOString();
-    }
-
-    const plan = selectedPlan(planId);
-    const durationDays = Math.max(1, Number(plan?.durationDays || 30));
-    const now = new Date();
-    const current = currentExpiresAt ? new Date(currentExpiresAt) : null;
-    const base = current && !Number.isNaN(current.getTime()) && current > now
-      ? new Date(current)
-      : now;
-
-    base.setUTCDate(base.getUTCDate() + durationDays);
-    base.setUTCHours(23, 59, 59, 999);
-    return base.toISOString();
-  }
-
-  function ensureAttempt(current, prefix, input, expiryFactory) {
-    const fingerprint = JSON.stringify(input);
-    if (!current || current.fingerprint !== fingerprint) {
-      return {
-        fingerprint,
-        key: newOperationKey(prefix),
-        expiresAt: expiryFactory(),
-      };
-    }
-    return current;
-  }
+  'use strict';
+  if (window.__ronecaSellerPortalUxV3Installed) return;
+  window.__ronecaSellerPortalUxV3Installed = true;
 
   const $ = id => document.getElementById(id);
+  const state = { data: null, lookup: null, loading: false };
   const esc = value => String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-
-  function normalizeText(value) {
-    return String(value || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-  }
-
-  function token() {
-    return sessionStorage.getItem(TOKEN_KEY) || '';
-  }
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
   async function api(action, payload = {}) {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-seller-token': token(),
-      },
+    const config = window.RONECA_PANEL_CONFIG || {};
+    if (!window.RonecaPanelAuth || !config.supabaseUrl || !config.anonKey) throw new Error('Sessão do painel indisponível.');
+    const token = await window.RonecaPanelAuth.getAccessToken();
+    const response = await fetch(`${String(config.supabaseUrl).replace(/\/$/, '')}/functions/v1/seller-panel`, {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', apikey: config.anonKey, Authorization: `Bearer ${token}` },
       body: JSON.stringify({ action, ...payload }),
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || data.message || 'Erro no portal do vendedor.');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || data.message || 'Falha no portal do vendedor.');
     return data;
+  }
+
+  function notify(text, tone = '') {
+    const target = $('sellerUxMsg') || $('msg');
+    if (!target) return;
+    target.textContent = text || '';
+    target.className = target.id === 'msg' ? `msg ${tone === 'err' ? 'err' : ''} visible` : `seller-msg ${tone}`;
   }
 
   function fmtDate(value) {
@@ -88,639 +35,248 @@
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
   }
-
-  function badge(status) {
-    const safe = esc(status || '—');
-    const labels = { active: 'Ativo', pending: 'Pendente', expired: 'Vencido', blocked: 'Bloqueado', inactive: 'Inativo' };
-    return `<span class="badge ${safe}">${esc(labels[status] || status || '—')}</span>`;
+  function daysLeft(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return Math.ceil((date.getTime() - Date.now()) / 86400000);
   }
-
+  function validityText(device) {
+    const days = device.daysLeft ?? daysLeft(device.expiresAt);
+    if (days === null || days === undefined) return '—';
+    if (days < 0) return `<span class="negative">${Math.abs(days)} dia(s) vencido</span>`;
+    if (days <= 7) return `<span class="warn">${days} dia(s)</span>`;
+    return `${days} dia(s)`;
+  }
+  function badge(status) {
+    const labels = { pending: 'Pendente', active: 'Ativo', blocked: 'Bloqueado', expired: 'Vencido', inactive: 'Inativo' };
+    return `<span class="badge ${esc(status)}">${esc(labels[status] || status)}</span>`;
+  }
   function whatsappUrl(value) {
     const digits = String(value || '').replace(/\D/g, '');
     if (!digits) return '';
-    const phone = digits.startsWith('55') ? digits : '55' + digits;
-    return 'https://wa.me/' + phone;
+    return `https://wa.me/${digits.startsWith('55') ? digits : `55${digits}`}`;
   }
+  function formatWhatsapp(value) { return String(value || '').trim(); }
 
-  function formatWhatsapp(value) {
-    const digits = String(value || '').replace(/\D/g, '');
-    if (!digits) return '';
-    const local = digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
-    if (local.length === 11) return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
-    if (local.length === 10) return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
-    return String(value);
-  }
-
-  function showMsg(text, type = '') {
-    const msg = $('sellerUxMsg');
-    if (!msg) return;
-    msg.className = `seller-msg ${type}`;
-    msg.textContent = text || '';
-  }
-
-  function ensureToast() {
-    if ($('sellerToast')) return;
-    const toast = document.createElement('div');
-    toast.id = 'sellerToast';
-    toast.className = 'seller-toast';
-    toast.setAttribute('role', 'status');
-    toast.setAttribute('aria-live', 'polite');
-    document.body.appendChild(toast);
-  }
-
-  function notify(text, type = 'ok') {
-    ensureToast();
-    const toast = $('sellerToast');
-    toast.textContent = text;
-    toast.className = `seller-toast ${type} visible`;
-    clearTimeout(notify.timer);
-    notify.timer = setTimeout(() => {
-      toast.classList.remove('visible');
-    }, 4200);
-  }
-
-  function planOptions(selected = '') {
-    const plans = sellerUxData?.plans || [];
-    return '<option value="">Escolha um plano</option>' + plans.map(plan => (
-      `<option value="${esc(plan.id)}" ${plan.id === selected ? 'selected' : ''}>${esc(plan.name)} — ${Number(plan.creditCost || 1)} crédito(s)</option>`
-    )).join('');
-  }
-
-  function playlistOptions(selected = '') {
-    const playlists = sellerUxData?.playlists || [];
-    return '<option value="">Escolha uma lista liberada</option>' + playlists.map(playlist => (
-      `<option value="${esc(playlist.id)}" ${playlist.id === selected ? 'selected' : ''}>${esc(playlist.name)}</option>`
-    )).join('');
-  }
-
-  function ensureActivationCard() {
-    if ($('sellerActivationCard')) return;
-
+  function ensureFlowEntry() {
+    if ($('sellerDeviceFlowEntry')) return;
     const dashboard = $('dashboardView');
     if (!dashboard) return;
-
-    const statsCard = dashboard.querySelector('.card');
-    if (!statsCard) return;
-
     const card = document.createElement('div');
-    card.id = 'sellerActivationCard';
-    card.className = 'card seller-activation-card seller-portal-section';
+    card.id = 'sellerDeviceFlowEntry';
+    card.className = 'card seller-portal-section seller-activation-card';
     card.dataset.sellerSection = 'activation';
     card.hidden = true;
+    card.setAttribute('aria-hidden', 'true');
     card.innerHTML = `
       <div class="seller-activation-head">
-        <div>
-          <h2>Ativar aparelho por código</h2>
-          <p class="muted">Digite o código que aparece no APK do cliente. O aparelho pendente será vinculado a você e ativado com seus créditos.</p>
-        </div>
+        <div><small>Ativação</small><h2>Ativar aparelho</h2><p>Busque o código e siga o fluxo único. Não existe formulário comercial alternativo nesta tela.</p></div>
       </div>
-
-      <div class="seller-code-search">
-        <div>
-          <label for="sellerDeviceCodeLookup">Código do aparelho</label>
-          <input id="sellerDeviceCodeLookup" placeholder="Ex: ABC123" autocomplete="off" />
-        </div>
-        <button class="primary" type="button" onclick="sellerUxLookupDevice()">Buscar código</button>
+      <div class="seller-device-lookup">
+        <input id="sellerFlowDeviceCode" class="mono" autocomplete="off" placeholder="RPTV-XXXXXX" maxlength="40">
+        <button class="btn primary" type="button" data-sp-action="lookup">Buscar aparelho</button>
       </div>
-
-      <div id="sellerDeviceLookupResult"></div>
-
-      <div id="sellerActivationForm" class="seller-activation-form">
-        <div class="seller-form-grid">
-          <div>
-            <label for="sellerActivationCustomerName">Nome do cliente</label>
-            <input id="sellerActivationCustomerName" placeholder="Ex: João Silva" />
-          </div>
-          <div>
-            <label for="sellerActivationCustomerWhatsapp">WhatsApp do cliente</label>
-            <input id="sellerActivationCustomerWhatsapp" placeholder="Ex: 19999999999" />
-          </div>
-          <div>
-            <label for="sellerActivationPlan">Plano</label>
-            <select id="sellerActivationPlan"></select>
-          </div>
-          <div>
-            <label for="sellerActivationPlaylist">Lista principal</label>
-            <select id="sellerActivationPlaylist"></select>
-          </div>
-          <div>
-            <label for="sellerActivationBackupPlaylist">Lista reserva (opcional)</label>
-            <select id="sellerActivationBackupPlaylist"></select>
-          </div>
-          <div class="wide">
-            <label for="sellerActivationExpiresAt">Validade opcional</label>
-            <input id="sellerActivationExpiresAt" type="date" />
-          </div>
-        </div>
-        <div class="actions">
-          <button class="primary" type="button" onclick="sellerUxActivateDevice()">Ativar usando meus créditos</button>
-          <button type="button" onclick="sellerUxCloseActivationForm()">Cancelar</button>
-        </div>
-      </div>
-
-      <div id="sellerUxMsg" class="seller-msg"></div>
-    `;
-
-    statsCard.insertAdjacentElement('beforebegin', card);
-    window.sellerPortalRefreshNavigation?.();
-
-    $('sellerDeviceCodeLookup')?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') window.sellerUxLookupDevice();
-    });
+      <div id="sellerFlowLookupResult"></div>
+      <div id="sellerUxMsg" class="seller-msg"></div>`;
+    const devices = $('sellerDevicesCard');
+    if (devices) dashboard.insertBefore(card, devices);
+    else dashboard.appendChild(card);
   }
 
   function ensureModal() {
     if ($('sellerUxModal')) return;
-
     const modal = document.createElement('div');
     modal.id = 'sellerUxModal';
     modal.className = 'seller-ux-modal';
-    modal.addEventListener('click', event => {
-      if (event.target === modal) closeSellerUxModal();
-    });
-    modal.innerHTML = `
-      <div class="seller-ux-card" onclick="event.stopPropagation()">
-        <div class="seller-ux-head">
-          <div>
-            <h2 id="sellerUxModalTitle">Detalhes</h2>
-            <p class="muted" id="sellerUxModalSubtitle"></p>
-          </div>
-          <button class="btn" type="button" aria-label="Fechar janela" onclick="closeSellerUxModal()">×</button>
-        </div>
-        <div id="sellerUxModalBody" class="seller-ux-body"></div>
-      </div>
-    `;
+    modal.innerHTML = `<div class="seller-ux-modal-card"><div class="seller-ux-modal-head"><div><small id="sellerUxModalKicker"></small><h2 id="sellerUxModalTitle"></h2></div><button type="button" class="btn" data-sp-action="close-modal">Fechar</button></div><div id="sellerUxModalBody"></div></div>`;
+    modal.addEventListener('click', event => { if (event.target === modal) closeModal(); });
     document.body.appendChild(modal);
   }
-
-  function openSellerUxModal(title, subtitle, body) {
+  function openModal(kicker, title, html) {
     ensureModal();
-    $('sellerUxModalTitle').textContent = title;
-    $('sellerUxModalSubtitle').textContent = subtitle || '';
-    $('sellerUxModalBody').innerHTML = body;
+    $('sellerUxModalKicker').textContent = kicker || '';
+    $('sellerUxModalTitle').textContent = title || '';
+    $('sellerUxModalBody').innerHTML = html;
     $('sellerUxModal').classList.add('open');
   }
-
-  window.closeSellerUxModal = function closeSellerUxModal() {
-    $('sellerUxModal')?.classList.remove('open');
-  };
-
-  async function refreshSellerUxData({ renderTable = true } = {}) {
-    if (!token()) return;
-    const data = await api('dashboard');
-    sellerUxData = data;
-
-    const planSelect = $('sellerActivationPlan');
-    const playlistSelect = $('sellerActivationPlaylist');
-    const backupPlaylistSelect = $('sellerActivationBackupPlaylist');
-    if (planSelect) planSelect.innerHTML = planOptions(planSelect.value);
-    if (playlistSelect) playlistSelect.innerHTML = playlistOptions(playlistSelect.value);
-    if (backupPlaylistSelect) backupPlaylistSelect.innerHTML = playlistOptions(backupPlaylistSelect.value).replace('Escolha uma lista liberada', 'Sem lista reserva');
-
-    renderTodayActions();
-    if (renderTable) renderSellerUxDevicesTable();
-    return data;
-  }
+  function closeModal() { $('sellerUxModal')?.classList.remove('open'); }
 
   function filteredDevices() {
-    const devices = sellerUxData?.devices || [];
-    const term = normalizeText($('deviceSearch')?.value || '');
+    const rows = state.data?.devices || [];
+    const term = String($('deviceSearch')?.value || '').trim().toLowerCase();
     const status = $('statusFilter')?.value || '';
     const expiry = $('expiryFilter')?.value || '';
-
-    return devices.filter(device => {
-      const matchTerm = !term ||
-        normalizeText(device.deviceCode).includes(term) ||
-        normalizeText(device.deviceUuid).includes(term) ||
-        normalizeText(device.customerName).includes(term) ||
-        normalizeText(device.customerWhatsapp).includes(term) ||
-        normalizeText(device.planName).includes(term) ||
-        normalizeText(device.playlistName).includes(term);
-
-      const matchStatus = !status || device.status === status;
-      const days = Number(device.daysLeft);
+    return rows.filter(device => {
+      const text = `${device.deviceCode || ''} ${device.customerName || ''} ${device.customerWhatsapp || ''} ${device.planName || ''}`.toLowerCase();
+      const days = device.daysLeft ?? daysLeft(device.expiresAt);
       let matchExpiry = true;
       if (expiry === 'expired') matchExpiry = Number.isFinite(days) && days < 0;
       if (expiry === 'today') matchExpiry = Number.isFinite(days) && days === 0;
       if (expiry === '7') matchExpiry = Number.isFinite(days) && days >= 0 && days <= 7;
       if (expiry === '30') matchExpiry = Number.isFinite(days) && days >= 0 && days <= 30;
       if (expiry === 'ok') matchExpiry = Number.isFinite(days) && days > 30;
-
-      return matchTerm && matchStatus && matchExpiry;
+      return (!term || text.includes(term)) && (!status || device.status === status) && matchExpiry;
     });
   }
 
-  function validityText(device) {
-    const days = device.daysLeft;
-    if (days === null || days === undefined) return '—';
-    const amount = Math.abs(days);
-    const unit = amount === 1 ? 'dia' : 'dias';
-    if (days < 0) return `<span class="negative">${amount} ${unit} vencido</span>`;
-    if (days <= 7) return `<span class="warn">${days} ${unit}</span>`;
-    return `${days} ${unit}`;
-  }
-
-  function renderTodayActions() {
+  function renderToday() {
     const host = $('sellerTodayActions');
-    if (!host || !sellerUxData) return;
-
-    const stats = sellerUxData.stats || {};
-    const balance = Number(sellerUxData.seller?.creditBalance || 0);
+    if (!host || !state.data) return;
+    const stats = state.data.stats || {};
+    const balance = Number(state.data.seller?.creditBalance || 0);
     const pending = Number(stats.pendingDevices || 0);
     const expiring = Number(stats.expiringSoon || 0);
-    const pendingDeviceLabel = pending === 1 ? 'aparelho' : 'aparelhos';
-    const expiringDeviceLabel = expiring === 1 ? 'aparelho vence' : 'aparelhos vencem';
-    const creditLabel = balance === 1 ? 'crédito disponível' : 'créditos disponíveis';
-    const priorities = [
-      {
-        tone: pending > 0 ? 'warn' : 'ok',
-        title: pending > 0 ? `${pending} ${pendingDeviceLabel} aguardando ativação` : 'Nenhuma ativação pendente',
-        text: pending > 0 ? 'Conclua os cadastros para liberar o acesso dos clientes.' : 'A fila de ativação está em dia.',
-        label: pending > 0 ? 'Ver pendentes' : 'Ativar aparelho',
-        action: pending > 0 ? "sellerUxOpenToday('devices','pending','')" : "sellerUxOpenToday('activation','','')",
-      },
-      {
-        tone: expiring > 0 ? 'warn' : 'ok',
-        title: expiring > 0 ? `${expiring} ${expiringDeviceLabel} em até 7 dias` : 'Nenhum vencimento próximo',
-        text: expiring > 0 ? 'Antecipe as renovações para evitar interrupções.' : 'Não há renovação urgente para hoje.',
-        label: expiring > 0 ? 'Ver renovações' : 'Ver aparelhos',
-        action: expiring > 0 ? "sellerUxOpenToday('devices','','7')" : "sellerUxOpenToday('devices','','')",
-      },
-      {
-        tone: balance <= 3 ? 'warn' : 'neutral',
-        title: `${balance.toLocaleString('pt-BR')} ${creditLabel}`,
-        text: balance <= 3 ? 'Seu saldo está baixo para novas ativações e renovações.' : 'Saldo disponível para manter a operação.',
-        label: 'Ver créditos',
-        action: "sellerUxOpenToday('credits','','')",
-      },
-    ];
-
-    host.innerHTML = priorities.map(item => `
-      <article class="seller-today-action ${item.tone}">
-        <div><strong>${esc(item.title)}</strong><p>${esc(item.text)}</p></div>
-        <button class="btn" type="button" onclick="${item.action}">${esc(item.label)}</button>
-      </article>
-    `).join('');
+    host.innerHTML = `
+      <article class="seller-today-action ${pending ? 'warn' : 'ok'}"><div><strong>${pending ? `${pending} aparelho(s) aguardando ativação` : 'Nenhuma ativação pendente'}</strong><p>${pending ? 'Use o fluxo único para concluir as ativações.' : 'A fila de ativação está em dia.'}</p></div><button class="btn" data-sp-action="nav" data-section="activation">${pending ? 'Ativar' : 'Nova ativação'}</button></article>
+      <article class="seller-today-action ${expiring ? 'warn' : 'ok'}"><div><strong>${expiring ? `${expiring} vencimento(s) próximo(s)` : 'Nenhum vencimento próximo'}</strong><p>A renovação preserva cliente e listas.</p></div><button class="btn" data-sp-action="nav" data-section="devices">Ver aparelhos</button></article>
+      <article class="seller-today-action ${balance <= 3 ? 'warn' : 'neutral'}"><div><strong>${balance.toLocaleString('pt-BR')} crédito(s)</strong><p>Ativações e renovações debitam somente pelo fluxo canônico.</p></div><button class="btn" data-sp-action="nav" data-section="credit-purchases">Meus créditos</button></article>`;
   }
 
-  window.sellerUxOpenToday = function sellerUxOpenToday(section, status = '', expiry = '') {
-    window.sellerPortalNavigate?.(section);
-    if ($('statusFilter')) $('statusFilter').value = status;
-    if ($('expiryFilter')) $('expiryFilter').value = expiry;
-    if (section === 'devices') renderSellerUxDevicesTable();
-  };
-
-  function renderSellerUxDevicesTable() {
-    if (!sellerUxData || !$('devicesBody')) return;
-
-    const devices = filteredDevices();
-    const total = (sellerUxData.devices || []).length;
-    if ($('resultCount')) {
-      const unit = total === 1 ? 'aparelho' : 'aparelhos';
-      const state = total === 1 ? 'exibido' : 'exibidos';
-      $('resultCount').textContent = `${devices.length} de ${total} ${unit} ${state}.`;
-    }
-
-    $('devicesBody').innerHTML = devices.length
-      ? devices.map(device => {
-        const wa = whatsappUrl(device.customerWhatsapp);
-        return `
-          <article class="seller-device-card" data-status="${esc(device.status)}">
-            <div class="seller-device-head">
-              <div>
-                <div class="mono seller-device-code">${esc(device.deviceCode)}</div>
-                <strong>${esc(device.customerName || 'Sem cliente')}</strong>
-                <div class="small muted">${esc(formatWhatsapp(device.customerWhatsapp) || 'Contato não informado')}</div>
-              </div>
-              ${badge(device.status)}
-            </div>
-            <div class="seller-device-meta">
-              <div><small>Plano</small><span>${esc(device.planName || 'Sem plano')}</span></div>
-              <div><small>Validade</small><span>${fmtDate(device.expiresAt)}</span>${validityText(device)}</div>
-              <div><small>Listas</small><span>${esc(device.playlistName || 'Sem lista')}</span><span class="small muted">Reserva: ${esc(device.backupPlaylistName || 'Não configurada')}</span></div>
-              <div><small>Último acesso</small><span>${fmtDate(device.lastSeenAt)}</span></div>
-            </div>
-            <div class="seller-device-actions">
-              <button class="btn primary" onclick="sellerUxShowDeviceDetails('${esc(device.id)}')">Abrir</button>
-              <details class="seller-more-actions">
-                <summary class="btn">Mais ações</summary>
-                <div class="seller-more-actions-menu">
-                  ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noreferrer">Conversar no WhatsApp</a>` : ''}
-                  <button class="btn" onclick="sellerUxOpenRenewModal('${esc(device.id)}')">Renovar aparelho</button>
-                  ${device.status !== 'active' ? `<button class="btn" onclick="sellerUxPrepareActivation('${esc(device.deviceCode)}')">Ativar aparelho</button>` : ''}
-                  <div class="seller-destructive-actions">
-                    <button class="btn red" onclick="sellerUxBlockDevice('${esc(device.id)}')">Bloquear</button>
-                    <button class="btn red" onclick="sellerUxDeleteDevice('${esc(device.id)}')">Excluir</button>
-                  </div>
-                </div>
-              </details>
-            </div>
-          </article>
-        `;
-      }).join('')
-      : '<div class="seller-device-empty muted">Nenhum aparelho encontrado com esses filtros.</div>';
+  function deviceCard(device) {
+    const wa = whatsappUrl(device.customerWhatsapp);
+    return `<article class="seller-device-card" data-status="${esc(device.status)}" data-device-id="${esc(device.id)}">
+      <div class="seller-device-head"><div><div class="mono seller-device-code">${esc(device.deviceCode)}</div><strong>${esc(device.customerName || 'Sem cliente')}</strong><div class="small muted">${esc(formatWhatsapp(device.customerWhatsapp) || 'Contato não informado')}</div></div>${badge(device.status)}</div>
+      <div class="seller-device-meta">
+        <div><small>Plano</small><span>${esc(device.planName || 'Sem plano')}</span></div>
+        <div><small>Validade</small><span>${fmtDate(device.expiresAt)}</span>${validityText(device)}</div>
+        <div><small>Lista principal</small><span>${esc(device.playlistName || 'Sem lista')}</span></div>
+        <div><small>Lista reserva</small><span>${esc(device.backupPlaylistName || 'Não configurada')}</span></div>
+        <div><small>Último acesso</small><span>${fmtDate(device.lastSeenAt)}</span></div>
+      </div>
+      <div class="seller-device-actions">
+        <button class="btn primary" data-sp-action="details" data-device-id="${esc(device.id)}">Abrir</button>
+        ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noreferrer">WhatsApp</a>` : ''}
+        ${device.status === 'active' ? `<button class="btn" data-sp-action="renew" data-device-id="${esc(device.id)}">Renovar</button><button class="btn" data-sp-action="change" data-device-id="${esc(device.id)}">Alterar listas</button>` : `<button class="btn" data-sp-action="prepare-activation" data-device-code="${esc(device.deviceCode)}">Ativar</button>`}
+        <details class="seller-more-actions"><summary class="btn">Administrar</summary><div class="seller-more-actions-menu"><button class="btn red" data-sp-action="block" data-device-id="${esc(device.id)}">Bloquear</button><button class="btn red" data-sp-action="delete" data-device-id="${esc(device.id)}">Excluir</button></div></details>
+      </div>
+    </article>`;
   }
 
-  window.sellerUxLookupDevice = async function sellerUxLookupDevice() {
+  function renderDevices() {
+    const host = $('devicesBody');
+    if (!host || !state.data) return;
+    const list = filteredDevices();
+    const total = (state.data.devices || []).length;
+    if ($('resultCount')) $('resultCount').textContent = `${list.length} de ${total} aparelho(s) exibido(s).`;
+    host.innerHTML = list.length ? list.map(deviceCard).join('') : '<div class="seller-device-empty muted">Nenhum aparelho encontrado com esses filtros.</div>';
+  }
+
+  async function refresh({ renderTable = true } = {}) {
+    if (state.loading) return state.data;
+    state.loading = true;
     try {
-      showMsg('Buscando aparelho...');
-      await refreshSellerUxData({ renderTable: false });
+      state.data = await api('dashboard');
+      renderToday();
+      if (renderTable) renderDevices();
+      return state.data;
+    } finally { state.loading = false; }
+  }
 
-      const deviceCode = $('sellerDeviceCodeLookup').value.trim().toUpperCase();
-      if (!deviceCode) throw new Error('Digite o código do aparelho.');
+  async function lookup(code = null) {
+    const input = $('sellerFlowDeviceCode');
+    const deviceCode = String(code || input?.value || '').trim().toUpperCase();
+    if (!deviceCode) throw new Error('Digite o código do aparelho.');
+    if (input) input.value = deviceCode;
+    notify('Buscando aparelho...');
+    const data = await api('lookupDeviceCode', { deviceCode });
+    state.lookup = data.device;
+    const target = $('sellerFlowLookupResult');
+    const cls = state.lookup?.belongsToAnotherSeller ? 'err' : (state.lookup?.canClaim || state.lookup?.canActivate ? 'ok' : 'warn');
+    target.innerHTML = `<div class="seller-device-result ${cls}"><strong>${esc(data.message || 'Código encontrado.')}</strong><div style="margin-top:8px">Código: <span class="mono">${esc(state.lookup?.deviceCode || deviceCode)}</span> · ${badge(state.lookup?.status || 'pending')}</div><div class="muted" style="margin-top:6px">Cliente: ${esc(state.lookup?.customerName || 'Sem cliente')} · Plano: ${esc(state.lookup?.planName || 'Sem plano')} · Lista: ${esc(state.lookup?.playlistName || 'Sem lista')}</div><div class="actions">${state.lookup?.canClaim ? '<button class="btn primary" data-sp-action="claim">Puxar para mim</button>' : ''}${state.lookup?.canActivate ? '<button class="btn primary" data-sp-action="activate-found">Ativar este aparelho</button>' : ''}</div></div>`;
+    notify('');
+    return data;
+  }
 
-      const data = await api('lookupDeviceCode', { deviceCode });
-      lookupDevice = data.device;
-      const result = $('sellerDeviceLookupResult');
-      const cls = lookupDevice.belongsToAnotherSeller ? 'err' : (lookupDevice.canClaim || lookupDevice.canActivate ? 'ok' : 'warn');
+  async function claim() {
+    if (!state.lookup?.deviceCode) throw new Error('Busque um aparelho primeiro.');
+    await api('claimPendingDevice', { deviceCode: state.lookup.deviceCode });
+    notify('Aparelho vinculado. Agora conclua a ativação.', 'ok');
+    await lookup(state.lookup.deviceCode);
+  }
 
-      result.innerHTML = `
-        <div class="seller-device-result ${cls}">
-          <strong>${esc(data.message || 'Código encontrado.')}</strong>
-          <div style="margin-top:8px;">Código: <span class="mono">${esc(lookupDevice.deviceCode)}</span> · Status: ${badge(lookupDevice.status)}</div>
-          <div class="muted" style="margin-top:6px;">Cliente: ${esc(lookupDevice.customerName || 'Sem cliente')} · Plano: ${esc(lookupDevice.planName || 'Sem plano')} · Lista: ${esc(lookupDevice.playlistName || 'Sem lista')}</div>
-          <div class="actions">
-            ${lookupDevice.canClaim ? `<button class="primary" onclick="sellerUxClaimDevice()">Puxar para mim</button>` : ''}
-            ${lookupDevice.canActivate ? `<button class="primary" onclick="sellerUxOpenActivationForm()">Ativar este aparelho</button>` : ''}
-          </div>
-        </div>
-      `;
-
-      showMsg('');
-    } catch (err) {
-      lookupDevice = null;
-      $('sellerDeviceLookupResult').innerHTML = `<div class="seller-device-result err">${esc(err.message || 'Erro ao buscar aparelho.')}</div>`;
-      showMsg('', 'err');
-    }
-  };
-
-  window.sellerUxClaimDevice = async function sellerUxClaimDevice() {
-    try {
-      if (!lookupDevice?.deviceCode) throw new Error('Busque um aparelho primeiro.');
-      showMsg('Vinculando aparelho ao vendedor...');
-      await api('claimPendingDevice', { deviceCode: lookupDevice.deviceCode });
-      showMsg('Aparelho vinculado. Complete os dados para ativar.', 'ok');
-      await window.sellerUxLookupDevice();
-      window.sellerUxOpenActivationForm();
-    } catch (err) {
-      showMsg(err.message || 'Erro ao puxar aparelho.', 'err');
-    }
-  };
-
-  window.sellerUxOpenActivationForm = function sellerUxOpenActivationForm() {
-    if (!lookupDevice) {
-      showMsg('Busque um aparelho primeiro.', 'err');
-      return;
-    }
-    activationAttempt = null;
-    $('sellerActivationForm').classList.add('open');
-    $('sellerActivationCustomerName').value = lookupDevice.customerName || '';
-    $('sellerActivationCustomerWhatsapp').value = lookupDevice.customerWhatsapp || '';
-    $('sellerActivationPlan').innerHTML = planOptions(lookupDevice.planId || '');
-    $('sellerActivationPlaylist').innerHTML = playlistOptions(lookupDevice.playlistId || '');
-    $('sellerActivationBackupPlaylist').innerHTML = playlistOptions(lookupDevice.backupPlaylistId || '').replace('Escolha uma lista liberada', 'Sem lista reserva');
-  };
-
-  window.sellerUxCloseActivationForm = function sellerUxCloseActivationForm() {
-    activationAttempt = null;
-    $('sellerActivationForm')?.classList.remove('open');
-  };
-
-  window.sellerUxPrepareActivation = async function sellerUxPrepareActivation(deviceCode) {
+  async function prepareActivation(deviceCode) {
     window.sellerPortalNavigate?.('activation');
-    $('sellerDeviceCodeLookup').value = deviceCode;
-    await window.sellerUxLookupDevice();
-    if (lookupDevice?.canActivate) window.sellerUxOpenActivationForm();
-    document.getElementById('sellerActivationCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+    await lookup(deviceCode);
+    if (!state.lookup?.canActivate) throw new Error('Este aparelho não está disponível para ativação.');
+    await window.RonecaSellerDeviceFlowUI?.openActivation(state.lookup.deviceCode);
+  }
 
-  window.sellerUxActivateDevice = async function sellerUxActivateDevice() {
-    try {
-      if (!lookupDevice?.deviceCode) throw new Error('Busque um aparelho primeiro.');
-      showMsg('Ativando aparelho e consumindo créditos...');
-
-      const input = {
-        deviceCode: lookupDevice.deviceCode,
-        customerName: $('sellerActivationCustomerName').value.trim(),
-        customerWhatsapp: $('sellerActivationCustomerWhatsapp').value.trim(),
-        planId: $('sellerActivationPlan').value,
-        playlistId: $('sellerActivationPlaylist').value,
-        backupPlaylistId: $('sellerActivationBackupPlaylist').value,
-        expiresAtInput: $('sellerActivationExpiresAt').value || '',
-      };
-      if (input.playlistId && input.playlistId === input.backupPlaylistId) throw new Error('Escolha listas principal e reserva diferentes.');
-
-      activationAttempt = ensureAttempt(
-        activationAttempt,
-        'seller-activation',
-        input,
-        () => resolveExpiry(input.expiresAtInput, input.planId),
-      );
-
-      await api('activateDeviceByCode', {
-        deviceCode: input.deviceCode,
-        customerName: input.customerName,
-        customerWhatsapp: input.customerWhatsapp,
-        planId: input.planId,
-        playlistId: input.playlistId,
-        backupPlaylistId: input.backupPlaylistId,
-        expiresAt: activationAttempt.expiresAt,
-        idempotencyKey: activationAttempt.key,
-      });
-
-      activationAttempt = null;
-      showMsg('Aparelho ativado com sucesso.', 'ok');
-      $('sellerActivationForm').classList.remove('open');
-      $('sellerDeviceLookupResult').innerHTML = '';
-      lookupDevice = null;
-      await window.loadPortal?.();
-      await refreshSellerUxData();
-    } catch (err) {
-      showMsg(err.message || 'Erro ao ativar aparelho.', 'err');
-    }
-  };
-
-
-  window.sellerUxShowDeviceDetails = function sellerUxShowDeviceDetails(deviceId) {
-    const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
+  function showDetails(deviceId) {
+    const device = (state.data?.devices || []).find(item => item.id === deviceId);
     if (!device) return;
+    openModal('Aparelho', device.deviceCode, `<div class="seller-detail-grid"><div class="seller-detail-box"><small>Status</small>${badge(device.status)}</div><div class="seller-detail-box"><small>Cliente</small><strong>${esc(device.customerName || 'Sem cliente')}</strong><br><span class="muted">${esc(formatWhatsapp(device.customerWhatsapp))}</span></div><div class="seller-detail-box"><small>Plano</small><strong>${esc(device.planName || 'Sem plano')}</strong></div><div class="seller-detail-box"><small>Validade</small><strong>${fmtDate(device.expiresAt)}</strong></div><div class="seller-detail-box"><small>Lista principal</small><strong>${esc(device.playlistName || 'Sem lista')}</strong></div><div class="seller-detail-box"><small>Lista reserva</small><strong>${esc(device.backupPlaylistName || 'Não configurada')}</strong></div><div class="seller-detail-box wide"><small>UUID</small><strong class="mono">${esc(device.deviceUuid || '—')}</strong></div></div>`);
+  }
 
-    openSellerUxModal(
-      'Aparelho',
-      device.deviceCode,
-      `
-        <div class="seller-detail-grid">
-          <div class="seller-detail-box"><small>Código</small><strong class="mono">${esc(device.deviceCode)}</strong></div>
-          <div class="seller-detail-box"><small>Status</small>${badge(device.status)}</div>
-          <div class="seller-detail-box"><small>Cliente</small><strong>${esc(device.customerName || 'Sem cliente')}</strong><br><span class="muted">${esc(formatWhatsapp(device.customerWhatsapp))}</span></div>
-          <div class="seller-detail-box"><small>Plano</small><strong>${esc(device.planName || 'Sem plano')}</strong><br><span class="muted">${esc(device.planCreditCost ? device.planCreditCost + ' crédito(s)' : '')}</span></div>
-          <div class="seller-detail-box"><small>Lista principal</small><strong>${esc(device.playlistName || 'Sem lista')}</strong></div>
-          <div class="seller-detail-box"><small>Lista reserva</small><strong>${esc(device.backupPlaylistName || 'Não configurada')}</strong></div>
-          <div class="seller-detail-box"><small>Validade</small><strong>${fmtDate(device.expiresAt)}</strong><br>${validityText(device)}</div>
-          <div class="seller-detail-box"><small>Último acesso</small><strong>${fmtDate(device.lastSeenAt)}</strong></div>
-        </div>
-        <details class="seller-technical-details">
-          <summary>Detalhes técnicos</summary>
-          <div><small>UUID do aparelho</small><strong class="mono">${esc(device.deviceUuid || '—')}</strong></div>
-        </details>
-      `
-    );
-  };
-
-  window.sellerUxOpenRenewModal = function sellerUxOpenRenewModal(deviceId) {
-    const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
+  async function blockDevice(deviceId) {
+    const device = (state.data?.devices || []).find(item => item.id === deviceId);
+    if (!device || !confirm(`Bloquear o aparelho ${device.deviceCode}?`)) return;
+    await api('blockDevice', { deviceId, status: 'blocked' });
+    await window.loadPortal?.(); await refresh(); notify('Aparelho bloqueado.', 'ok');
+  }
+  async function deleteDevice(deviceId) {
+    const device = (state.data?.devices || []).find(item => item.id === deviceId);
     if (!device) return;
-    renewDeviceTarget = device;
-    renewalAttempt = null;
+    if (!confirm(`Excluir o aparelho ${device.deviceCode}?`)) return;
+    if (!confirm('Confirma a exclusão definitiva?')) return;
+    await api('deleteDevice', { deviceId });
+    await window.loadPortal?.(); await refresh(); notify('Aparelho excluído.', 'ok');
+  }
 
-    openSellerUxModal(
-      'Renovar aparelho',
-      device.deviceCode,
-      `
-        <div class="seller-form-grid">
-          <div>
-            <label for="sellerRenewPlan">Plano</label>
-            <select id="sellerRenewPlan">${planOptions(device.planId || '')}</select>
-          </div>
-          <div>
-            <label for="sellerRenewPlaylist">Lista principal</label>
-            <select id="sellerRenewPlaylist">${playlistOptions(device.playlistId || '')}</select>
-          </div>
-          <div>
-            <label for="sellerRenewBackupPlaylist">Lista reserva (opcional)</label>
-            <select id="sellerRenewBackupPlaylist">${playlistOptions(device.backupPlaylistId || '').replace('Escolha uma lista liberada', 'Sem lista reserva')}</select>
-          </div>
-          <div class="wide">
-            <label for="sellerRenewExpiresAt">Validade opcional</label>
-            <input id="sellerRenewExpiresAt" type="date" />
-          </div>
-        </div>
-        <div class="actions">
-          <button class="primary" onclick="sellerUxRenewDevice()">Renovar usando meus créditos</button>
-          <button onclick="closeSellerUxModal()">Cancelar</button>
-        </div>
-      `
-    );
-  };
-
-  window.sellerUxRenewDevice = async function sellerUxRenewDevice() {
+  async function handleAction(button) {
+    const action = button.dataset.spAction;
     try {
-      if (!renewDeviceTarget) throw new Error('Aparelho não selecionado.');
+      if (action === 'lookup') await lookup();
+      else if (action === 'claim') await claim();
+      else if (action === 'activate-found') await window.RonecaSellerDeviceFlowUI?.openActivation(state.lookup?.deviceCode);
+      else if (action === 'prepare-activation') await prepareActivation(button.dataset.deviceCode);
+      else if (action === 'renew') await window.RonecaSellerDeviceFlowUI?.openRenewal(button.dataset.deviceId);
+      else if (action === 'change') await window.RonecaSellerDeviceFlowUI?.openChange(button.dataset.deviceId);
+      else if (action === 'details') showDetails(button.dataset.deviceId);
+      else if (action === 'block') await blockDevice(button.dataset.deviceId);
+      else if (action === 'delete') await deleteDevice(button.dataset.deviceId);
+      else if (action === 'close-modal') closeModal();
+      else if (action === 'nav') window.sellerPortalNavigate?.(button.dataset.section);
+    } catch (error) { notify(error.message || 'Não foi possível concluir a ação.', 'err'); }
+  }
 
-      const input = {
-        deviceId: renewDeviceTarget.id,
-        planId: $('sellerRenewPlan').value,
-        playlistId: $('sellerRenewPlaylist').value,
-        backupPlaylistId: $('sellerRenewBackupPlaylist').value,
-        expiresAtInput: $('sellerRenewExpiresAt').value || '',
-      };
-      if (input.playlistId && input.playlistId === input.backupPlaylistId) throw new Error('Escolha listas principal e reserva diferentes.');
-
-      renewalAttempt = ensureAttempt(
-        renewalAttempt,
-        'seller-renewal',
-        input,
-        () => resolveExpiry(input.expiresAtInput, input.planId, renewDeviceTarget.expiresAt),
-      );
-
-      await api('renewDevice', {
-        deviceId: input.deviceId,
-        planId: input.planId,
-        playlistId: input.playlistId,
-        backupPlaylistId: input.backupPlaylistId,
-        expiresAt: renewalAttempt.expiresAt,
-        idempotencyKey: renewalAttempt.key,
-      });
-
-      renewalAttempt = null;
-      renewDeviceTarget = null;
-      closeSellerUxModal();
-      await window.loadPortal?.();
-      await refreshSellerUxData();
-      notify('Aparelho renovado com sucesso.');
-    } catch (err) {
-      notify(err.message || 'Erro ao renovar aparelho.', 'err');
-    }
-  };
-
-
-  window.sellerUxBlockDevice = async function sellerUxBlockDevice(deviceId) {
-    try {
-      const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
-      if (!device) return;
-      if (!confirm(`Bloquear o aparelho ${device.deviceCode}?`)) return;
-      await api('blockDevice', { deviceId, status: 'blocked' });
-      await window.loadPortal?.();
-      await refreshSellerUxData();
-      notify('Aparelho bloqueado.');
-    } catch (err) {
-      notify(err.message || 'Erro ao bloquear aparelho.', 'err');
-    }
-  };
-
-  window.sellerUxDeleteDevice = async function sellerUxDeleteDevice(deviceId) {
-    try {
-      const device = (sellerUxData?.devices || []).find(item => item.id === deviceId);
-      const code = device?.deviceCode || deviceId;
-      const customer = device?.customerName || 'Sem cliente';
-
-      if (!confirm(`Excluir o aparelho ${code}, vinculado a ${customer}?`)) return;
-      if (!confirm('Confirma a exclusão definitiva? Esta ação remove o aparelho do painel e não pode ser desfeita.')) return;
-
-      await api('deleteDevice', { deviceId });
-      await window.loadPortal?.();
-      await refreshSellerUxData();
-      notify('Aparelho excluído do painel.');
-    } catch (err) {
-      notify(err.message || 'Erro ao excluir aparelho.', 'err');
-    }
-  };
-
-  function patchFilters() {
+  function wireFilters() {
     ['deviceSearch', 'statusFilter', 'expiryFilter'].forEach(id => {
-      const el = $(id);
-      if (!el || el.dataset.sellerUxPatched) return;
-      el.dataset.sellerUxPatched = 'true';
-      el.addEventListener('input', renderSellerUxDevicesTable);
-      el.addEventListener('change', renderSellerUxDevicesTable);
+      const input = $(id);
+      if (!input || input.dataset.sellerFlowFilter) return;
+      input.dataset.sellerFlowFilter = 'true';
+      input.addEventListener('input', renderDevices);
+      input.addEventListener('change', renderDevices);
     });
+  }
+
+  function installDelegation() {
+    if (document.documentElement.dataset.sellerFlowDelegation) return;
+    document.documentElement.dataset.sellerFlowDelegation = 'true';
+    document.addEventListener('click', event => {
+      const button = event.target.closest('[data-sp-action]');
+      if (button) handleAction(button);
+    });
+    $('sellerFlowDeviceCode')?.addEventListener('keydown', event => { if (event.key === 'Enter') lookup().catch(error => notify(error.message, 'err')); });
   }
 
   async function boot() {
-    ensureActivationCard();
-    ensureModal();
-    ensureToast();
-    patchFilters();
-
-    const originalRenderPortal = window.renderPortal;
-    if (typeof originalRenderPortal === 'function' && !window.__sellerUxRenderPortalPatched) {
-      window.__sellerUxRenderPortalPatched = true;
-      window.renderPortal = function patchedRenderPortal(data) {
-        originalRenderPortal(data);
-        sellerUxData = data;
-        ensureActivationCard();
-        renderTodayActions();
+    ensureFlowEntry(); ensureModal(); wireFilters(); installDelegation();
+    const originalRender = window.renderPortal;
+    if (typeof originalRender === 'function' && !window.__sellerPortalCanonicalRenderPatch) {
+      window.__sellerPortalCanonicalRenderPatch = true;
+      window.renderPortal = function canonicalSellerRender(data) {
+        const result = originalRender(data);
+        state.data = data;
+        ensureFlowEntry(); renderToday(); renderDevices(); wireFilters();
         window.sellerPortalRefreshNavigation?.();
-        patchFilters();
-        const planSelect = $('sellerActivationPlan');
-        const playlistSelect = $('sellerActivationPlaylist');
-        const backupPlaylistSelect = $('sellerActivationBackupPlaylist');
-        if (planSelect) planSelect.innerHTML = planOptions(planSelect.value);
-        if (playlistSelect) playlistSelect.innerHTML = playlistOptions(playlistSelect.value);
-        if (backupPlaylistSelect) backupPlaylistSelect.innerHTML = playlistOptions(backupPlaylistSelect.value).replace('Escolha uma lista liberada', 'Sem lista reserva');
-        setTimeout(renderSellerUxDevicesTable, 0);
+        return result;
       };
     }
-
-    if (token()) {
-      try {
-        await refreshSellerUxData();
-      } catch {
-        // o fluxo de login original cuida da mensagem quando o token estiver inválido
-      }
-    }
+    if (window.RonecaPanelAuth?.hasSession?.()) await refresh().catch(() => {});
   }
 
-  document.addEventListener('DOMContentLoaded', boot);
-  setTimeout(boot, 250);
+  window.RonecaSellerPortal = Object.freeze({ refresh, lookup, prepareActivation });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();

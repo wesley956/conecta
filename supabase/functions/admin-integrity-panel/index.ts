@@ -149,12 +149,10 @@ serve(async request => {
       const primaryPlaylistId = requiredText(body.primaryPlaylistId, 'Lista principal');
       const backupPlaylistId = optionalText(body.backupPlaylistId);
 
-      const { data, error } = await supabase.rpc('set_device_playlists_transaction', {
+      const { data, error } = await supabase.rpc('repair_device_playlists_transaction', {
         p_device_id: deviceId,
         p_primary_playlist_id: primaryPlaylistId,
         p_backup_playlist_id: backupPlaylistId,
-        p_seller_id: null,
-        p_enforce_seller_ownership: false,
       });
       if (error) throw new Error(error.message);
 

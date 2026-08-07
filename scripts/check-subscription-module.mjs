@@ -1,257 +1,97 @@
 import fs from 'node:fs';
 
 const requiredFiles = [
-  'admin-panel/playlist-edit-module.js',
-  'admin-panel/playlist-edit-module.css',
-  'admin-panel/xtream-login-module.js',
-  'admin-panel/xtream-login-module.css',
   'admin-panel/unified-playlist-entry.js',
   'admin-panel/playlist-flow-controller.js',
+  'admin-panel/seller-activation-wizard.js',
+  'admin-panel/admin-device-flow.js',
+  'supabase/functions/seller-device-flow/index.ts',
   'supabase/functions/subscription-panel/index.ts',
   'supabase/functions/subscription-playlist-edit/index.ts',
   'supabase/functions/playlist-registration/index.ts',
-  'supabase/functions/_shared/labSession.ts',
   'supabase/migrations/2026072201_customer_subscriptions_lab.sql',
-  'supabase/migrations/2026072202_owner_role_compat.sql',
   'supabase/migrations/2026072205_subscription_playlist_edit.sql',
   'supabase/migrations/2026072206_legacy_device_playlist_edit.sql',
   'supabase/tests/customer_subscriptions_lab_test.sql',
   'supabase/tests/subscription_playlist_edit_test.sql',
   'supabase/tests/legacy_device_playlist_edit_test.sql',
+  'scripts/generate-panel-config.mjs',
 ];
+for (const file of requiredFiles) if (!fs.existsSync(file)) throw new Error(`Arquivo obrigatório ausente: ${file}`);
 
-for (const file of requiredFiles) {
-  if (!fs.existsSync(file)) throw new Error(`Arquivo obrigatório ausente: ${file}`);
+const read = file => fs.readFileSync(file, 'utf8');
+const unified = read('admin-panel/unified-playlist-entry.js');
+const controller = read('admin-panel/playlist-flow-controller.js');
+const wizard = read('admin-panel/seller-activation-wizard.js');
+const adminFlow = read('admin-panel/admin-device-flow.js');
+const canonical = read('supabase/functions/seller-device-flow/index.ts');
+const subscriptionApi = read('supabase/functions/subscription-panel/index.ts');
+const legacyEditApi = read('supabase/functions/subscription-playlist-edit/index.ts');
+const registration = read('supabase/functions/playlist-registration/index.ts');
+const migration = read('supabase/migrations/2026072201_customer_subscriptions_lab.sql');
+const editMigration = read('supabase/migrations/2026072205_subscription_playlist_edit.sql');
+const deviceEditMigration = read('supabase/migrations/2026072206_legacy_device_playlist_edit.sql');
+const loader = read('scripts/generate-panel-config.mjs');
+
+for (const token of ['admin-base', 'seller-base', 'Login Xtream — host, usuário e senha', 'prepare(key)', 'O cadastro da lista é independente da ativação']) {
+  if (!unified.includes(token)) throw new Error(`Entrada universal não contém: ${token}`);
+}
+for (const forbidden of ['sellerActivationBackupPlaylist', 'sellerRenewPlaylist', 'sellerRenewBackupPlaylist', 'MutationObserver', 'activatePending']) {
+  if (unified.includes(forbidden)) throw new Error(`Entrada universal voltou a depender do formulário comercial antigo: ${forbidden}`);
 }
 
-const playlistEditUi = fs.readFileSync('admin-panel/playlist-edit-module.js', 'utf8');
-const xtreamLoginUi = fs.readFileSync('admin-panel/xtream-login-module.js', 'utf8');
-const unifiedPlaylistEntry = fs.readFileSync('admin-panel/unified-playlist-entry.js', 'utf8');
-const playlistFlowController = fs.readFileSync('admin-panel/playlist-flow-controller.js', 'utf8');
-const registrationApi = fs.readFileSync('supabase/functions/playlist-registration/index.ts', 'utf8');
-const api = fs.readFileSync('supabase/functions/subscription-panel/index.ts', 'utf8');
-const playlistEditApi = fs.readFileSync('supabase/functions/subscription-playlist-edit/index.ts', 'utf8');
-const migration = fs.readFileSync('supabase/migrations/2026072201_customer_subscriptions_lab.sql', 'utf8');
-const playlistEditMigration = fs.readFileSync('supabase/migrations/2026072205_subscription_playlist_edit.sql', 'utf8');
-const legacyEditMigration = fs.readFileSync('supabase/migrations/2026072206_legacy_device_playlist_edit.sql', 'utf8');
-const deviceConfig = fs.readFileSync('supabase/functions/device-config/index.ts', 'utf8');
-const configGenerator = fs.readFileSync('scripts/generate-panel-config.mjs', 'utf8');
-const supabaseConfig = fs.readFileSync('supabase/config.toml', 'utf8');
-
-const playlistEditUiRequirements = [
-  'Editar / trocar',
-  'Adicionar lista reserva',
-  'Editar lista principal',
-  'Editar / adicionar reserva',
-  '.admin-device-card, .seller-device-card',
-  'a lista atual permanece funcionando',
-  'Validar e aplicar',
-  'Nova URL completa',
-  'Motivo da alteração',
-  'installXtreamLoginModule',
-  'xtream-login-module.js',
-];
-for (const token of playlistEditUiRequirements) {
-  if (!playlistEditUi.includes(token)) throw new Error(`Interface de edição de lista não contém: ${token}`);
+for (const token of ['__ronecaPlaylistFlowControllerInstalled', "action: 'create'", 'createPromises', 'operationLocks']) {
+  if (!controller.includes(token)) throw new Error(`Controlador de cadastro não contém: ${token}`);
+}
+for (const forbidden of ['PlaylistSavedPendingError', "wrapBefore('sellerUxActivateDevice'", "wrapBefore('sellerUxRenewDevice'", "wrapBefore('activatePending'"]) {
+  if (controller.includes(forbidden)) throw new Error(`Controlador de listas voltou a interceptar venda: ${forbidden}`);
 }
 
-const xtreamLoginRequirements = [
-  'Login Xtream — host, usuário e senha',
-  'Link M3U completo',
-  'Host do servidor',
-  'Usuário Xtream',
-  'Senha Xtream',
-  "endpoint.searchParams.set('username', user)",
-  "endpoint.searchParams.set('password', pass)",
-  "endpoint.searchParams.set('type', 'm3u_plus')",
-  "endpoint.searchParams.set('output', 'ts')",
-  "!['http:', 'https:'].includes(parsed.protocol)",
-  'parsed.username || parsed.password || parsed.search || parsed.hash',
-  "typeSelect.value = 'xtream'",
-];
-for (const token of xtreamLoginRequirements) {
-  if (!xtreamLoginUi.includes(token)) throw new Error(`Cadastro Xtream não contém: ${token}`);
-}
-
-const unifiedEntryRequirements = [
-  'admin-base',
-  'seller-base',
-  'Login Xtream — host, usuário e senha',
-  'Link M3U completo',
-  'sellerActivationBackupPlaylist',
-  'sellerRenewPlaylist',
-  'sellerRenewBackupPlaylist',
-  "base.searchParams.set('username', user)",
-  "base.searchParams.set('password', pass)",
-  'prepare(key)',
-  'MutationObserver',
-];
-for (const token of unifiedEntryRequirements) {
-  if (!unifiedPlaylistEntry.includes(token)) throw new Error(`Entrada unificada de listas não contém: ${token}`);
-}
-for (const forbidden of [
-  "panelFunction('admin-inline-playlist'",
-  "action: 'createSellerPlaylist'",
-  "before('activatePending'",
-  "before('sellerUxActivateDevice'",
-  "before('sellerUxRenewDevice'",
-  'setInterval(',
-]) {
-  if (unifiedPlaylistEntry.includes(forbidden)) {
-    throw new Error(`Entrada visual não pode executar fluxo comercial legado: ${forbidden}`);
+for (const [name, source] of [['vendedor', wizard], ['ADM', adminFlow]]) {
+  for (const token of ["seller-device-flow", 'changePlaylists']) {
+    if (!source.includes(token)) throw new Error(`Fluxo ${name} não usa o backend canônico: ${token}`);
   }
 }
-
-const flowControllerRequirements = [
-  '__ronecaPlaylistFlowControllerInstalled',
-  "registrationInvoke({ action: 'list' })",
-  "action: 'create'",
-  'PlaylistSavedPendingError',
-  'Não cadastre novamente',
-  "wrapBefore('sellerUxActivateDevice'",
-  "wrapBefore('sellerUxRenewDevice'",
-  "wrapBefore('activatePending'",
-  'createPromises',
-  'operationLocks',
-];
-for (const token of flowControllerRequirements) {
-  if (!playlistFlowController.includes(token)) {
-    throw new Error(`Controlador canônico de listas não contém: ${token}`);
-  }
-}
-for (const forbidden of [
-  "callPanelFunction('admin-inline-playlist'",
-  "action: 'refreshSellerPlaylistCache'",
-  "action: 'refreshPlaylistCache'",
-  'setInterval(',
-]) {
-  if (playlistFlowController.includes(forbidden)) {
-    throw new Error(`Controlador canônico contém comportamento legado: ${forbidden}`);
-  }
+for (const token of ["['activate', 'renew', 'changePlaylists']", "rpc('seller_device_flow_transaction'", 'idempotencyKey']) {
+  if (!canonical.includes(token)) throw new Error(`seller-device-flow não contém: ${token}`);
 }
 
-const registrationRequirements = [
-  'register_playlist_source_transaction',
-  'saved:',
-  'created:',
-  'reused:',
-  'commerciallyUsable',
-  'nextAction',
-  'A validação continuará sem prender esta tela',
-];
-for (const token of registrationRequirements) {
-  if (!registrationApi.includes(token)) {
-    throw new Error(`Cadastro canônico não contém: ${token}`);
-  }
+for (const token of ['register_playlist_source_transaction', 'commerciallyUsable', 'source_fingerprint']) {
+  if (!registration.includes(token)) throw new Error(`Cadastro de listas não contém: ${token}`);
 }
 
-if (/\bFunction\s*\(|\beval\s*\(/.test(`${playlistEditUi}\n${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistFlowController}`)) {
-  throw new Error('Módulos do painel não podem executar código dinâmico.');
+// O domínio histórico de assinaturas continua íntegro para dados existentes e
+// migrações antigas, mas não é mais carregado como autoridade comercial do painel.
+for (const token of ['panel_subscriptions', 'panel_subscription_devices', 'panel_subscription_playlists', 'panel_lab_sessions', 'panel_subscription_playlists_exclusive_uidx']) {
+  if (!migration.includes(token)) throw new Error(`Migração histórica de assinatura perdeu: ${token}`);
 }
-if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(`${xtreamLoginUi}\n${unifiedPlaylistEntry}\n${playlistFlowController}`)) {
-  throw new Error('Cadastro Xtream não pode registrar credenciais no console.');
+for (const token of ['panel_playlist_revisions', 'replace_subscription_playlist_transaction', 'subscription.playlist_replaced']) {
+  if (!editMigration.includes(token)) throw new Error(`Histórico de revisão de assinatura perdeu: ${token}`);
 }
-
-const apiRequirements = [
-  "['owner', 'admin', 'seller']",
-  "case 'createLabSession'",
-  "case 'diagnoseCache'",
-  'requireOwner(principal)',
-  'create_customer_subscription_transaction',
-  'add_subscription_device_transaction',
-  'replace_subscription_device_transaction',
-  'change_subscription_plan_transaction',
-  'renew_customer_subscription_transaction',
-];
-for (const token of apiRequirements) {
-  if (!api.includes(token)) throw new Error(`API de assinatura não contém: ${token}`);
+for (const token of ['panel_device_playlist_operations', 'panel_device_playlist_revisions', 'replace_device_playlist_transaction', 'device.playlist_replaced']) {
+  if (!deviceEditMigration.includes(token)) throw new Error(`Histórico de revisão de aparelho perdeu: ${token}`);
+}
+for (const token of ["['owner', 'admin', 'seller']", 'create_customer_subscription_transaction']) {
+  if (!subscriptionApi.includes(token)) throw new Error(`API histórica de assinatura perdeu compatibilidade de leitura/laboratório: ${token}`);
+}
+if (!legacyEditApi.includes('subscription-playlist-edit')) {
+  // O nome pode aparecer apenas em comentário/import no futuro; o arquivo precisa
+  // continuar reconhecível até a remoção definitiva em um lote de limpeza.
+  if (!legacyEditApi.includes("action === 'replace'")) throw new Error('API histórica de edição de assinatura ficou irreconhecível para migração controlada.');
 }
 
-const playlistEditApiRequirements = [
-  "['owner', 'admin', 'seller']",
-  "action === 'details'",
-  "action === 'replace'",
-  'replace_subscription_playlist_transaction',
-  'replace_device_playlist_transaction',
-  'resolveDeviceTarget',
-  'resolveSubscriptionTarget',
-  'triggerPlaylistCache',
-  'inspectSource',
-  'hmacSha256Hex',
-  'A lista anterior continua funcionando',
-];
-for (const token of playlistEditApiRequirements) {
-  if (!playlistEditApi.includes(token)) throw new Error(`API de edição de lista não contém: ${token}`);
+for (const token of ['loadUnifiedPlaylistEntry', 'loadPlaylistFlowController', 'loadAdminDeviceFlow']) {
+  if (!loader.includes(token)) throw new Error(`Deploy canônico não contém: ${token}`);
 }
-if (playlistEditApi.includes('playlistUrl: playlistUrl') && playlistEditApi.includes('return {\n      ...result')) {
-  throw new Error('API de edição não pode devolver a URL completa da lista.');
+for (const forbidden of ['playlist-edit-module.js', 'subscription-module.js', 'inline-playlist-activation.js', 'playlist-save-feedback-hotfix.js']) {
+  if (loader.includes(forbidden)) throw new Error(`Deploy ainda carrega caminho comercial histórico: ${forbidden}`);
 }
 
-const migrationRequirements = [
-  "role in ('owner', 'admin', 'seller')",
-  'panel_subscriptions',
-  'panel_subscription_devices',
-  'panel_subscription_playlists',
-  'panel_lab_sessions',
-  'max_devices between 1 and 5',
-  'duration_minutes between 1 and 43200',
-  'panel_subscription_playlists_exclusive_uidx',
-];
-for (const token of migrationRequirements) {
-  if (!migration.includes(token)) throw new Error(`Migração de assinatura não contém: ${token}`);
+if (/\bFunction\s*\(|\beval\s*\(/.test(`${unified}\n${controller}\n${wizard}\n${adminFlow}`)) {
+  throw new Error('Módulos publicados não podem executar código dinâmico.');
+}
+if (/console\.(?:log|debug)\s*\([^)]*(?:password|senha|username|usuario)/i.test(`${unified}\n${controller}`)) {
+  throw new Error('Cadastro de listas não pode registrar credenciais no console.');
 }
 
-const playlistEditMigrationRequirements = [
-  'panel_playlist_revisions',
-  "'replace_playlist'",
-  'replace_subscription_playlist_transaction',
-  "playlist_cache_status <> 'ready'",
-  'simultaneous_connections_snapshot',
-  'subscription.playlist_replaced',
-  'on conflict on constraint panel_device_playlists_device_id_priority_key',
-];
-for (const token of playlistEditMigrationRequirements) {
-  if (!playlistEditMigration.includes(token)) throw new Error(`Migração de edição de lista não contém: ${token}`);
-}
-
-const legacyMigrationRequirements = [
-  'panel_device_playlist_operations',
-  'panel_device_playlist_revisions',
-  'replace_device_playlist_transaction',
-  "playlist_cache_status <> 'ready'",
-  'device.playlist_replaced',
-  'on conflict on constraint panel_device_playlists_device_id_priority_key',
-];
-for (const token of legacyMigrationRequirements) {
-  if (!legacyEditMigration.includes(token)) throw new Error(`Compatibilidade dos aparelhos atuais não contém: ${token}`);
-}
-
-if (!deviceConfig.includes('resolveActiveLabSession')) {
-  throw new Error('device-config não aplica sessão temporária de laboratório.');
-}
-if (!deviceConfig.includes('allowDirectPlaylistFallback() && !labContext')) {
-  throw new Error('Laboratório precisa bloquear exposição direta da lista.');
-}
-if (configGenerator.includes('subscription-module.js')) {
-  throw new Error('O protótipo visual de assinaturas não pode voltar ao painel publicado.');
-}
-if (!configGenerator.includes('commercial-consolidation-v2.js')) {
-  throw new Error('O painel publicado precisa carregar a consolidação comercial V2 que remove a aba incompleta sem travar o DOM.');
-}
-if (!configGenerator.includes('playlist-edit-module.js')) {
-  throw new Error('Deploy dos painéis não carrega a edição de listas.');
-}
-if (!configGenerator.includes('unified-playlist-entry.js')) {
-  throw new Error('Deploy dos painéis não carrega a entrada Xtream unificada.');
-}
-if (!configGenerator.includes('playlist-flow-controller.js')) {
-  throw new Error('Deploy dos painéis não carrega o controlador canônico de listas.');
-}
-if (configGenerator.includes('playlist-save-feedback-hotfix.js')) {
-  throw new Error('O hotfix concorrente de salvamento não pode voltar ao painel publicado.');
-}
-if (!supabaseConfig.includes('[functions.subscription-playlist-edit]') || !supabaseConfig.includes('verify_jwt = true')) {
-  throw new Error('Função de edição de listas precisa exigir JWT.');
-}
-
-console.log('✅ Backend de assinaturas, edição segura e controlador canônico de listas validados.');
+console.log('✅ Assinaturas históricas preservadas; runtime comercial publicado pertence ao seller-device-flow.');

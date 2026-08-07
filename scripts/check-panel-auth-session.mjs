@@ -20,6 +20,7 @@ function createStorage() {
 const source = fs.readFileSync('admin-panel/panel-auth-session.js', 'utf8');
 const sessionStorage = createStorage();
 const requests = [];
+let refreshMode = 'success';
 
 async function originalFetch(input, init = {}) {
   const url = input instanceof Request ? input.url : String(input);
@@ -33,6 +34,25 @@ async function originalFetch(input, init = {}) {
     return new Response(JSON.stringify({
       access_token: 'access-token-test',
       refresh_token: 'refresh-token-test',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: 'user-test', email: 'admin@example.com' },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (url.includes('/auth/v1/token?grant_type=refresh_token')) {
+    if (refreshMode === 'fail') {
+      return new Response(JSON.stringify({ error: 'refresh_token_not_found' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({
+      access_token: 'access-token-refreshed',
+      refresh_token: 'refresh-token-refreshed',
       expires_in: 3600,
       expires_at: Math.floor(Date.now() / 1000) + 3600,
       user: { id: 'user-test', email: 'admin@example.com' },
@@ -116,10 +136,43 @@ assert.equal(
 );
 assert.equal(requests[0].headers.has('apikey'), false);
 
+const STORAGE_KEY = 'roneca-panel-auth-session-v1';
+let stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+stored.expires_at = Math.floor(Date.now() / 1000) - 1;
+sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+refreshMode = 'success';
+requests.length = 0;
+
+assert.equal(
+  await windowObject.RonecaPanelAuth.getAccessToken(),
+  'access-token-refreshed',
+  'Sessão expirada deve renovar o JWT antes de uma operação comercial.',
+);
+assert.ok(
+  requests.some(request => request.url.includes('/auth/v1/token?grant_type=refresh_token')),
+  'Sessão expirada precisa passar pelo refresh token.',
+);
+assert.equal(windowObject.RonecaPanelAuth.hasSession(), true, 'Refresh válido deve preservar a sessão.');
+
+stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
+stored.expires_at = Math.floor(Date.now() / 1000) - 1;
+sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+refreshMode = 'fail';
+
+await assert.rejects(
+  windowObject.RonecaPanelAuth.getAccessToken(),
+  /refresh_token_not_found/,
+  'Refresh inválido precisa encerrar a sessão expirada.',
+);
+assert.equal(windowObject.RonecaPanelAuth.hasSession(), false, 'Sessão irrecuperável deve ser removida.');
+assert.equal(sessionStorage.getItem('roneca_admin_token'), null);
+assert.equal(sessionStorage.getItem('cruz-stars-admin-token'), null);
+assert.equal(sessionStorage.getItem('roneca_seller_token'), null);
+
 windowObject.RonecaPanelAuth.clearSession();
 assert.equal(windowObject.RonecaPanelAuth.hasSession(), false);
 assert.equal(sessionStorage.getItem('roneca_admin_token'), null);
 assert.equal(sessionStorage.getItem('cruz-stars-admin-token'), null);
 assert.equal(sessionStorage.getItem('roneca_seller_token'), null);
 
-console.log('✅ Sessão do painel validada: origem, JWT, compatibilidade e limpeza.');
+console.log('✅ Sessão do painel validada: origem, JWT, refresh de expiração e limpeza segura.');

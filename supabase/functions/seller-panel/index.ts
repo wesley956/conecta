@@ -565,6 +565,16 @@ serve(async req => {
     const body = await readBody(req);
     const action = String(body.action || url.searchParams.get('action') || 'dashboard').trim();
 
+    if (action === 'activateDeviceByCode' || action === 'renewDevice') {
+      const canonicalAction = action === 'activateDeviceByCode' ? 'activate' : 'renew';
+      return json({
+        error: 'Operação comercial migrada. Use seller-device-flow.',
+        deprecated: true,
+        canonicalFunction: 'seller-device-flow',
+        canonicalAction,
+      }, 410);
+    }
+
     if (action === 'dashboard' || action === 'list') {
       return json(await getDashboard(supabase, seller));
     }

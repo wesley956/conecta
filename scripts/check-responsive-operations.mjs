@@ -4,6 +4,7 @@ const read = path => fs.readFileSync(path, 'utf8');
 const dashboard = `${read('admin-panel/dashboard.html')}\n${read('admin-panel/dashboard.js')}`;
 const seller = read('admin-panel/seller.html');
 const sellerUx = read('admin-panel/seller-portal-ux.js');
+const sellerWizard = read('admin-panel/seller-activation-wizard.js');
 const sellerNavigation = read('admin-panel/seller-dynamic-navigation-v2.js');
 const panelCss = read('admin-panel/panel-redesign.css');
 
@@ -30,24 +31,41 @@ for (const snippet of [
 }
 
 for (const snippet of [
-  'function renderTodayActions()',
-  'window.sellerUxOpenToday',
+  '__ronecaSellerPortalUxV3Installed',
+  'function renderToday()',
+  'function deviceCard(device)',
   'class="seller-more-actions"',
-  'class="seller-destructive-actions"',
-  'class="seller-technical-details"',
-  'function ensureToast()',
-  'className = `seller-toast ${type} visible`',
+  'function notify(text, tone = \'\')',
   'function formatWhatsapp(value)',
   "dateStyle: 'short', timeStyle: 'short'",
+  "data-sp-action=\"renew\"",
+  "data-sp-action=\"change\"",
+  'RonecaSellerDeviceFlowUI?.openActivation',
+  'RonecaSellerDeviceFlowUI?.openRenewal',
+  'RonecaSellerDeviceFlowUI?.openChange',
 ]) {
   requireCheck(sellerUx.includes(snippet), `Operação do vendedor sem proteção: ${snippet}`);
 }
 
 requireCheck(!/\balert\s*\(/.test(sellerUx), 'O portal do vendedor não pode voltar a usar alertas bloqueantes.');
 requireCheck(
-  /<div class="seller-device-actions">\s*<button class="btn primary"[\s\S]*?<details class="seller-more-actions">/.test(sellerUx),
-  'Cada aparelho precisa preservar uma ação direta e agrupar as demais em Mais ações.',
+  /<div class="seller-device-actions">[\s\S]*?<button class="btn primary" data-sp-action="details"[\s\S]*?<details class="seller-more-actions">/.test(sellerUx),
+  'Cada aparelho precisa preservar uma ação direta e agrupar ações administrativas.',
 );
+requireCheck(
+  sellerUx.includes('A renovação preserva cliente e listas.') && sellerUx.includes('Ativações e renovações debitam somente pelo fluxo canônico.'),
+  'Resumo do vendedor precisa explicar as regras canônicas de renovação e crédito.',
+);
+
+for (const snippet of [
+  "const FLOW_FUNCTION = 'seller-device-flow'",
+  'data-aw-action="next"',
+  'data-aw-action="submit"',
+  'data-aw-field="playlistId"',
+  'data-aw-field="backupPlaylistId"',
+]) {
+  requireCheck(sellerWizard.includes(snippet), `Wizard responsivo comercial incompleto: ${snippet}`);
+}
 
 for (const section of ['home', 'activation', 'devices', 'lists']) {
   requireCheck(sellerNavigation.includes(`'${section}'`), `Destino principal ausente da navegação móvel: ${section}`);
@@ -55,7 +73,7 @@ for (const section of ['home', 'activation', 'devices', 'lists']) {
 
 for (const snippet of [
   "const primarySections = new Set(['home', 'activation', 'devices', 'lists'])",
-  'className = \'seller-v2-more\'',
+  "className = 'seller-v2-more'",
   'class="seller-v2-more-menu"',
   'syncCompactNavigation()',
   "matchMedia('(max-width: 760px)')",
@@ -72,7 +90,6 @@ for (const snippet of [
   'body.seller-v2 .seller-v2-more-menu',
   'body.seller-v2 .seller-today-actions',
   'body.seller-v2 .seller-more-actions-menu',
-  'body.seller-v2 .seller-toast',
   'body.seller-v2 .seller-v2-overflow-source',
   'grid-template-columns: repeat(5, minmax(0, 1fr))',
   'env(safe-area-inset-bottom)',
@@ -85,4 +102,4 @@ requireCheck(
   'As navegações administrativas e do vendedor precisam manter cinco destinos no celular.',
 );
 
-console.log('✅ Operação responsiva validada: navegação compacta, prioridades, ações seguras, datas, telefone e feedback.');
+console.log('✅ Operação responsiva validada com navegação compacta e ações comerciais canônicas.');
