@@ -23,24 +23,32 @@ values (
   )
 );
 
-select unlike(
-  (select description from public.panel_audit_logs where action = 'test.sensitive' order by created_at desc limit 1),
-  '%senha-secreta%',
+select ok(
+  (select description not like '%senha-secreta%'
+     from public.panel_audit_logs
+    where action = 'test.sensitive'
+    order by created_at desc limit 1),
   'Descrição de auditoria não conserva senha'
 );
-select unlike(
-  (select metadata::text from public.panel_audit_logs where action = 'test.sensitive' order by created_at desc limit 1),
-  '%usuario-secreto%',
+select ok(
+  (select metadata::text not like '%usuario-secreto%'
+     from public.panel_audit_logs
+    where action = 'test.sensitive'
+    order by created_at desc limit 1),
   'Metadados de auditoria não conservam usuário'
 );
-select unlike(
-  (select metadata::text from public.panel_audit_logs where action = 'test.sensitive' order by created_at desc limit 1),
-  '%token-secreto%',
+select ok(
+  (select metadata::text not like '%token-secreto%'
+     from public.panel_audit_logs
+    where action = 'test.sensitive'
+    order by created_at desc limit 1),
   'Metadados de auditoria não conservam token'
 );
-select like(
-  (select metadata::text from public.panel_audit_logs where action = 'test.sensitive' order by created_at desc limit 1),
-  '%[redacted]%',
+select ok(
+  (select metadata::text like '%[protegido]%'
+     from public.panel_audit_logs
+    where action = 'test.sensitive'
+    order by created_at desc limit 1),
   'Auditoria sinaliza o conteúdo removido'
 );
 
