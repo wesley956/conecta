@@ -24,7 +24,7 @@ alter table public.panel_device_commercial_operations force row level security;
 revoke all on public.panel_device_commercial_operations from public, anon, authenticated;
 grant all on public.panel_device_commercial_operations to service_role;
 
--- Uma remoção de reserva também é uma revisão comercial válida.
+-- Remover uma reserva também é uma revisão comercial legítima.
 alter table public.panel_device_playlist_revisions
   alter column new_playlist_id drop not null;
 
@@ -92,7 +92,19 @@ begin
     raise exception using errcode = '22023', message = 'Responsável pela operação é obrigatório.';
   end if;
 
-  -- Serializa cliques/retries concorrentes da mesma operação antes de qualquer mutação.
+  -- O fingerprint usa somente a intenção enviada. Assim um retry com validade
+  -- automática continua idempotente mesmo depois de o aparelho ter sido ativado.
+  v_fingerprint := case v_operation
+    when 'activation' then concat_ws('|', 'seller-device-flow-v2', v_operation, p_device_id,
+      coalesce(p_plan_id::text, ''), coalesce(p_primary_playlist_id::text, ''),
+      coalesce(p_backup_playlist_id::text, ''), coalesce(p_expires_at::text, 'auto'),
+      coalesce(p_customer_id::text, ''), coalesce(v_customer_name, ''), v_customer_whatsapp)
+    when 'renewal' then concat_ws('|', 'seller-device-flow-v2', v_operation, p_device_id,
+      coalesce(p_plan_id::text, ''), coalesce(p_expires_at::text, 'auto'))
+    else concat_ws('|', 'seller-device-flow-v2', v_operation, p_device_id,
+      coalesce(p_primary_playlist_id::text, ''), coalesce(p_backup_playlist_id::text, ''))
+  end;
+
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended('seller-device-flow:' || p_seller_id::text || ':' || v_idempotency_key, 0)
   );
@@ -102,6 +114,12 @@ begin
    where operation.seller_id = p_seller_id
      and operation.idempotency_key = v_idempotency_key
    limit 1;
+  if found then
+    if v_existing.operation_fingerprint is distinct from v_fingerprint then
+      raise exception using errcode = '23505', message = 'Chave de idempotência já utilizada em outra operação.';
+    end if;
+    return v_existing.result || pg_catalog.jsonb_build_object('applied', false, 'idempotentReplay', true);
+  end if;
 
   select seller.* into v_seller
     from public.panel_sellers seller
@@ -201,7 +219,7 @@ begin
     if v_operation = 'activation' then
       v_effective_expiry := coalesce(
         p_expires_at,
-        pg_catalog.date_trunc('day', pg_catalog.now() + (greatest(1, coalesce(v_plan.duration_days, 30)) || ' days')::interval)
+        pg_catalog.date_trunc('day', pg_catalog.now() + pg_catalog.make_interval(days => greatest(1, coalesce(v_plan.duration_days, 30))))
           + interval '1 day - 1 millisecond'
       );
       if v_effective_expiry <= pg_catalog.now() then
@@ -213,7 +231,7 @@ begin
         pg_catalog.date_trunc(
           'day',
           greatest(pg_catalog.now(), coalesce(v_device.subscription_expires_at, pg_catalog.now()))
-            + (greatest(1, coalesce(v_plan.duration_days, 30)) || ' days')::interval
+            + pg_catalog.make_interval(days => greatest(1, coalesce(v_plan.duration_days, 30)))
         ) + interval '1 day - 1 millisecond'
       );
       if v_effective_expiry <= greatest(pg_catalog.now(), coalesce(v_device.subscription_expires_at, pg_catalog.now())) then
@@ -222,7 +240,6 @@ begin
     end if;
   end if;
 
-  -- Trava e valida as listas usando exatamente a regra de qualificação comercial do aparelho.
   for v_lock_playlist_id in
     select distinct requested.playlist_id
       from pg_catalog.unnest(array[v_primary_id, v_backup_id]) as requested(playlist_id)
@@ -247,22 +264,6 @@ begin
     );
   end loop;
 
-  -- O fingerprint usa somente valores que definem o resultado comercial.
-  v_fingerprint := case v_operation
-    when 'activation' then concat_ws('|', 'seller-device-flow-v1', v_operation, p_device_id, p_plan_id,
-      v_primary_id, v_backup_id, v_effective_expiry, coalesce(p_customer_id::text, ''),
-      coalesce(v_customer_name, ''), v_customer_whatsapp)
-    when 'renewal' then concat_ws('|', 'seller-device-flow-v1', v_operation, p_device_id, p_plan_id, v_effective_expiry)
-    else concat_ws('|', 'seller-device-flow-v1', v_operation, p_device_id, v_primary_id, coalesce(v_backup_id::text, ''))
-  end;
-
-  if v_existing.id is not null then
-    if v_existing.operation_fingerprint is distinct from v_fingerprint then
-      raise exception using errcode = '23505', message = 'Chave de idempotência já utilizada em outra operação.';
-    end if;
-    return v_existing.result || pg_catalog.jsonb_build_object('applied', false, 'idempotentReplay', true);
-  end if;
-
   if v_operation = 'activation' then
     if p_customer_id is not null then
       select customer.* into v_customer
@@ -273,7 +274,7 @@ begin
       if not found then
         raise exception using errcode = 'P0001', message = 'Cliente não pertence a este vendedor.';
       end if;
-      v_customer_name := coalesce(v_customer_name, v_customer.name);
+      v_customer_name := v_customer.name;
     else
       if v_customer_name is null or length(v_customer_whatsapp) < 10 or length(v_customer_whatsapp) > 15 then
         raise exception using errcode = '22023', message = 'Informe nome e WhatsApp válidos para o cliente.';
@@ -337,8 +338,7 @@ begin
             updated_at = pg_catalog.now();
 
       if v_backup_id is null then
-        delete from public.panel_device_playlists
-         where device_id = p_device_id and priority = 2;
+        delete from public.panel_device_playlists where device_id = p_device_id and priority = 2;
       else
         insert into public.panel_device_playlists(
           device_id, playlist_id, priority, active, consecutive_failures,
@@ -358,7 +358,6 @@ begin
       end if;
     end if;
 
-    -- O preço configurado pelo vendedor vira venda pendente automaticamente.
     select price.default_sale_price_cents into v_sale_price
       from public.panel_seller_plan_prices price
      where price.seller_id = p_seller_id
@@ -372,7 +371,7 @@ begin
         when v_performed_by like 'admin:%' or v_performed_by like 'owner:%' then 'admin'
         else 'system'
       end;
-      v_finance_fingerprint := concat_ws('|', 'seller-device-flow-finance-v1', v_operation,
+      v_finance_fingerprint := concat_ws('|', 'seller-device-flow-finance-v2', v_operation,
         p_device_id, p_seller_id, p_plan_id, v_sale_price);
 
       select record.* into v_existing_finance
@@ -390,8 +389,7 @@ begin
           record_type, source, category, seller_id, customer_id, device_id, plan_id,
           seller_name_snapshot, customer_name_snapshot, device_code_snapshot, plan_name_snapshot,
           description, amount_cents, payment_method, status, reference_date,
-          idempotency_key, operation_fingerprint, created_by_user_id, created_by_role,
-          financial_scope
+          idempotency_key, operation_fingerprint, created_by_user_id, created_by_role, financial_scope
         ) values(
           'income',
           case when v_operation = 'activation' then 'device_activation' else 'device_renewal' end,
@@ -404,13 +402,13 @@ begin
           case when v_operation = 'activation' then v_customer_name else v_device.client_name end,
           v_device.device_code,
           v_plan.name,
-          format('%s do aparelho %s — plano %s',
+          pg_catalog.format('%s do aparelho %s — plano %s',
             case when v_operation = 'activation' then 'Ativação' else 'Renovação' end,
             coalesce(v_device.device_code, p_device_id::text), v_plan.name),
           v_sale_price,
           'pix',
           'pending',
-          pg_catalog.current_date,
+          current_date,
           v_idempotency_key,
           v_finance_fingerprint,
           p_performed_by_user_id,
@@ -472,7 +470,6 @@ begin
       'confirmationStatus', v_confirmation_status
     );
   else
-    -- Troca de listas: nenhuma coluna comercial além dos vínculos é tocada.
     update public.panel_devices
        set playlist_id = v_primary_id,
            updated_at = pg_catalog.now()
@@ -495,8 +492,7 @@ begin
           updated_at = pg_catalog.now();
 
     if v_backup_id is null then
-      delete from public.panel_device_playlists
-       where device_id = p_device_id and priority = 2;
+      delete from public.panel_device_playlists where device_id = p_device_id and priority = 2;
     else
       insert into public.panel_device_playlists(
         device_id, playlist_id, priority, active, consecutive_failures,
@@ -547,23 +543,6 @@ begin
        and coalesce(v_backup_status, 'ready_cache') in ('ready_cache', 'ready_direct') then 'confirmed'
       else 'awaiting_app_confirmation'
     end;
-
-    insert into public.panel_device_playlist_operations(
-      seller_id, device_id, operation_type, idempotency_key,
-      operation_fingerprint, result, performed_by
-    ) values(
-      p_seller_id,
-      p_device_id,
-      'change_playlists',
-      v_idempotency_key,
-      v_fingerprint,
-      pg_catalog.jsonb_build_object(
-        'primary_playlist_id', v_primary_id,
-        'backup_playlist_id', v_backup_id,
-        'confirmation_status', v_confirmation_status
-      ),
-      v_performed_by
-    );
 
     insert into public.panel_audit_logs(action, entity_type, entity_id, description, metadata)
     values(
