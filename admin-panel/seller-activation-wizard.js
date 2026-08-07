@@ -47,13 +47,23 @@
 
   function lifecycleInfo(item) {
     if (!item) return { status: 'generating_cache', label: 'Gerando cache', message: 'O servidor está processando a lista.', platforms: {} };
-    const status = String(item.lifecycleStatus || (
-      item.qualificationStatus === 'ready_cache' ? 'ready_cache'
-        : item.qualificationStatus === 'ready_direct' ? 'confirmed_by_device'
-        : item.qualificationStatus === 'blocked' ? 'blocked'
-        : 'awaiting_device_confirmation'
-    ));
+    const technical = String(item.qualificationStatus || 'validating');
+    const code = String(item.qualificationCode || item.cacheErrorCode || '');
+    const cacheStatus = String(item.cacheStatus || 'missing');
+    const cacheReady = cacheStatus === 'ready' && Number(item.cacheItemCount || 0) > 0;
+    let status = String(item.lifecycleStatus || '');
+    if (!status) {
+      if (item.active === false) status = 'archived';
+      else if (technical === 'blocked' || item.accessMode === 'blocked') status = 'blocked';
+      else if (cacheReady || technical === 'ready_cache') status = 'ready_cache';
+      else if (code === 'DEVICE_TEST_FAILED') status = 'device_failed';
+      else if (technical === 'ready_direct') status = 'confirmed_by_device';
+      else if (technical === 'awaiting_device_test' || technical === 'retryable_error') status = 'awaiting_device_confirmation';
+      else if (technical === 'validating' && cacheStatus === 'missing') status = 'saving';
+      else status = 'generating_cache';
+    }
     const labels = {
+      saving: 'Salvando',
       generating_cache: 'Gerando cache',
       ready_cache: 'Pronta com cache',
       awaiting_device_confirmation: 'Aguardando confirmação no aparelho',
@@ -63,11 +73,12 @@
       archived: 'Arquivada',
     };
     const messages = {
+      saving: 'O cadastro da lista ainda está sendo processado.',
       generating_cache: 'O servidor está tentando autenticar a origem e gerar o cache.',
       ready_cache: 'O cache foi gerado e a lista está pronta nas plataformas compatíveis.',
       awaiting_device_confirmation: 'O servidor não confirmou a origem. No Android, ela pode ser ativada provisoriamente.',
       confirmed_by_device: 'Um aparelho Android abriu o conteúdo e confirmou esta lista.',
-      device_failed: 'O aparelho não conseguiu abrir esta lista. Revise os dados ou tente novamente.',
+      device_failed: 'O aparelho tentou esta lista e não confirmou o acesso. Revise os dados ou tente novamente antes de uma nova ativação.',
       blocked: 'A origem precisa ser corrigida antes de uma nova ativação.',
       archived: 'A lista foi arquivada e não aparece em novas ativações.',
     };
@@ -84,10 +95,15 @@
     return `${item.name} · ${lifecycleInfo(item).label}`;
   }
 
+  function playlistUnavailable(item) {
+    const info = lifecycleInfo(item);
+    return info.status === 'blocked' || info.status === 'device_failed';
+  }
+
   function playlistOptions(selected = '', empty = 'Escolha uma lista') {
     return `<option value="">${esc(empty)}</option>` + (state.data?.playlists || [])
       .filter(item => lifecycleInfo(item).status !== 'archived')
-      .map(item => `<option value="${esc(item.id)}" ${item.id === selected ? 'selected' : ''} ${lifecycleInfo(item).status === 'blocked' ? 'disabled' : ''}>${esc(playlistLabel(item))}</option>`).join('');
+      .map(item => `<option value="${esc(item.id)}" ${item.id === selected ? 'selected' : ''} ${playlistUnavailable(item) ? 'disabled' : ''}>${esc(playlistLabel(item))}</option>`).join('');
   }
 
   function planOptions(selected = '') {
@@ -98,8 +114,11 @@
     const playlist = playlistById(id);
     if (!playlist) return '';
     const info = lifecycleInfo(playlist);
-    const tone = ['ready_cache','confirmed_by_device'].includes(info.status) ? 'ok' : info.status === 'blocked' ? 'err' : 'warn';
-    const android = info.platforms.android === 'provisional' ? ' · Android: ativação provisória' : info.platforms.android === 'available' ? ' · Android: disponível' : '';
+    const tone = ['ready_cache','confirmed_by_device'].includes(info.status) ? 'ok'
+      : ['blocked','device_failed'].includes(info.status) ? 'err' : 'warn';
+    const android = info.platforms.android === 'provisional' ? ' · Android: ativação provisória'
+      : info.platforms.android === 'available' ? ' · Android: disponível'
+      : info.platforms.android === 'blocked' ? ' · Android: bloqueada' : '';
     return `<div class="aw-notice ${tone}"><strong>${esc(info.label)}</strong><span>${esc(info.message)}${esc(android)}</span></div>`;
   }
 
@@ -153,7 +172,9 @@
     if (logical === 1 && (!d.customerName?.trim() || d.customerWhatsapp?.replace(/\D/g, '').length < 10)) throw new Error('Informe nome e WhatsApp do cliente.');
     if (logical === 2 && !d.planId) throw new Error('Escolha um plano.');
     if (logical === 3 && !d.playlistId) throw new Error('Escolha a lista principal.');
+    if (logical === 3 && playlistUnavailable(playlistById(d.playlistId))) throw new Error('Esta lista está bloqueada para novas ativações. Revise o estado ou tente o cache novamente.');
     if (logical === 4 && d.useBackup && !d.backupPlaylistId) throw new Error('Escolha a reserva ou desative essa opção.');
+    if (logical === 4 && d.useBackup && playlistUnavailable(playlistById(d.backupPlaylistId))) throw new Error('A lista reserva está bloqueada para novas ativações.');
     if (d.playlistId && d.playlistId === d.backupPlaylistId) throw new Error('As listas principal e reserva precisam ser diferentes.');
   }
 
