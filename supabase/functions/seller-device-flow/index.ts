@@ -22,18 +22,14 @@ function json(value: unknown, status = 200) {
     },
   });
 }
-
 function env(name: string) {
   const value = Deno.env.get(name);
   if (!value) throw new Error(`Variável ${name} não configurada.`);
   return value;
 }
-
 async function readBody(request: Request): Promise<Input> {
   const raw = await request.text();
-  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) {
-    throw new Error('Requisição excede o limite permitido.');
-  }
+  if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) throw new Error('Requisição excede o limite permitido.');
   try {
     const parsed = JSON.parse(raw || '{}');
     return parsed && typeof parsed === 'object' ? parsed as Input : {};
@@ -41,21 +37,18 @@ async function readBody(request: Request): Promise<Input> {
     throw new Error('Corpo JSON inválido.');
   }
 }
-
 function requiredText(value: unknown, label: string, max = 500) {
   const normalized = String(value ?? '').trim();
   if (!normalized) throw new Error(`${label} é obrigatório.`);
   if (normalized.length > max) throw new Error(`${label} excede o limite permitido.`);
   return normalized;
 }
-
 function optionalText(value: unknown, max = 500) {
   const normalized = String(value ?? '').trim();
   if (!normalized) return null;
   if (normalized.length > max) throw new Error('Texto excede o limite permitido.');
   return normalized;
 }
-
 function uuid(value: unknown, label: string, required = true) {
   const normalized = String(value ?? '').trim();
   if (!normalized) {
@@ -65,40 +58,29 @@ function uuid(value: unknown, label: string, required = true) {
   if (!UUID.test(normalized)) throw new Error(`${label} inválido.`);
   return normalized;
 }
-
 function optionalTimestamp(value: unknown) {
   const normalized = optionalText(value, 80);
   if (!normalized) return null;
   if (!Number.isFinite(Date.parse(normalized))) throw new Error('Data de validade inválida.');
   return normalized;
 }
-
-function normalizedPhone(value: unknown) {
-  return String(value ?? '').replace(/\D/g, '');
-}
-
+function normalizedPhone(value: unknown) { return String(value ?? '').replace(/\D/g, ''); }
 function hasAny(input: Input, names: string[]) {
   return names.some(name => Object.prototype.hasOwnProperty.call(input, name)
     && input[name] !== null && input[name] !== undefined && String(input[name]).trim() !== '');
 }
-
 function safeMessage(value: unknown) {
   return String(value ?? 'Falha inesperada.')
     .replace(/([?&](?:username|user|login|password|pass|token|key|secret|auth)=)[^&\s]+/gi, '$1[protegido]')
     .replace(/\bBearer\s+\S+/gi, 'Bearer [protegido]')
     .slice(0, 500);
 }
-
 function successMessage(action: string, result: Record<string, unknown>) {
-  if (result.idempotentReplay === true || result.applied === false) {
-    return 'Esta operação já havia sido processada. Nenhuma cobrança foi duplicada.';
-  }
+  if (result.idempotentReplay === true || result.applied === false) return 'Esta operação já havia sido processada. Nenhuma cobrança foi duplicada.';
   if (action === 'renew') return 'Aparelho renovado. Cliente e listas foram preservados.';
-  if (action === 'changePlaylists') {
-    return result.confirmationStatus === 'confirmed'
-      ? 'Listas alteradas sem consumir crédito ou mudar a validade.'
-      : 'Listas alteradas. O aplicativo fará a confirmação automática.';
-  }
+  if (action === 'changePlaylists') return result.confirmationStatus === 'confirmed'
+    ? 'Listas alteradas sem consumir crédito ou mudar a validade.'
+    : 'Listas alteradas. O aplicativo fará a confirmação automática.';
   return result.confirmationStatus === 'confirmed'
     ? 'Aparelho ativado com sucesso.'
     : 'Aparelho ativado. O aplicativo confirmará a lista automaticamente.';
@@ -107,7 +89,6 @@ function successMessage(action: string, result: Record<string, unknown>) {
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (request.method !== 'POST') return json({ error: 'Método não permitido.' }, 405);
-
   try {
     const supabase = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -115,13 +96,9 @@ Deno.serve(async request => {
     const principal = await requirePanelPrincipal(request, supabase, ['owner', 'admin', 'seller']);
     const input = await readBody(request);
     const action = requiredText(input.action, 'Ação', 80);
-    if (!['activate', 'renew', 'changePlaylists'].includes(action)) {
-      return json({ error: 'Ação comercial inválida.' }, 400);
-    }
+    if (!['activate', 'renew', 'changePlaylists'].includes(action)) return json({ error: 'Ação comercial inválida.' }, 400);
 
-    const sellerId = principal.role === 'seller'
-      ? principal.sellerId!
-      : uuid(input.sellerId, 'Vendedor');
+    const sellerId = principal.role === 'seller' ? principal.sellerId! : uuid(input.sellerId, 'Vendedor');
     const deviceId = uuid(input.deviceId, 'Aparelho');
     const idempotencyKey = requiredText(input.idempotencyKey, 'Chave de idempotência', 200);
 
@@ -140,9 +117,7 @@ Deno.serve(async request => {
       planId = uuid(input.planId, 'Plano');
       primaryPlaylistId = uuid(input.playlistId, 'Lista principal');
       backupPlaylistId = uuid(input.backupPlaylistId, 'Lista reserva', false);
-      if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) {
-        throw new Error('A lista reserva deve ser diferente da principal.');
-      }
+      if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) throw new Error('A lista reserva deve ser diferente da principal.');
       expiresAt = optionalTimestamp(input.expiresAt);
       customerId = uuid(input.customerId, 'Cliente', false);
       if (!customerId) {
@@ -165,9 +140,7 @@ Deno.serve(async request => {
       }
       primaryPlaylistId = uuid(input.playlistId, 'Lista principal');
       backupPlaylistId = uuid(input.backupPlaylistId, 'Lista reserva', false);
-      if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) {
-        throw new Error('A lista reserva deve ser diferente da principal.');
-      }
+      if (backupPlaylistId && backupPlaylistId === primaryPlaylistId) throw new Error('A lista reserva deve ser diferente da principal.');
       reason = optionalText(input.reason, 500) || 'Alteração solicitada no painel';
     }
 
@@ -184,11 +157,10 @@ Deno.serve(async request => {
       p_customer_name: customerName,
       p_customer_whatsapp: customerWhatsapp,
       p_reason: reason,
-      p_performed_by: `${principal.role}:${principal.userId}`,
+      p_performed_by: `seller-device-flow:${principal.role}:${principal.userId}`,
       p_performed_by_user_id: principal.userId,
     });
     if (error) throw new Error(error.message || 'Falha na operação comercial.');
-
     const result = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
     return json({ ok: true, result, message: successMessage(action, result) });
   } catch (error) {
