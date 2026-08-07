@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const files = {
   migration: 'supabase/migrations/20260720050541_device_playlist_failover.sql',
   adminBackend: 'supabase/functions/admin-panel/index.ts',
-  sellerBackend: 'supabase/functions/seller-panel/index.ts',
+  canonicalBackend: 'supabase/functions/seller-device-flow/index.ts',
   deviceBackend: 'supabase/functions/device-config/index.ts',
   seriesDetail: 'supabase/functions/series-detail/index.ts',
   nativeDeviceApi: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/DeviceApi.kt',
@@ -15,8 +15,8 @@ const files = {
   smartSession: 'smart-tv/src/deviceSession.ts',
   smartCatalog: 'smart-tv/src/catalog.ts',
   smartPlayer: 'smart-tv/src/player/PlayerScreen.tsx',
-  adminUi: 'admin-panel/dashboard.js',
-  sellerUi: 'admin-panel/seller-portal-ux.js',
+  adminUi: 'admin-panel/admin-device-flow.js',
+  sellerUi: 'admin-panel/seller-activation-wizard.js',
   sellerDelete: 'supabase/functions/seller-delete/index.ts',
   redesign: 'admin-panel/panel-redesign.css',
 };
@@ -38,16 +38,15 @@ const required = {
     'revoke all on table public.panel_device_playlists from public, anon, authenticated',
   ],
   adminBackend: [
-    'setDevicePlaylists',
-    "rpc('set_device_playlists_transaction'",
-    "rpc('apply_device_subscription_complete_transaction'",
-    "action === 'refreshPlaylistCache'",
-    'backupPlaylistId',
-  ],
-  sellerBackend: [
-    "rpc('apply_device_subscription_complete_transaction'",
     'backupPlaylistId',
     'panel_device_playlists',
+    "action === 'refreshPlaylistCache'",
+  ],
+  canonicalBackend: [
+    "const action = requiredText(input.action",
+    "['activate', 'renew', 'changePlaylists']",
+    'backupPlaylistId',
+    "rpc('seller_device_flow_transaction'",
   ],
   deviceBackend: ['playlistHealth', 'cooldown_until', 'selectedPlaylistId', 'playlists: playlistConfigs'],
   seriesDetail: ['device_playlists:panel_device_playlists', 'requestedPlaylistId', 'attemptedPlaylistIds', 'sourcePlaylistId'],
@@ -81,8 +80,8 @@ const required = {
     'left.id === session.selectedPlaylistId',
   ],
   smartPlayer: ['onTerminalPlaybackFailure', '20_000', '12_000', '25_000'],
-  adminUi: ['dev-backup-playlist-', 'pend-backup-playlist-', 'refreshPlaylistCache'],
-  sellerUi: ['sellerActivationBackupPlaylist', 'sellerRenewBackupPlaylist'],
+  adminUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'openPlaylistChange'],
+  sellerUi: ["const FLOW_FUNCTION = 'seller-device-flow'", 'backupPlaylistId', 'toggle-backup'],
   sellerDelete: ["update({ seller_id: null", "action: 'seller.deleted'", 'histórico foram preservados'],
   redesign: ['body.admin-v2 .tabs::before', 'content: none !important'],
 };
@@ -95,4 +94,4 @@ for (const [key, snippets] of Object.entries(required)) {
   }
 }
 
-console.log('✅ Lista principal/reserva, failover, cache e preservação comercial validados.');
+console.log('✅ Lista principal/reserva, failover e fluxo comercial canônico validados.');
