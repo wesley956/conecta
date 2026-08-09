@@ -1,6 +1,6 @@
 /*
-  Cruz Stars / Roneca — Painéis Web
-  Tema inspirado no projeto cruz.tar: preto limpo, cards flat, vermelho como marca,
+  Roneca Player TV — Painéis Web
+  Tema premium: preto limpo, cards flat, vermelho como ação,
   tabelas legíveis e navegação profissional. Não afeta o APK Android nativo.
 */
 :root {
@@ -579,7 +579,7 @@ td .btn.red {
   content: "";
   width: 34px;
   height: 34px;
-  background: url("./assets/cruz-stars-logo.png") center / contain no-repeat;
+  background: url("./assets/roneca-player-tv-emblem.png") center / contain no-repeat;
   display: block;
 }
 
