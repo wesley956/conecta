@@ -52,7 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
@@ -364,7 +364,7 @@ private fun MoviePosterCard(
             .focusable(),
     ) {
         if (!movie.coverUrl.isNullOrBlank()) {
-            AsyncImage(
+            RonecaAsyncImage(
                 model = movie.coverUrl,
                 contentDescription = movie.name,
                 modifier = Modifier.fillMaxSize(),
@@ -408,7 +408,7 @@ private fun MoviePosterCard(
             Text(
                 text = listOfNotNull(movie.year?.toString(), movie.category).joinToString(" • "),
                 color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 9.sp else 10.sp,
+                fontSize = if (isTelevision) 11.sp else 11.sp,
                 maxLines = 1,
             )
         }
@@ -423,6 +423,6 @@ private fun Badge(text: String, color: Color) {
             .border(1.dp, color.copy(alpha = 0.70f), RoundedCornerShape(999.dp))
             .padding(horizontal = 7.dp, vertical = 4.dp),
     ) {
-        Text(text = text, color = color, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }

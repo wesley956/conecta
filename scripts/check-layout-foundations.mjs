@@ -93,8 +93,11 @@ requireCheck(tvStyles.includes(".card-copy {"), "O espaçamento interno dos card
 requireCheck(contrast("#a39d91", "#11100e") >= 4.5, "O texto secundário não alcança contraste AA sobre a superfície.");
 requireCheck(contrast("#a39d91", "#050505") >= 4.5, "O texto secundário não alcança contraste AA sobre o fundo.");
 
-requireCheck(androidColors.includes("val TextMuted = Color(0xFFA39D91)"), "O Android perdeu o texto secundário de alto contraste.");
-requireCheck(androidColors.includes("val TextDisabled = Color(0xFF69645B)"), "Texto secundário e desabilitado precisam continuar separados.");
+requireCheck(androidColors.includes("val TextSecondary = Color(0xFF9C9CA5)"), "O Android perdeu o texto secundário alinhado ao painel.");
+requireCheck(androidColors.includes("val TextMuted = Color(0xFF81818A)"), "O Android perdeu o texto auxiliar de alto contraste.");
+requireCheck(androidColors.includes("val TextDisabled = Color(0xFF5F5F68)"), "Texto auxiliar e desabilitado precisam continuar separados.");
+requireCheck(contrast("#9c9ca5", "#131315") >= 4.5, "O texto secundário Android não alcança contraste AA sobre a superfície.");
+requireCheck(contrast("#81818a", "#080809") >= 4.5, "O texto auxiliar Android não alcança contraste AA sobre o fundo.");
 requireCheck(androidColors.includes("val Focus = RedStrong"), "O Android perdeu o token único de foco.");
 requireCheck(androidNavigation.includes("fontSize = if (isTelevision) 11.sp else 10.sp"), "O rótulo focado da navegação ficou pequeno demais.");
 requireCheck(androidNavigation.includes("fontSize = 10.sp"), "Os rótulos da navegação inferior ficaram pequenos demais.");

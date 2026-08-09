@@ -407,7 +407,7 @@ private fun UpdateButton(
     ) {
         Text(
             text = label,
-            color = if (primary && !focused) Color(0xFF100E08) else RonecaColors.TextPrimary,
+            color = RonecaColors.TextPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,

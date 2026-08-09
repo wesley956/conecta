@@ -52,7 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
@@ -482,7 +482,7 @@ private fun ChannelItem(
             contentAlignment = Alignment.Center,
         ) {
             if (!channel.logoUrl.isNullOrBlank()) {
-                AsyncImage(
+                RonecaAsyncImage(
                     model = channel.logoUrl,
                     contentDescription = channel.name,
                     modifier = Modifier.fillMaxSize(),

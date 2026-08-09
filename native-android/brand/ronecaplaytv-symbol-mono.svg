@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">Símbolo monocromático Roneca Player TV</title>
+  <g fill="none" stroke="#f7f7f8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M416 257 298 105M608 257 726 105" stroke-width="38"/>
+    <circle cx="292" cy="98" r="31" fill="#f7f7f8" stroke="none"/>
+    <circle cx="732" cy="98" r="31" fill="#f7f7f8" stroke="none"/>
+    <rect x="126" y="225" width="772" height="576" rx="136" stroke-width="70"/>
+    <path d="M390 812h244M332 868h360" stroke-width="44"/>
+    <path d="M455 409v242l204-121Z" fill="#f7f7f8" stroke="none"/>
+  </g>
+</svg>

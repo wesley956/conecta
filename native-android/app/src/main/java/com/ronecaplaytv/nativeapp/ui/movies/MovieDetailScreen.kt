@@ -43,7 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
@@ -197,7 +197,7 @@ private fun MovieCover(movie: NativeMovie, modifier: Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         if (!movie.coverUrl.isNullOrBlank()) {
-            AsyncImage(
+            RonecaAsyncImage(
                 model = movie.coverUrl,
                 contentDescription = movie.name,
                 modifier = Modifier.fillMaxSize(),
@@ -289,7 +289,7 @@ private fun DetailActionButton(
         focused -> RonecaColors.SurfaceRaised
         else -> RonecaColors.Surface
     }
-    val foreground = if (primary && enabled) Color(0xFF100E08) else RonecaColors.TextPrimary
+    val foreground = RonecaColors.TextPrimary
 
     Box(
         modifier = Modifier
@@ -381,7 +381,7 @@ private fun RecommendationCard(
                 .background(RonecaColors.BackgroundSoft),
         ) {
             if (!movie.coverUrl.isNullOrBlank()) {
-                AsyncImage(
+                RonecaAsyncImage(
                     model = movie.coverUrl,
                     contentDescription = movie.name,
                     modifier = Modifier.fillMaxSize(),

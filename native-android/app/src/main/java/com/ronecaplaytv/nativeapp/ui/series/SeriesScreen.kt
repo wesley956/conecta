@@ -52,7 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
@@ -361,7 +361,7 @@ private fun SeriesPosterCard(
             .focusable(),
     ) {
         if (!series.coverUrl.isNullOrBlank()) {
-            AsyncImage(
+            RonecaAsyncImage(
                 model = series.coverUrl,
                 contentDescription = series.name,
                 modifier = Modifier.fillMaxSize(),
@@ -400,7 +400,7 @@ private fun SeriesPosterCard(
             Text(
                 text = if (seasonCount > 0) "$seasonCount T" else "SÉRIE",
                 color = RonecaColors.Primary,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -421,7 +421,7 @@ private fun SeriesPosterCard(
             Text(
                 text = series.category,
                 color = RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 9.sp else 10.sp,
+                fontSize = if (isTelevision) 11.sp else 11.sp,
                 maxLines = 1,
             )
         }
@@ -436,6 +436,6 @@ private fun Badge(text: String, color: Color) {
             .border(1.dp, color.copy(alpha = 0.70f), RoundedCornerShape(999.dp))
             .padding(horizontal = 7.dp, vertical = 4.dp),
     ) {
-        Text(text = text, color = color, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
     }
 }

@@ -43,7 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.catalog.ContentIdentity
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
@@ -385,7 +385,7 @@ private fun MediaCard(
                 .background(RonecaColors.BackgroundSoft),
         ) {
             if (!imageUrl.isNullOrBlank()) {
-                AsyncImage(
+                RonecaAsyncImage(
                     model = imageUrl,
                     contentDescription = title,
                     modifier = Modifier.fillMaxSize(),
@@ -396,13 +396,13 @@ private fun MediaCard(
                 Text(
                     text = it,
                     color = RonecaColors.TextPrimary,
-                    fontSize = 8.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(6.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(Color(0xD9100D0B))
+                        .background(Color(0xE6131315))
                         .border(1.dp, RonecaColors.RedStrong.copy(alpha = 0.75f), RoundedCornerShape(999.dp))
                         .padding(horizontal = 7.dp, vertical = 4.dp),
                 )
@@ -436,7 +436,7 @@ private fun MediaCard(
             Text(
                 text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}% assistido",
                 color = RonecaColors.Primary,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
             )
         }
