@@ -156,18 +156,3 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
 })(window);
-
-(function loadUniversalPlaylistRegistration(global) {
-  'use strict';
-  if (document.querySelector('link[data-universal-playlists]')) return;
-  var style = document.createElement('link');
-  style.rel = 'stylesheet';
-  style.href = './universal-playlist-registration.css';
-  style.dataset.universalPlaylists = 'true';
-  document.head.appendChild(style);
-  var script = document.createElement('script');
-  script.src = './universal-playlist-registration.js';
-  script.async = false;
-  script.dataset.universalPlaylists = 'true';
-  document.body.appendChild(script);
-})(window);

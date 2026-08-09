@@ -19,12 +19,10 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLDecoder
-import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import javax.net.ssl.SSLException
 
 internal data class XtreamAuthentication(
@@ -132,7 +130,7 @@ internal class DirectXtreamClient(context: Context) {
     }
 
     private suspend fun verifyAuthentication(
-        credentials: XtreamCredentials,
+        credentials: XtreamPlaybackSource,
     ): XtreamAuthentication = authenticationMutex.withLock {
         val cacheKey = sha256(
             "${credentials.server}|${credentials.username}|${credentials.password}",
@@ -169,7 +167,7 @@ internal class DirectXtreamClient(context: Context) {
         result.getOrThrow()
     }
 
-    private fun requestAuthentication(credentials: XtreamCredentials): XtreamAuthentication {
+    private fun requestAuthentication(credentials: XtreamPlaybackSource): XtreamAuthentication {
         val text = requestText(
             credentials = credentials,
             action = null,
@@ -218,7 +216,7 @@ internal class DirectXtreamClient(context: Context) {
         )
     }
 
-    private fun loadCategories(credentials: XtreamCredentials, action: String): Map<String, String> =
+    private fun loadCategories(credentials: XtreamPlaybackSource, action: String): Map<String, String> =
         requestArray(credentials, action).objects().mapNotNull { item ->
             val id = item.optStringValue("category_id") ?: return@mapNotNull null
             val name = item.optStringValue("category_name") ?: return@mapNotNull null
@@ -278,12 +276,12 @@ internal class DirectXtreamClient(context: Context) {
         }
     }
 
-    private fun verifyAuthenticationBlocking(credentials: XtreamCredentials) {
+    private fun verifyAuthenticationBlocking(credentials: XtreamPlaybackSource) {
         requestAuthentication(credentials)
     }
 
     private fun requestArray(
-        credentials: XtreamCredentials,
+        credentials: XtreamPlaybackSource,
         action: String,
     ): JSONArray {
         val text = requestText(credentials, action, emptyMap())
@@ -297,7 +295,7 @@ internal class DirectXtreamClient(context: Context) {
     }
 
     private fun requestObject(
-        credentials: XtreamCredentials,
+        credentials: XtreamPlaybackSource,
         action: String,
         extraParameters: Map<String, String>,
     ): JSONObject {
@@ -310,7 +308,7 @@ internal class DirectXtreamClient(context: Context) {
     }
 
     private fun requestText(
-        credentials: XtreamCredentials,
+        credentials: XtreamPlaybackSource,
         action: String?,
         extraParameters: Map<String, String>,
         maximumBytes: Long = MAX_RESPONSE_BYTES,
@@ -405,12 +403,18 @@ internal class DirectXtreamClient(context: Context) {
         private const val AUTH_FAILURE_TTL_MS = 30L * 1_000L
         private const val AUTH_TRANSIENT_TTL_MS = 10L * 1_000L
         private const val MAX_AUTH_CACHE_ENTRIES = 32
+        private const val MAX_DIRECT_SERIES_ENTRIES = 128
+        private const val DIRECT_SERIES_TTL_MS = 30L * 60L * 1_000L
         private const val CONNECT_TIMEOUT_MS = 8_000
         private const val READ_TIMEOUT_MS = 18_000
         private const val MAX_RESPONSE_BYTES = 64L * 1024L * 1024L
         private const val AUTH_RESPONSE_BYTES = 1L * 1024L * 1024L
         private const val USER_AGENT = "IPTVSmartersPro"
-        private val directSeries = ConcurrentHashMap<String, DirectSeriesRequest>()
+        private val directSeries = object : LinkedHashMap<String, DirectSeriesRequest>(64, 0.75f, true) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, DirectSeriesRequest>?,
+            ): Boolean = size > MAX_DIRECT_SERIES_ENTRIES
+        }
 
         fun supports(markedUrl: String): Boolean = credentialsFrom(markedUrl) != null
 
@@ -430,7 +434,11 @@ internal class DirectXtreamClient(context: Context) {
             context: Context,
             seriesKey: String,
         ): List<NativeSeason> = withContext(Dispatchers.IO) {
-            val request = directSeries[seriesKey]
+            val now = System.currentTimeMillis()
+            val request = synchronized(directSeries) {
+                directSeries.entries.removeIf { it.value.expiresAtMillis <= now }
+                directSeries[seriesKey]
+            }
                 ?: throw CatalogLoadException(
                     "Atualize o catálogo antes de abrir os episódios desta série.",
                 )
@@ -438,17 +446,23 @@ internal class DirectXtreamClient(context: Context) {
         }
 
         private fun registerSeries(
-            credentials: XtreamCredentials,
+            credentials: XtreamPlaybackSource,
             seriesId: String,
         ): String {
             val key = SERIES_KEY_PREFIX + sha256(
                 "${credentials.server}|${credentials.username}|$seriesId",
             )
-            directSeries[key] = DirectSeriesRequest(credentials, seriesId)
+            synchronized(directSeries) {
+                directSeries[key] = DirectSeriesRequest(
+                    credentials = credentials,
+                    seriesId = seriesId,
+                    expiresAtMillis = System.currentTimeMillis() + DIRECT_SERIES_TTL_MS,
+                )
+            }
             return key
         }
 
-        private fun credentialsFrom(markedUrl: String): XtreamCredentials? {
+        private fun credentialsFrom(markedUrl: String): XtreamPlaybackSource? {
             val source = markedUrl.substringBefore(DirectM3uClient.DIRECT_MARKER).trim()
             val url = runCatching { URL(source) }.getOrNull() ?: return null
             if (url.protocol != "http" && url.protocol != "https") return null
@@ -473,7 +487,7 @@ internal class DirectXtreamClient(context: Context) {
                     append(parentPath)
                 }
             }.trimEnd('/')
-            return XtreamCredentials(server, username, password, output)
+            return XtreamPlaybackSource(server, username, password, output)
         }
 
         private fun isDefinitiveAuthenticationMessage(message: String): Boolean =
@@ -495,58 +509,16 @@ internal class DirectXtreamClient(context: Context) {
             runCatching { URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8.name()) }
                 .getOrDefault(value)
 
-        private fun encode(value: String): String =
-            URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
-
         private fun sha256(value: String): String =
             MessageDigest.getInstance("SHA-256")
                 .digest(value.toByteArray(StandardCharsets.UTF_8))
                 .joinToString("") { "%02x".format(it) }
     }
 
-    private data class XtreamCredentials(
-        val server: String,
-        val username: String,
-        val password: String,
-        val output: String,
-    ) {
-        fun apiUrl(action: String?, extraParameters: Map<String, String>): URL {
-            val query = buildList {
-                add("username=${encode(username)}")
-                add("password=${encode(password)}")
-                action?.takeIf(String::isNotBlank)?.let { add("action=${encode(it)}") }
-                extraParameters.forEach { (key, value) ->
-                    add("${encode(key)}=${encode(value)}")
-                }
-            }.joinToString("&")
-            return URL("$server/player_api.php?$query")
-        }
-
-        fun liveStreamUrls(streamId: String): List<String> {
-            val primaryExtension = if (output.equals("m3u8", ignoreCase = true)) {
-                "m3u8"
-            } else {
-                "ts"
-            }
-            val alternateExtension = if (primaryExtension == "m3u8") "ts" else "m3u8"
-            return listOf(
-                streamUrl("live", streamId, primaryExtension),
-                streamUrl("live", streamId, alternateExtension),
-                streamUrl(null, streamId, primaryExtension),
-                streamUrl(null, streamId, alternateExtension),
-            ).distinct()
-        }
-
-        fun streamUrl(kind: String?, streamId: String, extension: String): String {
-            val prefix = kind?.let { "/$it" }.orEmpty()
-            return "$server$prefix/${encode(username)}/${encode(password)}/" +
-                "${encode(streamId)}.${safeExtension(extension, "ts")}"
-        }
-    }
-
     private data class DirectSeriesRequest(
-        val credentials: XtreamCredentials,
+        val credentials: XtreamPlaybackSource,
         val seriesId: String,
+        val expiresAtMillis: Long,
     )
 
     private data class CachedAuthentication(

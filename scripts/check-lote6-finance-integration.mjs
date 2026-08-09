@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 const files = {
   migration: 'supabase/migrations/20260807200000_lote6_atomic_admin_credit_adjustment.sql',
+  creditBase: 'supabase/migrations/2026072604_consolidated_commercial_credit_flow.sql',
   packageMigration: 'supabase/migrations/20260807201000_lote6_atomic_credit_order_payment.sql',
   edge: 'supabase/functions/admin-credit-adjust/index.ts',
   packageEdge: 'supabase/functions/credit-packages-panel/index.ts',
@@ -21,12 +22,14 @@ for (const token of [
   'admin_adjust_seller_credit_transaction',
   'apply_seller_credit_transaction',
   "set search_path = ''",
-  'panel_credit_ledger',
   'panel_audit_logs',
   'p_idempotency_key',
   'to service_role',
 ]) {
   if (!source.migration.includes(token)) throw new Error(`Migração atômica incompleta: ${token}`);
+}
+if (!source.creditBase.includes('panel_credit_ledger')) {
+  throw new Error('A transação atômica precisa continuar apoiada no ledger canônico de créditos.');
 }
 
 for (const token of [

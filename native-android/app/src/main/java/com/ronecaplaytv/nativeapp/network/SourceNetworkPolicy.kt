@@ -154,6 +154,11 @@ data class SourceNetworkPolicy(
 object SourceNetworkPolicyRegistry {
     @Volatile
     private var activePolicy: SourceNetworkPolicy = SourceNetworkPolicy.strict()
+    private val clients = object : LinkedHashMap<String, OkHttpClient>(16, 0.75f, true) {
+        override fun removeEldestEntry(
+            eldest: MutableMap.MutableEntry<String, OkHttpClient>?,
+        ): Boolean = size > MAX_CLIENTS
+    }
 
     fun activate(policy: SourceNetworkPolicy?) {
         activePolicy = policy ?: SourceNetworkPolicy.strict()
@@ -171,6 +176,10 @@ object SourceNetworkPolicyRegistry {
         ) current else SourceNetworkPolicy.strict()
         val initialHost = target?.host?.let(::normalizeHost).orEmpty()
         val timeout = policy.timeoutMs.coerceIn(1_000, 180_000)
+        val cacheKey = listOf(scope.name, initialHost, policy.cacheKey).joinToString("|")
+        synchronized(clients) {
+            clients[cacheKey]?.let { return it }
+        }
 
         val builder = OkHttpClient.Builder()
             .connectTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
@@ -185,7 +194,11 @@ object SourceNetworkPolicyRegistry {
             SourceNetworkPolicy.TLS_INSECURE -> configureInsecure(builder, policy)
             SourceNetworkPolicy.TLS_CUSTOM_CA -> configureCustomCa(builder, policy)
         }
-        return builder.build()
+        val client = builder.build()
+        synchronized(clients) {
+            clients[cacheKey] = client
+        }
+        return client
     }
 
     private fun policyInterceptor(
@@ -279,6 +292,7 @@ object SourceNetworkPolicyRegistry {
     }
 
     private const val DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
+    private const val MAX_CLIENTS = 16
 }
 
 private fun normalizeHost(value: String): String =

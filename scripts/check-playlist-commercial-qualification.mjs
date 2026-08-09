@@ -162,7 +162,7 @@ for (const functionName of ['device-config-qualified','playlist-registration','p
 }
 
 // Preserva as provas históricas e acrescenta a prova do contrato público novo.
-for (const token of ['Falha de homologação preserva o saldo','Sessão de validação não cria lançamento financeiro','Sucesso do aparelho autorizado promove a lista']) {
+for (const token of ['Ativação provisória consome o crédito normal do plano','Sessão de validação não cria lançamento financeiro adicional','Sucesso do aparelho autorizado promove a lista']) {
   if (!pgTap.includes(token)) throw new Error(`Teste histórico não contém: ${token}`);
 }
 for (const token of ['Tizen não consome uma lista somente direta','Recusa por plataforma preserva o saldo','Android pode ativar a lista direta homologada']) {

@@ -3,12 +3,14 @@ package com.ronecaplaytv.nativeapp.catalog
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ronecaplaytv.nativeapp.BuildConfig
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.activation.DeviceSessionRepository
 import com.ronecaplaytv.nativeapp.network.ProviderAttemptReport
 import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
 import java.util.UUID
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +33,21 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
 
     private var loadedKey: String? = null
     private var availablePlaylists: List<DevicePlaylistConfig> = emptyList()
+    private var progressiveHydrationJob: Job? = null
+    private var pendingHydrationCandidate: DevicePlaylistConfig? = null
+    private var televisionPlaybackActive = false
+
+    fun setTelevisionPlaybackActive(active: Boolean) {
+        if (televisionPlaybackActive == active) return
+        televisionPlaybackActive = active
+        if (!BuildConfig.SUSPEND_HYDRATION_DURING_TV_PLAYBACK) return
+        if (active) {
+            progressiveHydrationJob?.cancel()
+            progressiveHydrationJob = null
+        } else {
+            pendingHydrationCandidate?.let(::scheduleProgressiveHydration)
+        }
+    }
 
     fun load(
         channelsUrl: String?,
@@ -378,7 +395,13 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun scheduleProgressiveHydration(candidate: DevicePlaylistConfig) {
-        viewModelScope.launch {
+        pendingHydrationCandidate = candidate
+        if (
+            BuildConfig.SUSPEND_HYDRATION_DURING_TV_PLAYBACK &&
+            televisionPlaybackActive
+        ) return
+        progressiveHydrationJob?.cancel()
+        progressiveHydrationJob = viewModelScope.launch {
             val correlationId = "matrix-background:${UUID.randomUUID()}"
             val moviesResult = runCatching {
                 candidate.moviesUrl?.let {
@@ -427,6 +450,9 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                         },
                     )
                 }
+            }
+            if (mutableState.value.activePlaylistId == candidate.id) {
+                pendingHydrationCandidate = null
             }
         }
     }

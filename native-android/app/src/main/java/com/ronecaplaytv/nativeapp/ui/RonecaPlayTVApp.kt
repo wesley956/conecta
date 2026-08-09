@@ -7,16 +7,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronecaplaytv.nativeapp.activation.ActivationViewModel
@@ -53,7 +58,9 @@ import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import java.text.Normalizer
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class NativeDestination {
     Home,
@@ -195,6 +202,7 @@ fun RonecaPlayTVApp(
     val playerSettingsPreferences = remember { PlayerSettingsPreferences(context) }
     val coroutineScope = rememberCoroutineScope()
     val destinationStateHolder = rememberSaveableStateHolder()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var destination by remember { mutableStateOf(NativeDestination.Home) }
     var playerReturnDestination by remember { mutableStateOf(NativeDestination.Home) }
@@ -214,6 +222,29 @@ fun RonecaPlayTVApp(
     var favoriteSeriesIds by remember { mutableStateOf(playbackPreferences.favoriteSeries()) }
     var savedProgress by remember { mutableStateOf(playbackPreferences.startedProgress()) }
     var failoverInProgress by remember { mutableStateOf(false) }
+    var playerSuspendedForLifecycle by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner, destination) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    if (destination == NativeDestination.Player) {
+                        playerSuspendedForLifecycle = true
+                    }
+                }
+                Lifecycle.Event.ON_START -> playerSuspendedForLifecycle = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(destination, isTelevision) {
+        catalogViewModel.setTelevisionPlaybackActive(
+            isTelevision && destination == NativeDestination.Player,
+        )
+    }
 
     LaunchedEffect(
         catalogState.activePlaylistId,
@@ -758,12 +789,14 @@ fun RonecaPlayTVApp(
                         if (movie == null) {
                             destination = detailReturnDestination
                         } else {
-                            val recommendations = remember(movie.id, catalogState.movies) {
-                                recommendedMovies(
-                                    current = movie,
-                                    catalog = catalogState.movies,
-                                    limit = 14,
-                                )
+                            val recommendations by produceState<List<NativeMovie>>(
+                                initialValue = emptyList(),
+                                movie.id,
+                                catalogState.movies,
+                            ) {
+                                value = withContext(Dispatchers.Default) {
+                                    recommendedMovies(movie, catalogState.movies, 14)
+                                }
                             }
 
                             MovieDetailScreen(
@@ -810,12 +843,14 @@ fun RonecaPlayTVApp(
                             } else {
                                 baseSeries
                             }
-                            val recommendations = remember(baseSeries.id, catalogState.series) {
-                                recommendedSeries(
-                                    current = baseSeries,
-                                    catalog = catalogState.series,
-                                    limit = 14,
-                                )
+                            val recommendations by produceState<List<NativeSeries>>(
+                                initialValue = emptyList(),
+                                baseSeries.id,
+                                catalogState.series,
+                            ) {
+                                value = withContext(Dispatchers.Default) {
+                                    recommendedSeries(baseSeries, catalogState.series, 14)
+                                }
                             }
 
                             SeriesDetailScreen(
@@ -917,7 +952,7 @@ fun RonecaPlayTVApp(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            if (showMainNavigation && isWideLayout) {
+            if (destination != NativeDestination.Player && showMainNavigation && isWideLayout) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -936,7 +971,7 @@ fun RonecaPlayTVApp(
                         screenContent()
                     }
                 }
-            } else {
+            } else if (destination != NativeDestination.Player) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -956,7 +991,7 @@ fun RonecaPlayTVApp(
                 }
             }
 
-            if (destination == NativeDestination.Player) {
+            if (destination == NativeDestination.Player && !playerSuspendedForLifecycle) {
                 val seriesPlayback = activeSeriesPlayback
                 if (seriesPlayback != null) {
                     SeriesNativePlayerScreen(
@@ -993,6 +1028,7 @@ fun RonecaPlayTVApp(
                             selectedInitialPositionMs = 0L
                         },
                         onProgress = { season, episode, positionMs, durationMs ->
+                            selectedInitialPositionMs = positionMs
                             val contentKey = ContentIdentity.episode(
                                 seriesPlayback.series,
                                 season,
@@ -1029,6 +1065,7 @@ fun RonecaPlayTVApp(
                         bufferSeconds = settingsState.bufferSeconds,
                         automaticReconnect = settingsState.automaticReconnect,
                         onProgress = { positionMs, durationMs ->
+                            selectedInitialPositionMs = positionMs
                             if (selectedContentKey.startsWith("movie:") || selectedContentKey.startsWith("episode:")) {
                                 playbackPreferences.saveProgress(selectedContentKey, positionMs, durationMs)
                             }

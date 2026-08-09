@@ -79,8 +79,7 @@
         <div class="upl-step-nav" aria-label="Etapas do cadastro">
           <span class="upl-step active" data-upl-step-label="1">1. Origem</span>
           <span class="upl-step" data-upl-step-label="2">2. Segurança</span>
-          <span class="upl-step" data-upl-step-label="3">3. Conferência</span>
-          <span class="upl-step" data-upl-step-label="4">4. Teste e salvar</span>
+          <span class="upl-step" data-upl-step-label="3">3. Conferência e salvar</span>
         </div>
 
         <section class="upl-pane active" data-upl-pane="1">
@@ -185,7 +184,7 @@
           <div id="uplAnalysisSummary"></div>
           <div class="upl-actions" style="margin-top:16px;">
             <button class="upl-btn" type="button" data-upl-action onclick="RonecaUniversalPlaylists.go(2)">Voltar</button>
-            <button class="upl-btn primary" type="button" data-upl-action onclick="RonecaUniversalPlaylists.go(4)">Testar configuração</button>
+            <button class="upl-btn primary" type="button" data-upl-action onclick="RonecaUniversalPlaylists.save()">Salvar fonte</button>
           </div>
         </section>
 
@@ -507,7 +506,6 @@
     document.querySelectorAll('[data-upl-pane]').forEach(function (pane) { pane.classList.toggle('active', Number(pane.dataset.uplPane) === state.step); });
     document.querySelectorAll('[data-upl-step-label]').forEach(function (label) { label.classList.toggle('active', Number(label.dataset.uplStepLabel) === state.step); });
     if (state.step === 3) renderAnalysis();
-    if (state.step === 4 && !state.tests) test();
     var card = document.querySelector('#uplModal .upl-modal-card'); if (card) card.scrollTop = 0;
   }
 

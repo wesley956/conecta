@@ -8,6 +8,7 @@
     "dev": "vite --host 0.0.0.0",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc -b",
+    "bundle:budget": "node scripts/check-bundle-budget.mjs",
     "stage:webos": "npm run build && node scripts/stage-platform.mjs webos",
     "stage:tizen": "npm run build && node scripts/stage-platform.mjs tizen",
     "stage:webos:hosted": "npm run build && node scripts/stage-platform.mjs webos && node scripts/stage-webos-hosted.mjs",
@@ -18,10 +19,10 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",
-    "vite": "7.1.12",
-    "typescript": "5.9.3",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
   },
   "devDependencies": {
     "@types/react": "19.2.2",

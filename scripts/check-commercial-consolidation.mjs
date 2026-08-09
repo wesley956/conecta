@@ -23,9 +23,10 @@ const required = {
     'Clientes',
     'Meus preços por plano',
     'commercialCreditPackagesHost',
-    'sellerActivationCustomerSelect',
     'sellerCommercialSavePrice',
     'sellerCommercialSaveCustomer',
+    'sellerCustomerList',
+    'Cadastro independente das operações do aparelho',
     'data-subscription-tab',
   ],
   adminPrivacy: [
@@ -64,7 +65,7 @@ const required = {
   loader: [
     'loadCommercialConsolidation',
     'commercial-consolidation.css?v=1.1',
-    'commercial-consolidation-v2.js?v=2.0',
+    'commercial-consolidation-v2.js?v=3.0',
     'loadAdminCommercialPrivacy',
     'admin-commercial-privacy-v2.js?v=2.0',
     'loadSellerDynamicNavigation',
@@ -90,6 +91,10 @@ if (source.fifoFix.includes('for v_lot in') || source.fifoFix.includes('credits_
 
 if (source.loader.includes('loadSubscriptionModule')) {
   throw new Error('O módulo incompleto de assinaturas não deve ser carregado no painel publicado.');
+}
+
+if (source.ui.includes('sellerActivationCustomerSelect')) {
+  throw new Error('Clientes devem permanecer independentes da ativação para evitar dois fluxos comerciais concorrentes.');
 }
 
 console.log('✅ Fluxo comercial V2 validado sem loops de DOM, com privacidade, navegação, pacotes, preços, clientes e FIFO único.');

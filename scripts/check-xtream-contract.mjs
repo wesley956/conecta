@@ -78,7 +78,17 @@ const fetchJsonSource = cache.slice(cache.indexOf('async function fetchJson'), c
 assert.ok(fetchJsonSource.includes('resposta não é JSON.'), 'JSON inválido deve usar uma mensagem redigida.');
 assert.ok(!fetchJsonSource.includes('raw.slice('), 'Respostas inválidas do provedor não devem vazar conteúdo no erro.');
 assert.ok(!fetchJsonSource.includes('${raw}'), 'O corpo inválido não pode ser interpolado no erro.');
-assert.ok(cache.includes("'Login Xtream', source.origin"), 'Chamadas Xtream devem bloquear redirecionamento de credenciais para outro domínio.');
+assert.ok(fetchJsonSource.includes('allowedOrigin?: string'));
+assert.ok(fetchJsonSource.includes('allowedOrigin,'));
+assert.ok(cache.includes("buildXtreamApiUrl(source), 'Login Xtream', playlist, source.origin"), 'Chamadas Xtream devem bloquear redirecionamento de credenciais para outro domínio.');
+for (const action of ['get_live_categories', 'get_vod_categories', 'get_series_categories', 'get_live_streams', 'get_vod_streams', 'get_series']) {
+  assert.ok(
+    cache.includes(`buildXtreamApiUrl(source, '${action}')`) &&
+      cache.includes(`buildXtreamApiUrl(source, '${action}'),`) &&
+      cache.includes(`buildXtreamApiUrl(source, '${action}'), '${action === 'get_live_categories' ? 'Categorias de canais' : action === 'get_vod_categories' ? 'Categorias de filmes' : action === 'get_series_categories' ? 'Categorias de séries' : action === 'get_live_streams' ? 'Canais' : action === 'get_vod_streams' ? 'Filmes' : 'Séries'}', playlist, source.origin`),
+    `A ação ${action} deve manter a origem Xtream fixada.`,
+  );
+}
 assert.ok(cache.includes("errorCode: 'cache_generation_busy'"));
 assert.ok(cache.includes("rpc('claim_playlist_cache_generation'"));
 

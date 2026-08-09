@@ -58,6 +58,7 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
 import com.ronecaplaytv.nativeapp.network.SourceNetworkScope
+import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.delay
@@ -139,8 +140,9 @@ fun SeriesNativePlayerScreen(
     }
     val hasNextEpisode = currentIndex + 1 < entries.size
 
-    val loadControl = remember(isTelevision, bufferSeconds) {
-        ronecaLoadControl(isTelevision, bufferSeconds)
+    val lowRamDevice = remember(context) { DeviceFormFactor.isLowRam(context) }
+    val loadControl = remember(isTelevision, lowRamDevice, bufferSeconds) {
+        ronecaLoadControl(isTelevision, lowRamDevice, bufferSeconds)
     }
 
     val mediaSourceFactory = remember(context, currentSources) {

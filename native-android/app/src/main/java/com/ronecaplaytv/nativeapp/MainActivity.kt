@@ -22,6 +22,8 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
+import com.ronecaplaytv.nativeapp.diagnostics.FrameJankMonitor
+import com.ronecaplaytv.nativeapp.diagnostics.NativeDiagnostics
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.ui.RonecaPlayTVApp
 import com.ronecaplaytv.nativeapp.ui.player.NativePlaybackKeyRouter
@@ -31,10 +33,14 @@ import com.ronecaplaytv.nativeapp.update.AppUpdateViewModel
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+    private val frameJankMonitor = FrameJankMonitor()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val isTelevisionDevice = DeviceFormFactor.isTelevision(this)
+        NativeDiagnostics.recordPreviousExit(this)
+        NativeDiagnostics.recordMemory(this, "process.start_memory")
         if (isTelevisionDevice) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
@@ -93,6 +99,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        frameJankMonitor.start()
+    }
+
+    override fun onPause() {
+        frameJankMonitor.stop()
+        NativeDiagnostics.recordMemory(this, "process.pause_memory")
+        super.onPause()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        NativeDiagnostics.record("process.trim_memory", mapOf("level" to level))
+        NativeDiagnostics.recordMemory(this, "process.trim_memory_snapshot")
+        super.onTrimMemory(level)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

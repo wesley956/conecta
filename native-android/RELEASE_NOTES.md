@@ -1,3 +1,10 @@
+# RonecaPlayTV 2.8.0
+
+- Cadastro de listas simplificado e correções de estabilidade do painel.
+- Player libera decoder ao sair para segundo plano e preserva a posição.
+- Menor uso de memória em TVs com pouca RAM e catálogos Xtream grandes.
+- Melhorias de fluidez, diagnóstico local seguro e resiliência de séries.
+
 # RonecaPlayTV Native 2.7.1
 
 Compatibilidade universal de endpoints dentro da mesma lista.

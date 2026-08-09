@@ -9,6 +9,9 @@ import {
 } from '../_shared/xtreamSource.ts';
 
 const CACHE_BUCKET = 'playlist-cache';
+const REQUEST_BUDGET_MS = 35_000;
+const PROVIDER_ATTEMPT_TIMEOUT_MS = 12_000;
+const MIN_PROVIDER_ATTEMPT_MS = 750;
 const PROVIDER_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
@@ -85,16 +88,21 @@ function streamUrl(source: XtreamSource, id: string, extension: unknown) {
 async function providerText(
   rawUrl: string,
   allowedOrigin: string,
+  deadlineMs: number,
 ): Promise<string> {
   const target = new URL(rawUrl);
   const allowed = new URL(allowedOrigin);
   if (target.origin !== allowed.origin) {
     throw new Error('UPSTREAM_HOST_MISMATCH');
   }
+  const remainingMs = deadlineMs - Date.now();
+  if (remainingMs < MIN_PROVIDER_ATTEMPT_MS) {
+    throw new Error('UPSTREAM_BUDGET_EXHAUSTED');
+  }
   try {
     return await safeFetchPlaylistText(target.toString(), {
       label: 'Detalhes da série',
-      timeoutMs: 45_000,
+      timeoutMs: Math.min(PROVIDER_ATTEMPT_TIMEOUT_MS, remainingMs),
       maxBytes: 40 * 1024 * 1024,
       allowedOrigins: [allowed.origin],
       headers: PROVIDER_HEADERS,
@@ -212,11 +220,16 @@ async function saveCache(
   version: string | null,
   seasons: SeasonResult[],
 ) {
-  await supabase.storage.from(CACHE_BUCKET).upload(
-    cachePath(playlistId, seriesId),
-    JSON.stringify({ schemaVersion: 3, seriesId, cacheVersion: version, seasons }),
-    { contentType: 'application/json', cacheControl: '3600', upsert: true },
-  );
+  try {
+    const result = await supabase.storage.from(CACHE_BUCKET).upload(
+      cachePath(playlistId, seriesId),
+      JSON.stringify({ schemaVersion: 3, seriesId, cacheVersion: version, seasons }),
+      { contentType: 'application/json', cacheControl: '3600', upsert: true },
+    );
+    return !result.error;
+  } catch {
+    return false;
+  }
 }
 
 function reason(error: unknown) {
@@ -301,8 +314,13 @@ serve(async req => {
 
   let failure: unknown = new Error('UPSTREAM_EMPTY_EPISODES');
   const attemptedPlaylistIds: string[] = [];
+  const deadlineMs = Date.now() + REQUEST_BUDGET_MS;
 
   for (const assignment of assignments) {
+    if (Date.now() >= deadlineMs) {
+      failure = new Error('UPSTREAM_BUDGET_EXHAUSTED');
+      break;
+    }
     const playlist = assignment.playlist;
     const source = parseXtreamSource(playlist.playlist_url);
     if (!source) {
@@ -328,10 +346,16 @@ serve(async req => {
       apiUrl(source, 'get_series_info', { id: seriesId }),
     ];
     for (const target of attempts) {
+      if (Date.now() >= deadlineMs) {
+        failure = new Error('UPSTREAM_BUDGET_EXHAUSTED');
+        break;
+      }
       try {
-        const raw = await providerText(target, source.origin);
+        const raw = await providerText(target, source.origin, deadlineMs);
         const seasons = mapSeasons(JSON.parse(raw), source, seriesId);
         if (seasons.length) {
+          // O cache acelera a próxima chamada, mas nunca invalida uma resposta
+          // já obtida do fornecedor quando o Storage está indisponível.
           await saveCache(supabase, playlist.id, seriesId, playlist.playlist_cache_version, seasons);
           return json({
             seriesId,

@@ -12,7 +12,8 @@ const required = new Map([
     'playlist_cache_attempts',
   ]],
   ['supabase/functions/seller-panel/index.ts', [
-    'isPlaylistUsable',
+    'function qualification',
+    'commerciallyUsable: usable',
     'playlistAccessMode',
   ]],
   ['supabase/functions/device-config/index.ts', [
@@ -23,7 +24,8 @@ const required = new Map([
     "item?.accessMode !== 'direct'",
   ]],
   ['admin-panel/seller-lists-ux.js', [
-    'Acesso direto',
+    "confirmed_by_device: ['Confirmada pelo aparelho'",
+    "android: supplied.android ||",
   ]],
   ['admin-panel/dashboard.js', [
     'Acesso direto',

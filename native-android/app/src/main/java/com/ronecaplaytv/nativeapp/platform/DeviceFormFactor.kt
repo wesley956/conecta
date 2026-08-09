@@ -1,6 +1,7 @@
 package com.ronecaplaytv.nativeapp.platform
 
 import android.app.UiModeManager
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -13,4 +14,7 @@ object DeviceFormFactor {
 
         return isTvUiMode || hasLeanback
     }
+
+    fun isLowRam(context: Context): Boolean =
+        context.getSystemService(ActivityManager::class.java)?.isLowRamDevice == true
 }
