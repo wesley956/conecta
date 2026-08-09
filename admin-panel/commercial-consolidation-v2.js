@@ -61,6 +61,7 @@
       button.type = 'button'; button.dataset.sellerNav = 'customers'; button.textContent = 'Clientes';
       button.onclick = () => window.sellerPortalNavigate?.('customers');
       nav.insertBefore(button, nav.querySelector('[data-seller-nav="lists"]') || null);
+      window.dispatchEvent(new CustomEvent('roneca:seller-navigation-changed'));
     }
     if (!$('sellerCustomersCard')) {
       const card = document.createElement('div');

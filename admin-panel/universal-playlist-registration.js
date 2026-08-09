@@ -79,7 +79,7 @@
         <div class="upl-step-nav" aria-label="Etapas do cadastro">
           <span class="upl-step active" data-upl-step-label="1">1. Origem</span>
           <span class="upl-step" data-upl-step-label="2">2. Segurança</span>
-          <span class="upl-step" data-upl-step-label="3">3. Conferência e salvar</span>
+          <span class="upl-step" data-upl-step-label="3">3. Salvar</span>
         </div>
 
         <section class="upl-pane active" data-upl-pane="1">
@@ -92,10 +92,15 @@
             <label class="upl-mode"><input type="radio" name="uplMode" value="advanced"><strong>Outras fontes</strong><span>Stalker, API, transmissão direta, lista manual ou arquivo.</span></label>
           </div>
           <div class="upl-grid">
-            <div class="upl-field"><label>Nome da lista</label><input id="uplName" placeholder="Ex: Netplay · João" maxlength="180"></div>
-            <div class="upl-field third"><label>Conexões</label><input id="uplMaxConnections" type="number" min="1" max="50" value="1"></div>
-            <div class="upl-field third"><label>Fornecedor</label><input id="uplProviderName" placeholder="Detectado automaticamente"></div>
-            <div class="upl-field third"><label>Plano</label><input id="uplPlanName" placeholder="Opcional"></div>
+            <div class="upl-field wide"><label>Nome da lista</label><input id="uplName" placeholder="Ex: Netplay · João" maxlength="180"></div>
+            <details class="upl-optional-fields upl-field wide">
+              <summary>Dados opcionais <span>Fornecedor, plano e conexões</span></summary>
+              <div class="upl-grid">
+                <div class="upl-field third"><label>Conexões</label><input id="uplMaxConnections" type="number" min="1" max="50" value="1"></div>
+                <div class="upl-field third"><label>Fornecedor</label><input id="uplProviderName" placeholder="Detectado automaticamente"></div>
+                <div class="upl-field third"><label>Plano</label><input id="uplPlanName" placeholder="Opcional"></div>
+              </div>
+            </details>
           </div>
 
           <div id="uplModeProvider" class="upl-mode-panel">

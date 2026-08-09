@@ -25,7 +25,7 @@ assert.match(generator, /id: 'universal-playlist-registration'/);
 assert.match(generator, /id: 'universal-playlist-inline'/);
 assert.match(inline, /openInline/);
 
-assert.match(registration, /data-upl-step-label="3">3\. Conferência e salvar/);
+assert.match(registration, /data-upl-step-label="3">3\. Salvar/);
 assert.doesNotMatch(registration, /data-upl-step-label="4"/);
 assert.match(
   registration,
@@ -44,7 +44,12 @@ const goSource = registration.slice(
 assert.doesNotMatch(goSource, /test\(\)/, 'Navegar entre etapas não pode disparar teste de rede.');
 
 assert.match(registrationCss, /\.upl-field textarea\.upl-provider-message \{ min-height: 140px; \}/);
+assert.match(registrationCss, /\.upl-field textarea \{[\s\S]*?box-sizing: border-box;/);
 assert.match(registrationCss, /\.upl-mode input\[type="radio"\][\s\S]*?width: 16px !important;[\s\S]*?min-height: 16px !important;/);
 assert.match(registrationCss, /\.upl-modal-card \{[\s\S]*?width: min\(1040px, 100%\);[\s\S]*?max-height: 92vh;/);
+assert.match(registration, /class="upl-optional-fields upl-field wide"/);
+assert.match(registrationCss, /@media \(max-width: 820px\)[\s\S]*?height: 100dvh;[\s\S]*?box-sizing: border-box;[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+assert.match(registrationCss, /\.upl-field textarea\.upl-provider-message \{ min-height: 96px; \}/);
+assert.match(registrationCss, /\.upl-optional-fields > \.upl-grid \{ display: none !important;/);
 
 console.log('✅ Painel: FK explícita, carregamento único e cadastro compacto em três etapas validados.');

@@ -164,6 +164,90 @@ async function renewalStory(browser, origin) {
   await page.close();
 }
 
+async function mobilePanelExperience(browser, origin, width, height, label) {
+  const page = await browser.newPage();
+  await page.setViewport({ width, height });
+  await page.goto(`${origin}/admin/seller-dynamic-navigation-v2.js`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => history.replaceState(null, '', '/admin/seller.html'));
+  await page.setContent(`<!doctype html><html><head>
+    <link rel="stylesheet" href="${origin}/admin/roneca-panel-premium.css">
+    <link rel="stylesheet" href="${origin}/admin/universal-playlist-registration.css">
+  </head><body class="seller-v2">
+    <section id="dashboardView">
+      <nav class="seller-v2-nav">
+        <button data-seller-nav="home" class="active"><span>Início</span></button>
+        <button data-seller-nav="activation"><span>Ativar</span></button>
+        <button data-seller-nav="devices"><span>Aparelhos</span></button>
+        <button data-seller-nav="lists"><span>Listas</span></button>
+        <button data-seller-nav="credits"><span>Créditos</span></button>
+        <button data-seller-nav="app"><span>Aplicativo</span></button>
+      </nav>
+      <section class="seller-portal-section" data-seller-section="home"></section>
+      <section class="seller-portal-section" data-seller-section="app" hidden></section>
+      <section class="seller-portal-section" data-seller-section="diagnostics" hidden></section>
+    </section>
+    <script>
+      window.RonecaPanelAuth={hasSession:()=>false};
+      window.sellerPortalNavigate=section=>{
+        document.querySelectorAll('.seller-portal-section').forEach(item=>{item.hidden=item.dataset.sellerSection!==section;});
+      };
+      window.sellerPortalRefreshNavigation=()=>{};
+      document.querySelectorAll('[data-seller-nav]').forEach(button=>button.addEventListener('click',()=>window.sellerPortalNavigate(button.dataset.sellerNav)));
+    </script>
+    <script src="${origin}/admin/seller-dynamic-navigation-v2.js"></script>
+    <script src="${origin}/admin/universal-playlist-registration.js"></script>
+  </body></html>`, { waitUntil: 'networkidle0' });
+  await page.waitForSelector('.seller-v2-more > summary');
+
+  await page.click('.seller-v2-more > summary');
+  assert.equal(await page.$eval('.seller-v2-more', node => node.open), true, `${label}: Mais deve abrir`);
+  assert.equal(await page.$eval('.seller-v2-more > summary', node => node.getAttribute('aria-expanded')), 'true', `${label}: Mais deve anunciar o estado aberto`);
+  await page.click('.seller-v2-more-menu [data-seller-nav="app"]');
+  assert.equal(await page.$eval('.seller-v2-more', node => node.open), false, `${label}: Mais deve fechar depois da escolha`);
+  assert.equal(await page.$eval('[data-seller-section="app"]', node => node.hidden), false, `${label}: opção do Mais deve navegar`);
+
+  await page.evaluate(() => {
+    const button = document.createElement('button');
+    button.dataset.sellerNav = 'diagnostics';
+    button.innerHTML = '<span>Diagnóstico</span>';
+    button.addEventListener('click', () => window.sellerPortalNavigate('diagnostics'));
+    document.querySelector('.seller-v2-nav').appendChild(button);
+    window.dispatchEvent(new CustomEvent('roneca:seller-navigation-changed'));
+  });
+  assert.ok(await page.$('.seller-v2-more-menu [data-seller-nav="diagnostics"]'), `${label}: módulo tardio deve aparecer no Mais`);
+
+  await page.evaluate(() => window.RonecaUniversalPlaylists.open());
+  await page.waitForSelector('#uplModal.open .upl-modal-card');
+  const layout = await page.evaluate(() => {
+    const card = document.querySelector('.upl-modal-card');
+    const modes = [...document.querySelectorAll('.upl-mode')].map(node => node.getBoundingClientRect());
+    const textarea = document.querySelector('.upl-provider-message').getBoundingClientRect();
+    const optional = document.querySelector('.upl-optional-fields');
+    const action = document.querySelector('[data-upl-pane="1"] > .upl-actions').getBoundingClientRect();
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: innerWidth,
+      cardHeight: card.getBoundingClientRect().height,
+      viewportHeight: innerHeight,
+      cardScrollHeight: card.scrollHeight,
+      cardClientHeight: card.clientHeight,
+      twoColumns: modes.length === 4 && Math.abs(modes[0].top - modes[1].top) < 2 && modes[0].left < modes[1].left,
+      textareaHeight: textarea.height,
+      optionalClosed: !optional.open,
+      actionTop: action.top,
+    };
+  });
+  assert.ok(layout.documentWidth <= layout.viewportWidth + 1, `${label}: formulário não pode ter overflow horizontal`);
+  assert.ok(layout.cardHeight <= layout.viewportHeight + 1, `${label}: formulário deve ocupar no máximo a tela (${JSON.stringify(layout)})`);
+  assert.ok(layout.cardScrollHeight <= layout.cardClientHeight * 1.25, `${label}: primeira etapa não pode exigir rolagem longa (${JSON.stringify(layout)})`);
+  assert.equal(layout.twoColumns, true, `${label}: tipos de origem devem usar grade compacta 2x2`);
+  assert.ok(layout.textareaHeight <= 110, `${label}: mensagem deve iniciar compacta`);
+  assert.equal(layout.optionalClosed, true, `${label}: dados opcionais devem iniciar recolhidos`);
+  assert.ok(layout.actionTop < layout.viewportHeight, `${label}: ação principal deve ficar acessível sem rolagem longa (${JSON.stringify(layout)})`);
+  await page.screenshot({ path: path.join(artifacts, `mobile-panel-${label}.png`), fullPage: true });
+  await page.close();
+}
+
 let browser; let server;
 try {
   fs.mkdirSync(artifacts, { recursive: true });
@@ -173,6 +257,9 @@ try {
     [1440, 900, 'desktop'], [1180, 800, 'notebook'], [768, 1024, 'tablet'], [390, 844, 'mobile'],
   ]) await activationViewport(browser, started.origin, ...viewport);
   await renewalStory(browser, started.origin);
+  for (const viewport of [
+    [360, 740, '360'], [390, 844, '390'], [430, 932, '430'], [800, 1000, '800'],
+  ]) await mobilePanelExperience(browser, started.origin, ...viewport);
   console.log('✅ Browser Lote 4: desktop, notebook, tablet, mobile, foco, overflow, listas e renovação recente validados.');
 } finally {
   if (browser) await browser.close();

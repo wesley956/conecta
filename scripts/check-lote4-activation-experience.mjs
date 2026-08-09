@@ -45,6 +45,7 @@ for (const token of [
   'aw-field-error', 'data-aw-search', 'playlistUnavailable', 'cacheItemCount',
   'platformLabel', 'Cadastrar nova lista', 'Cadastrar nova reserva', 'openInline',
   'watchPlaylist', 'state.busy', 'customExpiryIso', 'America/Sao_Paulo',
+  'returnFocusSelector',
   'Confirmação automática no aparelho',
 ]) {
   if (!source.wizard.includes(token)) throw new Error(`Wizard guiado não contém: ${token}`);
@@ -79,7 +80,7 @@ for (const foreground of ['#9ca9bb', '#aab6c8', '#94a3b8', '#cbd5e1', '#fecdd3',
 
 for (const token of [
   'openInline', 'capturedFetch', "url.includes('/playlist-source-manager')", 'onSaved',
-  'upl-inline-card', '__inlineEnabled',
+  'upl-inline-card', '__inlineEnabled', 'returnFocusSelector', 'returnFocus.focus',
 ]) {
   if (!source.inline.includes(token)) throw new Error(`Ponte inline incompleta: ${token}`);
 }
