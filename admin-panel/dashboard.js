@@ -124,13 +124,6 @@ function setTab(tab) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function syncAdminNavigationMode() {
-  const navMore = $('adminNavMore');
-  if (!navMore) return;
-  if (window.matchMedia('(min-width: 821px)').matches) navMore.open = true;
-  else navMore.open = false;
-}
-
 function normalize(value) {
   return String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -2167,6 +2160,4 @@ async function logout() {
   window.location.href = './index.html';
 }
 
-syncAdminNavigationMode();
-window.addEventListener('resize', syncAdminNavigationMode);
 loadAll();

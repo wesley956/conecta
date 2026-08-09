@@ -842,11 +842,15 @@ body.seller-v2 .seller-activation-card {
   body.admin-v2 .admin-nav-more.active > summary { color: var(--rp-red-bright); }
 
   body.admin-v2 .admin-nav-more-menu {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 12px);
+    position: fixed !important;
+    top: auto !important;
+    right: 8px !important;
+    bottom: calc(78px + env(safe-area-inset-bottom)) !important;
+    z-index: 110;
     display: grid !important;
     width: min(260px, calc(100vw - 16px));
+    max-height: calc(100dvh - 98px);
+    overflow-y: auto;
     gap: 5px;
     padding: 9px;
     border: 1px solid var(--rp-border);
@@ -980,11 +984,15 @@ body.seller-v2 .seller-activation-card {
   body.seller-v2 .seller-v2-more.active > summary { color: var(--rp-red-bright); }
 
   body.seller-v2 .seller-v2-more-menu {
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 12px);
+    position: fixed !important;
+    top: auto !important;
+    right: 8px !important;
+    bottom: calc(78px + env(safe-area-inset-bottom)) !important;
+    z-index: 110;
     display: grid !important;
     width: min(260px, calc(100vw - 16px));
+    max-height: calc(100dvh - 98px);
+    overflow-y: auto;
     gap: 5px;
     padding: 9px;
     border: 1px solid var(--rp-border);

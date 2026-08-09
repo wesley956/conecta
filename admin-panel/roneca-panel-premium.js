@@ -125,18 +125,6 @@
     more.classList.toggle('active', Boolean(more.querySelector('button.active')));
   }
 
-  function usesCompactNavigation() {
-    return global.matchMedia('(max-width: 820px)').matches;
-  }
-
-  function closeNavigationMenus(event) {
-    const button = event.target.closest('[data-tab], [data-seller-nav]');
-    if (!button) return;
-    const menu = button.closest('details');
-    if (menu && usesCompactNavigation()) menu.removeAttribute('open');
-    global.setTimeout(syncMoreNavigation, 0);
-  }
-
   function bindSearch(input, handler) {
     if (!input) return;
     input.addEventListener('keydown', event => {
@@ -156,7 +144,6 @@
       if (typeof global.setTab === 'function') global.setTab('pending');
     });
 
-    document.addEventListener('click', closeNavigationMenus);
     document.addEventListener('keydown', event => {
       const target = event.target;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
@@ -166,9 +153,6 @@
           event.preventDefault();
           search.focus();
         }
-      }
-      if (event.key === 'Escape' && usesCompactNavigation()) {
-        document.querySelectorAll('details[open].admin-nav-more, details[open].seller-v2-more').forEach(item => item.removeAttribute('open'));
       }
     });
 
