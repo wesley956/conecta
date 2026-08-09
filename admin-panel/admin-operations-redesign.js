@@ -581,7 +581,8 @@
       button.dataset.tab = 'company-finance';
       button.type = 'button';
       button.title = 'Financeiro da empresa';
-      button.innerHTML = '<span>Financeiro</span>';
+      button.setAttribute('aria-label', 'Financeiro');
+      button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h15a2 2 0 0 1 2 2v10H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12v3"/><path d="M16 12h5v4h-5a2 2 0 1 1 0-4z"/></svg><span>Financeiro</span>';
       button.onclick = () => window.setTab?.('company-finance');
       commercialTab?.insertAdjacentElement('afterend', button);
     }

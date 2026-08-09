@@ -51,9 +51,15 @@ for (const contract of [
   assert(premiumJs.includes(contract), `Contrato de interação premium ausente: ${contract}`);
 }
 
-for (const section of ['dashboard', 'pending', 'devices', 'commercial', 'customers', 'playlists', 'audit', 'app', 'home', 'activation', 'lists', 'credits', 'credit-purchases', 'finance', 'diagnostics']) {
+for (const section of ['dashboard', 'pending', 'devices', 'commercial', 'customers', 'playlists', 'audit', 'app', 'home', 'activation', 'lists', 'credits', 'credit-purchases', 'finance', 'company-finance', 'diagnostics']) {
   assert(premiumJs.includes(`${section.includes('-') ? `'${section}'` : section}:`), `Ícone de navegação ausente para: ${section}`);
 }
+
+const adminOperations = fs.readFileSync(path.join(panelDir, 'admin-operations-redesign.js'), 'utf8');
+assert(
+  /dataset\.tab = 'company-finance'[\s\S]*?<svg aria-hidden="true"[\s\S]*?<span>Financeiro<\/span>/.test(adminOperations),
+  'O Financeiro administrativo deve nascer com ícone e nome acessível.',
+);
 
 const sellerDynamicNavigation = fs.readFileSync(path.join(panelDir, 'seller-dynamic-navigation-v2.js'), 'utf8');
 assert(sellerDynamicNavigation.includes('proxy.innerHTML = source.innerHTML'), 'O submenu do vendedor deve preservar os ícones dos itens originais.');
