@@ -362,7 +362,8 @@
   async function newPlaylist(field) {
     if (!field) return; syncInputs(); const host = $('awInlinePlaylistHost'); if (!host) return; const api = window.RonecaUniversalPlaylists;
     if (!api?.openInline) { state.topError = 'O cadastro universal ainda está carregando. Aguarde alguns segundos e tente novamente.'; render(); return; }
-    await api.openInline(host, { onSaved: async result => { await refreshData(); state.draft[field] = result.playlistId; clearAttempt(); setTimeout(() => { render(); watchPlaylist(result.playlistId); }, 0); }, onClose: () => setTimeout(render, 0) });
+    const returnFocusSelector = `[data-aw-action="new-playlist"][data-aw-field-target="${CSS.escape(field)}"]`;
+    await api.openInline(host, { returnFocusSelector, onSaved: async result => { await refreshData(); state.draft[field] = result.playlistId; clearAttempt(); setTimeout(() => { render(); watchPlaylist(result.playlistId); }, 0); }, onClose: () => render() });
   }
   async function watchPlaylist(playlistId) {
     stopWatch(); state.watchId = playlistId; let attempts = 0;

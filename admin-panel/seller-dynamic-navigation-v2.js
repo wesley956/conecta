@@ -3,6 +3,7 @@
 
   if (!/\/seller\.html$/i.test(location.pathname)) return;
 
+  const COMPACT_NAV_QUERY = '(max-width: 820px)';
   const primarySections = new Set(['home', 'activation', 'devices', 'lists']);
   let fallbackNavigate = null;
   let fallbackRefresh = null;
@@ -35,10 +36,26 @@
       more = document.createElement('details');
       more.className = 'seller-v2-more';
       more.innerHTML = `
-        <summary aria-label="Mais áreas do portal"><span>Mais</span></summary>
+        <summary aria-label="Mais áreas do portal" aria-expanded="false">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg>
+          <span>Mais</span>
+        </summary>
         <div class="seller-v2-more-menu"></div>
       `;
       nav.appendChild(more);
+    }
+    const summary = more.querySelector(':scope > summary');
+    if (summary && !summary.dataset.sellerMoreBound) {
+      summary.dataset.sellerMoreBound = 'true';
+      summary.addEventListener('click', event => {
+        if (!matchMedia(COMPACT_NAV_QUERY).matches) return;
+        event.preventDefault();
+        more.open = !more.open;
+        summary.setAttribute('aria-expanded', String(more.open));
+      });
+      more.addEventListener('toggle', () => {
+        summary.setAttribute('aria-expanded', String(more.open));
+      });
     }
     return more;
   }
@@ -85,9 +102,10 @@
       nestedActive ? `Mais áreas do portal. Atual: ${nestedActive.textContent.trim()}` : 'Mais áreas do portal',
     );
 
-    const mode = matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop';
+    const mode = matchMedia(COMPACT_NAV_QUERY).matches ? 'mobile' : 'desktop';
     if (more.dataset.navigationMode !== mode) more.open = false;
     more.dataset.navigationMode = mode;
+    more.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(more.open));
   }
 
   function showSection(target) {
@@ -113,7 +131,7 @@
     if (normalized === 'customers') window.sellerCommercialRenderCustomers?.();
 
     syncCompactNavigation();
-    if (matchMedia('(max-width: 760px)').matches) {
+    if (matchMedia(COMPACT_NAV_QUERY).matches) {
       document.querySelector('.seller-v2-more')?.removeAttribute('open');
     }
     return true;
@@ -156,6 +174,12 @@
       if (attempts >= 40) clearInterval(timer);
     }, 250);
     window.addEventListener('resize', syncCompactNavigation);
+    window.addEventListener('roneca:seller-navigation-changed', syncCompactNavigation);
+    document.addEventListener('click', event => {
+      if (!matchMedia(COMPACT_NAV_QUERY).matches) return;
+      const more = document.querySelector('.seller-v2-more[open]');
+      if (more && !more.contains(event.target)) more.removeAttribute('open');
+    });
   }
 
   if (document.readyState === 'loading') {

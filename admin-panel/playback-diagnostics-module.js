@@ -351,6 +351,7 @@
         window.playbackDiagnosticsLoadSeller(1);
       });
       nav.insertBefore(button, appButton);
+      window.dispatchEvent(new CustomEvent('roneca:seller-navigation-changed'));
     }
 
     if (!byId('sellerDiagnosticsCard')) {

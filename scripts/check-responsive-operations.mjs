@@ -76,7 +76,10 @@ for (const snippet of [
   "className = 'seller-v2-more'",
   'class="seller-v2-more-menu"',
   'syncCompactNavigation()',
-  "matchMedia('(max-width: 760px)')",
+  "const COMPACT_NAV_QUERY = '(max-width: 820px)'",
+  "summary.addEventListener('click'",
+  "summary.setAttribute('aria-expanded', String(more.open))",
+  "window.addEventListener('roneca:seller-navigation-changed'",
   "source.classList.add('seller-v2-overflow-source')",
   'proxy.__sellerNavSource',
 ]) {
@@ -84,6 +87,7 @@ for (const snippet of [
 }
 
 requireCheck(!sellerNavigation.includes('menu.appendChild(button)'), 'Os botões originais não podem ser movidos; módulos tardios dependem deles como referência.');
+requireCheck(!sellerNavigation.includes("(max-width: 760px)"), 'CSS e JavaScript precisam usar o mesmo limite móvel de 820 px.');
 
 for (const snippet of [
   'body.admin-v2 .admin-nav-more-menu',

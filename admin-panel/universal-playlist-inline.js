@@ -28,11 +28,18 @@
         current.host.replaceChildren();
       }
       if (notify) current.options?.onClose?.();
+      const returnFocus = current.options?.returnFocusSelector
+        ? document.querySelector(current.options.returnFocusSelector)
+        : current.returnFocus;
+      if (returnFocus instanceof HTMLElement && returnFocus.isConnected) {
+        returnFocus.focus({ preventScroll: true });
+      }
     }
 
     async function openInline(host, options = {}) {
       if (!(host instanceof HTMLElement)) throw new Error('Área de cadastro inline indisponível.');
       if (inline) restore({ notify: false });
+      const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       originalOpen();
       await Promise.resolve();
       const modal = document.getElementById('uplModal');
@@ -44,7 +51,7 @@
       host.classList.add('upl-inline-host-active');
       card.classList.add('upl-inline-card');
       host.appendChild(card);
-      inline = { host, modal, card, options };
+      inline = { host, modal, card, options, returnFocus };
       card.querySelector('input, textarea, select, button')?.focus({ preventScroll: true });
       return true;
     }
