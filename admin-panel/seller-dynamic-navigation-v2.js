@@ -67,7 +67,7 @@
         menu.appendChild(proxy);
       }
       proxy.__sellerNavSource = source;
-      proxy.textContent = source.textContent.trim();
+      proxy.innerHTML = source.innerHTML;
       setActive(proxy, source.classList.contains('active'));
       activeSections.add(section);
     });

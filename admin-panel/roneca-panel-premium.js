@@ -4,6 +4,24 @@
   if (global.__ronecaPanelPremiumInstalled) return;
   global.__ronecaPanelPremiumInstalled = true;
 
+  const navigationIcons = {
+    dashboard: '<path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/>',
+    home: '<path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/>',
+    pending: '<path d="M12 3 2.8 19h18.4L12 3zM12 9v4M12 17h.01"/>',
+    activation: '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M9 7h6M9 12h6M12 17h.01"/>',
+    devices: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    commercial: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>',
+    customers: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 7h5M18.5 4.5v5"/>',
+    playlists: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    lists: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+    audit: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/>',
+    credits: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+    'credit-purchases': '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+    finance: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>',
+    diagnostics: '<path d="M4 18h3l2-5 3 7 3-10 2 8h3M4 4h16v16H4z"/>',
+    app: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
+  };
+
   function normalize(value) {
     return String(value || '')
       .normalize('NFD')
@@ -21,6 +39,22 @@
           if (cell.tagName === 'TD' && headers[index]) cell.dataset.label = headers[index];
         });
       });
+    });
+  }
+
+  function ensureNavigationIcons(root) {
+    (root || document).querySelectorAll('[data-tab], [data-seller-nav]').forEach(button => {
+      const key = button.dataset.tab || button.dataset.sellerNav;
+      const paths = navigationIcons[key];
+      if (!paths || button.querySelector('svg')) return;
+
+      if (!button.querySelector('span')) {
+        const label = document.createElement('span');
+        label.textContent = button.textContent.trim();
+        button.textContent = '';
+        button.appendChild(label);
+      }
+      button.insertAdjacentHTML('afterbegin', `<svg aria-hidden="true" viewBox="0 0 24 24">${paths}</svg>`);
     });
   }
 
@@ -90,10 +124,15 @@
     more.classList.toggle('active', Boolean(more.querySelector('button.active')));
   }
 
+  function usesCompactNavigation() {
+    return global.matchMedia('(max-width: 820px)').matches;
+  }
+
   function closeNavigationMenus(event) {
     const button = event.target.closest('[data-tab], [data-seller-nav]');
     if (!button) return;
-    button.closest('details')?.removeAttribute('open');
+    const menu = button.closest('details');
+    if (menu && usesCompactNavigation()) menu.removeAttribute('open');
     global.setTimeout(syncMoreNavigation, 0);
   }
 
@@ -127,12 +166,13 @@
           search.focus();
         }
       }
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && usesCompactNavigation()) {
         document.querySelectorAll('details[open].admin-nav-more, details[open].seller-v2-more').forEach(item => item.removeAttribute('open'));
       }
     });
 
     applyTableLabels(document);
+    ensureNavigationIcons(document);
     updatePendingCount();
     syncMoreNavigation();
 
@@ -151,7 +191,10 @@
 
       if (tableChanged) applyTableLabels(document);
       if (pendingChanged) updatePendingCount();
-      if (navigationChanged) syncMoreNavigation();
+      if (navigationChanged) {
+        ensureNavigationIcons(document);
+        syncMoreNavigation();
+      }
     });
 
     observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] });
