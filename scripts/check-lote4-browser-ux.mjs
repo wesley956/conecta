@@ -27,14 +27,30 @@ const fixture = {
 };
 
 function mime(file) {
+  if (file.endsWith('.html')) return 'text/html; charset=utf-8';
   if (file.endsWith('.js')) return 'application/javascript; charset=utf-8';
   if (file.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (file.endsWith('.png')) return 'image/png';
   return 'text/plain; charset=utf-8';
 }
 async function startServer() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
     if (!url.pathname.startsWith('/admin/')) { res.writeHead(404); res.end(); return; }
+    if (url.pathname === '/admin/panel-config.js') {
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(`
+        window.RONECA_PANEL_CONFIG = Object.freeze({ supabaseUrl: 'https://example.test', anonKey: '${'x'.repeat(64)}' });
+        if (/\\/seller\\.html$/.test(location.pathname)) {
+          const script = document.createElement('script');
+          script.src = './seller-dynamic-navigation-v2.js';
+          script.async = false;
+          script.dataset.ronecaModule = 'seller-dynamic-navigation';
+          document.head.appendChild(script);
+        }
+      `);
+      return;
+    }
     const file = path.resolve(adminRoot, url.pathname.slice(7));
     if (!file.startsWith(adminRoot + path.sep) || !fs.existsSync(file)) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'Content-Type': mime(file), 'Cache-Control': 'no-store' });
@@ -75,6 +91,17 @@ async function installNetwork(page) {
     }
     if (fn === 'seller-device-flow') return request.respond({ status: 200, contentType: 'application/json', headers: cors(), body: JSON.stringify({ ok: true, result: { applied: true, confirmationStatus: 'confirmed' }, message: 'Concluído.' }) });
     return request.respond({ status: 200, contentType: 'application/json', headers: cors(), body: '{}' });
+  });
+}
+
+async function installAuthenticatedSession(page) {
+  await page.evaluateOnNewDocument(() => {
+    sessionStorage.setItem('roneca-panel-auth-session-v1', JSON.stringify({
+      access_token: 'ux-access-token',
+      refresh_token: 'ux-refresh-token',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: 'ux-user' },
+    }));
   });
 }
 
@@ -195,6 +222,7 @@ async function mobilePanelExperience(browser, origin, width, height, label) {
       document.querySelectorAll('[data-seller-nav]').forEach(button=>button.addEventListener('click',()=>window.sellerPortalNavigate(button.dataset.sellerNav)));
     </script>
     <script src="${origin}/admin/seller-dynamic-navigation-v2.js"></script>
+    <script src="${origin}/admin/mobile-more-navigation.js"></script>
     <script src="${origin}/admin/universal-playlist-registration.js"></script>
   </body></html>`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.seller-v2-more > summary');
@@ -248,6 +276,63 @@ async function mobilePanelExperience(browser, origin, width, height, label) {
   await page.close();
 }
 
+async function actualMobileMoreNavigation(browser, origin, width, height, label) {
+  const admin = await browser.newPage();
+  await admin.setViewport({ width, height });
+  await installNetwork(admin);
+  await installAuthenticatedSession(admin);
+  await admin.goto(`${origin}/admin/dashboard.html`, { waitUntil: 'networkidle0' });
+  await admin.waitForSelector('#adminNavMore > summary');
+
+  await admin.click('#adminNavMore > summary');
+  assert.equal(await admin.$eval('#adminNavMore', node => node.open), true, `${label}: Mais do ADM real deve abrir`);
+  assert.equal(await admin.$eval('#adminNavMore > summary', node => node.getAttribute('aria-expanded')), 'true', `${label}: Mais do ADM deve anunciar abertura`);
+  await admin.setViewport({ width, height: height - 80 });
+  await admin.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await admin.$eval('#adminNavMore', node => node.open), true, `${label}: barra móvel não pode fechar o Mais do ADM`);
+  const adminItemGeometry = await admin.$eval('#adminNavMore [data-tab="playlists"]', node => {
+    const rect = node.getBoundingClientRect();
+    return { width: rect.width, height: rect.height, top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight };
+  });
+  assert.ok(
+    adminItemGeometry.width > 0 && adminItemGeometry.height >= 42 && adminItemGeometry.top >= 0 && adminItemGeometry.bottom <= adminItemGeometry.viewportHeight,
+    `${label}: item do Mais do ADM precisa permanecer clicável (${JSON.stringify(adminItemGeometry)})`,
+  );
+  await admin.click('#adminNavMore [data-tab="playlists"]');
+  assert.equal(await admin.$eval('#adminNavMore', node => node.open), false, `${label}: Mais do ADM deve fechar após a escolha`);
+  assert.ok(await admin.$('#section-playlists.active'), `${label}: item do Mais do ADM deve navegar`);
+  await admin.screenshot({ path: path.join(artifacts, `actual-admin-more-${label}.png`), fullPage: true });
+  await admin.close();
+
+  const seller = await browser.newPage();
+  await seller.setViewport({ width, height });
+  await installNetwork(seller);
+  await installAuthenticatedSession(seller);
+  await seller.goto(`${origin}/admin/seller.html`, { waitUntil: 'networkidle0' });
+  await seller.waitForSelector('.seller-v2-more > summary');
+  await seller.waitForFunction(() => !document.getElementById('dashboardView')?.classList.contains('hide'));
+
+  await seller.click('.seller-v2-more > summary');
+  assert.equal(await seller.$eval('.seller-v2-more', node => node.open), true, `${label}: Mais do vendedor real deve abrir`);
+  assert.equal(await seller.$eval('.seller-v2-more > summary', node => node.getAttribute('aria-expanded')), 'true', `${label}: Mais do vendedor deve anunciar abertura`);
+  await seller.setViewport({ width, height: height - 80 });
+  await seller.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await seller.$eval('.seller-v2-more', node => node.open), true, `${label}: barra móvel não pode fechar o Mais do vendedor`);
+  const sellerItemGeometry = await seller.$eval('.seller-v2-more-menu [data-seller-nav="app"]', node => {
+    const rect = node.getBoundingClientRect();
+    return { width: rect.width, height: rect.height, top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight };
+  });
+  assert.ok(
+    sellerItemGeometry.width > 0 && sellerItemGeometry.height >= 42 && sellerItemGeometry.top >= 0 && sellerItemGeometry.bottom <= sellerItemGeometry.viewportHeight,
+    `${label}: item do Mais do vendedor precisa permanecer clicável (${JSON.stringify(sellerItemGeometry)})`,
+  );
+  await seller.click('.seller-v2-more-menu [data-seller-nav="app"]');
+  assert.equal(await seller.$eval('.seller-v2-more', node => node.open), false, `${label}: Mais do vendedor deve fechar após a escolha`);
+  assert.equal(await seller.$eval('[data-seller-section="app"]', node => node.hidden), false, `${label}: item do Mais do vendedor deve navegar`);
+  await seller.screenshot({ path: path.join(artifacts, `actual-seller-more-${label}.png`), fullPage: true });
+  await seller.close();
+}
+
 let browser; let server;
 try {
   fs.mkdirSync(artifacts, { recursive: true });
@@ -260,7 +345,10 @@ try {
   for (const viewport of [
     [360, 740, '360'], [390, 844, '390'], [430, 932, '430'], [800, 1000, '800'],
   ]) await mobilePanelExperience(browser, started.origin, ...viewport);
-  console.log('✅ Browser Lote 4: desktop, notebook, tablet, mobile, foco, overflow, listas e renovação recente validados.');
+  for (const viewport of [
+    [390, 844, '390'], [800, 1000, '800'],
+  ]) await actualMobileMoreNavigation(browser, started.origin, ...viewport);
+  console.log('✅ Browser Lote 4: páginas reais do ADM/vendedor, menu Mais, responsividade, foco, listas e renovação validados.');
 } finally {
   if (browser) await browser.close();
   if (server) await new Promise(resolve => server.close(resolve));

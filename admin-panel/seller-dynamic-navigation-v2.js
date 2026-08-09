@@ -44,19 +44,7 @@
       `;
       nav.appendChild(more);
     }
-    const summary = more.querySelector(':scope > summary');
-    if (summary && !summary.dataset.sellerMoreBound) {
-      summary.dataset.sellerMoreBound = 'true';
-      summary.addEventListener('click', event => {
-        if (!matchMedia(COMPACT_NAV_QUERY).matches) return;
-        event.preventDefault();
-        more.open = !more.open;
-        summary.setAttribute('aria-expanded', String(more.open));
-      });
-      more.addEventListener('toggle', () => {
-        summary.setAttribute('aria-expanded', String(more.open));
-      });
-    }
+    window.RonecaMobileMoreNavigation?.refresh(more);
     return more;
   }
 
@@ -102,10 +90,8 @@
       nestedActive ? `Mais áreas do portal. Atual: ${nestedActive.textContent.trim()}` : 'Mais áreas do portal',
     );
 
-    const mode = matchMedia(COMPACT_NAV_QUERY).matches ? 'mobile' : 'desktop';
-    if (more.dataset.navigationMode !== mode) more.open = false;
-    more.dataset.navigationMode = mode;
     more.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(more.open));
+    window.RonecaMobileMoreNavigation?.refresh(more);
   }
 
   function showSection(target) {
@@ -173,13 +159,7 @@
       install();
       if (attempts >= 40) clearInterval(timer);
     }, 250);
-    window.addEventListener('resize', syncCompactNavigation);
     window.addEventListener('roneca:seller-navigation-changed', syncCompactNavigation);
-    document.addEventListener('click', event => {
-      if (!matchMedia(COMPACT_NAV_QUERY).matches) return;
-      const more = document.querySelector('.seller-v2-more[open]');
-      if (more && !more.contains(event.target)) more.removeAttribute('open');
-    });
   }
 
   if (document.readyState === 'loading') {

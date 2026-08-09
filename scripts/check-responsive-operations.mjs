@@ -6,7 +6,9 @@ const seller = read('admin-panel/seller.html');
 const sellerUx = read('admin-panel/seller-portal-ux.js');
 const sellerWizard = read('admin-panel/seller-activation-wizard.js');
 const sellerNavigation = read('admin-panel/seller-dynamic-navigation-v2.js');
+const mobileMoreNavigation = read('admin-panel/mobile-more-navigation.js');
 const panelCss = read('admin-panel/panel-redesign.css');
+const premiumCss = read('admin-panel/roneca-panel-premium.css');
 
 function requireCheck(condition, message) {
   if (!condition) throw new Error(message);
@@ -16,7 +18,7 @@ for (const snippet of [
   'id="adminNavMore"',
   'class="admin-nav-more-menu"',
   "const overflowTabs = new Set(['customers', 'playlists', 'audit', 'app'])",
-  'syncAdminNavigationMode()',
+  '<script src="./mobile-more-navigation.js"></script>',
 ]) {
   requireCheck(dashboard.includes(snippet), `Navegação administrativa compacta incompleta: ${snippet}`);
 }
@@ -77,8 +79,6 @@ for (const snippet of [
   'class="seller-v2-more-menu"',
   'syncCompactNavigation()',
   "const COMPACT_NAV_QUERY = '(max-width: 820px)'",
-  "summary.addEventListener('click'",
-  "summary.setAttribute('aria-expanded', String(more.open))",
   "window.addEventListener('roneca:seller-navigation-changed'",
   "source.classList.add('seller-v2-overflow-source')",
   'proxy.__sellerNavSource',
@@ -88,6 +88,29 @@ for (const snippet of [
 
 requireCheck(!sellerNavigation.includes('menu.appendChild(button)'), 'Os botões originais não podem ser movidos; módulos tardios dependem deles como referência.');
 requireCheck(!sellerNavigation.includes("(max-width: 760px)"), 'CSS e JavaScript precisam usar o mesmo limite móvel de 820 px.');
+requireCheck(!sellerNavigation.includes("summary.addEventListener('click'"), 'O vendedor não pode instalar um segundo controlador no botão Mais.');
+
+for (const snippet of [
+  "var COMPACT_NAV_QUERY = '(max-width: 820px)'",
+  "var MORE_SELECTOR = 'details.admin-nav-more, details.seller-v2-more'",
+  "summary.addEventListener('click'",
+  "summary.setAttribute('aria-expanded', String(details.open))",
+  "if (previousMode === mode) return",
+  "document.addEventListener('click', closeFromInteraction)",
+  "document.addEventListener('keydown', closeFromKeyboard)",
+]) {
+  requireCheck(mobileMoreNavigation.includes(snippet), `Controlador compartilhado do Mais incompleto: ${snippet}`);
+}
+
+requireCheck(!dashboard.includes("window.addEventListener('resize', syncAdminNavigationMode)"), 'O ADM não pode fechar o Mais em todo redimensionamento do navegador.');
+requireCheck(
+  (premiumCss.match(/bottom: calc\(78px \+ env\(safe-area-inset-bottom\)\) !important;/g) || []).length >= 2,
+  'Os submenus do ADM e vendedor precisam permanecer ancorados acima da navegação inferior.',
+);
+requireCheck(
+  (premiumCss.match(/max-height: calc\(100dvh - 98px\);/g) || []).length >= 2,
+  'Os submenus móveis precisam respeitar a altura útil do viewport.',
+);
 
 for (const snippet of [
   'body.admin-v2 .admin-nav-more-menu',

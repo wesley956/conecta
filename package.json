@@ -33,7 +33,7 @@
     "check:playback-diagnostics": "node --check admin-panel/playback-diagnostics-module.js && node scripts/check-playback-diagnostics.mjs",
     "check:diagnostics-security": "node scripts/check-diagnostics-security.mjs",
     "check:layout-foundations": "node scripts/check-layout-foundations.mjs",
-    "check:responsive-operations": "node --check admin-panel/seller-portal-ux.js && node --check admin-panel/seller-dynamic-navigation-v2.js && node scripts/check-responsive-operations.mjs",
+    "check:responsive-operations": "node --check admin-panel/seller-portal-ux.js && node --check admin-panel/seller-dynamic-navigation-v2.js && node --check admin-panel/mobile-more-navigation.js && node scripts/check-responsive-operations.mjs",
     "check:panel-runtime-graph": "node --check admin-panel/dashboard.js && node scripts/check-panel-runtime-graph.mjs",
     "check:panel-premium": "node --check admin-panel/roneca-panel-premium.js && node scripts/check-panel-premium.mjs",
     "check:tv-experience": "node scripts/check-tv-experience.mjs",
