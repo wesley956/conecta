@@ -55,7 +55,7 @@ for (const token of [
   "when playlist.playlist_qualification_code = 'DEVICE_TEST_FAILED' then 'device_failed'",
   "then 'awaiting_device_confirmation'",
   "then 'available_by_cache'",
-  "then 'provisional'",
+  "else 'provisional'",
 ]) {
   if (!sql.includes(token)) throw new Error(`Migrações do Lote 3 não contêm: ${token}`);
 }

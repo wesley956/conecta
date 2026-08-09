@@ -32,21 +32,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate parsers and panels
-        run: |
-          npm run check:m3u-parser
-          npm run check:outbound-fetch-security
-          npm run check:playlist-cache-resilience
-          npm run check:panel-auth
-          npm run check:seller-provisioning
-          npm run check:playlist-failover
-          npm run check:inline-playlist-activation
-          npm run check:finance-module
-          npm run check:subscriptions
-          npm run check:app-release
-          npm run check:layout-foundations
-          npm run check:panel-runtime-graph
-          npm run check:tv-experience
+      - name: Validate the complete repository contract
+        run: npm run verify
 
       - name: Validate native-only architecture
         run: node scripts/check-native-only.mjs
@@ -125,6 +112,7 @@ jobs:
         run: |
           npm run typecheck
           npm run build
+          npm run bundle:budget
 
       - name: Stage LG webOS and Samsung Tizen packages
         working-directory: smart-tv
@@ -161,9 +149,9 @@ jobs:
         with:
           gradle-version: '9.4.1'
 
-      - name: Compile native debug APK
+      - name: Test and compile native debug APK
         working-directory: native-android
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
   edge-functions:
     name: Supabase Edge Functions

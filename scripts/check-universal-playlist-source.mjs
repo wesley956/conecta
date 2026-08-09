@@ -9,8 +9,8 @@ import {
 
 const message = `⚡ BEM VINDO A NETPLAY ⚡
 
-✅ Usuário: 23671391979
-✅ Senha: 48181525422
+✅ Usuário: 10000000001
+✅ Senha: 90000000009
 📦 Plano: TESTE C/ ADULTO 12 HORAS
 💵 Preço do Plano: R$ 0,00
 🗓️ Criado em: 04/08/2026 20:09:47
@@ -27,13 +27,13 @@ Link Curto: http://aftv.news/8454237
 Link Direto: https://dl.explouddev.com/netplay
 
 🌎 Links DNS
-URL XC: http://netuno.live
-URL: http://spd.blc-atena.com
-Link (M3U): http://speed.blc-atena.com/get.php?username=23671391979&password=48181525422&type=m3u_plus&output=mpegts
-Link Curto (M3U): http://e.speed.blc-atena.com/p/23671391979/48181525422/m3u
-Link (HLS): http://speed.blc-atena.com/get.php?username=23671391979&password=48181525422&type=m3u_plus&output=hls
-Link Curto (HLS): http://e.speed.blc-atena.com/p/23671391979/48181525422/hls
-Link (SSIPTV): http://e.speed.blc-atena.com/p/23671391979/48181525422/ssiptv`;
+URL XC: http://xtream-fixture.example.invalid
+URL: http://secondary-fixture.example.invalid
+Link (M3U): http://playlist-fixture.example.invalid/get.php?username=10000000001&password=90000000009&type=m3u_plus&output=mpegts
+Link Curto (M3U): http://short-fixture.example.invalid/p/10000000001/90000000009/m3u
+Link (HLS): http://playlist-fixture.example.invalid/get.php?username=10000000001&password=90000000009&type=m3u_plus&output=hls
+Link Curto (HLS): http://short-fixture.example.invalid/p/10000000001/90000000009/hls
+Link (SSIPTV): http://short-fixture.example.invalid/p/10000000001/90000000009/ssiptv`;
 
 const parsed = await parseProviderMessage(message, 'test-secret');
 assert.equal(parsed.provider.name, 'NETPLAY');
@@ -49,10 +49,10 @@ assert.equal(parsed.endpoints.filter(item => item.type === 'hls').length, 2);
 assert.equal(parsed.endpoints.filter(item => item.type === 'ssiptv').length, 1);
 assert.equal(parsed.endpoints.filter(item => item.primary).length, 1);
 assert.ok(parsed.externalLinks.length >= 4);
-assert.ok(parsed.endpoints.every(item => !item.preview.includes('48181525422')));
-assert.ok(!JSON.stringify(parsed.redactedSummary).includes('48181525422'));
-assert.ok(!safeEndpointPreview(parsed.endpoints[0].url).includes('48181525422'));
-assert.ok(parsed.endpoints.some(item => item.host === 'spd.blc-atena.com'));
+assert.ok(parsed.endpoints.every(item => !item.preview.includes('90000000009')));
+assert.ok(!JSON.stringify(parsed.redactedSummary).includes('90000000009'));
+assert.ok(!safeEndpointPreview(parsed.endpoints[0].url).includes('90000000009'));
+assert.ok(parsed.endpoints.some(item => item.host === 'secondary-fixture.example.invalid'));
 
 const protectedPrimary = resolveSafePrimaryIndex([
   { type: 'xtream', path: '/player_api.php', active: true },
@@ -101,7 +101,9 @@ assert.match(panelSource, /data-upl-admin-security/);
 assert.match(panelSource, /state\.surface === 'seller' \? 'strict'/);
 assert.match(panelSource, /state\.surface === 'admin' \? `<button class="upl-btn"/);
 assert.match(authSource, /'playlist-source-manager': true/);
-assert.match(authSource, /subscription-panel\|playlist-source-manager\|app-release/);
+for (const functionName of ['subscription-panel', 'playlist-source-manager', 'app-release']) {
+  assert.match(authSource, new RegExp(`'${functionName}': true`));
+}
 
 console.log('Cadastro universal: isolamento de fontes compartilhadas, autenticação e TLS administrativo aprovados.');
 

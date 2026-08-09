@@ -302,7 +302,7 @@ async function listSources(supabase: any, principal: PanelPrincipal) {
       playlist_cache_status, playlist_cache_updated_at, playlist_cache_item_count,
       playlist_qualification_status, playlist_qualification_code,
       playlist_qualification_message, playlist_qualification_updated_at,
-      endpoints:panel_playlist_endpoints(
+      endpoints:panel_playlist_endpoints!panel_playlist_endpoints_playlist_id_fkey(
         id, endpoint_type, label, protocol, host, port, path, output_format,
         priority, is_primary, active, masked_preview, last_test_status,
         last_test_code, last_test_message, last_tested_at, last_test_duration_ms,

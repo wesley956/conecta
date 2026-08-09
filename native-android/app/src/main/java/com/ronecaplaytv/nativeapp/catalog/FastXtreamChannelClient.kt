@@ -24,7 +24,6 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLDecoder
-import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -142,7 +141,7 @@ internal class FastXtreamChannelClient(
         result.getOrThrow()
     }
 
-    private suspend fun verifyAuthentication(credentials: FastCredentials) =
+    private suspend fun verifyAuthentication(credentials: XtreamPlaybackSource) =
         authenticationMutex.withLock {
             val key = sha256("${credentials.server}|${credentials.username}|${credentials.password}")
             val now = System.currentTimeMillis()
@@ -190,7 +189,7 @@ internal class FastXtreamChannelClient(
         }
 
     private fun request(
-        credentials: FastCredentials,
+        credentials: XtreamPlaybackSource,
         action: String?,
         maximumBytes: Long,
         allowStale: Boolean,
@@ -354,40 +353,7 @@ internal class FastXtreamChannelClient(
     }
 }
 
-private data class FastCredentials(
-    val server: String,
-    val username: String,
-    val password: String,
-    val output: String,
-) {
-    fun apiUrl(action: String?): URL {
-        val query = buildList {
-            add("username=${urlEncode(username)}")
-            add("password=${urlEncode(password)}")
-            action?.let { add("action=${urlEncode(it)}") }
-        }.joinToString("&")
-        return URL("$server/player_api.php?$query")
-    }
-
-    fun liveStreamUrls(streamId: String): List<String> {
-        val primary = if (output.equals("m3u8", true)) "m3u8" else "ts"
-        val alternate = if (primary == "m3u8") "ts" else "m3u8"
-        return listOf(
-            streamUrl("live", streamId, primary),
-            streamUrl("live", streamId, alternate),
-            streamUrl(null, streamId, primary),
-            streamUrl(null, streamId, alternate),
-        ).distinct()
-    }
-
-    private fun streamUrl(kind: String?, streamId: String, extension: String): String {
-        val prefix = kind?.let { "/$it" }.orEmpty()
-        return "$server$prefix/${urlEncode(username)}/${urlEncode(password)}/" +
-            "${urlEncode(streamId)}.$extension"
-    }
-}
-
-private fun parseCredentials(markedUrl: String): FastCredentials? {
+private fun parseCredentials(markedUrl: String): XtreamPlaybackSource? {
     val source = markedUrl.substringBefore(DirectM3uClient.DIRECT_MARKER).trim()
     val url = runCatching { URL(source) }.getOrNull() ?: return null
     if (url.protocol != "http" && url.protocol != "https") return null
@@ -407,7 +373,7 @@ private fun parseCredentials(markedUrl: String): FastCredentials? {
         append(url.authority)
         if (parentPath.isNotBlank()) append(parentPath)
     }.trimEnd('/')
-    return FastCredentials(server, username, password, output)
+    return XtreamPlaybackSource(server, username, password, output)
 }
 
 private fun URL.effectivePort(): Int = when {

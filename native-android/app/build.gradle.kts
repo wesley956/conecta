@@ -26,8 +26,8 @@ android {
         applicationId = "com.ronecaplaytv.nativeapp"
         minSdk = 23
         targetSdk = 36
-        versionCode = 39
-        versionName = "2.7.1"
+        versionCode = 40
+        versionName = "2.8.0"
 
         buildConfigField(
             "String",
@@ -39,6 +39,8 @@ android {
             "UPDATE_API_URL",
             "\"https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/app-release\"",
         )
+        buildConfigField("boolean", "SUSPEND_HYDRATION_DURING_TV_PLAYBACK", "true")
+        buildConfigField("boolean", "COMPACT_XTREAM_PLAYBACK_URLS", "true")
     }
 
     signingConfigs {
@@ -99,4 +101,6 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+
+    testImplementation("junit:junit:4.13.2")
 }
