@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [manager, registration, release, generator, inline] = await Promise.all([
+const [manager, registration, registrationCss, release, generator, inline] = await Promise.all([
   read('supabase/functions/playlist-source-manager/index.ts'),
   read('admin-panel/universal-playlist-registration.js'),
+  read('admin-panel/universal-playlist-registration.css'),
   read('admin-panel/app-release.js'),
   read('scripts/generate-panel-config.mjs'),
   read('admin-panel/universal-playlist-inline.js'),
@@ -42,4 +43,8 @@ const goSource = registration.slice(
 );
 assert.doesNotMatch(goSource, /test\(\)/, 'Navegar entre etapas não pode disparar teste de rede.');
 
-console.log('✅ Painel: FK explícita, carregamento único e cadastro em três etapas validados.');
+assert.match(registrationCss, /\.upl-field textarea\.upl-provider-message \{ min-height: 140px; \}/);
+assert.match(registrationCss, /\.upl-mode input\[type="radio"\][\s\S]*?width: 16px !important;[\s\S]*?min-height: 16px !important;/);
+assert.match(registrationCss, /\.upl-modal-card \{[\s\S]*?width: min\(1040px, 100%\);[\s\S]*?max-height: 92vh;/);
+
+console.log('✅ Painel: FK explícita, carregamento único e cadastro compacto em três etapas validados.');

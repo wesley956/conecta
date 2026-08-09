@@ -18,6 +18,7 @@
     credits: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
     'credit-purchases': '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
     finance: '<path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/>',
+    'company-finance': '<path d="M4 7h15a2 2 0 0 1 2 2v10H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12v3"/><path d="M16 12h5v4h-5a2 2 0 1 1 0-4z"/>',
     diagnostics: '<path d="M4 18h3l2-5 3 7 3-10 2 8h3M4 4h16v16H4z"/>',
     app: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
   };
@@ -185,7 +186,7 @@
         const element = mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement;
         if (!element) return;
         if (element.id === 'stPending' || element.closest?.('#stPending')) pendingChanged = true;
-        if (element.matches?.('.seller-v2-nav, .seller-v2-nav *')) navigationChanged = true;
+        if (element.matches?.('.tabs, .tabs *, .seller-v2-nav, .seller-v2-nav *')) navigationChanged = true;
         if (element.matches?.('.tablewrap, .tablewrap *') || Array.from(mutation.addedNodes).some(node => node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.tablewrap, tr, td') || node.querySelector?.('.tablewrap, tr, td')))) tableChanged = true;
       });
 
