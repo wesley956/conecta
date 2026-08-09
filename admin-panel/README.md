@@ -1,4 +1,4 @@
-# Cruz Stars Admin
+# Roneca Player TV — Painel Web
 
 Painel administrativo estático separado do APK para gerenciar clientes, listas, aparelhos, ativações e histórico de ações.
 
@@ -8,7 +8,8 @@ Painel administrativo estático separado do APK para gerenciar clientes, listas,
 - `dashboard.html`: dashboard administrativo.
 - `seller.html`: portal do vendedor.
 - `panel-config.example.js`: exemplo seguro da configuração pública.
-- `assets/cruz-stars-logo.png`: logo transparente do Cruz Stars.
+- `assets/roneca-player-tv-emblem.png`: símbolo oficial do aplicativo.
+- `assets/roneca-player-tv-wordmark.png`: assinatura oficial Roneca Player TV.
 - `assets/universe-bg.png`: fundo visual do painel.
 
 ## Fluxo principal

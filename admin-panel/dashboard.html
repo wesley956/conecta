@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cruz Stars — Dashboard</title>
+  <title>Roneca Player TV — Painel administrativo</title>
 
   <style>
     :root {
@@ -929,17 +929,31 @@ tbody tr:hover td {
   <link rel="stylesheet" href="./panel-ux.css" />
   <link rel="stylesheet" href="./panel-redesign.css" />
   <link rel="stylesheet" href="./app-release.css" />
+  <link rel="stylesheet" href="./roneca-panel-premium.css" />
 </head>
 
 <body class="admin-v2">
   <main class="app">
     <header class="topbar">
       <div class="brand">
-        <img class="brand-logo" src="./assets/cruz-stars-logo.png" alt="Cruz Stars" />
+        <img class="brand-logo" src="./assets/roneca-player-tv-emblem.png" alt="" />
         <div>
-          <h1>Cruz Stars</h1>
+          <h1>Roneca Player TV</h1>
           <p>Central de operações</p>
         </div>
+      </div>
+
+      <div class="panel-global-tools">
+        <label class="panel-global-search" for="adminGlobalSearch">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="adminGlobalSearch" type="search" placeholder="Buscar aparelho, cliente ou área…" autocomplete="off" />
+          <kbd>/</kbd>
+        </label>
+        <button class="panel-notification" id="adminPendingShortcut" type="button" aria-label="Abrir pendências" title="Abrir pendências">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+          <span id="adminPendingCount">0</span>
+        </button>
+        <div class="panel-account" aria-label="Conta de administrador"><span>AD</span><div><strong>Administrador</strong><small>Conta principal</small></div></div>
       </div>
 
       <div class="actions">
@@ -949,9 +963,11 @@ tbody tr:hover td {
     </header>
 
     <nav class="tabs" aria-label="Navegação principal">
-      <div class="admin-nav-brand" title="Cruz Stars">
-        <img src="./assets/cruz-stars-logo.png" alt="" />
+      <div class="admin-nav-brand" title="Roneca Player TV">
+        <img src="./assets/roneca-player-tv-emblem.png" alt="" />
+        <div><strong>Roneca</strong><small>PLAYER TV</small></div>
       </div>
+      <p class="admin-nav-group">Operação</p>
       <button class="tab active" data-tab="dashboard" onclick="setTab('dashboard')" title="Visão geral" aria-label="Visão geral">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/></svg><span>Visão geral</span>
       </button>
@@ -962,6 +978,7 @@ tbody tr:hover td {
         <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Aparelhos</span>
       </button>
       <div class="admin-nav-separator"></div>
+      <p class="admin-nav-group">Gestão</p>
       <button class="tab" data-tab="commercial" onclick="setTab('commercial')" title="Comercial" aria-label="Comercial">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg><span>Comercial</span>
       </button>
@@ -993,7 +1010,7 @@ tbody tr:hover td {
         <h2 id="adminPageTitle">Bom dia. Vamos resolver o que importa.</h2>
         <p id="adminPageDescription">Uma visão direta das decisões que precisam ser tomadas agora.</p>
       </div>
-      <span class="admin-page-badge">Cruz Stars Admin</span>
+      <span class="admin-page-badge">Roneca Player TV · Admin</span>
     </div>
 
     <section id="section-dashboard" class="section active">
@@ -1432,7 +1449,7 @@ tbody tr:hover td {
     <section id="section-audit" class="section">
       <div class="card">
         <h2>Histórico do painel</h2>
-        <p class="sub">Registro das ações feitas no Cruz Stars Admin.</p>
+        <p class="sub">Registro das ações feitas no painel Roneca Player TV.</p>
 
         <div class="filterbar">
           <input id="auditSearch" class="wide" placeholder="Buscar por ação, descrição ou entidade..." oninput="renderAuditLogs()" />
@@ -1633,5 +1650,6 @@ tbody tr:hover td {
 <script src="./panel-auth-session.js"></script>
 <script src="./dashboard.js"></script>
 <script src="./app-release.js"></script>
+<script src="./roneca-panel-premium.js"></script>
 </body>
 </html>

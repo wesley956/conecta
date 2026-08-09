@@ -591,7 +591,7 @@
       section.className = 'section';
       section.innerHTML = `
         <div class="admin-company-finance">
-          <div class="admin-finance-privacy-note"><div><span class="admin-ops-kicker">Financeiro da empresa</span><h2>Recebimentos, pendências e despesas próprias</h2><p>Esta área mostra somente dinheiro da Cruz Stars. Os valores que cada vendedor cobra de seus clientes permanecem privados.</p></div><button class="btn" type="button" onclick="adminOpsRefreshFinance()">Atualizar</button></div>
+          <div class="admin-finance-privacy-note"><div><span class="admin-ops-kicker">Financeiro da empresa</span><h2>Recebimentos, pendências e despesas próprias</h2><p>Esta área mostra somente dinheiro da Roneca Player TV. Os valores que cada vendedor cobra de seus clientes permanecem privados.</p></div><button class="btn" type="button" onclick="adminOpsRefreshFinance()">Atualizar</button></div>
           <div class="admin-finance-metrics"><article><span>Recebido em pacotes</span><strong id="adminCompanyReceived">R$ 0,00</strong></article><article><span>A receber</span><strong id="adminCompanyPending">R$ 0,00</strong></article><article><span>Em atraso</span><strong id="adminCompanyOverdue">R$ 0,00</strong></article><article><span>Despesas pagas</span><strong id="adminCompanyExpenses">R$ 0,00</strong></article><article><span>Resultado pago</span><strong id="adminCompanyResult">R$ 0,00</strong></article></div>
           <div class="card"><div class="admin-ops-section-head"><div><h2>Compras de créditos dos vendedores</h2><p>Pacotes vendidos, pagamentos e liberação de créditos.</p></div><button class="btn primary" type="button" onclick="creditPackagesOpenSale()">Nova venda</button></div><div class="tablewrap"><table><thead><tr><th>Data</th><th>Vendedor</th><th>Pacote</th><th>Créditos</th><th>Pagamento</th><th>Liberação</th><th>Validade</th><th>Valor</th><th>Ação</th></tr></thead><tbody id="adminCompanyOrders"><tr><td colspan="9" class="muted">Carregando...</td></tr></tbody></table></div></div>
           <div class="card"><div class="admin-ops-section-head"><div><h2>Outras receitas e despesas</h2><p>Registros próprios da empresa; nunca vendas particulares dos vendedores.</p></div></div><div id="adminCompanyRecords" class="admin-company-records"></div></div>
@@ -641,7 +641,7 @@
       if (tab === 'company-finance') {
         if ($('adminPageEyebrow')) $('adminPageEyebrow').textContent = 'Negócio';
         if ($('adminPageTitle')) $('adminPageTitle').textContent = 'Financeiro da empresa';
-        if ($('adminPageDescription')) $('adminPageDescription').textContent = 'Recebimentos e despesas da Cruz Stars, sem acessar o financeiro particular dos vendedores.';
+        if ($('adminPageDescription')) $('adminPageDescription').textContent = 'Recebimentos e despesas da Roneca Player TV, sem acessar o financeiro particular dos vendedores.';
         window.adminOpsRefreshFinance();
       }
       if (tab === 'audit') renderHistory();

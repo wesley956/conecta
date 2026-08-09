@@ -233,17 +233,21 @@
   <link rel="stylesheet" href="./panel-redesign.css" />
   <link rel="stylesheet" href="./app-release.css" />
   <link rel="stylesheet" href="./seller-activation-wizard.css" />
+  <link rel="stylesheet" href="./roneca-panel-premium.css" />
 </head>
 <body class="seller-v2">
   <main class="wrap">
     <section id="loginView" class="card login">
-      <div class="brand" style="margin-bottom:18px;">
-        <div class="logo"><img src="./assets/cruz-stars-logo.png" alt="Cruz Stars"></div>
+      <div class="brand seller-login-brand" style="margin-bottom:18px;">
+        <div class="logo"><img src="./assets/roneca-player-tv-emblem.png" alt=""></div>
         <div>
-          <h1>Portal do Vendedor</h1>
-          <p class="muted">Cruz Stars · acesso comercial</p>
+          <img class="seller-wordmark" src="./assets/roneca-player-tv-wordmark.png" alt="Roneca Player TV">
+          <p class="muted">Portal comercial do vendedor</p>
         </div>
       </div>
+
+      <span class="login-eyebrow">Gestão, controle e resultados</span>
+      <h1 class="seller-login-title">Acesso do vendedor</h1>
 
       <label for="sellerEmail">Email</label>
       <input id="sellerEmail" type="email" autocomplete="username" placeholder="seu@email.com" />
@@ -261,12 +265,16 @@
     <section id="dashboardView" class="hide">
       <div class="hero">
         <div class="brand">
-          <div class="logo"><img src="./assets/cruz-stars-logo.png" alt="Cruz Stars"></div>
+          <div class="logo"><img src="./assets/roneca-player-tv-emblem.png" alt=""></div>
           <div>
             <h1 id="sellerName">Portal do Vendedor</h1>
-            <p class="muted" id="sellerSub">Resumo comercial</p>
+            <p class="muted"><span class="seller-brand-name">Roneca Player TV</span> · <span id="sellerSub">Resumo comercial</span></p>
           </div>
         </div>
+        <label class="panel-global-search seller-global-search" for="sellerGlobalSearch">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="sellerGlobalSearch" type="search" placeholder="Buscar aparelho ou área…" autocomplete="off" />
+        </label>
         <div class="actions">
           <button onclick="loadPortal()">Atualizar</button>
           <button class="red" onclick="logout()">Sair</button>
@@ -274,12 +282,12 @@
       </div>
 
       <nav class="seller-v2-nav" aria-label="Navegação do vendedor">
-        <button class="active" data-seller-nav="home" type="button" aria-current="page" onclick="sellerPortalNavigate('home')">Início</button>
-        <button data-seller-nav="activation" type="button" onclick="sellerPortalNavigate('activation')">Ativar aparelho</button>
-        <button data-seller-nav="devices" type="button" onclick="sellerPortalNavigate('devices')">Meus aparelhos</button>
-        <button data-seller-nav="lists" type="button" onclick="sellerPortalNavigate('lists')">Minhas listas</button>
-        <button data-seller-nav="credits" type="button" onclick="sellerPortalNavigate('credits')">Créditos</button>
-        <button data-seller-nav="app" type="button" onclick="sellerPortalNavigate('app')">Baixar aplicativo</button>
+        <button class="active" data-seller-nav="home" type="button" aria-current="page" onclick="sellerPortalNavigate('home')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/></svg><span>Início</span></button>
+        <button data-seller-nav="activation" type="button" onclick="sellerPortalNavigate('activation')"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M9 7h6M9 12h6M12 17h.01"/></svg><span>Ativar aparelho</span></button>
+        <button data-seller-nav="devices" type="button" onclick="sellerPortalNavigate('devices')"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Meus aparelhos</span></button>
+        <button data-seller-nav="lists" type="button" onclick="sellerPortalNavigate('lists')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Minhas listas</span></button>
+        <button data-seller-nav="credits" type="button" onclick="sellerPortalNavigate('credits')"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg><span>Créditos</span></button>
+        <button data-seller-nav="app" type="button" onclick="sellerPortalNavigate('app')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>Baixar aplicativo</span></button>
       </nav>
 
       <div id="sellerOverviewCard" class="card seller-v2-overview seller-portal-section" data-seller-section="home">
@@ -650,5 +658,6 @@
   <script src="./seller-lists-ux.js"></script>
   <script src="./app-release.js"></script>
   <script src="./seller-activation-wizard.js"></script>
+  <script src="./roneca-panel-premium.js"></script>
 </body>
 </html>
