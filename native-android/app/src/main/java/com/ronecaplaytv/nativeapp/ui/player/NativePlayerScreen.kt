@@ -55,6 +55,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
+import com.ronecaplaytv.nativeapp.diagnostics.NativeDiagnostics
 import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
 import com.ronecaplaytv.nativeapp.network.SourceNetworkScope
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
@@ -63,7 +64,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val IPTV_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
-private const val SAME_SOURCE_RETRY_LIMIT = 1
 private const val PLAYER_SEEK_STEP_MS = 10_000L
 private const val STARTUP_TIMEOUT_MS = 20_000L
 private const val LIVE_STALL_TIMEOUT_MS = 12_000L
@@ -81,7 +81,10 @@ fun NativePlayerScreen(
     currentChannelId: String? = null,
     decoderMode: String = "Hardware",
     bufferSeconds: Int = 5,
+    aspectMode: String = PlayerAspectMode.Original.storageValue,
     automaticReconnect: Boolean = true,
+    onAspectModeChange: (String) -> Unit = {},
+    onPlaybackValidated: () -> Unit = {},
     onProgress: (positionMs: Long, durationMs: Long) -> Unit = { _, _ -> },
     onSelectChannel: (NativeChannel) -> Unit = {},
     onTerminalPlaybackFailure: (reason: String, positionMs: Long, durationMs: Long) -> Unit = { _, _, _ -> },
@@ -90,6 +93,7 @@ fun NativePlayerScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val drawerFirstItemFocusRequester = remember { FocusRequester() }
+    val resolvedAspectMode = PlayerAspectMode.fromStorage(aspectMode)
 
     val sources = remember(streamUrls) {
         streamUrls
@@ -106,6 +110,7 @@ fun NativePlayerScreen(
     val currentChannelDrawerVisible = rememberUpdatedState(channelDrawerVisible)
     var recoveryInProgress by remember(sources) { mutableStateOf(false) }
     var terminalFailureReported by remember(sources) { mutableStateOf(false) }
+    var playbackValidated by remember(sources) { mutableStateOf(false) }
     var playerMessage by remember(sources) {
         mutableStateOf(
             if (sources.isEmpty()) "Este conteúdo não possui uma fonte de reprodução válida." else null,
@@ -132,9 +137,8 @@ fun NativePlayerScreen(
         initialPositionMs,
         decoderMode,
     ) {
-        val compatibilityMode = decoderMode.equals("Software", ignoreCase = true)
         val renderersFactory = DefaultRenderersFactory(context)
-            .setEnableDecoderFallback(compatibilityMode)
+            .setEnableDecoderFallback(true)
 
         ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
@@ -152,9 +156,9 @@ fun NativePlayerScreen(
             }
     }
 
-    fun recoverOrFail(diagnostic: String) {
+    fun recoverOrFail(failure: PlaybackFailure) {
         if (!automaticReconnect) {
-            playerMessage = "Transmissão interrompida. Reconexão automática desativada."
+            playerMessage = "${failure.userMessage} Reconexão automática desativada."
             return
         }
         if (recoveryInProgress || terminalFailureReported) return
@@ -162,12 +166,24 @@ fun NativePlayerScreen(
         recoveryInProgress = true
         val currentPosition = sourceIndex + 1
         val resumePositionMs = if (currentChannelId == null) player.currentPosition.coerceAtLeast(0L) else 0L
+        val retryDelayMs = if (failure.retryable) retryDelayMillis(sameSourceRetries) else null
 
-        if (sameSourceRetries < SAME_SOURCE_RETRY_LIMIT) {
+        NativeDiagnostics.record(
+            "playback.recovery",
+            mapOf(
+                "failure_kind" to failure.diagnosticCode,
+                "source_index" to currentPosition,
+                "source_count" to sources.size,
+                "retry_attempt" to sameSourceRetries,
+                "retryable" to failure.retryable,
+            ),
+        )
+
+        if (retryDelayMs != null) {
             sameSourceRetries += 1
-            playerMessage = "Reconectando à fonte $currentPosition/${sources.size}..."
+            playerMessage = "${failure.userMessage} Nova tentativa em ${retryDelayMs / 1_000} segundos."
             coroutineScope.launch {
-                delay(1_200)
+                delay(retryDelayMs)
                 sources.getOrNull(sourceIndex)?.let { source ->
                     player.setMediaItem(mediaItemFor(source))
                     if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
@@ -184,7 +200,7 @@ fun NativePlayerScreen(
             sourceIndex = nextIndex
             sameSourceRetries = 0
             playerMessage =
-                "Fonte $currentPosition falhou ($diagnostic). Tentando ${nextIndex + 1}/${sources.size}..."
+                "${failure.userMessage} Tentando fonte ${nextIndex + 1}/${sources.size}..."
             player.setMediaItem(mediaItemFor(sources[nextIndex]))
             if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
             player.prepare()
@@ -195,9 +211,9 @@ fun NativePlayerScreen(
 
         recoveryInProgress = false
         terminalFailureReported = true
-        playerMessage = "Lista ativa indisponível. Ativando a lista reserva..."
+        playerMessage = "${failure.userMessage} Verificando a lista reserva..."
         onTerminalPlaybackFailure(
-            diagnostic,
+            failure.diagnosticCode,
             player.currentPosition.coerceAtLeast(0L),
             player.duration.coerceAtLeast(0L),
         )
@@ -264,10 +280,15 @@ fun NativePlayerScreen(
 
             val positionMs = player.currentPosition
             val advancing = positionMs > lastPositionMs + 250L
-            if (advancing || player.isPlaying) {
+            if (advancing) {
                 stalledSinceMs = null
                 sameSourceRetries = 0
                 terminalFailureReported = false
+                if (!playbackValidated) {
+                    playbackValidated = true
+                    NativeDiagnostics.record("playback.validated", mapOf("source_index" to sourceIndex + 1))
+                    onPlaybackValidated()
+                }
                 lastPositionMs = positionMs
                 continue
             }
@@ -282,7 +303,7 @@ fun NativePlayerScreen(
 
             if (now - startedAt >= timeoutMs) {
                 stalledSinceMs = now
-                recoverOrFail("tempo limite de carregamento")
+                recoverOrFail(PlaybackFailure.stalled())
             }
             lastPositionMs = positionMs
         }
@@ -314,7 +335,7 @@ fun NativePlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                recoverOrFail(error.errorCodeName)
+                recoverOrFail(classifyPlaybackFailure(error))
             }
         }
 
@@ -441,10 +462,12 @@ fun NativePlayerScreen(
             eyebrow = "RONECA PLAYER TV",
             live = currentChannelId != null,
             isTelevision = isTelevision,
+            aspectMode = resolvedAspectMode,
             drawerLabel = relatedChannels.takeIf { it.isNotEmpty() }?.let { "Canais" },
             drawerVisible = channelDrawerVisible,
             onBack = onBack,
             onOpenDrawer = relatedChannels.takeIf { it.isNotEmpty() }?.let { { openDrawer() } },
+            onAspectModeChange = { onAspectModeChange(it.storageValue) },
             onControllerVisibilityChanged = { controlsVisible = it },
             onControllerReady = { media3Controller = it },
             modifier = Modifier.fillMaxSize(),
@@ -583,14 +606,14 @@ private fun ChannelDrawer(
                         Text(
                             text = if (active) "REPRODUZINDO AGORA" else channel.groupTitle,
                             color = if (active) RonecaColors.RedStrong else RonecaColors.TextSecondary,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             maxLines = 1,
                         )
                     }
                     Text(
                         text = if (active) "NO AR" else "▶",
                         color = if (active) RonecaColors.RedStrong else RonecaColors.Primary,
-                        fontSize = if (active) 9.sp else 13.sp,
+                        fontSize = if (active) 11.sp else 13.sp,
                         fontWeight = FontWeight.Bold,
                     )
                 }

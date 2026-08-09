@@ -111,7 +111,7 @@ private fun ClassicPlayerHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xC4050505))
+            .background(Color(0xD9080809))
             .padding(
                 horizontal = if (isTelevision) 24.dp else 14.dp,
                 vertical = 11.dp,
@@ -140,7 +140,7 @@ private fun ClassicPlayerHeader(
                     Text(
                         text = eyebrow,
                         color = RonecaColors.Primary,
-                        fontSize = if (isTelevision) 10.sp else 9.sp,
+                        fontSize = if (isTelevision) 12.sp else 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.8.sp,
                     )
@@ -149,7 +149,7 @@ private fun ClassicPlayerHeader(
                         Text(
                             text = "● AO VIVO",
                             color = RonecaColors.RedStrong,
-                            fontSize = 9.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                         )
                     }
@@ -196,7 +196,7 @@ private fun ClassicPlaybackControls(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xC4050505))
+            .background(Color(0xD9080809))
             .padding(
                 horizontal = if (isTelevision) 28.dp else 16.dp,
                 vertical = if (isTelevision) 12.dp else 10.dp,

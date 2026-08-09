@@ -83,8 +83,20 @@ private data class ActiveSeriesPlayback(
     val episodeNumber: Int,
 )
 
+private data class PendingPlaybackValidation(
+    val attemptId: String,
+    val playlistId: String,
+    val contentKey: String,
+)
+
 private val recommendationSeparators = Regex("[^a-z0-9]+")
 private val recommendationMarks = Regex("\\p{M}+")
+private val playlistWidePlaybackFailures = setOf(
+    "transient_network",
+    "stalled",
+    "access_denied",
+    "secure_connection",
+)
 private val recommendationStopWords = setOf(
     "a", "as", "o", "os", "de", "da", "das", "do", "dos", "e", "em", "na", "nas",
     "no", "nos", "para", "por", "um", "uma", "the", "and", "of", "in", "to",
@@ -222,6 +234,8 @@ fun RonecaPlayTVApp(
     var favoriteSeriesIds by remember { mutableStateOf(playbackPreferences.favoriteSeries()) }
     var savedProgress by remember { mutableStateOf(playbackPreferences.startedProgress()) }
     var failoverInProgress by remember { mutableStateOf(false) }
+    var pendingPlaybackValidation by remember { mutableStateOf<PendingPlaybackValidation?>(null) }
+    var attemptedPlaybackPlaylistIds by remember { mutableStateOf(emptySet<String>()) }
     var playerSuspendedForLifecycle by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, destination) {
@@ -373,6 +387,18 @@ fun RonecaPlayTVApp(
         val failedTitle = selectedTitle
         val failedSeriesPlayback = activeSeriesPlayback
         val failedPlaylistId = catalogState.activePlaylistId
+        if (reason !in playlistWidePlaybackFailures) {
+            pendingPlaybackValidation = null
+            return
+        }
+        if (failedPlaylistId.isNullOrBlank() || failedPlaylistId in attemptedPlaybackPlaylistIds) {
+            pendingPlaybackValidation = null
+            failoverInProgress = false
+            destination = playerReturnDestination
+            activeSeriesPlayback = null
+            return
+        }
+        attemptedPlaybackPlaylistIds = attemptedPlaybackPlaylistIds + failedPlaylistId
         if (durationMs > 0L && positionMs > 0L && !failedContentKey.startsWith("channel:")) {
             playbackPreferences.saveProgress(failedContentKey, positionMs, durationMs)
         }
@@ -387,6 +413,16 @@ fun RonecaPlayTVApp(
         coroutineScope.launch {
             val result = catalogViewModel.failoverActivePlaylist(reason, attemptId)
             if (result == null) {
+                pendingPlaybackValidation = null
+                failoverInProgress = false
+                destination = playerReturnDestination
+                activeSeriesPlayback = null
+                return@launch
+            }
+
+            if (result.toPlaylistId in attemptedPlaybackPlaylistIds) {
+                pendingPlaybackValidation = null
+                catalogViewModel.markFailoverContentMissing(attemptId)
                 failoverInProgress = false
                 destination = playerReturnDestination
                 activeSeriesPlayback = null
@@ -476,15 +512,31 @@ fun RonecaPlayTVApp(
 
             failoverInProgress = false
             if (recovered && selectedStreamUrls.isNotEmpty()) {
-                activationViewModel.reportPlaylistSuccess(result.toPlaylistId)
+                pendingPlaybackValidation = PendingPlaybackValidation(
+                    attemptId = attemptId,
+                    playlistId = result.toPlaylistId,
+                    contentKey = selectedContentKey,
+                )
                 savedProgress = playbackPreferences.startedProgress()
                 destination = NativeDestination.Player
             } else {
+                pendingPlaybackValidation = null
                 catalogViewModel.markFailoverContentMissing(attemptId)
                 destination = playerReturnDestination
                 activeSeriesPlayback = null
             }
         }
+    }
+
+    fun markPlaybackValidated() {
+        val pending = pendingPlaybackValidation ?: return
+        if (
+            pending.contentKey != selectedContentKey ||
+            pending.playlistId != catalogState.activePlaylistId
+        ) return
+        activationViewModel.reportPlaylistSuccess(pending.playlistId)
+        pendingPlaybackValidation = null
+        attemptedPlaybackPlaylistIds = emptySet()
     }
 
     fun openPlayer(
@@ -496,6 +548,8 @@ fun RonecaPlayTVApp(
     ) {
         val validUrls = playbackUrls.map(String::trim).filter(String::isNotBlank).distinct()
         if (validUrls.isEmpty()) return
+        pendingPlaybackValidation = null
+        attemptedPlaybackPlaylistIds = emptySet()
         playerReturnDestination = destination
         activeSeriesPlayback = null
         selectedStreamUrls = validUrls
@@ -521,6 +575,8 @@ fun RonecaPlayTVApp(
             .filter(String::isNotBlank)
             .distinct()
         if (playbackUrls.isEmpty()) return
+        pendingPlaybackValidation = null
+        attemptedPlaybackPlaylistIds = emptySet()
         if (!preserveReturnDestination) playerReturnDestination = destination
         val resolvedSeries = series.copy(seasons = seasons)
         selectedSeries = resolvedSeries
@@ -1002,7 +1058,14 @@ fun RonecaPlayTVApp(
                         initialPositionMs = selectedInitialPositionMs,
                         decoderMode = settingsState.decoderMode,
                         bufferSeconds = settingsState.bufferSeconds,
+                        aspectMode = settingsState.aspectMode,
                         automaticReconnect = settingsState.automaticReconnect,
+                        onAspectModeChange = { aspectMode ->
+                            val updated = settingsState.copy(aspectMode = aspectMode)
+                            settingsState = updated
+                            playerSettingsPreferences.save(updated)
+                        },
+                        onPlaybackValidated = ::markPlaybackValidated,
                         positionForEpisode = { episode ->
                             val season = seriesPlayback.seasons.firstOrNull { candidate ->
                                 candidate.episodes.any { it.id == episode.id }
@@ -1063,7 +1126,14 @@ fun RonecaPlayTVApp(
                         currentChannelId = currentChannelId,
                         decoderMode = settingsState.decoderMode,
                         bufferSeconds = settingsState.bufferSeconds,
+                        aspectMode = settingsState.aspectMode,
                         automaticReconnect = settingsState.automaticReconnect,
+                        onAspectModeChange = { aspectMode ->
+                            val updated = settingsState.copy(aspectMode = aspectMode)
+                            settingsState = updated
+                            playerSettingsPreferences.save(updated)
+                        },
+                        onPlaybackValidated = ::markPlaybackValidated,
                         onProgress = { positionMs, durationMs ->
                             selectedInitialPositionMs = positionMs
                             if (selectedContentKey.startsWith("movie:") || selectedContentKey.startsWith("episode:")) {

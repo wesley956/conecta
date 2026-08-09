@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.BuildConfig
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.player.PlayerAspectMode
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import java.text.DateFormat
 import java.util.Date
@@ -46,6 +47,7 @@ import java.util.Date
 data class PlayerSettingsState(
     val decoderMode: String = "Hardware",
     val bufferSeconds: Int = 5,
+    val aspectMode: String = PlayerAspectMode.Original.storageValue,
     val language: String = "Português",
     val automaticReconnect: Boolean = true,
     val forceTvMode: Boolean = false,
@@ -126,6 +128,16 @@ fun SettingsScreen(
                 onSelect = { value ->
                     onStateChange(state.copy(bufferSeconds = value.removeSuffix("s").toInt()))
                 },
+            )
+        }
+        item {
+            ChoiceSettingRow(
+                title = "Aspecto da imagem",
+                subtitle = "Ajuste como filmes, séries e canais ocupam a tela.",
+                options = PlayerAspectMode.settingsOptions,
+                selected = state.aspectMode,
+                isTelevision = isTelevision,
+                onSelect = { onStateChange(state.copy(aspectMode = it)) },
             )
         }
 
@@ -415,7 +427,7 @@ private fun CurrentProfileCard(isTelevision: Boolean, state: PlayerSettingsState
 @Composable
 private fun ProfileMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(text = label, color = RonecaColors.TextMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+        Text(text = label, color = RonecaColors.TextMuted, fontSize = 11.sp, letterSpacing = 1.sp)
         Text(text = value, color = RonecaColors.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -573,7 +585,7 @@ private fun StatusPill(label: String, active: Boolean) {
     ) {
         Text(
             text = label,
-            color = if (active) Color(0xFF100E08) else RonecaColors.TextSecondary,
+            color = if (active) RonecaColors.TextPrimary else RonecaColors.TextSecondary,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
         )

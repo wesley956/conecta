@@ -47,7 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.ui.components.CompactActionButton
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.delay
@@ -233,7 +233,7 @@ private fun CatalogMediaCard(
                 ),
         ) {
             if (!item.imageUrl.isNullOrBlank()) {
-                AsyncImage(
+                RonecaAsyncImage(
                     model = item.imageUrl,
                     contentDescription = item.title,
                     modifier = Modifier.fillMaxSize(),

@@ -4,8 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,13 +26,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.ronecaplaytv.nativeapp.R
 import com.ronecaplaytv.nativeapp.activation.DeviceAccessStatus
 import com.ronecaplaytv.nativeapp.activation.DeviceSessionState
 import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
@@ -45,6 +52,7 @@ fun ActivationScreen(
 ) {
     val context = LocalContext.current
     val primaryFocusRequester = remember { FocusRequester() }
+    val mobileScrollState = rememberScrollState()
 
     LaunchedEffect(isTelevision, state.status, state.isRefreshing) {
         if (isTelevision && !state.isRefreshing) {
@@ -56,27 +64,56 @@ fun ActivationScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RonecaColors.Background)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        RonecaColors.Background,
+                        RonecaColors.Surface.copy(alpha = 0.96f),
+                        RonecaColors.Background,
+                    ),
+                ),
+            )
             .padding(
                 horizontal = if (isTelevision) 72.dp else 24.dp,
                 vertical = 30.dp,
             ),
     ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(0.72f)
+                .height(3.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            RonecaColors.Primary.copy(alpha = 0f),
+                            RonecaColors.PrimaryStrong,
+                            RonecaColors.Primary.copy(alpha = 0f),
+                        ),
+                    ),
+                ),
+        )
+
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .widthIn(max = 780.dp),
+                .widthIn(max = 780.dp)
+                .then(
+                    if (isTelevision) Modifier else Modifier.verticalScroll(mobileScrollState),
+                ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = "▣  Roneca Player TV",
-                color = RonecaColors.TextPrimary,
-                fontSize = if (isTelevision) 20.sp else 17.sp,
-                fontWeight = FontWeight.Bold,
+            Image(
+                painter = painterResource(R.drawable.roneca_player_tv_lockup),
+                contentDescription = "Roneca Player TV",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth(if (isTelevision) 0.72f else 0.94f)
+                    .height(if (isTelevision) 112.dp else 76.dp),
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (isTelevision) 20.dp else 16.dp))
             Text(
                 text = titleFor(state.status),
                 color = RonecaColors.TextPrimary,
@@ -99,7 +136,7 @@ fun ActivationScreen(
                         .fillMaxWidth()
                         .widthIn(max = 560.dp)
                         .background(RonecaColors.Surface, RoundedCornerShape(16.dp))
-                        .border(1.dp, RonecaColors.Primary, RoundedCornerShape(16.dp))
+                        .border(1.dp, RonecaColors.Primary.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
                         .padding(horizontal = 24.dp, vertical = 22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -113,7 +150,7 @@ fun ActivationScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = deviceCode,
-                        color = RonecaColors.TextPrimary,
+                        color = RonecaColors.PrimaryStrong,
                         fontSize = if (isTelevision) 38.sp else 28.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,

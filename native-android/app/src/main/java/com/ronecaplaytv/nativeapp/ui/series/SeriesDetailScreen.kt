@@ -43,7 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
@@ -253,7 +253,7 @@ private fun SeriesCover(series: NativeSeries, modifier: Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         if (!series.coverUrl.isNullOrBlank()) {
-            AsyncImage(
+            RonecaAsyncImage(
                 model = series.coverUrl,
                 contentDescription = series.name,
                 modifier = Modifier.fillMaxSize(),
@@ -565,7 +565,7 @@ private fun RecommendationCard(
                 .background(RonecaColors.BackgroundSoft),
         ) {
             if (!series.coverUrl.isNullOrBlank()) {
-                AsyncImage(
+                RonecaAsyncImage(
                     model = series.coverUrl,
                     contentDescription = series.name,
                     modifier = Modifier.fillMaxSize(),

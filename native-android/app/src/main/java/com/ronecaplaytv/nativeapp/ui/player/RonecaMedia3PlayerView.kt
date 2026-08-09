@@ -65,16 +65,20 @@ internal fun RonecaMedia3PlayerView(
     eyebrow: String,
     live: Boolean,
     isTelevision: Boolean,
+    aspectMode: PlayerAspectMode,
     drawerLabel: String?,
     drawerVisible: Boolean,
     onBack: () -> Unit,
     onOpenDrawer: (() -> Unit)?,
+    onAspectModeChange: (PlayerAspectMode) -> Unit,
     onControllerVisibilityChanged: (Boolean) -> Unit,
     onControllerReady: (RonecaMedia3Controller?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentOnBack by rememberUpdatedState(onBack)
     val currentOnOpenDrawer by rememberUpdatedState(onOpenDrawer)
+    val currentAspectMode by rememberUpdatedState(aspectMode)
+    val currentOnAspectModeChange by rememberUpdatedState(onAspectModeChange)
     val currentOnControllerVisibilityChanged by rememberUpdatedState(onControllerVisibilityChanged)
     val currentOnControllerReady by rememberUpdatedState(onControllerReady)
 
@@ -105,7 +109,10 @@ internal fun RonecaMedia3PlayerView(
                 findViewById<TextView>(R.id.roneca_media3_drawer)?.setOnClickListener {
                     currentOnOpenDrawer?.invoke()
                 }
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                findViewById<TextView>(R.id.roneca_media3_aspect)?.setOnClickListener {
+                    currentOnAspectModeChange(currentAspectMode.next())
+                }
+                resizeMode = aspectMode.toMedia3ResizeMode()
                 isFocusable = true
                 isFocusableInTouchMode = true
             }
@@ -127,6 +134,11 @@ internal fun RonecaMedia3PlayerView(
             playerView.findViewById<TextView>(R.id.roneca_media3_title)?.text = title
             playerView.findViewById<TextView>(R.id.roneca_media3_live)?.visibility =
                 if (live) View.VISIBLE else View.GONE
+            playerView.resizeMode = aspectMode.toMedia3ResizeMode()
+            playerView.findViewById<TextView>(R.id.roneca_media3_aspect)?.apply {
+                text = "Tela • ${aspectMode.displayName}"
+                contentDescription = "Aspecto da imagem: ${aspectMode.storageValue}. Pressione para alterar."
+            }
 
             playerView.findViewById<TextView>(R.id.roneca_media3_drawer)?.apply {
                 val available = !drawerLabel.isNullOrBlank() && currentOnOpenDrawer != null
@@ -150,6 +162,7 @@ private fun configureMedia3FocusGraph(playerView: PlayerView) {
         val timeBar = playerView.findViewById<DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)
         val back = playerView.findViewById<View>(R.id.roneca_media3_back)
         val drawer = playerView.findViewById<View>(R.id.roneca_media3_drawer)
+        val aspect = playerView.findViewById<View>(R.id.roneca_media3_aspect)
 
         timeBar?.apply {
             isFocusable = true
@@ -164,5 +177,15 @@ private fun configureMedia3FocusGraph(playerView: PlayerView) {
         }
         back?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
         drawer?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
+        aspect?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
     }
+}
+
+@OptIn(UnstableApi::class)
+private fun PlayerAspectMode.toMedia3ResizeMode(): Int = when (this) {
+    PlayerAspectMode.Original -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+    PlayerAspectMode.Fill -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+    PlayerAspectMode.Stretch -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+    PlayerAspectMode.FixedWidth -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+    PlayerAspectMode.FixedHeight -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
 }

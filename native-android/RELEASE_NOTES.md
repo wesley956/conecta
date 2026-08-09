@@ -1,9 +1,14 @@
-# RonecaPlayTV 2.8.0
+# RonecaPlayTV 2.9.0
 
-- Cadastro de listas simplificado e correções de estabilidade do painel.
-- Player libera decoder ao sair para segundo plano e preserva a posição.
-- Menor uso de memória em TVs com pouca RAM e catálogos Xtream grandes.
-- Melhorias de fluidez, diagnóstico local seguro e resiliência de séries.
+- Nova identidade visual grafite e vermelha, alinhada aos painéis ADM e vendedor.
+- Sistema vetorial oficial da marca, ícone adaptativo, banner Android TV e tela de ativação renovada.
+- Controle de aspecto no player: Original, Preencher, Estender, Largura e Altura.
+- Capas, banners e logotipos com interpolação de alta qualidade, cache nativo e fallback oficial.
+- Reconexão inteligente: falhas temporárias usam espera progressiva de 2, 4 e 8 segundos.
+- Erros 401/403, 404, formato, decoder e TLS deixam de repetir a mesma URL sem necessidade.
+- Lista reserva somente é confirmada depois que a reprodução realmente avança.
+- Posição de filmes e episódios preservada durante tentativas e failover.
+- Mensagens de reprodução mais claras e diagnóstico seguro sem URLs ou credenciais.
 
 # RonecaPlayTV Native 2.7.1
 

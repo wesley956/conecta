@@ -40,35 +40,35 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 
 object RonecaColors {
-    val Background = Color(0xFF050505)
-    val BackgroundSoft = Color(0xFF090806)
-    val Surface = Color(0xFF11100E)
-    val SurfaceRaised = Color(0xFF191713)
-    val SurfaceOverlay = Color(0xE611100E)
-    val Border = Color(0xFF302A1E)
-    val Divider = Color(0xFF211E18)
+    val Background = Color(0xFF080809)
+    val BackgroundSoft = Color(0xFF0D0D0F)
+    val Surface = Color(0xFF131315)
+    val SurfaceRaised = Color(0xFF19191C)
+    val SurfaceOverlay = Color(0xED131315)
+    val Border = Color(0xFF2B2B30)
+    val Divider = Color(0xFF222226)
 
-    val Primary = Color(0xFFE8C768)
-    val PrimaryStrong = Color(0xFFFFDB73)
-    val PrimarySoft = Color(0x33E8C768)
-    val Red = Color(0xFFC62828)
-    val RedStrong = Color(0xFFFF3B30)
-    val RedSoft = Color(0x33C62828)
+    val Primary = Color(0xFFE3262E)
+    val PrimaryStrong = Color(0xFFFF454C)
+    val PrimarySoft = Color(0x33E3262E)
+    val Red = Primary
+    val RedStrong = PrimaryStrong
+    val RedSoft = PrimarySoft
     val Focus = RedStrong
-    val Purple = Color(0xFFC9AE68)
-    val Orange = Color(0xFFE9A44F)
-    val Green = Color(0xFF73C98C)
-    val Yellow = Color(0xFFE8C768)
-    val Error = Color(0xFFFF6868)
+    val Purple = Color(0xFFB95A83)
+    val Orange = Color(0xFFD27A3D)
+    val Green = Color(0xFF4DBF82)
+    val Yellow = Color(0xFFD8A52B)
+    val Error = Color(0xFFFF5C64)
 
     val Cyan = Primary
     val Pink = Red
 
-    val TextPrimary = Color(0xFFF7F4EC)
-    val BodyText = Color(0xFFD8D2C5)
-    val TextSecondary = Color(0xFFA39D91)
-    val TextMuted = Color(0xFFA39D91)
-    val TextDisabled = Color(0xFF69645B)
+    val TextPrimary = Color(0xFFF7F7F8)
+    val BodyText = Color(0xFFD4D4D8)
+    val TextSecondary = Color(0xFF9C9CA5)
+    val TextMuted = Color(0xFF81818A)
+    val TextDisabled = Color(0xFF5F5F68)
 }
 
 private val CardShape = RoundedCornerShape(14.dp)
@@ -186,7 +186,7 @@ fun FocusableActionCard(
             }
         }
 
-        // Gold line with a short red cut: the visual link between the app and the red admin panels.
+        // A assinatura vermelha é a ligação visual direta com os painéis ADM e vendedor.
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -196,13 +196,13 @@ fun FocusableActionCard(
                 modifier = Modifier
                     .width(34.dp)
                     .height(3.dp)
-                    .background(if (focused) RonecaColors.Focus else RonecaColors.Primary),
+                    .background(RonecaColors.Primary),
             )
             Box(
                 modifier = Modifier
                     .width(12.dp)
                     .height(3.dp)
-                    .background(RonecaColors.RedStrong),
+                    .background(RonecaColors.PrimaryStrong),
             )
         }
 

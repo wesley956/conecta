@@ -56,6 +56,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
+import com.ronecaplaytv.nativeapp.diagnostics.NativeDiagnostics
 import com.ronecaplaytv.nativeapp.network.SourceNetworkPolicyRegistry
 import com.ronecaplaytv.nativeapp.network.SourceNetworkScope
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
@@ -65,7 +66,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val SERIES_IPTV_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
-private const val SERIES_SOURCE_RETRY_LIMIT = 1
 private const val SERIES_SEEK_STEP_MS = 10_000L
 private const val SERIES_STARTUP_TIMEOUT_MS = 20_000L
 private const val SERIES_STALL_TIMEOUT_MS = 25_000L
@@ -86,7 +86,10 @@ fun SeriesNativePlayerScreen(
     initialPositionMs: Long = 0L,
     decoderMode: String = "Hardware",
     bufferSeconds: Int = 5,
+    aspectMode: String = PlayerAspectMode.Original.storageValue,
     automaticReconnect: Boolean = true,
+    onAspectModeChange: (String) -> Unit = {},
+    onPlaybackValidated: () -> Unit = {},
     positionForEpisode: (NativeEpisode) -> Long = { 0L },
     onEpisodeChanged: (NativeSeason, NativeEpisode) -> Unit = { _, _ -> },
     onProgress: (NativeSeason, NativeEpisode, positionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
@@ -96,6 +99,7 @@ fun SeriesNativePlayerScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val drawerFirstItemFocusRequester = remember { FocusRequester() }
+    val resolvedAspectMode = PlayerAspectMode.fromStorage(aspectMode)
 
     val entries = remember(seasons) {
         seasons
@@ -121,6 +125,7 @@ fun SeriesNativePlayerScreen(
     val currentEpisodeDrawerVisible = rememberUpdatedState(episodeDrawerVisible)
     var recoveryInProgress by remember(entries) { mutableStateOf(false) }
     var terminalFailureReported by remember(entries) { mutableStateOf(false) }
+    var playbackValidated by remember(entries) { mutableStateOf(false) }
     var playerMessage by remember(entries) {
         mutableStateOf(if (entries.isEmpty()) "Esta série não possui episódios disponíveis." else null)
     }
@@ -154,9 +159,8 @@ fun SeriesNativePlayerScreen(
     }
 
     val player = remember(loadControl, mediaSourceFactory, decoderMode) {
-        val compatibilityMode = decoderMode.equals("Software", ignoreCase = true)
         val renderersFactory = DefaultRenderersFactory(context)
-            .setEnableDecoderFallback(compatibilityMode)
+            .setEnableDecoderFallback(true)
 
         ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
@@ -168,20 +172,33 @@ fun SeriesNativePlayerScreen(
             }
     }
 
-    fun recoverOrFail(diagnostic: String) {
+    fun recoverOrFail(failure: PlaybackFailure) {
         if (!automaticReconnect) {
-            playerMessage = "Episódio interrompido. Reconexão automática desativada."
+            playerMessage = "${failure.userMessage} Reconexão automática desativada."
             return
         }
         if (recoveryInProgress || terminalFailureReported) return
 
         recoveryInProgress = true
         val resumePositionMs = player.currentPosition.coerceAtLeast(0L)
-        if (sameSourceRetries < SERIES_SOURCE_RETRY_LIMIT) {
+        val retryDelayMs = if (failure.retryable) retryDelayMillis(sameSourceRetries) else null
+
+        NativeDiagnostics.record(
+            "playback.series_recovery",
+            mapOf(
+                "failure_kind" to failure.diagnosticCode,
+                "source_index" to sourceIndex + 1,
+                "source_count" to currentSources.size,
+                "retry_attempt" to sameSourceRetries,
+                "retryable" to failure.retryable,
+            ),
+        )
+
+        if (retryDelayMs != null) {
             sameSourceRetries += 1
-            playerMessage = "Reconectando ao episódio..."
+            playerMessage = "${failure.userMessage} Nova tentativa em ${retryDelayMs / 1_000} segundos."
             coroutineScope.launch {
-                delay(1_200)
+                delay(retryDelayMs)
                 currentSources.getOrNull(sourceIndex)?.let { source ->
                     player.setMediaItem(mediaItemForSeries(source))
                     if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
@@ -198,16 +215,16 @@ fun SeriesNativePlayerScreen(
             sourceIndex = nextSourceIndex
             sameSourceRetries = 0
             pendingSeekMs = resumePositionMs
-            playerMessage = "Tentando fonte ${nextSourceIndex + 1}/${currentSources.size}..."
+            playerMessage = "${failure.userMessage} Tentando fonte ${nextSourceIndex + 1}/${currentSources.size}..."
             recoveryInProgress = false
             return
         }
 
         recoveryInProgress = false
         terminalFailureReported = true
-        playerMessage = "Lista ativa indisponível. Ativando a lista reserva..."
+        playerMessage = "${failure.userMessage} Verificando a lista reserva..."
         onTerminalPlaybackFailure(
-            diagnostic,
+            failure.diagnosticCode,
             player.currentPosition.coerceAtLeast(0L),
             player.duration.coerceAtLeast(0L),
         )
@@ -258,6 +275,7 @@ fun SeriesNativePlayerScreen(
         transitionLocked = false
         recoveryInProgress = false
         terminalFailureReported = false
+        playbackValidated = false
         playerMessage = "Carregando T${entry.season.number} E${entry.episode.number}..."
         if (notify) onEpisodeChanged(entry.season, entry.episode)
     }
@@ -302,10 +320,18 @@ fun SeriesNativePlayerScreen(
 
             val positionMs = player.currentPosition
             val advancing = positionMs > lastPositionMs + 250L
-            if (advancing || player.isPlaying) {
+            if (advancing) {
                 stalledSinceMs = null
                 sameSourceRetries = 0
                 terminalFailureReported = false
+                if (!playbackValidated) {
+                    playbackValidated = true
+                    NativeDiagnostics.record(
+                        "playback.series_validated",
+                        mapOf("source_index" to sourceIndex + 1),
+                    )
+                    onPlaybackValidated()
+                }
                 lastPositionMs = positionMs
                 continue
             }
@@ -320,7 +346,7 @@ fun SeriesNativePlayerScreen(
 
             if (now - startedAt >= timeoutMs) {
                 stalledSinceMs = now
-                recoverOrFail("tempo limite de carregamento do episódio")
+                recoverOrFail(PlaybackFailure.stalled())
             }
             lastPositionMs = positionMs
         }
@@ -367,7 +393,7 @@ fun SeriesNativePlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                recoverOrFail(error.errorCodeName)
+                recoverOrFail(classifyPlaybackFailure(error))
             }
         }
 
@@ -505,10 +531,12 @@ fun SeriesNativePlayerScreen(
             eyebrow = "RONECA PLAYER TV • SÉRIE",
             live = false,
             isTelevision = isTelevision,
+            aspectMode = resolvedAspectMode,
             drawerLabel = "Episódios",
             drawerVisible = episodeDrawerVisible,
             onBack = onBack,
             onOpenDrawer = { openDrawer() },
+            onAspectModeChange = { onAspectModeChange(it.storageValue) },
             onControllerVisibilityChanged = { controlsVisible = it },
             onControllerReady = { media3Controller = it },
             modifier = Modifier.fillMaxSize(),
@@ -696,14 +724,14 @@ private fun EpisodeDrawerRow(
             Text(
                 text = if (active) "REPRODUZINDO AGORA" else episode.duration.orEmpty().ifBlank { "Selecionar episódio" },
                 color = if (active) RonecaColors.RedStrong else RonecaColors.TextSecondary,
-                fontSize = 9.sp,
+                fontSize = 11.sp,
                 maxLines = 1,
             )
         }
         Text(
             text = if (active) "AGORA" else "▶",
             color = if (active) RonecaColors.RedStrong else RonecaColors.Primary,
-            fontSize = if (active) 9.sp else 13.sp,
+            fontSize = if (active) 11.sp else 13.sp,
             fontWeight = FontWeight.Bold,
         )
     }

@@ -52,7 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
+import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
@@ -311,7 +311,7 @@ private fun HomeHeader(
             Text(
                 text = "RONECA PLAYER TV",
                 color = RonecaColors.Primary,
-                fontSize = if (isWideLayout) 10.sp else 9.sp,
+                fontSize = if (isWideLayout) 12.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.8.sp,
             )
@@ -393,7 +393,7 @@ private fun HomeHero(
             .border(1.dp, RonecaColors.Border, RoundedCornerShape(if (isWideLayout) 18.dp else 16.dp)),
     ) {
         if (!movie?.coverUrl.isNullOrBlank()) {
-            AsyncImage(
+            RonecaAsyncImage(
                 model = movie?.coverUrl,
                 contentDescription = movie?.name,
                 modifier = Modifier.fillMaxSize(),
@@ -408,10 +408,10 @@ private fun HomeHero(
                 .background(
                     Brush.horizontalGradient(
                         colors = listOf(
-                            Color(0xFC050505),
-                            Color(0xE8050505),
-                            Color(0x92050505),
-                            Color(0x30050505),
+                            Color(0xFC080809),
+                            Color(0xE8080809),
+                            Color(0x92080809),
+                            Color(0x30080809),
                         ),
                     ),
                 ),
@@ -431,7 +431,7 @@ private fun HomeHero(
             Text(
                 text = movie?.category?.uppercase() ?: "RONECA PLAYER TV",
                 color = RonecaColors.Primary,
-                fontSize = if (isWideLayout) 10.sp else 9.sp,
+                fontSize = if (isWideLayout) 12.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.4.sp,
                 maxLines = 1,
@@ -512,7 +512,7 @@ private fun HeroButton(
     ) {
         Text(
             text = label,
-            color = if (primary) Color(0xFF17130A) else RonecaColors.TextPrimary,
+            color = RonecaColors.TextPrimary,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -600,7 +600,7 @@ private fun MobileExploreItem(
             Text(
                 text = compactNumber(count),
                 color = RonecaColors.TextMuted,
-                fontSize = 8.sp,
+                fontSize = 10.sp,
                 maxLines = 1,
             )
         }
@@ -635,7 +635,7 @@ private fun FeaturedContentRail(
                 Text(
                     text = "Escolhas do seu catálogo",
                     color = RonecaColors.TextMuted,
-                    fontSize = if (isTelevision) 10.sp else 9.sp,
+                    fontSize = if (isTelevision) 12.sp else 11.sp,
                 )
             }
             AccentCut()
@@ -698,7 +698,7 @@ private fun FeaturedContentCard(
             .padding(1.dp),
     ) {
         if (!imageUrl.isNullOrBlank()) {
-            AsyncImage(
+            RonecaAsyncImage(
                 model = imageUrl,
                 contentDescription = title,
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
@@ -711,7 +711,7 @@ private fun FeaturedContentCard(
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color(0xF2050505), Color(0x9E050505), Color(0x20050505)),
+                        listOf(Color(0xF2080809), Color(0x9E080809), Color(0x20080809)),
                     ),
                 ),
         )
@@ -724,7 +724,7 @@ private fun FeaturedContentCard(
             Text(
                 text = eyebrow,
                 color = if (focused) RonecaColors.Focus else RonecaColors.Primary,
-                fontSize = if (isTelevision) 9.sp else 8.sp,
+                fontSize = if (isTelevision) 11.sp else 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.1.sp,
                 maxLines = 1,

@@ -1,6 +1,7 @@
 package com.ronecaplaytv.nativeapp.ui.navigation
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,10 +39,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.ronecaplaytv.nativeapp.R
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlin.math.cos
 import kotlin.math.sin
@@ -62,32 +65,23 @@ fun MainNavigationRail(
     isTelevision: Boolean,
     onSelect: (MainTab) -> Unit,
 ) {
-    val railWidth = if (isTelevision) 82.dp else 70.dp
+    val railWidth = if (isTelevision) 108.dp else 92.dp
 
     Column(
         modifier = Modifier
             .width(railWidth)
             .fillMaxHeight()
-            .background(Color(0xFF080706))
+            .background(RonecaColors.Background)
             .border(width = 1.dp, color = RonecaColors.Divider)
             .padding(vertical = if (isTelevision) 15.dp else 11.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier
-                .size(if (isTelevision) 40.dp else 35.dp)
-                .clip(CircleShape)
-                .background(RonecaColors.Primary.copy(alpha = 0.10f))
-                .border(1.dp, RonecaColors.Primary.copy(alpha = 0.55f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "RP",
-                color = RonecaColors.Primary,
-                fontSize = if (isTelevision) 12.sp else 10.sp,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+        Image(
+            painter = painterResource(R.drawable.roneca_media_placeholder),
+            contentDescription = "Roneca Player TV",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(if (isTelevision) 58.dp else 48.dp),
+        )
 
         Spacer(modifier = Modifier.height(if (isTelevision) 17.dp else 12.dp))
 
@@ -145,7 +139,7 @@ fun MainNavigationBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF090806))
+            .background(RonecaColors.BackgroundSoft)
             .border(width = 1.dp, color = RonecaColors.Divider)
             .padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -172,8 +166,8 @@ private fun RailItem(
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val active = selected || focused
-    val width = if (isTelevision) 60.dp else 52.dp
-    val height = if (isTelevision) 48.dp else 42.dp
+    val width = if (isTelevision) 94.dp else 78.dp
+    val height = if (isTelevision) 54.dp else 48.dp
 
     Box(
         modifier = Modifier
@@ -229,15 +223,14 @@ private fun RailItem(
                 color = if (active) RonecaColors.Primary else RonecaColors.TextSecondary,
                 modifier = Modifier.size(if (isTelevision) 21.dp else 19.dp),
             )
-            if (focused) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = tab.label,
-                    color = RonecaColors.TextPrimary,
-                    fontSize = if (isTelevision) 11.sp else 10.sp,
-                    maxLines = 1,
-                )
-            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = tab.label,
+                color = if (active) RonecaColors.TextPrimary else RonecaColors.TextSecondary,
+                fontSize = if (isTelevision) 11.sp else 10.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+            )
         }
     }
 }
