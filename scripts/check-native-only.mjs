@@ -103,8 +103,10 @@ for (const [key, marker] of [
 
 for (const marker of [
   'TV_TARGET_BUFFER_BYTES = 24 * 1024 * 1024',
+  'LOW_RAM_TARGET_BUFFER_BYTES = 12 * 1024 * 1024',
   'setPrioritizeTimeOverSizeThresholds(false)',
-  'maximumBufferMs = if (isTelevision) 30_000 else 25_000',
+  'isLowRamDevice -> 18_000',
+  'isTelevision -> 30_000',
 ]) {
   if (!performanceSources.loadControl.includes(marker)) {
     throw new Error(`${performanceFiles.loadControl} perdeu o limite de memória: ${marker}`);
