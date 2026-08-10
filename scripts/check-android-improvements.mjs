@@ -22,7 +22,7 @@ const [
   manifest,
   wordmark,
   playbackDiagnosticsApi,
-  panelAuth,
+  panelPremium,
 ] = await Promise.all([
   read('native-android/app/build.gradle.kts'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/RonecaPlayTVApp.kt'),
@@ -43,11 +43,11 @@ const [
   read('native-android/app/src/main/AndroidManifest.xml'),
   read('native-android/brand/ronecaplaytv-wordmark.svg'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/PlaybackDiagnosticsApi.kt'),
-  read('admin-panel/panel-auth-session.js'),
+  read('admin-panel/roneca-panel-premium.js'),
 ]);
 
-assert.match(build, /versionCode = 44/);
-assert.match(build, /versionName = "2\.9\.3"/);
+assert.match(build, /versionCode = 45/);
+assert.match(build, /versionName = "2\.9\.4"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -101,10 +101,11 @@ assert.match(manifest, /@mipmap\/ic_launcher/);
 assert.match(wordmark, /<text x="40" y="232"[^>]*>Roneca<\/text>/);
 assert.match(wordmark, /<text x="790" y="232"[^>]*>Player<\/text>/);
 assert.match(wordmark, /<text x="1495" y="232"[^>]*>TV<\/text>/);
-assert.match(panelAuth, /roneca-player-tv-wordmark\.svg\?v=20260810-brand-v3/);
-assert.match(panelAuth, /seller-login-brand/);
+assert.match(panelPremium, /roneca-player-tv-wordmark-v2\.svg/);
+assert.match(panelPremium, /login-brand-lockup, \.seller-login-brand/);
+assert.match(panelPremium, /directLogos\.slice\(1\)/);
 assert.match(app, /PendingPlaybackValidation/);
 assert.match(app, /playlistWidePlaybackFailures/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 
-console.log('Android 2.9.3+: sessão VOD reconstruível, fallback de decoder e identidade compartilhada validados.');
+console.log('Android 2.9.4: sessão VOD reconstruível, fallback de decoder e identidade compartilhada validados.');
