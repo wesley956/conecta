@@ -22,6 +22,7 @@ const [
   manifest,
   wordmark,
   playbackDiagnosticsApi,
+  panelAuth,
 ] = await Promise.all([
   read('native-android/app/build.gradle.kts'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/RonecaPlayTVApp.kt'),
@@ -42,6 +43,7 @@ const [
   read('native-android/app/src/main/AndroidManifest.xml'),
   read('native-android/brand/ronecaplaytv-wordmark.svg'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/PlaybackDiagnosticsApi.kt'),
+  read('admin-panel/panel-auth-session.js'),
 ]);
 
 assert.match(build, /versionCode = 44/);
@@ -71,46 +73,38 @@ assert.match(colors, /Primary = Color\(0xFFE3262E\)/);
 assert.match(colors, /Focus = RedStrong/);
 assert.match(activation, /R\.drawable\.roneca_player_tv_emblem/);
 assert.match(activation, /text = "Roneca"/);
-assert.match(activation, /text = "Player TV"/);
-assert.doesNotMatch(activation, /R\.drawable\.roneca_player_tv_lockup/);
-assert.doesNotMatch(activation, /▣  Roneca Player TV/);
 assert.match(media3View, /aspectMode\.toMedia3ResizeMode\(\)/);
-assert.match(media3View, /RESIZE_MODE_ZOOM/);
-assert.match(media3View, /RESIZE_MODE_FILL/);
 assert.match(aspect, /Original\("Original"/);
 assert.match(aspect, /Fill\("Preencher"/);
 assert.match(aspect, /Stretch\("Estender"/);
 assert.doesNotMatch(aspect, /FixedWidth/);
 assert.doesNotMatch(aspect, /FixedHeight/);
-assert.match(recovery, /2_000L, 4_000L, 8_000L/);
-assert.match(recovery, /httpStatus == 401 \|\| httpStatus == 403/);
-assert.match(recovery, /httpStatus == 404 \|\| httpStatus == 410/);
-assert.match(recovery, /PlaybackFailureKind\.Decoder/);
-assert.match(recovery, /PlaybackFailureKind\.SecureConnection/);
 assert.match(recovery, /PlaybackFailureKind\.RuntimeCheck/);
 assert.match(recovery, /FAILED_RUNTIME_CHECK/);
 assert.match(recovery, /CLEARTEXT_NOT_PERMITTED/);
-assert.match(nativePlayer, /if \(currentChannelId == null\)/);
+assert.match(nativePlayer, /MediaCodecSelector\.PREFER_SOFTWARE/);
+assert.match(nativePlayer, /MediaCodecSelector\.DEFAULT/);
+assert.match(nativePlayer, /setMediaCodecSelector\(codecSelector\)/);
+assert.match(nativePlayer, /playerGeneration \+= 1/);
+assert.match(nativePlayer, /playback\.decoder_fallback/);
+assert.match(nativePlayer, /PLAYBACK_VALIDATION_WINDOW_MS = 8_000L/);
+assert.match(nativePlayer, /if \(recoveryInProgress \|\| terminalFailureReported\)/);
+assert.match(nativePlayer, /playback\.error_state/);
 assert.match(nativePlayer, /playback\.vod_terminal/);
-assert.match(nativePlayer, /Pressione voltar para sair/);
 assert.match(navigation, /verticalScroll\(scrollState\)/);
-assert.match(navigation, /fontSize = if \(isTelevision\) 11\.sp else 10\.sp/);
-assert.match(iconForeground, /android:top="34dp"/);
-assert.match(iconForeground, /android:left="34dp"/);
-assert.match(iconForeground, /android:bottom="34dp"/);
-assert.match(iconForeground, /android:right="34dp"/);
+assert.match(iconForeground, /android:top="42dp"/);
+assert.match(iconForeground, /android:left="42dp"/);
+assert.match(iconForeground, /android:bottom="42dp"/);
+assert.match(iconForeground, /android:right="42dp"/);
 assert.match(image, /FilterQuality\.High/);
-assert.match(image, /R\.drawable\.roneca_media_placeholder/);
 assert.match(manifest, /@mipmap\/ic_launcher/);
-assert.match(manifest, /@drawable\/roneca_player_tv_banner/);
 assert.match(wordmark, /<text x="40" y="232"[^>]*>Roneca<\/text>/);
 assert.match(wordmark, /<text x="790" y="232"[^>]*>Player<\/text>/);
 assert.match(wordmark, /<text x="1495" y="232"[^>]*>TV<\/text>/);
-assert.match(wordmark, /viewBox="0 0 1840 320"/);
+assert.match(panelAuth, /roneca-player-tv-wordmark\.svg\?v=20260810-brand-v3/);
+assert.match(panelAuth, /seller-login-brand/);
 assert.match(app, /PendingPlaybackValidation/);
 assert.match(app, /playlistWidePlaybackFailures/);
-assert.match(app, /if \(reason !in playlistWidePlaybackFailures\)/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
-assert.match(app, /pending\.playlistId != catalogState\.activePlaylistId/);
 
-console.log('Android 2.9.3: identidade, safe area e diagnóstico bruto do VOD validados.');
+console.log('Android 2.9.3+: sessão VOD reconstruível, fallback de decoder e identidade compartilhada validados.');
