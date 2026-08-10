@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -17,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.R
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+
+private val BrandGold = Color(0xFFFFD45A)
+private val BrandRed = Color(0xFFE3262E)
 
 @Composable
 fun RonecaBrandLockup(
@@ -50,7 +54,7 @@ fun RonecaBrandLockup(
         Spacer(modifier = Modifier.width((fontSize.value * 0.34f).dp))
         Text(
             text = "Player",
-            color = RonecaColors.Primary,
+            color = BrandGold,
             fontSize = fontSize,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
@@ -58,7 +62,7 @@ fun RonecaBrandLockup(
         Spacer(modifier = Modifier.width((fontSize.value * 0.28f).dp))
         Text(
             text = "TV",
-            color = RonecaColors.RedStrong,
+            color = BrandRed,
             fontSize = fontSize,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
