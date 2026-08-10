@@ -1,3 +1,12 @@
+# RonecaPlayTV 2.9.5
+
+- Consolida a identidade visual em uma única fonte: Roneca branco, Player dourado e TV vermelho.
+- Faz splash e ativação consumirem o mesmo componente de marca, eliminando a versão em que Player e TV apareciam praticamente da mesma cor.
+- Substitui o foreground do launcher por um vetor próprio com safe zone real para preservar as antenas sob máscaras de fabricantes.
+- Faz launchers legado, redondo e adaptativo usarem o mesmo foreground vetorial, sem depender do PNG nodpi antigo.
+- Faz o portal do vendedor usar diretamente o SVG oficial e remove o wordmark PNG e o SVG v2 paralelos.
+- Remove a troca de identidade por JavaScript no painel e integra a criação do menu Mais ao módulo mobile realmente carregado pelo vendedor.
+
 # RonecaPlayTV 2.9.4
 
 - Reconstrói a sessão do ExoPlayer em falhas de VOD para não reutilizar uma instância que entrou em `IllegalStateException`.
