@@ -1,3 +1,13 @@
+# RonecaPlayTV 2.9.4
+
+- Reconstrói a sessão do ExoPlayer em falhas de VOD para não reutilizar uma instância que entrou em `IllegalStateException`.
+- Implementa fallback real de decoder: ao ocorrer `FAILED_RUNTIME_CHECK` em hardware, o filme recria a sessão com `MediaCodecSelector.PREFER_SOFTWARE` e preserva a posição.
+- Serializa recovery e watchdog para impedir duas recuperações concorrentes sobre o mesmo player.
+- Exige uma janela estável de 8 segundos antes de marcar a reprodução como validada.
+- Registra estado, posição, duração e modo de decoder no diagnóstico do erro.
+- Amplia a safe area dos launchers Android e remove o uso do ícone legado antigo nos fallbacks.
+- Unifica o wordmark de Admin e Vendedor pelo módulo visual compartilhado e mantém Roneca branco, Player dourado e TV vermelho no splash.
+
 # RonecaPlayTV 2.9.3
 
 - Publica de fato no Android as correções de identidade e VOD que já haviam sido mescladas após a 2.9.2.

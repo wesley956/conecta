@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:left="28dp"
-        android:top="28dp"
-        android:right="28dp"
-        android:bottom="28dp"
-        android:drawable="@drawable/ic_app" />
+        android:left="42dp"
+        android:top="42dp"
+        android:right="42dp"
+        android:bottom="42dp"
+        android:drawable="@drawable/roneca_player_tv_emblem" />
 </layer-list>
