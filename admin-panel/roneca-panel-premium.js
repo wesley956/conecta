@@ -4,6 +4,7 @@
   if (global.__ronecaPanelPremiumInstalled) return;
   global.__ronecaPanelPremiumInstalled = true;
 
+  const brandWordmark = './assets/roneca-player-tv-wordmark-v2.svg';
   const navigationIcons = {
     dashboard: '<path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/>',
     home: '<path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/>',
@@ -32,10 +33,15 @@
   }
 
   function normalizeBrandAssets(root) {
-    (root || document).querySelectorAll('.login-wordmark, .seller-wordmark').forEach(image => {
-      if (image.tagName === 'IMG') image.src = './assets/roneca-player-tv-wordmark.svg';
+    const scope = root || document;
+    scope.querySelectorAll('.login-wordmark, .seller-wordmark').forEach(image => {
+      if (image.tagName === 'IMG' && image.getAttribute('src') !== brandWordmark) image.src = brandWordmark;
     });
-    (root || document).querySelectorAll('.logo').forEach(logo => {
+    scope.querySelectorAll('.login-brand-lockup, .seller-login-brand').forEach(lockup => {
+      const directLogos = Array.from(lockup.children).filter(child => child.classList?.contains('logo'));
+      directLogos.slice(1).forEach(duplicate => duplicate.remove());
+    });
+    scope.querySelectorAll('.logo').forEach(logo => {
       logo.style.overflow = 'visible';
     });
   }
