@@ -22,14 +22,6 @@ private const val MEDIA3_CONTROLLER_TIMEOUT_TV_MS = 5_000
 private const val MEDIA3_CONTROLLER_TIMEOUT_TOUCH_MS = 3_000
 private const val MEDIA3_TIME_BAR_KEY_INCREMENT_MS = 5_000L
 
-/**
- * Ponte entre o PlayerView do Media3 e a navegação protegida do Roneca.
- *
- * O Media3 continua responsável pelo visual, pela barra arrastável, pelo
- * progresso, pelo play/pause e pelo scrubbing. Esta ponte existe somente para
- * garantir foco determinístico no controle remoto e impedir que OK/Enter seja
- * confundido com a ação de voltar.
- */
 @OptIn(UnstableApi::class)
 internal class RonecaMedia3Controller internal constructor(
     private val playerView: PlayerView,
@@ -136,7 +128,7 @@ internal fun RonecaMedia3PlayerView(
                 if (live) View.VISIBLE else View.GONE
             playerView.resizeMode = aspectMode.toMedia3ResizeMode()
             playerView.findViewById<TextView>(R.id.roneca_media3_aspect)?.apply {
-                text = "Tela • ${aspectMode.displayName}"
+                text = aspectMode.displayName
                 contentDescription = "Aspecto da imagem: ${aspectMode.storageValue}. Pressione para alterar."
             }
 
@@ -186,6 +178,4 @@ private fun PlayerAspectMode.toMedia3ResizeMode(): Int = when (this) {
     PlayerAspectMode.Original -> AspectRatioFrameLayout.RESIZE_MODE_FIT
     PlayerAspectMode.Fill -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
     PlayerAspectMode.Stretch -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-    PlayerAspectMode.FixedWidth -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-    PlayerAspectMode.FixedHeight -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
 }
