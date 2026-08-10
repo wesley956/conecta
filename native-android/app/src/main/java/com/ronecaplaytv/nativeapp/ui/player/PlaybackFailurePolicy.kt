@@ -2,6 +2,7 @@ package com.ronecaplaytv.nativeapp.ui.player
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
+import com.ronecaplaytv.nativeapp.diagnostics.NativeDiagnostics
 
 enum class PlaybackFailureKind(val diagnosticCode: String) {
     TransientNetwork("transient_network"),
@@ -38,7 +39,9 @@ fun classifyPlaybackFailure(error: PlaybackException): PlaybackFailure {
         .firstOrNull()
         ?.responseCode
     val causeNames = causes.map { it::class.java.name }
-    return classifyPlaybackFailure(error.errorCodeName, httpStatus, causeNames)
+    val failure = classifyPlaybackFailure(error.errorCodeName, httpStatus, causeNames)
+    NativeDiagnostics.recordPlaybackFailure(error, failure.diagnosticCode)
+    return failure
 }
 
 internal fun classifyPlaybackFailure(
