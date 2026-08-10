@@ -232,7 +232,7 @@ private fun RailItem(
             Text(
                 text = tab.label,
                 color = if (active) RonecaColors.TextPrimary else RonecaColors.TextSecondary,
-                fontSize = if (isTelevision) 11.sp else 9.sp,
+                fontSize = if (isTelevision) 11.sp else 10.sp,
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
             )
