@@ -13,6 +13,51 @@ body.seller-v2 .logo > img {
   object-position: center !important;
 }
 
+/* Login: um único símbolo, sem vazamento, background ou duplicação decorativa. */
+body.seller-v2 #loginView .seller-login-brand > .logo {
+  position: relative !important;
+  display: block !important;
+  width: 66px !important;
+  height: 66px !important;
+  min-width: 66px !important;
+  min-height: 66px !important;
+  max-width: 66px !important;
+  max-height: 66px !important;
+  flex: 0 0 66px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  background-image: none !important;
+  background-repeat: no-repeat !important;
+  background-size: 0 0 !important;
+}
+
+body.seller-v2 #loginView .seller-login-brand > .logo::before,
+body.seller-v2 #loginView .seller-login-brand > .logo::after,
+body.seller-v2 #loginView .seller-login-brand > .logo > img::before,
+body.seller-v2 #loginView .seller-login-brand > .logo > img::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+}
+
+body.seller-v2 #loginView .seller-login-brand > .logo > img {
+  position: absolute !important;
+  inset: 5px !important;
+  width: calc(100% - 10px) !important;
+  height: calc(100% - 10px) !important;
+  max-width: calc(100% - 10px) !important;
+  max-height: calc(100% - 10px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+body.seller-v2 #loginView .seller-login-brand > .logo > img:not(:first-of-type) {
+  display: none !important;
+}
+
 body.seller-v2 .seller-login-brand > .logo,
 body.seller-v2 #dashboardView .hero .brand > .logo {
   flex: 0 0 auto !important;
