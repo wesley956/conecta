@@ -1,3 +1,12 @@
+# RonecaPlayTV 2.9.1
+
+- Corrige a marca na tela de ativação para manter espaçamento correto entre Roneca e Player TV.
+- Mantém o player de filmes aberto após falha terminal e exibe o motivo da interrupção na própria reprodução.
+- Compacta e torna rolável o menu lateral em telas baixas e no celular em modo paisagem, preservando acesso a Configurações.
+- Simplifica o aspecto do vídeo para Original, Preencher e Estender, removendo os modos de largura/altura que causavam cortes extremos.
+- Reduz o espaço ocupado pelo controle de aspecto no cabeçalho do player.
+- Amplia a safe zone do ícone adaptativo para evitar corte da logomarca por launchers Android.
+
 # RonecaPlayTV 2.9.0
 
 - Nova identidade visual grafite e vermelha, alinhada aos painéis ADM e vendedor.

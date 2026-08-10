@@ -211,6 +211,18 @@ fun NativePlayerScreen(
 
         recoveryInProgress = false
         terminalFailureReported = true
+        if (currentChannelId == null) {
+            playerMessage = "${failure.userMessage} A reprodução foi interrompida. Pressione voltar para sair."
+            NativeDiagnostics.record(
+                "playback.vod_terminal",
+                mapOf(
+                    "failure_kind" to failure.diagnosticCode,
+                    "source_count" to sources.size,
+                ),
+            )
+            return
+        }
+
         playerMessage = "${failure.userMessage} Verificando a lista reserva..."
         onTerminalPlaybackFailure(
             failure.diagnosticCode,

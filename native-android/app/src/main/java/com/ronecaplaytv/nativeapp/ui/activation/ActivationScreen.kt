@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -27,12 +28,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -105,15 +106,39 @@ fun ActivationScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Image(
-                painter = painterResource(R.drawable.roneca_player_tv_lockup),
-                contentDescription = "Roneca Player TV",
-                contentScale = ContentScale.Fit,
+            Row(
                 modifier = Modifier
-                    .fillMaxWidth(if (isTelevision) 0.72f else 0.94f)
-                    .height(if (isTelevision) 112.dp else 76.dp),
-            )
-            Spacer(modifier = Modifier.height(if (isTelevision) 20.dp else 16.dp))
+                    .fillMaxWidth(if (isTelevision) 0.76f else 0.96f)
+                    .height(if (isTelevision) 104.dp else 72.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.roneca_player_tv_emblem),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .height(if (isTelevision) 82.dp else 58.dp)
+                        .width(if (isTelevision) 82.dp else 58.dp),
+                )
+                Spacer(modifier = Modifier.width(if (isTelevision) 18.dp else 12.dp))
+                Text(
+                    text = "Roneca",
+                    color = RonecaColors.TextPrimary,
+                    fontSize = if (isTelevision) 34.sp else 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+                Spacer(modifier = Modifier.width(if (isTelevision) 12.dp else 8.dp))
+                Text(
+                    text = "Player TV",
+                    color = RonecaColors.PrimaryStrong,
+                    fontSize = if (isTelevision) 34.sp else 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+            Spacer(modifier = Modifier.height(if (isTelevision) 18.dp else 14.dp))
             Text(
                 text = titleFor(state.status),
                 color = RonecaColors.TextPrimary,

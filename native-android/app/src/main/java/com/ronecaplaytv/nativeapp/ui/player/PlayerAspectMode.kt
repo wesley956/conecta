@@ -7,8 +7,6 @@ enum class PlayerAspectMode(
     Original("Original", "Original"),
     Fill("Preencher", "Preencher"),
     Stretch("Estender", "Estender"),
-    FixedWidth("Ajustar largura", "Largura"),
-    FixedHeight("Ajustar altura", "Altura"),
     ;
 
     fun next(): PlayerAspectMode {
@@ -20,7 +18,10 @@ enum class PlayerAspectMode(
         fun fromStorage(value: String?): PlayerAspectMode = entries.firstOrNull {
             it.storageValue.equals(value?.trim(), ignoreCase = true) ||
                 it.name.equals(value?.trim(), ignoreCase = true)
-        } ?: Original
+        } ?: when (value?.trim()) {
+            "Ajustar largura", "Ajustar altura" -> Original
+            else -> Original
+        }
 
         val settingsOptions: List<String> = entries.map(PlayerAspectMode::storageValue)
     }
