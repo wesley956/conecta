@@ -6,6 +6,7 @@ const files = {
   multiPlatformMigration: 'supabase/migrations/2026072402_multi_platform_app_releases.sql',
   workflow: '.github/workflows/release-native-android.yml',
   webosWorkflow: '.github/workflows/build-lg-webos-installer.yml',
+  webosValidator: 'smart-tv/scripts/validate-webos-package.mjs',
   android: 'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/update/AppUpdateManager.kt',
   auth: 'admin-panel/panel-auth-session.js',
   panel: 'admin-panel/app-release.js',
@@ -23,8 +24,8 @@ const required = [
   [source.edge, "x-device-credential", 'O download do aparelho não exige credencial.'],
   [source.edge, "createSignedUrl", 'A Edge Function não gera URL temporária.'],
   [source.edge, "60 * 60", 'O link do Downloader precisa expirar em uma hora.'],
-  [source.workflow, "SUPABASE_SERVICE_ROLE_KEY", 'A publicação automática não usa segredo protegido.'],
-  [source.workflow, "storage/v1/object/app-releases", 'O workflow não envia o APK ao Storage.'],
+  [source.workflow, "SUPABASE_SERVICE_ROLE_KEY", 'A publicação automática Android não usa segredo protegido.'],
+  [source.workflow, "storage/v1/object/app-releases", 'O workflow Android não envia o APK ao Storage.'],
   [source.android, 'fetchAuthorizedManifest("download")', 'O APK não renova a autorização ao baixar.'],
   [source.android, "verifyChecksum", 'A validação SHA-256 do APK foi removida.'],
   [source.android, "verifyPackageAndSignature", 'A validação do pacote/assinatura foi removida.'],
@@ -35,11 +36,18 @@ const required = [
   [source.edge, "downloadUrl", 'A função não entrega URL genérica para LG e Samsung.'],
   [source.panel, "LG webOS", 'O painel não oferece o aplicativo LG.'],
   [source.panel, "Samsung Tizen", 'O painel não oferece o aplicativo Samsung.'],
-  [source.webosWorkflow, "SUPABASE_SERVICE_ROLE_KEY", 'A publicação LG não usa o segredo protegido.'],
-  [source.webosWorkflow, "storage/v1/object/app-releases", 'O workflow LG não envia o IPK ao Storage.'],
-  [source.webosWorkflow, 'platform: "webos"', 'O workflow LG não registra a plataforma webOS.'],
-  [source.webosWorkflow, 'file_extension: "ipk"', 'O workflow LG não registra a extensão IPK.'],
-  [source.webosWorkflow, 'on_conflict=platform%2Cversion_code', 'A publicação LG não é idempotente por versão.'],
+
+  // LG-P07: o workflow de build webOS só produz e valida candidatos. Promoção
+  // para RC/Stable é uma operação explícita separada e não pode acontecer em
+  // qualquer push comum na main.
+  [source.webosWorkflow, "package:webos:verified", 'O workflow LG não executa o gate de empacotamento verificado.'],
+  [source.webosWorkflow, "webos-release-metadata.json", 'O workflow LG não preserva os metadados rastreáveis do candidato.'],
+  [source.webosWorkflow, "SHA256SUMS", 'O workflow LG não preserva o SHA-256 do candidato.'],
+  [source.webosWorkflow, "Ele NÃO promove nem publica Stable", 'O workflow LG não declara a separação entre build e promoção.'],
+  [source.webosValidator, 'platform: "webos"', 'O candidato LG não registra a plataforma webOS.'],
+  [source.webosValidator, 'status: "CANDIDATE"', 'O IPK gerado não é identificado como candidato.'],
+  [source.webosValidator, 'crypto.createHash("sha256")', 'O gate LG não calcula SHA-256 do IPK.'],
+  [source.webosValidator, 'com.ronecaplaytv.app', 'O gate LG não valida o App ID oficial.'],
 ];
 
 for (const [haystack, needle, message] of required) {
@@ -53,5 +61,15 @@ if (/service[_-]?role/i.test(source.panel)) {
   throw new Error('O navegador não pode receber referência à chave service_role.');
 }
 
-console.log('Publicação protegida do APK validada.');
+const forbiddenWebosBuildPublishing = [
+  ['SUPABASE_SERVICE_ROLE_KEY', 'O workflow de build LG voltou a carregar a chave service_role.'],
+  ['storage/v1/object/app-releases', 'O workflow de build LG voltou a publicar IPK diretamente no Storage.'],
+  ['published: true', 'O workflow de build LG voltou a marcar candidato como Stable/publicado.'],
+  ['on_conflict=platform%2Cversion_code', 'O workflow de build LG voltou a gravar release de produção diretamente.'],
+];
 
+for (const [needle, message] of forbiddenWebosBuildPublishing) {
+  if (source.webosWorkflow.includes(needle)) throw new Error(message);
+}
+
+console.log('Distribuição protegida validada: Android publica pelo fluxo protegido; webOS apenas gera candidato até promoção explícita.');

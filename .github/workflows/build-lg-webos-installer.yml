@@ -14,13 +14,13 @@ on:
         required: false
         default: https://conecta-five-iota.vercel.app/tv/
       hosted_channel:
-        description: Canal do pacote hospedado
+        description: Canal carregado pelo pacote hosted de teste
         required: false
         type: choice
         options:
-          - stable
           - test
-        default: stable
+          - stable
+        default: test
   pull_request:
     branches:
       - main
@@ -37,12 +37,12 @@ concurrency:
 
 jobs:
   package-webos:
-    name: Generate LG IPK
+    name: Generate and validate LG IPK
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       RONECA_TV_HOSTED_URL: ${{ inputs.hosted_url || 'https://conecta-five-iota.vercel.app/tv/' }}
-      RONECA_TV_HOSTED_CHANNEL: ${{ inputs.hosted_channel || 'stable' }}
+      RONECA_TV_HOSTED_CHANNEL: ${{ inputs.hosted_channel || 'test' }}
 
     steps:
       - name: Checkout repository
@@ -59,48 +59,57 @@ jobs:
         working-directory: smart-tv
         run: npm ci
 
-      - name: Generate webOS IPK
+      - name: Typecheck
         working-directory: smart-tv
-        run: npm run package:webos
+        run: npm run typecheck
 
-      - name: Generate hosted webOS IPK
+      - name: Generate and validate packaged webOS IPK
+        working-directory: smart-tv
+        run: npm run package:webos:verified
+
+      - name: Check bundle budget
+        working-directory: smart-tv
+        run: npm run bundle:budget
+
+      - name: Generate hosted webOS IPK for controlled testing
         working-directory: smart-tv
         run: npm run package:webos:hosted
 
-      - name: Validate generated installer
+      - name: Validate hosted artifact exists
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t packages < <(find smart-tv/artifacts -maxdepth 1 -type f -name 'com.ronecaplaytv.app_*_all.ipk' -print)
-          if [ "${#packages[@]}" -ne 1 ]; then
-            echo "::error::Esperado exatamente um instalador IPK; encontrados ${#packages[@]}."
-            exit 1
-          fi
-          test -s "${packages[0]}"
-          echo "Instalador: $(basename "${packages[0]}")" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tamanho: $(stat -c%s "${packages[0]}") bytes" >> "$GITHUB_STEP_SUMMARY"
-          sha256sum "${packages[0]}" >> smart-tv/artifacts/SHA256SUMS
           mapfile -t hosted_packages < <(find smart-tv/artifacts/hosted -maxdepth 1 -type f -name 'com.ronecaplaytv.app*_all.ipk' -print)
           if [ "${#hosted_packages[@]}" -ne 1 ]; then
-            echo "::error::Esperado exatamente um instalador IPK hospedado; encontrados ${#hosted_packages[@]}."
+            echo "::error::Esperado exatamente um instalador IPK hosted; encontrados ${#hosted_packages[@]}."
             exit 1
           fi
           test -s "${hosted_packages[0]}"
-          echo "Instalador hospedado: $(basename "${hosted_packages[0]}")" >> "$GITHUB_STEP_SUMMARY"
-          echo "Endereço hospedado: ${RONECA_TV_HOSTED_URL}" >> "$GITHUB_STEP_SUMMARY"
           sha256sum "${hosted_packages[0]}" > smart-tv/artifacts/hosted/SHA256SUMS
+          echo "Hosted de teste: $(basename "${hosted_packages[0]}")" >> "$GITHUB_STEP_SUMMARY"
+          echo "Canal hosted: ${RONECA_TV_HOSTED_CHANNEL}" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload LG installer artifact
+      - name: Summarize verified packaged artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -r '"IPK: \(.artifact)\nVersão: \(.version)\nSHA-256: \(.sha256)\nTamanho: \(.sizeBytes) bytes\nBaseline Android: \(.baselineAndroid)\nStatus: \(.status)"' \
+            smart-tv/artifacts/webos-release-metadata.json >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Este workflow apenas constrói e valida. Ele NÃO promove nem publica Stable." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload verified LG installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: roneca-play-tv-lg-ipk
           path: |
             smart-tv/artifacts/*.ipk
             smart-tv/artifacts/SHA256SUMS
+            smart-tv/artifacts/webos-release-metadata.json
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload LG hosted installer artifact
+      - name: Upload LG hosted test artifact
         uses: actions/upload-artifact@v4
         with:
           name: roneca-play-tv-lg-hosted-ipk
@@ -110,77 +119,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish hosted IPK to protected panel storage
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.hosted_channel == 'stable')
-        env:
-          SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY secret}"
-
-          APPINFO="smart-tv/build/webos-hosted/appinfo.json"
-          VERSION=$(jq -r '.version' "$APPINFO")
-          if ! [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "::error::Versão webOS inválida: $VERSION"
-            exit 1
-          fi
-          VERSION_CODE=$((10#${BASH_REMATCH[1]} * 1000000 + 10#${BASH_REMATCH[2]} * 1000 + 10#${BASH_REMATCH[3]}))
-          if [ "$VERSION_CODE" -le 0 ]; then
-            echo "::error::O versionCode webOS precisa ser maior que zero."
-            exit 1
-          fi
-
-          mapfile -t hosted_packages < <(find smart-tv/artifacts/hosted -maxdepth 1 -type f -name 'com.ronecaplaytv.app_*_all.ipk' -print)
-          if [ "${#hosted_packages[@]}" -ne 1 ]; then
-            echo "::error::Esperado exatamente um IPK hospedado estável; encontrados ${#hosted_packages[@]}."
-            exit 1
-          fi
-          IPK_FILE="${hosted_packages[0]}"
-          IPK_SHA256=$(sha256sum "$IPK_FILE" | awk '{print $1}')
-          IPK_SIZE_BYTES=$(stat -c '%s' "$IPK_FILE")
-          STORAGE_PATH="webos/versions/v${VERSION}/ronecaPlayerTV-webos-v${VERSION}.ipk"
-
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            --header "Content-Type: application/octet-stream" \
-            --header "x-upsert: true" \
-            --data-binary "@${IPK_FILE}" \
-            "${SUPABASE_URL}/storage/v1/object/app-releases/${STORAGE_PATH}"
-
-          RELEASE_PAYLOAD="$RUNNER_TEMP/webos-app-release.json"
-          jq -n \
-            --argjson version_code "$VERSION_CODE" \
-            --arg version_name "$VERSION" \
-            --arg storage_path "$STORAGE_PATH" \
-            --arg sha256 "$IPK_SHA256" \
-            --argjson file_size_bytes "$IPK_SIZE_BYTES" \
-            --rawfile notes smart-tv/RELEASE_NOTES.md \
-            '{
-              platform: "webos",
-              file_extension: "ipk",
-              version_code: $version_code,
-              version_name: $version_name,
-              storage_path: $storage_path,
-              sha256: $sha256,
-              signer_sha256: null,
-              file_size_bytes: $file_size_bytes,
-              notes: $notes,
-              mandatory: false,
-              published: true
-            }' > "$RELEASE_PAYLOAD"
-
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            --header "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            --header "Content-Type: application/json" \
-            --header "Prefer: resolution=merge-duplicates,return=minimal" \
-            --data-binary "@${RELEASE_PAYLOAD}" \
-            "${SUPABASE_URL}/rest/v1/app_releases?on_conflict=platform%2Cversion_code"
-
-          echo "IPK hospedado v${VERSION} publicado no painel protegido." >> "$GITHUB_STEP_SUMMARY"
-          echo "SHA-256: ${IPK_SHA256}" >> "$GITHUB_STEP_SUMMARY"
+      # LG-P07: promoção RC/Stable deve acontecer em um fluxo explícito separado,
+      # somente depois dos gates físicos/homologação. Push/merge em main nunca
+      # publica Stable automaticamente.
