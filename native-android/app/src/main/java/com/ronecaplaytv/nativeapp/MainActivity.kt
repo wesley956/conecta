@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        NativeDiagnostics.initialize(this)
         val isTelevisionDevice = DeviceFormFactor.isTelevision(this)
         NativeDiagnostics.recordPreviousExit(this)
         NativeDiagnostics.record("activity.create", mapOf("television" to isTelevisionDevice))
