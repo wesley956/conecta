@@ -15,6 +15,9 @@ const [
   media3View,
   aspect,
   recovery,
+  nativePlayer,
+  navigation,
+  iconForeground,
   image,
   manifest,
   wordmark,
@@ -31,13 +34,16 @@ const [
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/RonecaMedia3PlayerView.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/PlayerAspectMode.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/PlaybackFailurePolicy.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/NativePlayerScreen.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/navigation/MainNavigationBar.kt'),
+  read('native-android/app/src/main/res/drawable/roneca_icon_foreground.xml'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/components/RonecaAsyncImage.kt'),
   read('native-android/app/src/main/AndroidManifest.xml'),
   read('native-android/brand/ronecaplaytv-wordmark.svg'),
 ]);
 
-assert.match(build, /versionCode = 41/);
-assert.match(build, /versionName = "2\.9\.0"/);
+assert.match(build, /versionCode = 42/);
+assert.match(build, /versionName = "2\.9\.1"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -56,19 +62,31 @@ assert.match(workflow, /:app:testDebugUnitTest :app:assembleDebug/);
 assert.match(colors, /Background = Color\(0xFF080809\)/);
 assert.match(colors, /Primary = Color\(0xFFE3262E\)/);
 assert.match(colors, /Focus = RedStrong/);
-assert.match(activation, /R\.drawable\.roneca_player_tv_lockup/);
+assert.match(activation, /R\.drawable\.roneca_player_tv_emblem/);
+assert.match(activation, /text = "Roneca"/);
+assert.match(activation, /text = "Player TV"/);
+assert.doesNotMatch(activation, /R\.drawable\.roneca_player_tv_lockup/);
 assert.doesNotMatch(activation, /▣  Roneca Player TV/);
 assert.match(media3View, /aspectMode\.toMedia3ResizeMode\(\)/);
 assert.match(media3View, /RESIZE_MODE_ZOOM/);
 assert.match(media3View, /RESIZE_MODE_FILL/);
 assert.match(aspect, /Original\("Original"/);
-assert.match(aspect, /FixedWidth\("Ajustar largura"/);
-assert.match(aspect, /FixedHeight\("Ajustar altura"/);
+assert.match(aspect, /Fill\("Preencher"/);
+assert.match(aspect, /Stretch\("Estender"/);
+assert.doesNotMatch(aspect, /FixedWidth/);
+assert.doesNotMatch(aspect, /FixedHeight/);
 assert.match(recovery, /2_000L, 4_000L, 8_000L/);
 assert.match(recovery, /httpStatus == 401 \|\| httpStatus == 403/);
 assert.match(recovery, /httpStatus == 404 \|\| httpStatus == 410/);
 assert.match(recovery, /PlaybackFailureKind\.Decoder/);
 assert.match(recovery, /PlaybackFailureKind\.SecureConnection/);
+assert.match(nativePlayer, /if \(currentChannelId == null\)/);
+assert.match(nativePlayer, /playback\.vod_terminal/);
+assert.match(nativePlayer, /Pressione voltar para sair/);
+assert.match(navigation, /verticalScroll\(scrollState\)/);
+assert.match(navigation, /fontSize = if \(isTelevision\) 11\.sp else 10\.sp/);
+assert.match(iconForeground, /android:top="28dp"/);
+assert.match(iconForeground, /android:left="28dp"/);
 assert.match(image, /FilterQuality\.High/);
 assert.match(image, /R\.drawable\.roneca_media_placeholder/);
 assert.match(manifest, /@mipmap\/ic_launcher/);
@@ -80,4 +98,4 @@ assert.match(app, /if \(reason !in playlistWidePlaybackFailures\)/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 assert.match(app, /pending\.playlistId != catalogState\.activePlaylistId/);
 
-console.log('Android 2.9: marca, ativação, aspecto, imagens e recuperação inteligente validados.');
+console.log('Android 2.9.1: player VOD, paisagem, marca, aspecto e ícone validados.');
