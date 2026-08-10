@@ -63,13 +63,13 @@ jobs:
         working-directory: smart-tv
         run: npm run typecheck
 
-      - name: Check bundle budget
-        working-directory: smart-tv
-        run: npm run bundle:budget
-
       - name: Generate and validate packaged webOS IPK
         working-directory: smart-tv
         run: npm run package:webos:verified
+
+      - name: Check bundle budget
+        working-directory: smart-tv
+        run: npm run bundle:budget
 
       - name: Generate hosted webOS IPK for controlled testing
         working-directory: smart-tv
