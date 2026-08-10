@@ -25,6 +25,15 @@ fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
 fs.cpSync(dist, output, { recursive: true });
 
+if (platform === "webos") {
+  const indexPath = path.join(output, "index.html");
+  let html = fs.readFileSync(indexPath, "utf8");
+  html = html
+    .replace(/\s*<script[^>]*src=["']\$WEBAPIS\/webapis\/webapis\.js["'][^>]*><\/script>/gi, "")
+    .replace(/\s*<object[^>]*type=["']application\/avplayer["'][^>]*><\/object>/gi, "");
+  fs.writeFileSync(indexPath, html);
+}
+
 const manifest = platform === "webos" ? "appinfo.json" : "config.xml";
 const manifestSource = path.join(platformRoot, manifest);
 const manifestTarget = path.join(output, manifest);
