@@ -1,0 +1,247 @@
+:root {
+  --roneca-background: #080809;
+  --roneca-background-soft: #0D0D0F;
+  --roneca-surface: #131315;
+  --roneca-surface-raised: #19191C;
+  --roneca-border: #2B2B30;
+  --roneca-red: #E3262E;
+  --roneca-red-focus: #FF454C;
+  --roneca-red-deep: #80151A;
+  --roneca-gold: #FFD45A;
+  --roneca-text: #F7F7F8;
+  --roneca-muted: #9C9CA5;
+
+  color: var(--roneca-text);
+  background: var(--roneca-background);
+
+  /* Legacy Smart TV variables now map to the Android 2.9.5 product palette.
+     Gold is deliberately NOT used for product controls; it remains inside
+     the official brand artwork only. */
+  --surface: var(--roneca-surface);
+  --border: var(--roneca-border);
+  --gold: var(--roneca-red);
+  --gold-strong: var(--roneca-red-focus);
+  --red: var(--roneca-red);
+  --muted: var(--roneca-muted);
+  --focus: var(--roneca-red-focus);
+}
+
+html,
+body,
+#root,
+.shell,
+.rail,
+.content,
+.series-detail {
+  background-color: var(--roneca-background);
+  color: var(--roneca-text);
+}
+
+/* Splash is intentionally CSS-only so it appears before React data/session work.
+   It uses the exact official 2.9.5 lockup and disappears without keeping state. */
+#root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(227, 38, 46, 0.14), transparent 35%),
+    var(--roneca-background) url("/brand/ronecaplaytv-lockup-horizontal.svg") center / min(720px, 62vw) auto no-repeat;
+  animation: roneca-brand-splash 2.6s ease forwards;
+}
+
+@keyframes roneca-brand-splash {
+  0%, 70% { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+/* Activation: remove the old R + text composition visually and use one master lockup. */
+.activation-shell {
+  background:
+    radial-gradient(circle at 82% 46%, rgba(227, 38, 46, 0.22), rgba(128, 21, 26, 0.08) 22%, transparent 48%),
+    var(--roneca-background);
+}
+
+.activation-panel {
+  border-color: var(--roneca-border);
+  background: rgba(13, 13, 15, 0.95);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+}
+
+.activation-brand {
+  width: min(430px, 100%);
+  height: 112px;
+  margin-bottom: 28px;
+  background: url("/brand/ronecaplaytv-lockup-horizontal.svg") left center / contain no-repeat;
+}
+
+.activation-brand > * {
+  visibility: hidden;
+}
+
+.activation-art {
+  width: min(330px, 27vw);
+  aspect-ratio: 1;
+  right: 7%;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0;
+  color: transparent;
+  background: url("/brand/ronecaplaytv-symbol.svg") center / contain no-repeat;
+  filter: drop-shadow(0 24px 50px rgba(0, 0, 0, 0.45));
+}
+
+.activation-art > * {
+  display: none !important;
+}
+
+.activation-code {
+  border-color: rgba(227, 38, 46, 0.42);
+  background: rgba(227, 38, 46, 0.07);
+}
+
+.activation-code strong {
+  color: var(--roneca-red-focus);
+}
+
+/* Sidebar brand: official symbol + official wordmark, never the legacy letter mark. */
+.brand {
+  min-height: 56px;
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 0;
+  border-radius: 0;
+  font-size: 0;
+  color: transparent;
+  background: url("/brand/ronecaplaytv-symbol.svg") center / contain no-repeat;
+}
+
+.brand-name {
+  width: 106px;
+  height: 30px;
+  font-size: 0;
+  color: transparent;
+  letter-spacing: 0;
+  background: url("/brand/ronecaplaytv-wordmark.svg") left center / contain no-repeat;
+}
+
+/* Official media fallback instead of a generic R. */
+.poster-fallback {
+  width: 100%;
+  height: 100%;
+  display: block;
+  font-size: 0;
+  color: transparent;
+  background-image:
+    url("/brand/ronecaplaytv-symbol.svg"),
+    radial-gradient(circle at 50% 42%, #242429 0, var(--roneca-surface-raised) 48%, var(--roneca-background) 100%);
+  background-position: center, center;
+  background-size: 46% auto, cover;
+  background-repeat: no-repeat;
+}
+
+.channel-panel button > span:first-child > b {
+  width: 42px;
+  height: 42px;
+  display: inline-block;
+  font-size: 0;
+  color: transparent;
+  background: url("/brand/ronecaplaytv-symbol.svg") center / contain no-repeat;
+}
+
+/* Product chrome follows graphite + red. Gold remains only in official artwork. */
+.primary,
+.play-control {
+  border-color: var(--roneca-red-focus);
+  background: linear-gradient(135deg, var(--roneca-red-focus), var(--roneca-red));
+  color: #fff;
+}
+
+.secondary,
+.card,
+.media-card,
+.episode-row,
+.series-back,
+.season-chip,
+.status,
+.update-banner,
+.next-episode-card {
+  border-color: var(--roneca-border);
+  background-color: var(--roneca-surface);
+}
+
+.nav-item.selected,
+.season-chip.selected,
+.track-panel button.selected,
+.channel-panel button.selected {
+  color: var(--roneca-text);
+  border-color: rgba(255, 69, 76, 0.72);
+  background: rgba(227, 38, 46, 0.13);
+}
+
+.eyebrow,
+.player-overlay header small,
+.series-copy small,
+.episode-row b,
+.next-episode-card small,
+.update-banner b {
+  color: var(--roneca-red-focus);
+}
+
+.spinner {
+  border-color: var(--roneca-border);
+  border-top-color: var(--roneca-red-focus);
+}
+
+.timeline i,
+.watch-progress i {
+  background: var(--roneca-red-focus);
+}
+
+.hero,
+.series-detail {
+  background:
+    radial-gradient(circle at 84% 36%, rgba(227, 38, 46, 0.18), transparent 36%),
+    var(--roneca-background);
+}
+
+.hero-shade {
+  background: linear-gradient(90deg, rgba(8, 8, 9, 0.98) 0%, rgba(8, 8, 9, 0.78) 48%, rgba(8, 8, 9, 0.14) 100%);
+}
+
+[data-tv-focusable="true"]:focus {
+  border-color: var(--roneca-red-focus);
+  box-shadow: 0 0 0 2px var(--roneca-red-focus), 0 10px 28px rgba(0, 0, 0, 0.62);
+}
+
+.player-error button,
+.next-episode-card button:first-child {
+  border-color: var(--roneca-red-focus);
+  background: var(--roneca-red);
+  color: #fff;
+}
+
+.player-network > span,
+.connection-banner {
+  border-color: rgba(255, 69, 76, 0.48);
+}
+
+@media (max-width: 1050px) {
+  .brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .brand-mark {
+    width: 48px;
+    height: 48px;
+    flex-basis: 48px;
+  }
+}
