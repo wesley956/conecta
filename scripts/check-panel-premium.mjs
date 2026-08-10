@@ -27,6 +27,11 @@ for (const asset of [
   assert(fs.existsSync(fullPath) && fs.statSync(fullPath).size > 1024, `Ativo oficial ausente ou vazio: ${asset}`);
 }
 
+const versionedWordmark = path.join(panelDir, 'assets/roneca-player-tv-wordmark-v2.svg');
+assert(fs.existsSync(versionedWordmark), 'Wordmark versionado da marca está ausente.');
+assert(premiumJs.includes("./assets/roneca-player-tv-wordmark-v2.svg"), 'Painel não força o wordmark versionado.');
+assert(premiumJs.includes('directLogos.slice(1)'), 'Painel não possui proteção contra logo duplicada no login.');
+
 for (const contract of [
   '--rp-sidebar-width: 248px',
   '.panel-global-search',

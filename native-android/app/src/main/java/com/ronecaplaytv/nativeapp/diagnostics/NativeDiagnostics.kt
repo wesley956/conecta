@@ -6,10 +6,25 @@ import android.os.Build
 import android.os.Debug
 import android.util.Log
 import android.view.Choreographer
+import androidx.media3.common.PlaybackException
+import com.ronecaplaytv.nativeapp.BuildConfig
+import com.ronecaplaytv.nativeapp.network.PlaybackDiagnosticsApi
+import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
+import com.ronecaplaytv.nativeapp.security.SecureCredentialStore
 import java.util.Locale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 object NativeDiagnostics {
     private const val TAG = "RonecaDiagnostics"
+    private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var applicationContext: Context? = null
+
+    fun initialize(context: Context) {
+        applicationContext = context.applicationContext
+    }
 
     fun record(event: String, fields: Map<String, Any?> = emptyMap()) {
         val safeEvent = event.lowercase(Locale.ROOT)
@@ -22,6 +37,52 @@ object NativeDiagnostics {
             append(safeEvent)
             safe.forEach { (key, value) -> append(' ').append(key).append('=').append(value) }
         })
+    }
+
+    fun recordPlaybackFailure(error: PlaybackException, failureKind: String) {
+        val causeChain = generateSequence(error.cause) { it.cause }
+            .take(8)
+            .map { it::class.java.simpleName }
+            .filter(String::isNotBlank)
+            .joinToString(">")
+            .take(260)
+        val safeMessage = sanitizeDiagnosticMessage(error.message)
+        record(
+            "playback.raw_error",
+            mapOf(
+                "error_code" to error.errorCode,
+                "error_name" to error.errorCodeName,
+                "failure_kind" to failureKind,
+                "cause_chain" to causeChain,
+                "message" to safeMessage,
+            ),
+        )
+
+        val context = applicationContext ?: return
+        uploadScope.launch {
+            runCatching {
+                val identityStore = DeviceIdentityStore(context)
+                val deviceCode = identityStore.getDeviceCode() ?: return@runCatching
+                val credential = SecureCredentialStore(context).load() ?: return@runCatching
+                val diagnosticMessage = buildString {
+                    append("Media3 ")
+                    append(error.errorCodeName)
+                    if (causeChain.isNotBlank()) append("; causes=").append(causeChain)
+                    if (safeMessage.isNotBlank()) append("; message=").append(safeMessage)
+                }.take(800)
+                PlaybackDiagnosticsApi(BuildConfig.SUPABASE_FUNCTIONS_URL).report(
+                    deviceCode = deviceCode,
+                    deviceUuid = identityStore.getOrCreateDeviceUuid(),
+                    deviceCredential = credential,
+                    appVersion = BuildConfig.VERSION_NAME,
+                    errorCode = error.errorCodeName,
+                    errorMessage = diagnosticMessage,
+                    probableSource = if (error.errorCode == PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK) "app" else "unknown",
+                )
+            }.onFailure { uploadError ->
+                Log.w(TAG, "Falha ao enviar diagnóstico bruto do player", uploadError)
+            }
+        }
     }
 
     fun recordMemory(context: Context, event: String) {
@@ -69,6 +130,16 @@ internal fun sanitizeFields(fields: Map<String, Any?>): Map<String, String> = bu
         if (value.isBlank() || SENSITIVE_VALUE.containsMatchIn(value)) return@forEach
         put(key, value.replace(Regex("\\s+"), "_"))
     }
+}
+
+private fun sanitizeDiagnosticMessage(value: String?): String {
+    if (value.isNullOrBlank()) return ""
+    return value
+        .replace(Regex("(?i)https?://\\S+"), "<url>")
+        .replace(Regex("(?i)(bearer|token|password|username|authorization)[=: ]+\\S+"), "$1=<redacted>")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .take(360)
 }
 
 class FrameJankMonitor : Choreographer.FrameCallback {

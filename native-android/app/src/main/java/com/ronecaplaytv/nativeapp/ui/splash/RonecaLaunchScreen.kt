@@ -113,9 +113,9 @@ fun RonecaLaunchScreen(
         }
     }
 
-    val emblemSize = if (isTelevision) 352.dp else 238.dp
-    val progressWidth = if (isTelevision) 172.dp else 118.dp
-    val wordmarkFont = if (isTelevision) 44.sp else 30.sp
+    val emblemSize = if (isTelevision) 320.dp else 210.dp
+    val progressWidth = if (isTelevision) 168.dp else 124.dp
+    val wordmarkFont = if (isTelevision) 42.sp else 28.sp
 
     Box(
         modifier = Modifier
@@ -174,7 +174,7 @@ fun RonecaLaunchScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(if (isTelevision) 12.dp else 8.dp))
+            Spacer(modifier = Modifier.height(if (isTelevision) 14.dp else 12.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -187,21 +187,21 @@ fun RonecaLaunchScreen(
                     text = "Roneca",
                     color = RonecaColors.TextPrimary,
                     fontSize = wordmarkFont,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                 )
-                Spacer(modifier = Modifier.width(if (isTelevision) 18.dp else 12.dp))
+                Spacer(modifier = Modifier.width(if (isTelevision) 15.dp else 10.dp))
                 Text(
                     text = "Player",
                     color = RonecaColors.Primary,
                     fontSize = wordmarkFont,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                 )
-                Spacer(modifier = Modifier.width(if (isTelevision) 14.dp else 9.dp))
+                Spacer(modifier = Modifier.width(if (isTelevision) 12.dp else 8.dp))
                 Text(
                     text = "TV",
                     color = RonecaColors.RedStrong,
                     fontSize = wordmarkFont,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                 )
             }
 

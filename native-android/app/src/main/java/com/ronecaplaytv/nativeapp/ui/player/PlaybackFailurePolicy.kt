@@ -2,6 +2,7 @@ package com.ronecaplaytv.nativeapp.ui.player
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
+import com.ronecaplaytv.nativeapp.diagnostics.NativeDiagnostics
 
 enum class PlaybackFailureKind(val diagnosticCode: String) {
     TransientNetwork("transient_network"),
@@ -10,6 +11,7 @@ enum class PlaybackFailureKind(val diagnosticCode: String) {
     UnsupportedFormat("unsupported_format"),
     Decoder("decoder"),
     SecureConnection("secure_connection"),
+    RuntimeCheck("runtime_check"),
     Stalled("stalled"),
     Unknown("unknown"),
 }
@@ -37,7 +39,9 @@ fun classifyPlaybackFailure(error: PlaybackException): PlaybackFailure {
         .firstOrNull()
         ?.responseCode
     val causeNames = causes.map { it::class.java.name }
-    return classifyPlaybackFailure(error.errorCodeName, httpStatus, causeNames)
+    val failure = classifyPlaybackFailure(error.errorCodeName, httpStatus, causeNames)
+    NativeDiagnostics.recordPlaybackFailure(error, failure.diagnosticCode)
+    return failure
 }
 
 internal fun classifyPlaybackFailure(
@@ -102,10 +106,14 @@ internal fun classifyPlaybackFailure(
             "Não foi possível decodificar este conteúdo neste dispositivo.",
         )
 
-        normalized.contains("CLEARTEXT_NOT_PERMITTED") ||
-            normalized.contains("FAILED_RUNTIME_CHECK") -> permanent(
+        normalized.contains("CLEARTEXT_NOT_PERMITTED") -> permanent(
             PlaybackFailureKind.SecureConnection,
-            "A conexão do servidor não é compatível com a segurança do dispositivo.",
+            "A conexão sem criptografia foi bloqueada pela segurança do dispositivo.",
+        )
+
+        normalized.contains("FAILED_RUNTIME_CHECK") -> permanent(
+            PlaybackFailureKind.RuntimeCheck,
+            "O player encontrou um estado interno inválido durante a reprodução.",
         )
 
         else -> permanent(
