@@ -1,3 +1,12 @@
+# RonecaPlayTV 2.9.3
+
+- Publica de fato no Android as correções de identidade e VOD que já haviam sido mescladas após a 2.9.2.
+- Separa `FAILED_RUNTIME_CHECK` de falhas reais de TLS/cleartext para eliminar a mensagem falsa de segurança do dispositivo.
+- Registra o erro bruto do Media3 no backend antes da recuperação, com cadeia de causas sanitizada e sem expor URLs ou credenciais.
+- Amplia a safe area dos ícones adaptive, legado e redondo para reduzir cortes por launchers Android.
+- Padroniza o splash com a identidade oficial: Roneca branco, Player dourado e TV vermelho.
+- Unifica o wordmark do painel e remove duplicação de marca no portal do vendedor.
+
 # RonecaPlayTV 2.9.2
 
 - Corrige definitivamente o espaçamento da marca Roneca Player TV na origem vetorial.
