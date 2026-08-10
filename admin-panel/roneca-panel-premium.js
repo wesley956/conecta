@@ -4,7 +4,6 @@
   if (global.__ronecaPanelPremiumInstalled) return;
   global.__ronecaPanelPremiumInstalled = true;
 
-  const brandWordmark = './assets/roneca-player-tv-wordmark-v2.svg';
   const navigationIcons = {
     dashboard: '<path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/>',
     home: '<path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/>',
@@ -32,11 +31,8 @@
       .toLowerCase();
   }
 
-  function normalizeBrandAssets(root) {
+  function normalizeBrandLayout(root) {
     const scope = root || document;
-    scope.querySelectorAll('.login-wordmark, .seller-wordmark').forEach(image => {
-      if (image.tagName === 'IMG' && image.getAttribute('src') !== brandWordmark) image.src = brandWordmark;
-    });
     scope.querySelectorAll('.login-brand-lockup, .seller-login-brand').forEach(lockup => {
       const directLogos = Array.from(lockup.children).filter(child => child.classList?.contains('logo'));
       directLogos.slice(1).forEach(duplicate => duplicate.remove());
@@ -150,7 +146,7 @@
   }
 
   function initialize() {
-    normalizeBrandAssets(document);
+    normalizeBrandLayout(document);
     const adminSearch = document.getElementById('adminGlobalSearch');
     const sellerSearch = document.getElementById('sellerGlobalSearch');
     bindSearch(adminSearch, routeAdminSearch);
@@ -188,13 +184,13 @@
         if (!element) return;
         if (element.id === 'stPending' || element.closest?.('#stPending')) pendingChanged = true;
         if (element.matches?.('.tabs, .tabs *, .seller-v2-nav, .seller-v2-nav *')) navigationChanged = true;
-        if (element.matches?.('.login-brand-lockup, .seller-login-brand, .logo') || Array.from(mutation.addedNodes).some(node => node.nodeType === Node.ELEMENT_NODE && node.querySelector?.('.login-wordmark, .seller-wordmark, .logo'))) brandChanged = true;
+        if (element.matches?.('.login-brand-lockup, .seller-login-brand, .logo') || Array.from(mutation.addedNodes).some(node => node.nodeType === Node.ELEMENT_NODE && node.querySelector?.('.logo'))) brandChanged = true;
         if (element.matches?.('.tablewrap, .tablewrap *') || Array.from(mutation.addedNodes).some(node => node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.tablewrap, tr, td') || node.querySelector?.('.tablewrap, tr, td')))) tableChanged = true;
       });
 
       if (tableChanged) applyTableLabels(document);
       if (pendingChanged) updatePendingCount();
-      if (brandChanged) normalizeBrandAssets(document);
+      if (brandChanged) normalizeBrandLayout(document);
       if (navigationChanged) {
         ensureNavigationIcons(document);
         syncMoreNavigation();

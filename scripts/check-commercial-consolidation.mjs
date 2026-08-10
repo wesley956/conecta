@@ -3,7 +3,8 @@ import fs from 'node:fs';
 const files = {
   ui: 'admin-panel/commercial-consolidation-v2.js',
   adminPrivacy: 'admin-panel/admin-commercial-privacy-v2.js',
-  navigation: 'admin-panel/seller-dynamic-navigation-v2.js',
+  navigation: 'admin-panel/mobile-more-navigation.js',
+  navigationCompat: 'admin-panel/seller-dynamic-navigation-v2.js',
   css: 'admin-panel/commercial-consolidation.css',
   endpoint: 'supabase/functions/seller-commercial-panel/index.ts',
   baseMigration: 'supabase/migrations/2026072604_consolidated_commercial_credit_flow.sql',
@@ -41,6 +42,11 @@ const required = {
     'financeLoadSeller',
     'creditPackagesLoad',
     'sellerCommercialRenderCustomers',
+    'ensureSellerMoreNavigation',
+    'showSellerSection',
+  ],
+  navigationCompat: [
+    'RonecaMobileMoreNavigation?.refresh(document)',
   ],
   css: ['.commercial-consolidated-area', '.seller-plan-price-grid', '.seller-customer-grid', '.auto-sale-price'],
   endpoint: [
@@ -79,10 +85,14 @@ for (const [group, snippets] of Object.entries(required)) {
   }
 }
 
-for (const group of ['ui', 'adminPrivacy', 'navigation']) {
+for (const group of ['ui', 'adminPrivacy']) {
   if (source[group].includes('MutationObserver')) {
     throw new Error(`O módulo ${files[group]} não pode observar e reescrever a árvore inteira do painel.`);
   }
+}
+
+if (source.navigationCompat.includes('seller-portal-section') || source.navigationCompat.includes('proxy.innerHTML')) {
+  throw new Error('O shim seller-dynamic-navigation-v2.js não pode manter uma segunda implementação da navegação.');
 }
 
 if (source.fifoFix.includes('for v_lot in') || source.fifoFix.includes('credits_remaining = credits_remaining -')) {
@@ -97,4 +107,4 @@ if (source.ui.includes('sellerActivationCustomerSelect')) {
   throw new Error('Clientes devem permanecer independentes da ativação para evitar dois fluxos comerciais concorrentes.');
 }
 
-console.log('✅ Fluxo comercial V2 validado sem loops de DOM, com privacidade, navegação, pacotes, preços, clientes e FIFO único.');
+console.log('✅ Fluxo comercial V2 validado com navegação única, privacidade, pacotes, preços, clientes e FIFO único.');

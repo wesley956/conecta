@@ -26,8 +26,8 @@ android {
         applicationId = "com.ronecaplaytv.nativeapp"
         minSdk = 23
         targetSdk = 36
-        versionCode = 45
-        versionName = "2.9.4"
+        versionCode = 46
+        versionName = "2.9.5"
 
         buildConfigField(
             "String",

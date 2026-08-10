@@ -1,9 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:top="42dp"
-        android:bottom="42dp"
-        android:left="42dp"
-        android:right="42dp"
-        android:drawable="@drawable/roneca_player_tv_emblem" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+
+    <!--
+      Launcher master: símbolo vetorial próprio, sem depender do PNG nodpi.
+      O grupo fica deliberadamente dentro da safe zone para preservar as antenas
+      sob máscaras circulares, squircle e recortes agressivos de fabricantes.
+    -->
+    <group
+        android:pivotX="512"
+        android:pivotY="512"
+        android:scaleX="0.66"
+        android:scaleY="0.66"
+        android:translateY="26">
+
+        <path
+            android:pathData="M416,257 L298,105"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFD45A"
+            android:strokeWidth="38"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M608,257 L726,105"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFD45A"
+            android:strokeWidth="38"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M292,63 A35,35 0,1 1,291.9,63"
+            android:fillColor="#FFD45A"
+            android:strokeColor="#9A5A08"
+            android:strokeWidth="8" />
+        <path
+            android:pathData="M732,63 A35,35 0,1 1,731.9,63"
+            android:fillColor="#FFD45A"
+            android:strokeColor="#9A5A08"
+            android:strokeWidth="8" />
+
+        <path
+            android:pathData="M262,225 H762 A136,136 0,0 1,898 361 V665 A136,136 0,0 1,762 801 H262 A136,136 0,0 1,126 665 V361 A136,136 0,0 1,262 225 Z"
+            android:fillColor="#121214"
+            android:strokeColor="#FFD45A"
+            android:strokeWidth="68"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M280,277 H744 A92,92 0,0 1,836 369 V657 A92,92 0,0 1,744 749 H280 A92,92 0,0 1,188 657 V369 A92,92 0,0 1,280 277 Z"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFF1A8"
+            android:strokeWidth="8"
+            android:strokeLineJoin="round" />
+
+        <path
+            android:pathData="M390,812 H634"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFD45A"
+            android:strokeWidth="44"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M332,868 H692"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#FFD45A"
+            android:strokeWidth="44"
+            android:strokeLineCap="round" />
+
+        <path
+            android:pathData="M460,422 V636 C460,650 475,658 487,650 L656,543 C667,536 667,520 656,513 L487,406 C475,398 460,406 460,422 Z"
+            android:fillColor="#E3262E"
+            android:strokeColor="#8F0912"
+            android:strokeWidth="10"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>
