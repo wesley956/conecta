@@ -31,6 +31,16 @@
       .toLowerCase();
   }
 
+  function ensureSellerBrandHotfix() {
+    if (!document.body?.classList.contains('seller-v2')) return;
+    if (document.querySelector('link[data-roneca-seller-brand-hotfix]')) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = './seller-brand-hotfix.css?v=20260810-brand-v5';
+    link.dataset.ronecaSellerBrandHotfix = 'true';
+    document.head.appendChild(link);
+  }
+
   function normalizeBrandLayout(root) {
     const scope = root || document;
     scope.querySelectorAll('.login-brand-lockup, .seller-login-brand').forEach(lockup => {
@@ -38,7 +48,23 @@
       directLogos.slice(1).forEach(duplicate => duplicate.remove());
     });
     scope.querySelectorAll('.logo').forEach(logo => {
-      logo.style.overflow = 'visible';
+      const directImages = Array.from(logo.children).filter(child => child.tagName === 'IMG');
+      directImages.slice(1).forEach(duplicate => duplicate.remove());
+      if (document.body?.classList.contains('seller-v2')) {
+        logo.style.overflow = 'hidden';
+        const image = directImages[0];
+        if (image) {
+          image.style.display = 'block';
+          image.style.width = '100%';
+          image.style.height = '100%';
+          image.style.maxWidth = '100%';
+          image.style.maxHeight = '100%';
+          image.style.objectFit = 'contain';
+          image.style.objectPosition = 'center';
+        }
+      } else {
+        logo.style.overflow = 'visible';
+      }
     });
   }
 
@@ -146,6 +172,7 @@
   }
 
   function initialize() {
+    ensureSellerBrandHotfix();
     normalizeBrandLayout(document);
     const adminSearch = document.getElementById('adminGlobalSearch');
     const sellerSearch = document.getElementById('sellerGlobalSearch');
