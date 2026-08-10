@@ -46,4 +46,15 @@ class PlaybackFailurePolicyTest {
         assertFalse(format.retryable)
         assertFalse(tls.retryable)
     }
+
+    @Test
+    fun runtimeCheckIsNotMisreportedAsDeviceSecurity() {
+        val runtime = classifyPlaybackFailure("ERROR_CODE_FAILED_RUNTIME_CHECK")
+        val cleartext = classifyPlaybackFailure("ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED")
+
+        assertEquals(PlaybackFailureKind.RuntimeCheck, runtime.kind)
+        assertFalse(runtime.retryable)
+        assertFalse(runtime.userMessage.contains("segurança", ignoreCase = true))
+        assertEquals(PlaybackFailureKind.SecureConnection, cleartext.kind)
+    }
 }
