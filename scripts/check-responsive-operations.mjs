@@ -5,7 +5,7 @@ const dashboard = `${read('admin-panel/dashboard.html')}\n${read('admin-panel/da
 const seller = read('admin-panel/seller.html');
 const sellerUx = read('admin-panel/seller-portal-ux.js');
 const sellerWizard = read('admin-panel/seller-activation-wizard.js');
-const sellerNavigation = read('admin-panel/seller-dynamic-navigation-v2.js');
+const sellerNavigationCompat = read('admin-panel/seller-dynamic-navigation-v2.js');
 const mobileMoreNavigation = read('admin-panel/mobile-more-navigation.js');
 const panelCss = read('admin-panel/panel-redesign.css');
 const premiumCss = read('admin-panel/roneca-panel-premium.css');
@@ -70,25 +70,26 @@ for (const snippet of [
 }
 
 for (const section of ['home', 'activation', 'devices', 'lists']) {
-  requireCheck(sellerNavigation.includes(`'${section}'`), `Destino principal ausente da navegação móvel: ${section}`);
+  requireCheck(mobileMoreNavigation.includes(`'${section}'`), `Destino principal ausente da navegação móvel: ${section}`);
 }
 
 for (const snippet of [
-  "const primarySections = new Set(['home', 'activation', 'devices', 'lists'])",
-  "className = 'seller-v2-more'",
-  'class="seller-v2-more-menu"',
-  'syncCompactNavigation()',
-  "const COMPACT_NAV_QUERY = '(max-width: 820px)'",
-  "window.addEventListener('roneca:seller-navigation-changed'",
+  "var SELLER_PRIMARY_SECTIONS = new Set(['home', 'activation', 'devices', 'lists'])",
+  "more.className = 'seller-v2-more'",
+  'seller-v2-more-menu',
+  'ensureSellerMoreNavigation()',
+  "var COMPACT_NAV_QUERY = '(max-width: 820px)'",
   "source.classList.add('seller-v2-overflow-source')",
-  'proxy.__sellerNavSource',
+  'showSellerSection',
+  'sellerPortalNavigate = sellerNavigate',
 ]) {
-  requireCheck(sellerNavigation.includes(snippet), `Agrupamento móvel do vendedor incompleto: ${snippet}`);
+  requireCheck(mobileMoreNavigation.includes(snippet), `Agrupamento móvel do vendedor incompleto: ${snippet}`);
 }
 
-requireCheck(!sellerNavigation.includes('menu.appendChild(button)'), 'Os botões originais não podem ser movidos; módulos tardios dependem deles como referência.');
-requireCheck(!sellerNavigation.includes("(max-width: 760px)"), 'CSS e JavaScript precisam usar o mesmo limite móvel de 820 px.');
-requireCheck(!sellerNavigation.includes("summary.addEventListener('click'"), 'O vendedor não pode instalar um segundo controlador no botão Mais.');
+requireCheck(!mobileMoreNavigation.includes('menu.appendChild(source)'), 'Os botões originais não podem ser movidos; módulos tardios dependem deles como referência.');
+requireCheck(!mobileMoreNavigation.includes("(max-width: 760px)"), 'CSS e JavaScript precisam usar o mesmo limite móvel de 820 px.');
+requireCheck(sellerNavigationCompat.includes('RonecaMobileMoreNavigation?.refresh(document)'), 'Shim legado do vendedor não delega ao controlador compartilhado.');
+requireCheck(!sellerNavigationCompat.includes('seller-portal-section'), 'Shim legado não pode manter uma segunda implementação de navegação.');
 
 for (const snippet of [
   "var COMPACT_NAV_QUERY = '(max-width: 820px)'",
@@ -129,4 +130,4 @@ requireCheck(
   'As navegações administrativas e do vendedor precisam manter cinco destinos no celular.',
 );
 
-console.log('✅ Operação responsiva validada com navegação compacta e ações comerciais canônicas.');
+console.log('✅ Operação responsiva validada com navegação compacta única e ações comerciais canônicas.');
