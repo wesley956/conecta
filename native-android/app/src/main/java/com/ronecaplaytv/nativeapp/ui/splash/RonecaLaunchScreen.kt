@@ -12,7 +12,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -36,11 +35,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.R
+import com.ronecaplaytv.nativeapp.ui.brand.RonecaBrandLockup
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -113,7 +111,7 @@ fun RonecaLaunchScreen(
         }
     }
 
-    val emblemSize = if (isTelevision) 320.dp else 210.dp
+    val emblemSize = if (isTelevision) 290.dp else 188.dp
     val progressWidth = if (isTelevision) 168.dp else 124.dp
     val wordmarkFont = if (isTelevision) 42.sp else 28.sp
 
@@ -152,7 +150,12 @@ fun RonecaLaunchScreen(
                     painter = painterResource(R.drawable.roneca_player_tv_emblem),
                     contentDescription = "Símbolo Roneca Player TV",
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = 0.88f
+                            scaleY = 0.88f
+                        },
                 )
 
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -176,34 +179,15 @@ fun RonecaLaunchScreen(
 
             Spacer(modifier = Modifier.height(if (isTelevision) 14.dp else 12.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            RonecaBrandLockup(
+                emblemSize = 0.dp,
+                fontSize = wordmarkFont,
+                showEmblem = false,
                 modifier = Modifier.graphicsLayer {
                     alpha = wordmarkAlpha.value
                     translationY = wordmarkOffset.value
                 },
-            ) {
-                Text(
-                    text = "Roneca",
-                    color = RonecaColors.TextPrimary,
-                    fontSize = wordmarkFont,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                Spacer(modifier = Modifier.width(if (isTelevision) 15.dp else 10.dp))
-                Text(
-                    text = "Player",
-                    color = RonecaColors.Primary,
-                    fontSize = wordmarkFont,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                Spacer(modifier = Modifier.width(if (isTelevision) 12.dp else 8.dp))
-                Text(
-                    text = "TV",
-                    color = RonecaColors.RedStrong,
-                    fontSize = wordmarkFont,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(if (isTelevision) 24.dp else 18.dp))
 
