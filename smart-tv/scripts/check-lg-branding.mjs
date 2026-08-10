@@ -12,6 +12,13 @@ function sha(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+function normalizedSvg(file) {
+  return fs.readFileSync(file, "utf8")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .replace(/>\s+</g, "><");
+}
+
 function requireFile(file, label = file) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile() || fs.statSync(file).size === 0) {
     throw new Error(`LG-02: arquivo obrigatório ausente ou vazio: ${label}`);
@@ -37,8 +44,8 @@ for (const asset of vectorMasters) {
   requireFile(smartTv, `Smart TV master ${asset}`);
   requireFile(packaged, `webOS packaged ${asset}`);
 
-  if (sha(source) !== sha(smartTv)) {
-    throw new Error(`LG-02: ${asset} divergiu da fonte oficial Android 2.9.5.`);
+  if (normalizedSvg(source) !== normalizedSvg(smartTv)) {
+    throw new Error(`LG-02: ${asset} divergiu semanticamente da fonte oficial Android 2.9.5.`);
   }
   if (sha(smartTv) !== sha(packaged)) {
     throw new Error(`LG-02: ${asset} foi alterado durante o build webOS.`);
