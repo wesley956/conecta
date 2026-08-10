@@ -44,8 +44,8 @@ const [
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/PlaybackDiagnosticsApi.kt'),
 ]);
 
-assert.match(build, /versionCode = 43/);
-assert.match(build, /versionName = "2\.9\.2"/);
+assert.match(build, /versionCode = 44/);
+assert.match(build, /versionName = "2\.9\.3"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -113,4 +113,4 @@ assert.match(app, /if \(reason !in playlistWidePlaybackFailures\)/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 assert.match(app, /pending\.playlistId != catalogState\.activePlaylistId/);
 
-console.log('Android 2.9.2+: identidade, safe area e diagnóstico bruto do VOD validados.');
+console.log('Android 2.9.3: identidade, safe area e diagnóstico bruto do VOD validados.');
