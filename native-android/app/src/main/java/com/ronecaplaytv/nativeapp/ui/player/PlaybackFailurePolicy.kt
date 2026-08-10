@@ -10,6 +10,7 @@ enum class PlaybackFailureKind(val diagnosticCode: String) {
     UnsupportedFormat("unsupported_format"),
     Decoder("decoder"),
     SecureConnection("secure_connection"),
+    RuntimeCheck("runtime_check"),
     Stalled("stalled"),
     Unknown("unknown"),
 }
@@ -102,10 +103,14 @@ internal fun classifyPlaybackFailure(
             "Não foi possível decodificar este conteúdo neste dispositivo.",
         )
 
-        normalized.contains("CLEARTEXT_NOT_PERMITTED") ||
-            normalized.contains("FAILED_RUNTIME_CHECK") -> permanent(
+        normalized.contains("CLEARTEXT_NOT_PERMITTED") -> permanent(
             PlaybackFailureKind.SecureConnection,
-            "A conexão do servidor não é compatível com a segurança do dispositivo.",
+            "A conexão sem criptografia foi bloqueada pela segurança do dispositivo.",
+        )
+
+        normalized.contains("FAILED_RUNTIME_CHECK") -> permanent(
+            PlaybackFailureKind.RuntimeCheck,
+            "O player encontrou um estado interno inválido durante a reprodução.",
         )
 
         else -> permanent(
