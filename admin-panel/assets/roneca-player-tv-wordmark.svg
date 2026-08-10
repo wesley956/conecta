@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1840" height="320" viewBox="0 0 1840 320" role="img" aria-labelledby="title description" xmlns="http://www.w3.org/2000/svg">
+  <title id="title">Roneca Player TV</title>
+  <desc id="description">Assinatura oficial com espaçamento seguro.</desc>
+  <defs>
+    <linearGradient id="wordGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff0a2"/><stop offset="0.55" stop-color="#ffd45a"/><stop offset="1" stop-color="#c38116"/>
+    </linearGradient>
+    <linearGradient id="wordRed" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#ff6267"/><stop offset="0.52" stop-color="#e3262e"/><stop offset="1" stop-color="#80151a"/>
+    </linearGradient>
+  </defs>
+  <g font-family="DejaVu Sans, sans-serif" font-size="206" font-weight="700">
+    <text x="40" y="232" fill="#f7f7f8">Roneca</text>
+    <text x="790" y="232" fill="url(#wordGold)">Player</text>
+    <text x="1495" y="232" fill="url(#wordRed)">TV</text>
+  </g>
+</svg>

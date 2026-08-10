@@ -73,7 +73,7 @@
       background: rgba(255,255,255,.06);
       border: 1px solid rgba(110,231,255,.28);
       box-shadow: 0 0 32px rgba(110,231,255,.28);
-      overflow: hidden;
+      overflow: visible;
     }
 
     .logo img {
@@ -137,16 +137,8 @@
       font-size: 16px;
     }
 
-    .ghost {
-      background: rgba(255,255,255,.09);
-    }
-
-    .msg {
-      min-height: 24px;
-      margin-top: 14px;
-      color: var(--muted);
-    }
-
+    .ghost { background: rgba(255,255,255,.09); }
+    .msg { min-height: 24px; margin-top: 14px; color: var(--muted); }
     .err { color: #fecdd3; }
     .ok { color: #bbf7d0; }
   </style>
@@ -159,7 +151,7 @@
     <section class="card">
       <div class="login-brand-lockup">
         <div class="logo"><img src="./assets/roneca-player-tv-emblem.png" alt=""></div>
-        <img class="login-wordmark" src="./assets/roneca-player-tv-wordmark.png" alt="Roneca Player TV">
+        <img class="login-wordmark" src="./assets/roneca-player-tv-wordmark.svg" alt="Roneca Player TV">
       </div>
       <span class="login-eyebrow">Gestão, controle e resultados</span>
       <h1>Acesso ao painel</h1>
@@ -187,10 +179,7 @@
     var ADMIN_API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
     var SELLER_API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
 
-    function el(id) {
-      return document.getElementById(id);
-    }
-
+    function el(id) { return document.getElementById(id); }
     function setMsg(text, cls) {
       el('msg').textContent = text;
       el('msg').className = 'msg ' + (cls || '');
@@ -202,7 +191,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: action })
       });
-
       if (!res.ok) return false;
       await res.json().catch(function () { return {}; });
       return true;
@@ -213,31 +201,24 @@
         window.location.href = './dashboard.html';
         return true;
       }
-
       if (await callRoleApi(SELLER_API, 'dashboard')) {
         window.location.href = './seller.html';
         return true;
       }
-
       return false;
     }
 
     async function login() {
       var email = String(el('email').value || '').trim();
       var password = String(el('password').value || '');
-
       if (!email || !password) {
         setMsg('Informe email e senha.', 'err');
         return;
       }
-
       setMsg('Autenticando...', '');
-
       try {
         await RonecaPanelAuth.signIn(email, password);
-
         if (await routeAuthenticatedSession()) return;
-
         await RonecaPanelAuth.signOut();
         setMsg('Usuário autenticado, mas sem papel ativo no painel.', 'err');
       } catch (err) {

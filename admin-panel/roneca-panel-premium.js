@@ -31,6 +31,15 @@
       .toLowerCase();
   }
 
+  function normalizeBrandAssets(root) {
+    (root || document).querySelectorAll('.login-wordmark, .seller-wordmark').forEach(image => {
+      if (image.tagName === 'IMG') image.src = './assets/roneca-player-tv-wordmark.svg';
+    });
+    (root || document).querySelectorAll('.logo').forEach(logo => {
+      logo.style.overflow = 'visible';
+    });
+  }
+
   function applyTableLabels(root) {
     (root || document).querySelectorAll('.tablewrap table').forEach(table => {
       const headers = Array.from(table.querySelectorAll('thead th')).map(item => item.textContent.trim());
@@ -135,6 +144,7 @@
   }
 
   function initialize() {
+    normalizeBrandAssets(document);
     const adminSearch = document.getElementById('adminGlobalSearch');
     const sellerSearch = document.getElementById('sellerGlobalSearch');
     bindSearch(adminSearch, routeAdminSearch);
@@ -165,17 +175,20 @@
       let tableChanged = false;
       let pendingChanged = false;
       let navigationChanged = false;
+      let brandChanged = false;
 
       mutations.forEach(mutation => {
         const element = mutation.target.nodeType === Node.ELEMENT_NODE ? mutation.target : mutation.target.parentElement;
         if (!element) return;
         if (element.id === 'stPending' || element.closest?.('#stPending')) pendingChanged = true;
         if (element.matches?.('.tabs, .tabs *, .seller-v2-nav, .seller-v2-nav *')) navigationChanged = true;
+        if (element.matches?.('.login-brand-lockup, .seller-login-brand, .logo') || Array.from(mutation.addedNodes).some(node => node.nodeType === Node.ELEMENT_NODE && node.querySelector?.('.login-wordmark, .seller-wordmark, .logo'))) brandChanged = true;
         if (element.matches?.('.tablewrap, .tablewrap *') || Array.from(mutation.addedNodes).some(node => node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.tablewrap, tr, td') || node.querySelector?.('.tablewrap, tr, td')))) tableChanged = true;
       });
 
       if (tableChanged) applyTableLabels(document);
       if (pendingChanged) updatePendingCount();
+      if (brandChanged) normalizeBrandAssets(document);
       if (navigationChanged) {
         ensureNavigationIcons(document);
         syncMoreNavigation();

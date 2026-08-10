@@ -42,8 +42,8 @@ const [
   read('native-android/brand/ronecaplaytv-wordmark.svg'),
 ]);
 
-assert.match(build, /versionCode = 42/);
-assert.match(build, /versionName = "2\.9\.1"/);
+assert.match(build, /versionCode = 43/);
+assert.match(build, /versionName = "2\.9\.2"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -91,11 +91,14 @@ assert.match(image, /FilterQuality\.High/);
 assert.match(image, /R\.drawable\.roneca_media_placeholder/);
 assert.match(manifest, /@mipmap\/ic_launcher/);
 assert.match(manifest, /@drawable\/roneca_player_tv_banner/);
-assert.doesNotMatch(wordmark, /<text\b/);
+assert.match(wordmark, /<text x="40" y="232"[^>]*>Roneca<\/text>/);
+assert.match(wordmark, /<text x="790" y="232"[^>]*>Player<\/text>/);
+assert.match(wordmark, /<text x="1495" y="232"[^>]*>TV<\/text>/);
+assert.match(wordmark, /viewBox="0 0 1840 320"/);
 assert.match(app, /PendingPlaybackValidation/);
 assert.match(app, /playlistWidePlaybackFailures/);
 assert.match(app, /if \(reason !in playlistWidePlaybackFailures\)/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 assert.match(app, /pending\.playlistId != catalogState\.activePlaylistId/);
 
-console.log('Android 2.9.1: player VOD, paisagem, marca, aspecto e ícone validados.');
+console.log('Android 2.9.2: identidade visual e diagnóstico VOD validados.');
