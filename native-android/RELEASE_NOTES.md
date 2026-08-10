@@ -1,3 +1,11 @@
+# RonecaPlayTV 2.9.2
+
+- Corrige definitivamente o espaçamento da marca Roneca Player TV na origem vetorial.
+- Remove do splash a dependência do wordmark rasterizado que sobrepunha o nome e passa a compor Roneca, Player e TV com espaçamento seguro.
+- Adiciona safe area também aos ícones launcher legados normal e redondo, evitando corte fora do Adaptive Icon.
+- Atualiza o painel para usar o novo wordmark SVG corrigido e remove recorte visual da logomarca no login.
+- Adiciona telemetria de BACK físico e ciclo de vida da Activity para diagnosticar a saída inesperada de filmes após alguns segundos de reprodução.
+
 # RonecaPlayTV 2.9.1
 
 - Corrige a marca na tela de ativação para manter espaçamento correto entre Roneca e Player TV.
