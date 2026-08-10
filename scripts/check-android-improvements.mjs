@@ -21,6 +21,7 @@ const [
   image,
   manifest,
   wordmark,
+  playbackDiagnosticsApi,
 ] = await Promise.all([
   read('native-android/app/build.gradle.kts'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/RonecaPlayTVApp.kt'),
@@ -40,6 +41,7 @@ const [
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/components/RonecaAsyncImage.kt'),
   read('native-android/app/src/main/AndroidManifest.xml'),
   read('native-android/brand/ronecaplaytv-wordmark.svg'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/PlaybackDiagnosticsApi.kt'),
 ]);
 
 assert.match(build, /versionCode = 43/);
@@ -58,6 +60,11 @@ assert.match(loadControl, /LOW_RAM_TARGET_BUFFER_BYTES/);
 assert.match(loadControl, /isLowRamDevice -> 18_000/);
 assert.match(diagnostics, /SENSITIVE_FIELD_PARTS/);
 assert.match(diagnostics, /process\.previous_exit/);
+assert.match(diagnostics, /recordPlaybackFailure/);
+assert.match(diagnostics, /PlaybackDiagnosticsApi/);
+assert.match(playbackDiagnosticsApi, /playback-diagnostics-report/);
+assert.match(playbackDiagnosticsApi, /x-device-credential/);
+assert.doesNotMatch(playbackDiagnosticsApi, /playlistUrl|streamUrl|sourceUrl/);
 assert.match(workflow, /:app:testDebugUnitTest :app:assembleDebug/);
 assert.match(colors, /Background = Color\(0xFF080809\)/);
 assert.match(colors, /Primary = Color\(0xFFE3262E\)/);
@@ -80,13 +87,18 @@ assert.match(recovery, /httpStatus == 401 \|\| httpStatus == 403/);
 assert.match(recovery, /httpStatus == 404 \|\| httpStatus == 410/);
 assert.match(recovery, /PlaybackFailureKind\.Decoder/);
 assert.match(recovery, /PlaybackFailureKind\.SecureConnection/);
+assert.match(recovery, /PlaybackFailureKind\.RuntimeCheck/);
+assert.match(recovery, /FAILED_RUNTIME_CHECK/);
+assert.match(recovery, /CLEARTEXT_NOT_PERMITTED/);
 assert.match(nativePlayer, /if \(currentChannelId == null\)/);
 assert.match(nativePlayer, /playback\.vod_terminal/);
 assert.match(nativePlayer, /Pressione voltar para sair/);
 assert.match(navigation, /verticalScroll\(scrollState\)/);
 assert.match(navigation, /fontSize = if \(isTelevision\) 11\.sp else 10\.sp/);
-assert.match(iconForeground, /android:top="28dp"/);
-assert.match(iconForeground, /android:left="28dp"/);
+assert.match(iconForeground, /android:top="34dp"/);
+assert.match(iconForeground, /android:left="34dp"/);
+assert.match(iconForeground, /android:bottom="34dp"/);
+assert.match(iconForeground, /android:right="34dp"/);
 assert.match(image, /FilterQuality\.High/);
 assert.match(image, /R\.drawable\.roneca_media_placeholder/);
 assert.match(manifest, /@mipmap\/ic_launcher/);
@@ -101,4 +113,4 @@ assert.match(app, /if \(reason !in playlistWidePlaybackFailures\)/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 assert.match(app, /pending\.playlistId != catalogState\.activePlaylistId/);
 
-console.log('Android 2.9.2: identidade visual e diagnóstico VOD validados.');
+console.log('Android 2.9.2+: identidade, safe area e diagnóstico bruto do VOD validados.');
