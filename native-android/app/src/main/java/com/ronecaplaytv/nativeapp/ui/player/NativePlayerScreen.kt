@@ -27,6 +27,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,6 +53,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
@@ -69,6 +71,7 @@ private const val STARTUP_TIMEOUT_MS = 20_000L
 private const val LIVE_STALL_TIMEOUT_MS = 12_000L
 private const val VOD_STALL_TIMEOUT_MS = 25_000L
 private const val PROGRESS_SAVE_INTERVAL_MS = 10_000L
+private const val PLAYBACK_VALIDATION_WINDOW_MS = 8_000L
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -103,6 +106,9 @@ fun NativePlayerScreen(
     }
     var sourceIndex by remember(sources) { mutableIntStateOf(0) }
     var sameSourceRetries by remember(sources) { mutableIntStateOf(0) }
+    var playerGeneration by remember(sources) { mutableIntStateOf(0) }
+    var restartPositionMs by remember(sources) { mutableLongStateOf(initialPositionMs.coerceAtLeast(0L)) }
+    var sessionForceSoftware by remember(sources) { mutableStateOf(false) }
     var channelDrawerVisible by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var media3Controller by remember { mutableStateOf<RonecaMedia3Controller?>(null) }
@@ -121,24 +127,39 @@ fun NativePlayerScreen(
     val loadControl = remember(isTelevision, lowRamDevice, bufferSeconds) {
         ronecaLoadControl(isTelevision, lowRamDevice, bufferSeconds)
     }
+    val softwareDecoderPreferred = decoderMode.equals("Software", ignoreCase = true) || sessionForceSoftware
 
-    val mediaSourceFactory = remember(context, sources) {
-        val client = SourceNetworkPolicyRegistry.clientFor(sources.firstOrNull(), SourceNetworkScope.Playback)
-        val httpDataSourceFactory = OkHttpDataSource.Factory(client).setDefaultRequestProperties(mapOf(
-            "Accept" to "*/*", "Connection" to "keep-alive", "Icy-MetaData" to "1", "User-Agent" to IPTV_USER_AGENT,
-        ))
+    val mediaSourceFactory = remember(context, sources, sourceIndex) {
+        val activeSource = sources.getOrNull(sourceIndex)
+        val client = SourceNetworkPolicyRegistry.clientFor(activeSource, SourceNetworkScope.Playback)
+        val httpDataSourceFactory = OkHttpDataSource.Factory(client).setDefaultRequestProperties(
+            mapOf(
+                "Accept" to "*/*",
+                "Connection" to "keep-alive",
+                "Icy-MetaData" to "1",
+                "User-Agent" to IPTV_USER_AGENT,
+            ),
+        )
         DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
     }
 
     val player = remember(
         sources,
+        sourceIndex,
+        playerGeneration,
         loadControl,
         mediaSourceFactory,
-        initialPositionMs,
-        decoderMode,
+        restartPositionMs,
+        softwareDecoderPreferred,
     ) {
+        val codecSelector = if (softwareDecoderPreferred) {
+            MediaCodecSelector.PREFER_SOFTWARE
+        } else {
+            MediaCodecSelector.DEFAULT
+        }
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true)
+            .setMediaCodecSelector(codecSelector)
 
         ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
@@ -147,13 +168,19 @@ fun NativePlayerScreen(
             .apply {
                 repeatMode = Player.REPEAT_MODE_OFF
                 setHandleAudioBecomingNoisy(true)
-                sources.firstOrNull()?.let { firstSource ->
-                    setMediaItem(mediaItemFor(firstSource))
-                    if (initialPositionMs > 0L) seekTo(initialPositionMs)
+                sources.getOrNull(sourceIndex)?.let { source ->
+                    setMediaItem(mediaItemFor(source))
+                    if (restartPositionMs > 0L) seekTo(restartPositionMs)
                     prepare()
                     playWhenReady = true
                 }
             }
+    }
+
+    fun rebuildPlayerSession(positionMs: Long, forceSoftware: Boolean = false) {
+        restartPositionMs = positionMs.coerceAtLeast(0L)
+        if (forceSoftware) sessionForceSoftware = true
+        playerGeneration += 1
     }
 
     fun recoverOrFail(failure: PlaybackFailure) {
@@ -166,7 +193,6 @@ fun NativePlayerScreen(
         recoveryInProgress = true
         val currentPosition = sourceIndex + 1
         val resumePositionMs = if (currentChannelId == null) player.currentPosition.coerceAtLeast(0L) else 0L
-        val retryDelayMs = if (failure.retryable) retryDelayMillis(sameSourceRetries) else null
 
         NativeDiagnostics.record(
             "playback.recovery",
@@ -176,21 +202,37 @@ fun NativePlayerScreen(
                 "source_count" to sources.size,
                 "retry_attempt" to sameSourceRetries,
                 "retryable" to failure.retryable,
+                "software_decoder" to softwareDecoderPreferred,
             ),
         )
 
+        if (
+            failure.kind == PlaybackFailureKind.RuntimeCheck &&
+            currentChannelId == null &&
+            !softwareDecoderPreferred
+        ) {
+            sameSourceRetries = 0
+            terminalFailureReported = false
+            playerMessage = "O decoder de hardware falhou. Reiniciando em modo compatível..."
+            NativeDiagnostics.record(
+                "playback.decoder_fallback",
+                mapOf(
+                    "from" to "hardware",
+                    "to" to "software",
+                    "position_ms" to resumePositionMs,
+                ),
+            )
+            rebuildPlayerSession(resumePositionMs, forceSoftware = true)
+            return
+        }
+
+        val retryDelayMs = if (failure.retryable) retryDelayMillis(sameSourceRetries) else null
         if (retryDelayMs != null) {
             sameSourceRetries += 1
             playerMessage = "${failure.userMessage} Nova tentativa em ${retryDelayMs / 1_000} segundos."
             coroutineScope.launch {
                 delay(retryDelayMs)
-                sources.getOrNull(sourceIndex)?.let { source ->
-                    player.setMediaItem(mediaItemFor(source))
-                    if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
-                    player.prepare()
-                    player.playWhenReady = true
-                }
-                recoveryInProgress = false
+                if (!terminalFailureReported) rebuildPlayerSession(resumePositionMs)
             }
             return
         }
@@ -199,13 +241,9 @@ fun NativePlayerScreen(
         if (nextIndex < sources.size) {
             sourceIndex = nextIndex
             sameSourceRetries = 0
-            playerMessage =
-                "${failure.userMessage} Tentando fonte ${nextIndex + 1}/${sources.size}..."
-            player.setMediaItem(mediaItemFor(sources[nextIndex]))
-            if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
-            player.prepare()
-            player.playWhenReady = true
-            recoveryInProgress = false
+            restartPositionMs = resumePositionMs
+            playerMessage = "${failure.userMessage} Tentando fonte ${nextIndex + 1}/${sources.size}..."
+            playerGeneration += 1
             return
         }
 
@@ -218,6 +256,7 @@ fun NativePlayerScreen(
                 mapOf(
                     "failure_kind" to failure.diagnosticCode,
                     "source_count" to sources.size,
+                    "software_decoder" to softwareDecoderPreferred,
                 ),
             )
             return
@@ -280,32 +319,49 @@ fun NativePlayerScreen(
 
     LaunchedEffect(player, sources, automaticReconnect, currentChannelId) {
         var stalledSinceMs: Long? = null
+        var stablePlaybackSinceMs: Long? = null
         var lastPositionMs = -1L
 
         while (true) {
             delay(1_000)
+            if (recoveryInProgress || terminalFailureReported) {
+                stalledSinceMs = null
+                stablePlaybackSinceMs = null
+                lastPositionMs = player.currentPosition
+                continue
+            }
             if (!player.playWhenReady || player.playbackState == Player.STATE_ENDED) {
                 stalledSinceMs = null
+                stablePlaybackSinceMs = null
                 lastPositionMs = player.currentPosition
                 continue
             }
 
             val positionMs = player.currentPosition
+            val now = SystemClock.elapsedRealtime()
             val advancing = positionMs > lastPositionMs + 250L
             if (advancing) {
                 stalledSinceMs = null
                 sameSourceRetries = 0
                 terminalFailureReported = false
-                if (!playbackValidated) {
+                val stableSince = stablePlaybackSinceMs ?: now.also { stablePlaybackSinceMs = it }
+                if (!playbackValidated && now - stableSince >= PLAYBACK_VALIDATION_WINDOW_MS) {
                     playbackValidated = true
-                    NativeDiagnostics.record("playback.validated", mapOf("source_index" to sourceIndex + 1))
+                    NativeDiagnostics.record(
+                        "playback.validated",
+                        mapOf(
+                            "source_index" to sourceIndex + 1,
+                            "stable_ms" to (now - stableSince),
+                            "software_decoder" to softwareDecoderPreferred,
+                        ),
+                    )
                     onPlaybackValidated()
                 }
                 lastPositionMs = positionMs
                 continue
             }
 
-            val now = SystemClock.elapsedRealtime()
+            stablePlaybackSinceMs = null
             val startedAt = stalledSinceMs ?: now.also { stalledSinceMs = it }
             val timeoutMs = when {
                 positionMs <= 1_000L -> STARTUP_TIMEOUT_MS
@@ -339,6 +395,7 @@ fun NativePlayerScreen(
                     }
                     Player.STATE_READY -> {
                         recoveryInProgress = false
+                        terminalFailureReported = false
                         playerMessage = null
                     }
                     Player.STATE_ENDED -> playerMessage = "Reprodução finalizada."
@@ -347,6 +404,19 @@ fun NativePlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                NativeDiagnostics.record(
+                    "playback.error_state",
+                    mapOf(
+                        "error_name" to error.errorCodeName,
+                        "player_state" to player.playbackState,
+                        "play_when_ready" to player.playWhenReady,
+                        "is_playing" to player.isPlaying,
+                        "position_ms" to player.currentPosition.coerceAtLeast(0L),
+                        "duration_ms" to player.duration.coerceAtLeast(0L),
+                        "source_index" to sourceIndex + 1,
+                        "software_decoder" to softwareDecoderPreferred,
+                    ),
+                )
                 recoverOrFail(classifyPlaybackFailure(error))
             }
         }
@@ -366,8 +436,7 @@ fun NativePlayerScreen(
     DisposableEffect(player, media3Controller) {
         val registration = NativePlaybackKeyRouter.register { event ->
             val actionUp = event.action == AndroidKeyEvent.ACTION_UP
-            val initialActionDown =
-                event.action == AndroidKeyEvent.ACTION_DOWN && event.repeatCount == 0
+            val initialActionDown = event.action == AndroidKeyEvent.ACTION_DOWN && event.repeatCount == 0
             val actionDown = event.action == AndroidKeyEvent.ACTION_DOWN
 
             when (event.keyCode) {
