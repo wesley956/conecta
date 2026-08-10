@@ -7,6 +7,7 @@ const premiumCss = fs.readFileSync(path.join(panelDir, 'roneca-panel-premium.css
 const premiumJs = fs.readFileSync(path.join(panelDir, 'roneca-panel-premium.js'), 'utf8');
 const mobileMore = fs.readFileSync(path.join(panelDir, 'mobile-more-navigation.js'), 'utf8');
 const sellerHtml = fs.readFileSync(path.join(panelDir, 'seller.html'), 'utf8');
+const sellerNavigationCompat = fs.readFileSync(path.join(panelDir, 'seller-dynamic-navigation-v2.js'), 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -38,7 +39,8 @@ assert(!premiumJs.includes('image.src ='), 'Painel ainda altera a identidade vis
 assert(premiumJs.includes('directLogos.slice(1)'), 'Painel não possui proteção contra logo duplicada no login.');
 assert(mobileMore.includes('ensureSellerMoreNavigation'), 'Menu Mais do vendedor não é criado pelo módulo mobile carregado.');
 assert(mobileMore.includes("SELLER_PRIMARY_SECTIONS = new Set(['home', 'activation', 'devices', 'lists'])"), 'Menu Mais não possui regra explícita para overflow do vendedor.');
-assert(!fs.existsSync(path.join(panelDir, 'seller-dynamic-navigation-v2.js')), 'Módulo paralelo antigo de navegação do vendedor ainda existe.');
+assert(sellerNavigationCompat.includes('RonecaMobileMoreNavigation?.refresh(document)'), 'Shim antigo do vendedor não delega para a implementação única.');
+assert(!sellerNavigationCompat.includes('proxy.innerHTML = source.innerHTML'), 'Shim do vendedor voltou a duplicar lógica de navegação.');
 
 for (const contract of [
   '--rp-sidebar-width: 248px',
