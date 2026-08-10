@@ -14,7 +14,8 @@
     "stage:webos:hosted": "npm run build && node scripts/stage-platform.mjs webos && node scripts/stage-webos-hosted.mjs",
     "package:webos": "npm run stage:webos && node scripts/package-webos.mjs",
     "validate:webos-package": "node scripts/validate-webos-package.mjs",
-    "package:webos:verified": "npm run package:webos && npm run validate:webos-package",
+    "validate:lg-branding": "node scripts/check-lg-branding.mjs",
+    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding",
     "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs",
     "package:tizen": "npm run stage:tizen && node scripts/package-tizen.mjs",
     "package:tizen:signed": "npm run stage:tizen && node scripts/package-tizen.mjs --signed"
