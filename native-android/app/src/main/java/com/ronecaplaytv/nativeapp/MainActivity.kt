@@ -21,9 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
 import com.ronecaplaytv.nativeapp.diagnostics.FrameJankMonitor
 import com.ronecaplaytv.nativeapp.diagnostics.NativeDiagnostics
+import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.ui.RonecaPlayTVApp
 import com.ronecaplaytv.nativeapp.ui.player.NativePlaybackKeyRouter
@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
 
         val isTelevisionDevice = DeviceFormFactor.isTelevision(this)
         NativeDiagnostics.recordPreviousExit(this)
+        NativeDiagnostics.record("activity.create", mapOf("television" to isTelevisionDevice))
         NativeDiagnostics.recordMemory(this, "process.start_memory")
         if (isTelevisionDevice) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -101,15 +102,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        NativeDiagnostics.record("activity.start")
+    }
+
     override fun onResume() {
         super.onResume()
+        NativeDiagnostics.record("activity.resume")
         frameJankMonitor.start()
     }
 
     override fun onPause() {
+        NativeDiagnostics.record("activity.pause", mapOf("is_finishing" to isFinishing))
         frameJankMonitor.stop()
         NativeDiagnostics.recordMemory(this, "process.pause_memory")
         super.onPause()
+    }
+
+    override fun onStop() {
+        NativeDiagnostics.record("activity.stop", mapOf("is_finishing" to isFinishing))
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        NativeDiagnostics.record(
+            "activity.destroy",
+            mapOf(
+                "is_finishing" to isFinishing,
+                "is_changing_configurations" to isChangingConfigurations,
+            ),
+        )
+        super.onDestroy()
     }
 
     override fun onTrimMemory(level: Int) {
@@ -119,6 +143,15 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            NativeDiagnostics.record(
+                "activity.back_dispatch",
+                mapOf(
+                    "action" to event.action,
+                    "repeat_count" to event.repeatCount,
+                ),
+            )
+        }
         if (NativePlaybackKeyRouter.dispatch(event)) return true
         return super.dispatchKeyEvent(event)
     }
