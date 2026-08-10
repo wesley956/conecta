@@ -42,8 +42,8 @@ const [
   read('native-android/brand/ronecaplaytv-wordmark.svg'),
 ]);
 
-assert.match(build, /versionCode = 42/);
-assert.match(build, /versionName = "2\.9\.1"/);
+assert.match(build, /versionCode = 43/);
+assert.match(build, /versionName = "2\.9\.2"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -98,4 +98,4 @@ assert.match(app, /if \(reason !in playlistWidePlaybackFailures\)/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 assert.match(app, /pending\.playlistId != catalogState\.activePlaylistId/);
 
-console.log('Android 2.9.1: player VOD, paisagem, marca, aspecto e ícone validados.');
+console.log('Android 2.9.2: identidade visual e diagnóstico VOD validados.');
