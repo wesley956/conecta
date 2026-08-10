@@ -12,8 +12,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -36,7 +36,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.R
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import kotlinx.coroutines.coroutineScope
@@ -81,43 +84,26 @@ fun RonecaLaunchScreen(
 
     LaunchedEffect(Unit) {
         coroutineScope {
-            launch {
-                emblemAlpha.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 520),
-                )
-            }
+            launch { emblemAlpha.animateTo(1f, tween(durationMillis = 520)) }
             launch {
                 emblemScale.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(
-                        durationMillis = 880,
-                        easing = FastOutSlowInEasing,
-                    ),
+                    1f,
+                    tween(durationMillis = 880, easing = FastOutSlowInEasing),
                 )
             }
             launch {
                 delay(340)
-                progress.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 3_100),
-                )
+                progress.animateTo(1f, tween(durationMillis = 3_100))
             }
             launch {
                 delay(650)
-                wordmarkAlpha.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 470),
-                )
+                wordmarkAlpha.animateTo(1f, tween(durationMillis = 470))
             }
             launch {
                 delay(650)
                 wordmarkOffset.animateTo(
-                    targetValue = 0f,
-                    animationSpec = tween(
-                        durationMillis = 560,
-                        easing = FastOutSlowInEasing,
-                    ),
+                    0f,
+                    tween(durationMillis = 560, easing = FastOutSlowInEasing),
                 )
             }
             launch {
@@ -128,8 +114,8 @@ fun RonecaLaunchScreen(
     }
 
     val emblemSize = if (isTelevision) 352.dp else 238.dp
-    val wordmarkWidth = if (isTelevision) 430.dp else 292.dp
     val progressWidth = if (isTelevision) 172.dp else 118.dp
+    val wordmarkFont = if (isTelevision) 44.sp else 30.sp
 
     Box(
         modifier = Modifier
@@ -164,7 +150,7 @@ fun RonecaLaunchScreen(
 
                 Image(
                     painter = painterResource(R.drawable.roneca_player_tv_emblem),
-                    contentDescription = "Símbolo ronecaPlayerTV",
+                    contentDescription = "Símbolo Roneca Player TV",
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -190,18 +176,34 @@ fun RonecaLaunchScreen(
 
             Spacer(modifier = Modifier.height(if (isTelevision) 12.dp else 8.dp))
 
-            Image(
-                painter = painterResource(R.drawable.roneca_player_tv_wordmark),
-                contentDescription = "ronecaPlayerTV",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .width(wordmarkWidth)
-                    .aspectRatio(704f / 150f)
-                    .graphicsLayer {
-                        alpha = wordmarkAlpha.value
-                        translationY = wordmarkOffset.value
-                    },
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.graphicsLayer {
+                    alpha = wordmarkAlpha.value
+                    translationY = wordmarkOffset.value
+                },
+            ) {
+                Text(
+                    text = "Roneca",
+                    color = RonecaColors.TextPrimary,
+                    fontSize = wordmarkFont,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.width(if (isTelevision) 18.dp else 12.dp))
+                Text(
+                    text = "Player",
+                    color = RonecaColors.Primary,
+                    fontSize = wordmarkFont,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(modifier = Modifier.width(if (isTelevision) 14.dp else 9.dp))
+                Text(
+                    text = "TV",
+                    color = RonecaColors.RedStrong,
+                    fontSize = wordmarkFont,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
 
             Spacer(modifier = Modifier.height(if (isTelevision) 24.dp else 18.dp))
 
