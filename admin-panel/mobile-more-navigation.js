@@ -10,6 +10,9 @@
   var boundDetails = new WeakSet();
   var navigationModes = new WeakMap();
   var resizeFrame = 0;
+  var sellerBridgeInstalled = false;
+  var fallbackSellerNavigate = null;
+  var fallbackSellerRefresh = null;
 
   function isCompactNavigation() {
     return global.matchMedia(COMPACT_NAV_QUERY).matches;
@@ -90,6 +93,66 @@
     return more;
   }
 
+  function showSellerSection(target) {
+    var normalized = String(target || 'home');
+    var escaped = global.CSS && typeof global.CSS.escape === 'function' ? global.CSS.escape(normalized) : normalized.replace(/[^a-z0-9_-]/gi, '');
+    var section = document.querySelector('.seller-portal-section[data-seller-section="' + escaped + '"]');
+    if (!section) return false;
+
+    document.querySelectorAll('.seller-portal-section').forEach(function toggleSellerSection(item) {
+      var hidden = item !== section;
+      item.hidden = hidden;
+      item.setAttribute('aria-hidden', String(hidden));
+    });
+
+    document.querySelectorAll('.seller-v2-nav button[data-seller-nav]').forEach(function toggleSellerButton(button) {
+      var active = button.dataset.sellerNav === normalized;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+
+    var dashboard = document.getElementById('dashboardView');
+    if (dashboard) dashboard.dataset.activeSection = normalized;
+
+    if (normalized === 'finance') global.financeLoadSeller?.().catch?.(function ignoreFinanceError() {});
+    if (normalized === 'credit-purchases') global.creditPackagesLoad?.().catch?.(function ignoreCreditPackageError() {});
+    if (normalized === 'customers') global.sellerCommercialRenderCustomers?.();
+
+    var more = ensureSellerMoreNavigation();
+    if (more && isCompactNavigation()) setOpen(more, false);
+    return true;
+  }
+
+  function sellerNavigate(target) {
+    var normalized = String(target || 'home');
+    if (showSellerSection(normalized)) return;
+    if (typeof fallbackSellerNavigate === 'function' && fallbackSellerNavigate !== sellerNavigate) {
+      fallbackSellerNavigate(normalized);
+    }
+  }
+
+  function sellerRefresh() {
+    if (typeof fallbackSellerRefresh === 'function' && fallbackSellerRefresh !== sellerRefresh) {
+      fallbackSellerRefresh();
+    }
+    var active = document.getElementById('dashboardView')?.dataset.activeSection || 'home';
+    showSellerSection(active);
+    ensureSellerMoreNavigation();
+  }
+
+  function installSellerNavigationBridge() {
+    if (sellerBridgeInstalled) return true;
+    if (typeof global.sellerPortalNavigate !== 'function') return false;
+
+    fallbackSellerNavigate = global.sellerPortalNavigate;
+    fallbackSellerRefresh = global.sellerPortalRefreshNavigation;
+    global.sellerPortalNavigate = sellerNavigate;
+    global.sellerPortalRefreshNavigation = sellerRefresh;
+    sellerBridgeInstalled = true;
+    return true;
+  }
+
   function bindDetails(details) {
     if (!(details instanceof HTMLDetailsElement) || boundDetails.has(details)) return;
     var summary = details.querySelector(':scope > summary');
@@ -115,6 +178,7 @@
   }
 
   function refresh(root) {
+    installSellerNavigationBridge();
     ensureSellerMoreNavigation();
     var scope = root && root.querySelectorAll ? root : document;
     if (scope.matches && scope.matches(MORE_SELECTOR)) bindDetails(scope);
@@ -148,6 +212,13 @@
   function initialize() {
     refresh(document);
 
+    var attempts = 0;
+    var bridgeTimer = global.setInterval(function retrySellerBridge() {
+      attempts += 1;
+      refresh(document);
+      if (sellerBridgeInstalled || attempts >= 40) global.clearInterval(bridgeTimer);
+    }, 250);
+
     new MutationObserver(function navigationChanged(mutations) {
       mutations.forEach(function inspectAddedNavigation(mutation) {
         mutation.addedNodes.forEach(function inspectNode(node) {
@@ -166,7 +237,10 @@
     });
   }
 
-  global.RonecaMobileMoreNavigation = Object.freeze({ refresh: refresh });
+  global.RonecaMobileMoreNavigation = Object.freeze({
+    refresh: refresh,
+    showSellerSection: showSellerSection,
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
