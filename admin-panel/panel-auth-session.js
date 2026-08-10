@@ -30,6 +30,27 @@
     });
   }
 
+  function normalizeBrandAssets() {
+    var officialWordmark = './assets/roneca-player-tv-wordmark.svg?v=20260810-brand-v3';
+    global.document.querySelectorAll('img.login-wordmark, img.seller-wordmark').forEach(function normalizeWordmark(img) {
+      if (img.getAttribute('src') !== officialWordmark) img.setAttribute('src', officialWordmark);
+    });
+
+    var sellerLogin = global.document.querySelector('.seller-login-brand');
+    if (sellerLogin) {
+      var logos = sellerLogin.querySelectorAll('.logo');
+      for (var i = 1; i < logos.length; i += 1) logos[i].remove();
+    }
+  }
+
+  function installBrandNormalization() {
+    if (global.document.readyState === 'loading') {
+      global.document.addEventListener('DOMContentLoaded', normalizeBrandAssets, { once: true });
+    } else {
+      normalizeBrandAssets();
+    }
+  }
+
   function getConfig() {
     var config = global.RONECA_PANEL_CONFIG || {};
     var rawUrl = String(config.supabaseUrl || '').trim();
@@ -305,6 +326,7 @@
   };
 
   retireLegacyStorage();
+  installBrandNormalization();
 
   global.RonecaPanelAuth = Object.freeze({
     signIn: signIn,
