@@ -80,7 +80,7 @@
         });
         menu.appendChild(proxy);
       }
-      proxy.innerHTML = source.innerHTML;
+      if (proxy.innerHTML !== source.innerHTML) proxy.innerHTML = source.innerHTML;
       setSellerProxyActive(proxy, source.classList.contains('active'));
       activeSections.add(section);
     });
