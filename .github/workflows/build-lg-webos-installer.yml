@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t hosted_packages < <(find smart-tv/artifacts/hosted -maxdepth 1 -type f -name 'com.ronecaplaytv.app_*_all.ipk' -print)
+          mapfile -t hosted_packages < <(find smart-tv/artifacts/hosted -maxdepth 1 -type f -name 'com.ronecaplaytv.app*_all.ipk' -print)
           if [ "${#hosted_packages[@]}" -ne 1 ]; then
             echo "::error::Esperado exatamente um instalador IPK hosted; encontrados ${#hosted_packages[@]}."
             exit 1
