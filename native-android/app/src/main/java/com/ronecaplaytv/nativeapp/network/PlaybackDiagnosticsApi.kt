@@ -40,7 +40,6 @@ class PlaybackDiagnosticsApi(private val functionsBaseUrl: String) {
             .put("recovered", false)
             .put("playerExited", false)
             .put("retryCount", 0)
-            .put("occurredAt", java.time.Instant.now().toString())
 
         val url = URL("${functionsBaseUrl.trimEnd('/')}/playback-diagnostics-report")
         require(url.protocol == "https") { "Protocolo inseguro bloqueado." }
