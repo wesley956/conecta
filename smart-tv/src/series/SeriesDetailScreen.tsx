@@ -161,10 +161,10 @@ export function SeriesDetailScreen({
 
   const playEpisode = (seasonValue: Season, episode: Season["episodes"][number]) => {
     const contentKey = episodeContentKey(series.name, seasonValue, episode);
-    const queue = buildEpisodeQueue(series, seasons);
-    let queueIndex = 0;
-    for (let index = 0; index < queue.length; index += 1) {
-      if (queue[index].contentKey === contentKey) { queueIndex = index; break; }
+    const episodeQueue = buildEpisodeQueue(series, seasons);
+    let episodeQueueIndex = 0;
+    for (let index = 0; index < episodeQueue.length; index += 1) {
+      if (episodeQueue[index].contentKey === contentKey) { episodeQueueIndex = index; break; }
     }
     onPlay({
       id: episode.id,
@@ -175,8 +175,8 @@ export function SeriesDetailScreen({
       kind: "episode",
       image: series.cover,
       meta: `${series.name} • T${seasonValue.number}E${episode.number}`,
-      seriesQueue: queue,
-      seriesQueueIndex: queueIndex
+      seriesQueue: episodeQueue,
+      seriesQueueIndex: episodeQueueIndex
     });
   };
 
