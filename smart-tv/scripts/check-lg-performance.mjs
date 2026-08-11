@@ -21,6 +21,7 @@ const shell = read("src/content/MainShell.tsx");
 const compat = read("src/legacyCompat.ts");
 const profile = read("src/performanceProfile.ts");
 const series = read("src/series/SeriesDetailScreen.tsx");
+const player = read("src/player/PlayerScreen.tsx");
 const focus = read("src/focus.ts");
 const html5 = read("src/player/html5Player.ts");
 const stage = read("scripts/stage-platform.mjs");
@@ -76,6 +77,18 @@ for (const token of [
   "buildEpisodeQueue",
   "Próximos episódios"
 ]) requireToken(series, token, "séries grandes ainda não estão limitadas");
+
+for (const token of [
+  "channelPageSize",
+  "episodeDrawerPageSize",
+  "visibleChannels",
+  "visibleEpisodeQueue",
+  "safeChannelPage",
+  "safeEpisodePanelPage"
+]) requireToken(player, token, "drawers do player ainda podem montar catálogos inteiros");
+if (player.includes("snapshot.currentTime, snapshot.status]))")) {
+  throw new Error("LG-09: monitor estável do player voltou a reiniciar a cada avanço de currentTime.");
+}
 
 requireToken(focus, "bestScore", "D-pad ainda não usa seleção linear");
 requireToken(focus, "lanePenalty", "score LG-03 precisa preservar penalidade de faixa");
@@ -151,4 +164,4 @@ if (/\bimport\.meta\b/.test(javascript) || /\bimport\s*\(/.test(javascript)) {
   throw new Error("LG-09: bundle final ainda contém dependência ESM dinâmica.");
 }
 
-console.log("LG-09: Chromium 53, entrada clássica, perfis de hardware, catálogo/episódios limitados, D-pad linear e cleanup do player validados no bundle webOS.");
+console.log("LG-09: Chromium 53, entrada clássica, perfis de hardware, catálogo/episódios/drawers limitados, D-pad linear, monitor estável e cleanup do player validados no bundle webOS.");
