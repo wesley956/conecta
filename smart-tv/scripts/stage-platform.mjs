@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { resizePngFile } from "./png-brand-derivatives.mjs";
 
 const platform = process.argv[2];
 if (!["webos", "tizen"].includes(platform)) {
@@ -21,6 +22,7 @@ const androidDrawableRoot = path.resolve(
   "drawable-nodpi"
 );
 const officialAppIcon = path.join(androidDrawableRoot, "ic_app.png");
+const sellerLoungeIcon = path.join(root, "artifacts", "lg-seller-lounge-icon-400.png");
 
 if (!fs.existsSync(path.join(dist, "index.html"))) {
   throw new Error("Execute npm run build antes de preparar o pacote.");
@@ -95,7 +97,7 @@ if (platform === "webos") {
   const appInfo = JSON.parse(fs.readFileSync(manifestSource, "utf8"));
   appInfo.version = packageJson.version;
 
-  const requiredStringFields = ["id", "version", "vendor", "type", "main", "title", "icon", "largeIcon"];
+  const requiredStringFields = ["id", "version", "vendor", "type", "main", "title", "icon", "largeIcon", "resolution"];
   for (const field of requiredStringFields) {
     if (typeof appInfo[field] !== "string" || !appInfo[field].trim()) {
       throw new Error(`appinfo.json inválido: campo obrigatório ${field} ausente ou vazio.`);
@@ -110,6 +112,9 @@ if (platform === "webos") {
   if (appInfo.version !== packageJson.version) {
     throw new Error(`Versão webOS divergente: ${appInfo.version} != package.json ${packageJson.version}.`);
   }
+  if (appInfo.resolution !== "1920x1080") {
+    throw new Error(`Resolução webOS inválida: ${appInfo.resolution}. Esperado 1920x1080 para o pacote Seller Lounge.`);
+  }
 
   fs.writeFileSync(manifestTarget, `${JSON.stringify(appInfo, null, 2)}\n`);
 } else {
@@ -117,14 +122,17 @@ if (platform === "webos") {
 }
 
 /*
- * LG-P02 freezes the Android 2.9.5 brand source as the canonical Smart TV
- * launcher source. The package never regenerates or falls back to the old
- * letter-R bitmap. Both webOS icon slots receive the same safe-area master;
- * Tizen shares the official icon as well so the shared codebase cannot drift.
+ * A fonte visual continua sendo o sistema oficial Android/brand. O PNG Android
+ * é um derivado versionado desses SVGs e serve de raster mestre para os tamanhos
+ * exigidos pela LG: 80x80 (icon), 130x130 (largeIcon) e 400x400 (Seller Lounge).
+ * Assim evitamos editar manualmente três bitmaps independentes.
  */
-fs.copyFileSync(officialAppIcon, path.join(output, "icon.png"));
 if (platform === "webos") {
-  fs.copyFileSync(officialAppIcon, path.join(output, "largeIcon.png"));
+  resizePngFile(officialAppIcon, path.join(output, "icon.png"), 80, 80);
+  resizePngFile(officialAppIcon, path.join(output, "largeIcon.png"), 130, 130);
+  resizePngFile(officialAppIcon, sellerLoungeIcon, 400, 400);
+} else {
+  fs.copyFileSync(officialAppIcon, path.join(output, "icon.png"));
 }
 
 if (!fs.existsSync(path.join(output, "icon.png"))) {
