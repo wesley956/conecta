@@ -115,6 +115,7 @@ export class Html5Player implements PlayerAdapter {
   }
 
   pause() {
+    if (this.suspended) return;
     this.lifecyclePlayRequested = false;
     this.video?.pause();
   }
