@@ -96,7 +96,7 @@ function getOrCreateDeviceUuid() {
   const existing = readStored("deviceUuid"); if (existing) return existing;
   const created = randomDeviceId(); writeStored("deviceUuid", created); return created;
 }
-async function post(endpoint: "device-activate" | "device-config" | "series-detail" | "channel-epg" | "playback-diagnostics-report", payload: Record<string, unknown>, credential?: string) {
+async function post(endpoint: "device-activate" | "device-config" | "device-unlink" | "series-detail" | "channel-epg" | "playback-diagnostics-report", payload: Record<string, unknown>, credential?: string) {
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json; charset=utf-8" };
   if (credential) headers["x-device-credential"] = credential;
   const controller = new AbortController();
@@ -344,7 +344,7 @@ export function useDeviceSession() {
     const credential = readStored("deviceCredential");
     const deviceUuid = readStored("deviceUuid");
     if (deviceCode && credential && deviceUuid) {
-      const { response, body } = await post("device-config", { deviceCode, deviceUuid, action: "unlink" }, credential);
+      const { response, body } = await post("device-unlink", { deviceCode, deviceUuid }, credential);
       if (!response.ok || body.unlinked !== true) throw new Error("Não foi possível desvincular este aparelho agora.");
     }
     removeStored("deviceCode"); removeStored("deviceCredential"); removeStored("deviceUuid");
