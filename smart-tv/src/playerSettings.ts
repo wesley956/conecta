@@ -1,19 +1,27 @@
 import { useCallback, useState } from "react";
 
 export type SmartTvBufferSeconds = 2 | 5 | 10;
+export type SmartTvAspectMode = "Original" | "Preencher" | "Estender";
 
 export interface SmartTvPlayerSettings {
   automaticReconnect: boolean;
   bufferSeconds: SmartTvBufferSeconds;
   launchSoundEnabled: boolean;
+  aspectMode: SmartTvAspectMode;
 }
 
 const STORAGE_KEY = "roneca.smart-tv.player-settings.v1";
 const defaults: SmartTvPlayerSettings = {
   automaticReconnect: true,
   bufferSeconds: 5,
-  launchSoundEnabled: true
+  launchSoundEnabled: true,
+  aspectMode: "Original"
 };
+
+function normalizeAspect(value: unknown): SmartTvAspectMode {
+  if (value === "Preencher" || value === "Estender") return value;
+  return "Original";
+}
 
 function normalize(value: unknown): SmartTvPlayerSettings {
   if (!value || typeof value !== "object") return defaults;
@@ -22,7 +30,8 @@ function normalize(value: unknown): SmartTvPlayerSettings {
   return {
     automaticReconnect: raw.automaticReconnect !== false,
     bufferSeconds,
-    launchSoundEnabled: raw.launchSoundEnabled !== false
+    launchSoundEnabled: raw.launchSoundEnabled !== false,
+    aspectMode: normalizeAspect(raw.aspectMode)
   };
 }
 
