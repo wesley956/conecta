@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { Movie } from "../catalog";
 import { movieContentKey } from "../contentIdentity";
-import { moveFocus } from "../focus";
+import { focusAutofocus, moveFocus, restoreFocus } from "../focus";
 import { isBackKey } from "../platform";
 import type { PlaybackItem } from "../player/types";
 
@@ -28,9 +28,16 @@ export function MovieDetailScreen({ movie, favorite, related, onBack, onFavorite
       if (direction) { event.preventDefault(); moveFocus(direction); }
     };
     window.addEventListener("keydown", onKey);
-    window.setTimeout(() => document.querySelector<HTMLElement>(".movie-detail [data-autofocus='true']")?.focus(), 0);
     return () => window.removeEventListener("keydown", onKey);
-  }, [movie.id, onBack]);
+  }, [onBack]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const root = document.querySelector(".movie-detail") || document;
+      if (!restoreFocus("playback-return", root)) focusAutofocus(root);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [movie.id]);
 
   const playback: PlaybackItem = {
     id: movie.id,
@@ -46,7 +53,7 @@ export function MovieDetailScreen({ movie, favorite, related, onBack, onFavorite
   return <main className="movie-detail">
     <div className="movie-backdrop">{movie.cover && <img src={movie.cover} alt="" />}</div>
     <section className="movie-panel">
-      <button data-tv-focusable="true" data-autofocus="true" className="series-back" onClick={onBack}>‹ Voltar</button>
+      <button data-tv-focusable="true" data-autofocus="true" data-focus-key="movie:back" className="series-back" onClick={onBack}>‹ Voltar</button>
       <div className="movie-cover"><span className="poster">
         {movie.cover ? <img src={movie.cover} alt="" /> : <span className="poster-fallback">R</span>}
       </span></div>
@@ -56,12 +63,12 @@ export function MovieDetailScreen({ movie, favorite, related, onBack, onFavorite
         <p className="movie-meta">{[movie.year, movie.duration].filter(Boolean).join(" • ") || "Informações não disponíveis"}</p>
         <p className="movie-summary">{movie.synopsis || "Sinopse não informada para este filme."}</p>
         <div className="movie-actions">
-          <button data-tv-focusable="true" className="primary detail-action" onClick={() => onPlay(playback)}>▶ Assistir agora</button>
-          <button data-tv-focusable="true" className={`secondary detail-action ${favorite ? "favorite" : ""}`} onClick={onFavorite}>{favorite ? "♥ Na minha lista" : "♡ Adicionar à lista"}</button>
+          <button data-tv-focusable="true" data-focus-key="movie:play" className="primary detail-action" onClick={() => onPlay(playback)}>▶ Assistir agora</button>
+          <button data-tv-focusable="true" data-focus-key="movie:favorite" className={`secondary detail-action ${favorite ? "favorite" : ""}`} onClick={onFavorite}>{favorite ? "♥ Na minha lista" : "♡ Adicionar à lista"}</button>
         </div>
         {related.length > 0 && <section className="related-section">
           <div><strong>Você também pode gostar</strong><small>Filmes da mesma categoria</small></div>
-          <div className="related-row">{related.map(item => <button key={item.id} data-tv-focusable="true" onClick={() => onOpenMovie(item)}>
+          <div className="related-row">{related.map(item => <button key={item.id} data-tv-focusable="true" data-focus-key={`movie:related:${movieContentKey(item)}`} onClick={() => onOpenMovie(item)}>
             <span>{item.cover ? <img src={item.cover} alt="" /> : <span className="poster-fallback">R</span>}</span>
             <strong>{item.name}</strong><small>{item.year || item.category || "Filme"}</small>
           </button>)}</div>

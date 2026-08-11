@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Season, Series } from "../catalog";
 import { episodeContentKey, seriesContentKey } from "../contentIdentity";
 import { fetchSeriesSeasons } from "../deviceSession";
-import { moveFocus } from "../focus";
+import { focusAutofocus, moveFocus, restoreFocus } from "../focus";
 import { isBackKey } from "../platform";
 import type { PlaybackItem } from "../player/types";
 
@@ -88,14 +88,21 @@ export function SeriesDetailScreen({ series, playlistId, favorite, recommendatio
       if (direction) { event.preventDefault(); moveFocus(direction); }
     };
     window.addEventListener("keydown", onKey);
-    window.setTimeout(() => document.querySelector<HTMLElement>(".series-detail [data-autofocus='true']")?.focus(), 0);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack, selectedSeason, status]);
+  }, [onBack]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const root = document.querySelector(".series-detail") || document;
+      if (!restoreFocus("playback-return", root)) focusAutofocus(root);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [series.id]);
 
   const season = seasons.find(item => item.number === selectedSeason) || seasons[0];
   return <main className="series-detail">
     <header className="series-header">
-      <button data-tv-focusable="true" data-autofocus="true" className="series-back" onClick={onBack}>‹ Voltar</button>
+      <button data-tv-focusable="true" data-autofocus="true" data-focus-key="series:back" className="series-back" onClick={onBack}>‹ Voltar</button>
       <div className="series-cover"><span className="poster">
         {series.cover ? <img src={series.cover} alt="" onError={event => { event.currentTarget.style.display = "none"; }} /> : <span className="poster-fallback">R</span>}
       </span></div>
@@ -105,21 +112,21 @@ export function SeriesDetailScreen({ series, playlistId, favorite, recommendatio
         <p className="series-summary">{series.synopsis || "Sinopse não informada para esta série."}</p>
         <div className="series-info">
           {seasons.length > 0 && <small>{seasons.length} temporada(s) • {seasons.reduce((sum, item) => sum + item.episodes.length, 0)} episódio(s)</small>}
-          <button data-tv-focusable="true" className={`favorite-chip ${favorite ? "selected" : ""}`} onClick={onFavorite}>{favorite ? "♥ Na minha lista" : "♡ Adicionar à lista"}</button>
+          <button data-tv-focusable="true" data-focus-key="series:favorite" className={`favorite-chip ${favorite ? "selected" : ""}`} onClick={onFavorite}>{favorite ? "♥ Na minha lista" : "♡ Adicionar à lista"}</button>
         </div>
       </div>
     </header>
 
     {status === "loading" && <section className="series-state"><span className="spinner" /><h2>Carregando episódios</h2><p>Consultando o catálogo protegido.</p></section>}
-    {status === "error" && <section className="series-state error"><h2>Não foi possível carregar</h2><p>{message}</p><button data-tv-focusable="true" className="primary" onClick={() => setAttempt(value => value + 1)}>Tentar novamente</button></section>}
+    {status === "error" && <section className="series-state error"><h2>Não foi possível carregar</h2><p>{message}</p><button data-tv-focusable="true" data-focus-key="series:retry" className="primary" onClick={() => setAttempt(value => value + 1)}>Tentar novamente</button></section>}
     {status === "ready" && season && <section className="series-library">
       <div className="season-row">{seasons.map(item =>
-        <button key={item.number} data-tv-focusable="true" className={`season-chip ${item.number === season.number ? "selected" : ""}`} onClick={() => setSelectedSeason(item.number)}>Temporada {item.number}</button>
+        <button key={item.number} data-tv-focusable="true" data-focus-key={`series:season:${item.number}`} className={`season-chip ${item.number === season.number ? "selected" : ""}`} onClick={() => setSelectedSeason(item.number)}>Temporada {item.number}</button>
       )}</div>
       <h2>Episódios • Temporada {season.number}</h2>
       <div className="episode-list">{season.episodes.map(episode => {
         const queueIndex = episodeQueue.findIndex(item => item.id === episode.id);
-        return <button key={episode.id} data-tv-focusable="true" className="episode-row" onClick={() => onPlay({
+        return <button key={episode.id} data-tv-focusable="true" data-focus-key={`series:episode:${episodeContentKey(series.name, season, episode)}`} className="episode-row" onClick={() => onPlay({
           id: episode.id,
           contentKey: episodeContentKey(series.name, season, episode),
           name: `${series.name} • T${season.number}E${episode.number}`,
@@ -140,7 +147,7 @@ export function SeriesDetailScreen({ series, playlistId, favorite, recommendatio
     {recommendations.length > 0 && <section className="series-library related-section">
       <div><h2>Você também pode gostar</h2><small>Séries da mesma categoria</small></div>
       <div className="related-row">{recommendations.map(item =>
-        <button key={item.id} data-tv-focusable="true" onClick={() => onOpenRecommendation(item)}>
+        <button key={item.id} data-tv-focusable="true" data-focus-key={`series:related:${seriesContentKey(item)}`} onClick={() => onOpenRecommendation(item)}>
           <span>{item.cover ? <img src={item.cover} alt="" /> : <b>R</b>}</span>
           <strong>{item.name}</strong><small>{item.category || "Série"}</small>
         </button>

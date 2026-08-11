@@ -1,0 +1,136 @@
+:root {
+  --roneca-focus-ring: rgba(255, 69, 76, 0.96);
+  --roneca-focus-glow: rgba(227, 38, 46, 0.28);
+}
+
+[data-tv-focusable="true"] {
+  outline: none;
+  transition: transform 130ms ease, border-color 130ms ease, box-shadow 130ms ease, background-color 130ms ease;
+}
+
+[data-tv-focusable="true"]:focus,
+.settings-options button:focus,
+.settings-card > button:focus,
+.player-error-actions button:focus {
+  border-color: var(--roneca-red-focus) !important;
+  box-shadow:
+    0 0 0 3px var(--roneca-focus-ring),
+    0 12px 30px rgba(0, 0, 0, 0.62),
+    0 0 28px var(--roneca-focus-glow) !important;
+  transform: scale(1.035);
+  color: var(--roneca-text);
+  z-index: 8;
+}
+
+.media-card:focus,
+.home-media-card:focus,
+.featured-rail button:focus,
+.card:focus,
+.related-row button:focus {
+  transform: scale(1.045);
+}
+
+.nav-item {
+  min-height: 46px;
+  align-items: center;
+  cursor: default;
+}
+
+.nav-item.selected {
+  border-color: rgba(255, 69, 76, 0.42);
+  background: rgba(227, 38, 46, 0.12);
+  color: var(--roneca-text);
+}
+
+.nav-item:focus {
+  transform: translateX(5px) scale(1.018);
+  background: rgba(227, 38, 46, 0.2);
+}
+
+input[data-tv-focusable="true"]:focus {
+  transform: none;
+  border: 0;
+  box-shadow: none !important;
+}
+
+.search-tools label:focus-within,
+.catalog-toolbar label:focus-within {
+  border-color: var(--roneca-red-focus) !important;
+  box-shadow: 0 0 0 3px var(--roneca-focus-ring), 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.category-chip:focus,
+.season-chip:focus,
+.favorite-chip:focus,
+.track-control:focus,
+.clear-search:focus {
+  transform: scale(1.035);
+}
+
+.media-card-shell:focus-within {
+  position: relative;
+  z-index: 7;
+}
+
+.app-dialog [data-tv-focusable="true"]:focus,
+.track-panel [data-tv-focusable="true"]:focus,
+.channel-panel [data-tv-focusable="true"]:focus {
+  border-color: var(--roneca-red-focus) !important;
+  box-shadow: 0 0 0 3px var(--roneca-focus-ring), 0 10px 28px rgba(0, 0, 0, 0.6) !important;
+}
+
+.content {
+  padding-left: 30px;
+  padding-right: 38px;
+  padding-bottom: 32px;
+}
+
+.rail {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.rail nav {
+  gap: 7px;
+}
+
+@media (max-width: 1050px) {
+  .content {
+    padding-left: 24px;
+    padding-right: 28px;
+    padding-bottom: 24px;
+  }
+
+  .rail {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .nav-item:focus {
+    transform: scale(1.04);
+  }
+}
+
+@media (max-height: 800px) {
+  .content {
+    padding-top: 16px;
+    padding-bottom: 20px;
+  }
+
+  .rail {
+    padding-top: 18px;
+    padding-bottom: 14px;
+  }
+
+  .nav-item {
+    min-height: 42px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
