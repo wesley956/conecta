@@ -21,7 +21,8 @@
     "validate:lg-player": "node scripts/check-lg-player-v2.mjs",
     "validate:lg-resilience": "node scripts/check-lg-resilience.mjs",
     "validate:lg-operations": "node scripts/check-lg-operations.mjs",
-    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding && npm run validate:lg-navigation && npm run validate:lg-content && npm run validate:lg-vod && npm run validate:lg-player && npm run validate:lg-resilience && npm run validate:lg-operations",
+    "validate:lg-performance": "node scripts/check-lg-performance.mjs",
+    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding && npm run validate:lg-navigation && npm run validate:lg-content && npm run validate:lg-vod && npm run validate:lg-player && npm run validate:lg-resilience && npm run validate:lg-operations && npm run validate:lg-performance",
     "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs",
     "package:tizen": "npm run stage:tizen && node scripts/package-tizen.mjs",
     "package:tizen:signed": "npm run stage:tizen && node scripts/package-tizen.mjs --signed"
