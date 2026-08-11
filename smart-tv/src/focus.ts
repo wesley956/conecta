@@ -89,7 +89,9 @@ export function moveFocus(direction: Direction, root: ParentNode = document): vo
     const crossOverlap = horizontal
       ? target.rect.bottom >= origin.rect.top && target.rect.top <= origin.rect.bottom
       : target.rect.right >= origin.rect.left && target.rect.left <= origin.rect.right;
-    const score = primary + secondary * (crossOverlap ? 0.45 : 2.6) + (crossOverlap ? 0 : 180);
+    const lanePenalty = crossOverlap ? 0 : 180;
+    const secondaryWeight = crossOverlap ? 0.45 : 2.6;
+    const score = primary + secondary * secondaryWeight + lanePenalty;
     if (score < bestScore) {
       best = candidate;
       bestScore = score;
