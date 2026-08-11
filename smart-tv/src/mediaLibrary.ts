@@ -18,6 +18,8 @@ export interface LibraryItem {
 const FAVORITES_KEY = "roneca.smart-tv.favorites.v1";
 const HISTORY_KEY = "roneca.smart-tv.history.v1";
 const MAX_HISTORY = 60;
+export const MIN_PROGRESS_SECONDS = 8;
+export const COMPLETION_THRESHOLD_SECONDS = 45;
 
 function read(key: string): LibraryItem[] {
   try {
@@ -50,8 +52,20 @@ function fromPlayback(item: PlaybackItem): LibraryItem {
   };
 }
 
-function identity(item: Pick<LibraryItem, "id" | "kind" | "contentKey">) {
+export function libraryIdentity(item: Pick<LibraryItem, "id" | "kind" | "contentKey">) {
   return item.contentKey || `${item.kind}:${item.id}`;
+}
+
+export function progressFraction(item?: Pick<LibraryItem, "currentTime" | "duration"> | null) {
+  const currentTime = Number(item?.currentTime || 0);
+  const duration = Number(item?.duration || 0);
+  return duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0;
+}
+
+export function resumableProgress(item?: Pick<LibraryItem, "currentTime" | "duration"> | null) {
+  const currentTime = Number(item?.currentTime || 0);
+  const duration = Number(item?.duration || 0);
+  return duration > 0 && currentTime >= MIN_PROGRESS_SECONDS && duration - currentTime > COMPLETION_THRESHOLD_SECONDS;
 }
 
 export function useMediaLibrary() {
@@ -60,13 +74,13 @@ export function useMediaLibrary() {
 
   const toggleFavorite = useCallback((item: Omit<LibraryItem, "updatedAt">) => {
     setFavorites(current => {
-      const itemKey = identity(item);
+      const itemKey = libraryIdentity(item);
       const exists = current.some(value =>
-        identity(value) === itemKey || (value.kind === item.kind && value.id === item.id)
+        libraryIdentity(value) === itemKey || (value.kind === item.kind && value.id === item.id)
       );
       const next = exists
         ? current.filter(value =>
-            identity(value) !== itemKey && (value.kind !== item.kind || value.id !== item.id)
+            libraryIdentity(value) !== itemKey && (value.kind !== item.kind || value.id !== item.id)
           )
         : [{ ...item, updatedAt: Date.now() }, ...current].slice(0, 100);
       write(FAVORITES_KEY, next);
@@ -78,11 +92,26 @@ export function useMediaLibrary() {
     if (item.live) return;
     setHistory(current => {
       const base = fromPlayback(item);
+      const baseKey = libraryIdentity(base);
+      const withoutCurrent = current.filter(value => libraryIdentity(value) !== baseKey);
+      const safeDuration = Math.max(0, duration);
+      const safePosition = safeDuration > 0
+        ? Math.min(Math.max(0, currentTime), safeDuration)
+        : Math.max(0, currentTime);
+
+      if (safeDuration <= 0 || safePosition < MIN_PROGRESS_SECONDS) return current;
+
+      if (safeDuration - safePosition <= COMPLETION_THRESHOLD_SECONDS) {
+        if (withoutCurrent.length === current.length) return current;
+        write(HISTORY_KEY, withoutCurrent);
+        return withoutCurrent;
+      }
+
       const next = [{
         ...base,
-        currentTime: Math.max(0, currentTime),
-        duration: Math.max(0, duration)
-      }, ...current.filter(value => identity(value) !== identity(base))].slice(0, MAX_HISTORY);
+        currentTime: safePosition,
+        duration: safeDuration
+      }, ...withoutCurrent].slice(0, MAX_HISTORY);
       write(HISTORY_KEY, next);
       return next;
     });
@@ -96,7 +125,7 @@ export function useMediaLibrary() {
       const next = items.flatMap(item => {
         const contentKey = item.contentKey || aliases.get(`${item.kind}:${item.id}`);
         const migrated = contentKey && contentKey !== item.contentKey ? { ...item, contentKey } : item;
-        const key = identity(migrated);
+        const key = libraryIdentity(migrated);
         if (seen.has(key)) { changed = true; return []; }
         seen.add(key);
         if (migrated !== item) changed = true;
@@ -131,7 +160,7 @@ export function useMediaLibrary() {
   }, []);
 
   const favoriteKeys = useMemo(
-    () => new Set(favorites.map(identity)),
+    () => new Set(favorites.map(libraryIdentity)),
     [favorites]
   );
 
