@@ -11,6 +11,9 @@ function read(relative) {
 }
 
 const app = read("src/App.tsx");
+const mainShellPath = path.join(root, "src/content/MainShell.tsx");
+const mainShell = fs.existsSync(mainShellPath) ? fs.readFileSync(mainShellPath, "utf8") : "";
+const navigationSource = `${app}\n${mainShell}`;
 const focus = read("src/focus.ts");
 const movie = read("src/movie/MovieDetailScreen.tsx");
 const series = read("src/series/SeriesDetailScreen.tsx");
@@ -18,10 +21,10 @@ const main = read("src/main.tsx");
 const navigationCss = read("src/navigation.css");
 
 const expectedMenu = ["Início", "Buscar", "Canais", "Filmes", "Séries", "Configurações"];
-const menuStart = app.indexOf("const destinations = [");
-const menuEnd = app.indexOf("];", menuStart);
-if (menuStart < 0 || menuEnd < 0) throw new Error("LG-03: menu principal não encontrado em App.tsx.");
-const menuBlock = app.slice(menuStart, menuEnd);
+const menuStart = navigationSource.indexOf("const destinations");
+const menuEnd = navigationSource.indexOf("];", menuStart);
+if (menuStart < 0 || menuEnd < 0) throw new Error("LG-03: menu principal não encontrado na camada de navegação.");
+const menuBlock = navigationSource.slice(menuStart, menuEnd);
 let previousIndex = -1;
 for (const label of expectedMenu) {
   const index = menuBlock.indexOf(`label: \"${label}\"`);
@@ -39,7 +42,7 @@ for (const token of [
   'restoreFocus("app-return")',
   'restoreFocus("dialog-return")'
 ]) {
-  if (!app.includes(token)) throw new Error(`LG-03: contrato de navegação ausente em App.tsx: ${token}`);
+  if (!navigationSource.includes(token)) throw new Error(`LG-03: contrato de navegação ausente na camada principal: ${token}`);
 }
 
 for (const token of ["focusMemory", "isVisible", "restoreFocus", "focusAutofocus", "lanePenalty", "scrollIntoView"]) {
