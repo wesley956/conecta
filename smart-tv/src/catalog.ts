@@ -191,6 +191,10 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
   const activePlaylistId = useRef<string | null>(null);
 
   const retry = useCallback(() => setAttempt(value => value + 1), []);
+  const confirmPlaybackStable = useCallback((playlistId: string) => {
+    if (!playlistId || playlistId !== activePlaylistId.current) return;
+    void reportPlaylistSuccess(playlistId).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (session.status !== "active") {
@@ -313,7 +317,7 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
           setState({
             status: "ready",
             data,
-            message: "Lista principal indisponível. Catálogo substituído pela lista reserva.",
+            message: "Lista principal indisponível. Catálogo substituído pela lista reserva. Validando reprodução...",
             activePlaylistId: candidate.id,
             activePlaylistName: candidate.name,
             usingBackupPlaylist: true,
@@ -322,7 +326,6 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             lastFailoverAttemptId: attemptId,
             lastFailoverOutcome: "switched"
           });
-          void reportPlaylistSuccess(candidate.id).catch(() => undefined);
           return {
             outcome: "switched" as const,
             attemptId,
@@ -358,5 +361,5 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
     }
   }, [renewConfiguration]);
 
-  return { ...state, retry, failover };
+  return { ...state, retry, failover, confirmPlaybackStable };
 }

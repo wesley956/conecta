@@ -5,6 +5,12 @@ import type { ChannelEpgProgram, PlaybackDiagnosticReport } from "../deviceSessi
 import { moveFocus } from "../focus";
 import { isBackKey, platform } from "../platform";
 import { createPlayer } from "./createPlayer";
+import {
+  classifyPlaybackFailure,
+  retryDelayMs,
+  STABLE_PLAYBACK_WINDOW_MS,
+  STABLE_PROGRESS_SECONDS
+} from "./failurePolicy";
 import type { PlaybackItem, PlaybackSnapshot, PlayerAdapter } from "./types";
 
 const initial: PlaybackSnapshot = {
@@ -13,7 +19,7 @@ const initial: PlaybackSnapshot = {
   selectedAudioTrack: null, selectedTextTrack: null
 };
 
-type RecoveryState = "idle" | "retrying" | "switching" | "failed";
+type RecoveryState = "idle" | "retrying" | "source_switching" | "playlist_switching" | "failed";
 
 function time(value: number) {
   if (!Number.isFinite(value) || value < 0) return "00:00";
@@ -27,19 +33,20 @@ function time(value: number) {
 function probableSource(reason: string, offline: boolean): PlaybackDiagnosticReport["probableSource"] {
   if (offline) return "network";
   if (/decod|codec|formato|suport/i.test(reason)) return "content";
-  if (/tempo|origem|servidor|responder|carreg/i.test(reason)) return "playlist";
+  if (/tempo|origem|servidor|responder|carreg|manifest|segment/i.test(reason)) return "playlist";
   return "unknown";
 }
 
-function eventId(item: PlaybackItem) {
-  const random = Math.random().toString(36).slice(2, 10);
-  return `smart-tv:${platform}:${item.contentKey}:${Date.now()}:${random}`.slice(0, 180);
+function eventId() {
+  const random = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  return `smart-tv:${platform}:${random}`.slice(0, 180);
 }
 
 export function PlayerScreen({
   item, playlistId, channels = [], bufferSeconds = 5, automaticReconnect = true,
   backupAvailable = false, onChangeChannel, onChangePlayback, onClose, onProgress,
-  onTerminalPlaybackFailure
+  onTerminalPlaybackFailure, onStablePlayback
 }: {
   item: PlaybackItem;
   playlistId?: string | null;
@@ -52,6 +59,7 @@ export function PlayerScreen({
   onClose: () => void;
   onProgress?: (currentTime: number, duration: number) => void;
   onTerminalPlaybackFailure?: (reason: string, currentTime: number, duration: number, clientEventId: string) => Promise<boolean> | boolean;
+  onStablePlayback?: (playlistId: string) => void;
 }) {
   const [snapshot, setSnapshot] = useState(initial);
   const [controls, setControls] = useState(true);
@@ -61,10 +69,13 @@ export function PlayerScreen({
   const [programs, setPrograms] = useState<ChannelEpgProgram[]>([]);
   const [networkOffline, setNetworkOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [reloadAttempt, setReloadAttempt] = useState(0);
+  const [sourceStartIndex, setSourceStartIndex] = useState(0);
   const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | null>(null);
   const [recovery, setRecovery] = useState<RecoveryState>("idle");
+  const [recoveryDetail, setRecoveryDetail] = useState<string | null>(null);
   const adapter = useRef<PlayerAdapter | null>(null);
   const hideTimer = useRef<number | null>(null);
+  const retryTimer = useRef<number | null>(null);
   const lastSavedSecond = useRef(-1);
   const snapshotRef = useRef(initial);
   const lastPosition = useRef(0);
@@ -72,9 +83,15 @@ export function PlayerScreen({
   const terminalFailureReported = useRef(false);
   const wasPlayingBeforeHidden = useRef(false);
   const localRetries = useRef(0);
-  const activeDiagnosticEvent = useRef<string>(item.diagnosticEventId || eventId(item));
+  const retriesBySource = useRef<Record<number, number>>({});
+  const recoveryLock = useRef(false);
+  const stableStartedAt = useRef<number | null>(null);
+  const stableStartPosition = useRef(0);
+  const stableConfirmed = useRef(false);
+  const activeDiagnosticEvent = useRef<string>(item.diagnosticEventId || eventId());
   const diagnosticPending = useRef(Boolean(item.diagnosticEventId));
   const lastFailureReason = useRef<string | null>(null);
+  const lastFailureCode = useRef<string>("PLAYER_UNKNOWN");
   const seriesQueue = item.seriesQueue || [];
   const seriesQueueIndex = item.seriesQueueIndex ?? seriesQueue.findIndex(entry => entry.id === item.id);
   const activeEpisode = seriesQueueIndex >= 0 ? seriesQueue[seriesQueueIndex] : null;
@@ -83,7 +100,8 @@ export function PlayerScreen({
     reason: string,
     recovered: boolean,
     recoveryAction: string,
-    playerExited = false
+    playerExited = false,
+    errorCode?: string
   ): PlaybackDiagnosticReport => ({
     clientEventId: activeDiagnosticEvent.current,
     correlationId: activeDiagnosticEvent.current,
@@ -95,7 +113,7 @@ export function PlayerScreen({
     episodeNumber: activeEpisode?.episodeNumber,
     positionMs: Math.round(snapshotRef.current.currentTime * 1000),
     durationMs: Math.round(snapshotRef.current.duration * 1000),
-    errorCode: recovered ? "PLAYBACK_RECOVERED" : "PLAYBACK_FAILURE",
+    errorCode: errorCode || (recovered ? "RECOVERY_SUCCESS" : lastFailureCode.current),
     errorMessage: reason,
     severity: recovered ? "medium" : "high",
     probableSource: probableSource(reason, networkOffline),
@@ -150,21 +168,43 @@ export function PlayerScreen({
   useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
 
   useEffect(() => {
-    if (snapshot.status !== "playing") return;
-    terminalFailureReported.current = false;
-    stalledSince.current = null;
-    localRetries.current = 0;
-    setRecovery("idle");
-    if (!diagnosticPending.current) return;
-    const timer = window.setTimeout(() => {
+    if (snapshot.status !== "playing") {
+      stableStartedAt.current = null;
+      stableConfirmed.current = false;
+      return;
+    }
+    if (stableStartedAt.current == null) {
+      stableStartedAt.current = Date.now();
+      stableStartPosition.current = snapshot.currentTime;
+    }
+    const timer = window.setInterval(() => {
+      const current = snapshotRef.current;
+      if (current.status !== "playing" || stableConfirmed.current || stableStartedAt.current == null) return;
+      const elapsed = Date.now() - stableStartedAt.current;
+      const advanced = current.currentTime - stableStartPosition.current >= STABLE_PROGRESS_SECONDS;
+      if (elapsed < STABLE_PLAYBACK_WINDOW_MS || !advanced) return;
+
+      stableConfirmed.current = true;
+      terminalFailureReported.current = false;
+      recoveryLock.current = false;
+      stalledSince.current = null;
+      retriesBySource.current = {};
+      localRetries.current = 0;
+      setRecovery("idle");
+      setRecoveryDetail(null);
+
+      if (!diagnosticPending.current) return;
       const reason = lastFailureReason.current || "Reprodução estabilizada automaticamente.";
-      void reportPlaybackDiagnostic(diagnosticPayload(reason, true, "Reprodução retomada no próprio player."))
-        .catch(() => undefined);
+      void reportPlaybackDiagnostic(diagnosticPayload(
+        reason, true, "Reprodução comprovada por janela estável de 8 s com avanço real.", false, "RECOVERY_SUCCESS"
+      )).catch(() => undefined);
       diagnosticPending.current = false;
       lastFailureReason.current = null;
-    }, 3_000);
-    return () => window.clearTimeout(timer);
-  }, [diagnosticPayload, snapshot.status]);
+      lastFailureCode.current = "PLAYER_UNKNOWN";
+      if (playlistId) onStablePlayback?.(playlistId);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [diagnosticPayload, onStablePlayback, playlistId, snapshot.currentTime, snapshot.status]);
 
   useEffect(() => {
     if (snapshot.status !== "ended" || seriesQueueIndex < 0 || seriesQueueIndex + 1 >= seriesQueue.length) {
@@ -184,6 +224,11 @@ export function PlayerScreen({
   useEffect(() => {
     const timer = window.setInterval(() => {
       const current = snapshotRef.current;
+      if (document.hidden || networkOffline || recoveryLock.current) {
+        stalledSince.current = null;
+        lastPosition.current = current.currentTime;
+        return;
+      }
       if (["paused", "ended", "error", "idle"].includes(current.status)) {
         stalledSince.current = null;
         lastPosition.current = current.currentTime;
@@ -192,7 +237,6 @@ export function PlayerScreen({
       if (current.currentTime > lastPosition.current + 0.25) {
         stalledSince.current = null;
         lastPosition.current = current.currentTime;
-        terminalFailureReported.current = false;
         return;
       }
       const now = Date.now();
@@ -203,58 +247,108 @@ export function PlayerScreen({
       stalledSince.current = now;
       setSnapshot(value => ({
         ...value, status: "error", buffering: false,
-        error: "A reprodução ultrapassou o tempo limite de carregamento."
+        error: "PLAYER_STALL: reprodução sem avanço dentro da janela esperada."
       }));
     }, 1_000);
     return () => window.clearInterval(timer);
-  }, [bufferSeconds, item.id, item.live]);
+  }, [bufferSeconds, item.id, item.live, networkOffline]);
 
   useEffect(() => {
     if (snapshot.status !== "error" || terminalFailureReported.current || networkOffline || !navigator.onLine) return;
+    if (recoveryLock.current) return;
+
+    recoveryLock.current = true;
     terminalFailureReported.current = true;
     diagnosticPending.current = true;
-    const reason = snapshot.error || "A lista ativa não conseguiu reproduzir o conteúdo.";
+    stableConfirmed.current = false;
+    stableStartedAt.current = null;
+
+    const rawReason = snapshot.error || "A lista ativa não conseguiu reproduzir o conteúdo.";
+    const decision = classifyPlaybackFailure(rawReason, false);
+    const reason = decision.userMessage;
+    const sourceIndex = Math.max(0, Math.min(item.urls.length - 1, snapshotRef.current.sourceIndex));
+    const retries = retriesBySource.current[sourceIndex] || 0;
     lastFailureReason.current = reason;
+    lastFailureCode.current = decision.code;
 
     void (async () => {
-      if (automaticReconnect && localRetries.current < 2) {
-        localRetries.current += 1;
-        setRecovery("retrying");
+      if (automaticReconnect && decision.retryableSameSource) {
+        const delay = retryDelayMs(retries);
+        if (delay != null) {
+          const attempt = retries + 1;
+          retriesBySource.current[sourceIndex] = attempt;
+          localRetries.current = attempt;
+          setRecovery("retrying");
+          setRecoveryDetail(`Tentativa ${attempt} de 3 na origem ${sourceIndex + 1}. Próxima ação em ${Math.round(delay / 1000)} s.`);
+          await reportPlaybackDiagnostic(diagnosticPayload(
+            reason, false, `RECOVERY_RETRY: tentativa ${attempt} de 3 após ${delay} ms na mesma origem.`, false, decision.code
+          )).catch(() => undefined);
+          if (retryTimer.current) window.clearTimeout(retryTimer.current);
+          retryTimer.current = window.setTimeout(() => {
+            setSourceStartIndex(sourceIndex);
+            terminalFailureReported.current = false;
+            recoveryLock.current = false;
+            setReloadAttempt(value => value + 1);
+          }, delay);
+          return;
+        }
+      }
+
+      const nextSource = sourceIndex + 1;
+      if (automaticReconnect && nextSource < item.urls.length) {
+        localRetries.current = 0;
+        setRecovery("source_switching");
+        setRecoveryDetail(`A origem ${sourceIndex + 1} foi esgotada. Tentando a origem ${nextSource + 1} de ${item.urls.length}.`);
         await reportPlaybackDiagnostic(diagnosticPayload(
-          reason, false, `Nova tentativa automática ${localRetries.current} de 2 na mesma reprodução.`
+          reason, false, `RECOVERY_SOURCE_SWITCH: origem ${sourceIndex + 1} → ${nextSource + 1}.`, false, decision.code
         )).catch(() => undefined);
         window.setTimeout(() => {
+          setSourceStartIndex(nextSource);
           terminalFailureReported.current = false;
+          recoveryLock.current = false;
           setReloadAttempt(value => value + 1);
-        }, 900);
+        }, 250);
         return;
       }
 
       await reportPlaybackDiagnostic(diagnosticPayload(
         reason, false,
-        backupAvailable ? "Tentando localizar o mesmo conteúdo na lista reserva." : "Nenhuma lista reserva disponível."
+        backupAvailable ? "RECOVERY_PLAYLIST_FAILOVER: origens da lista ativa esgotadas." : "RECOVERY_EXHAUSTED: sem lista reserva disponível.",
+        false, decision.code
       )).catch(() => undefined);
 
       if (automaticReconnect && backupAvailable && onTerminalPlaybackFailure) {
-        setRecovery("switching");
+        setRecovery("playlist_switching");
+        setRecoveryDetail("Todas as origens válidas da lista ativa foram esgotadas. Localizando o mesmo conteúdo na lista reserva...");
         const switched = await onTerminalPlaybackFailure(
           reason, snapshotRef.current.currentTime, snapshotRef.current.duration, activeDiagnosticEvent.current
         );
         if (switched) return;
       }
+      recoveryLock.current = false;
       setRecovery("failed");
+      setRecoveryDetail(null);
       window.setTimeout(() => document.querySelector<HTMLElement>(".player-error [data-autofocus='true']")?.focus(), 0);
     })();
-  }, [automaticReconnect, backupAvailable, diagnosticPayload, networkOffline, onTerminalPlaybackFailure, snapshot.error, snapshot.status]);
+  }, [automaticReconnect, backupAvailable, diagnosticPayload, item.urls.length, networkOffline, onTerminalPlaybackFailure, snapshot.error, snapshot.status]);
 
   useEffect(() => {
     const resumeFrom = !item.live
       ? (reloadAttempt > 0 ? snapshotRef.current.currentTime : item.startTime) || 0
       : 0;
-    setSnapshot({ ...initial, currentTime: resumeFrom, sourceCount: Math.max(1, item.urls.length) });
+    const sourceOffset = Math.max(0, Math.min(sourceStartIndex, Math.max(0, item.urls.length - 1)));
+    const urls = item.urls.slice(sourceOffset);
+    setSnapshot({
+      ...initial,
+      currentTime: resumeFrom,
+      sourceIndex: sourceOffset,
+      sourceCount: Math.max(1, item.urls.length)
+    });
     terminalFailureReported.current = false;
     stalledSince.current = null;
     lastPosition.current = resumeFrom;
+    stableStartedAt.current = null;
+    stableConfirmed.current = false;
     document.body.classList.add("playback-active");
     if (platform === "tizen") {
       try {
@@ -262,11 +356,17 @@ export function PlayerScreen({
           .tvinputdevice?.registerKeyBatch(["MediaPlayPause", "MediaPlay", "MediaPause", "MediaStop", "MediaRewind", "MediaFastForward"]);
       } catch { /* controles básicos continuam disponíveis */ }
     }
-    const player = createPlayer(patch => setSnapshot(current => ({ ...current, ...patch })));
+    const player = createPlayer(patch => setSnapshot(current => ({
+      ...current,
+      ...patch,
+      sourceIndex: patch.sourceIndex == null ? current.sourceIndex : sourceOffset + patch.sourceIndex,
+      sourceCount: Math.max(1, item.urls.length)
+    })));
     adapter.current = player;
     try {
+      if (!urls.length) throw new Error("Conteúdo sem origem de reprodução disponível.");
       player.mount();
-      void player.load(item.urls, item.live, { bufferSeconds }).then(async () => {
+      void player.load(urls, item.live, { bufferSeconds }).then(async () => {
         if (!item.live && resumeFrom >= 30) {
           player.seek(resumeFrom);
           setSnapshot(current => ({ ...current, currentTime: resumeFrom }));
@@ -292,7 +392,11 @@ export function PlayerScreen({
       player.destroy();
       adapter.current = null;
     };
-  }, [bufferSeconds, item, reloadAttempt, showControls]);
+  }, [bufferSeconds, item, reloadAttempt, showControls, sourceStartIndex]);
+
+  useEffect(() => () => {
+    if (retryTimer.current) window.clearTimeout(retryTimer.current);
+  }, []);
 
   const toggle = useCallback(() => {
     if (snapshot.status === "playing") {
@@ -326,20 +430,26 @@ export function PlayerScreen({
       setNetworkOffline(true);
       setControls(true);
       setSnapshot(current => ({ ...current, status: "paused", buffering: false }));
+      recoveryLock.current = false;
+      if (retryTimer.current) window.clearTimeout(retryTimer.current);
       saveProgress();
     };
     const handleOnline = () => {
       if (!lostConnection) return;
       lostConnection = false;
       setNetworkOffline(false);
+      setSourceStartIndex(snapshotRef.current.sourceIndex);
+      terminalFailureReported.current = false;
+      recoveryLock.current = false;
       setReloadAttempt(value => value + 1);
     };
     const handleVisibility = () => {
+      saveProgress();
+      if (platform !== "tizen") return;
       if (document.hidden) {
         wasPlayingBeforeHidden.current = snapshotRef.current.status === "playing";
         adapter.current?.pause();
         setSnapshot(current => current.status === "playing" ? { ...current, status: "paused" } : current);
-        saveProgress();
       } else if (wasPlayingBeforeHidden.current && navigator.onLine) {
         wasPlayingBeforeHidden.current = false;
         void adapter.current?.play().then(() => setSnapshot(current => ({ ...current, status: "playing" })));
@@ -360,16 +470,22 @@ export function PlayerScreen({
   const closePlayer = useCallback(() => {
     if (diagnosticPending.current && recovery === "failed") {
       const reason = lastFailureReason.current || snapshotRef.current.error || "Reprodução encerrada após falha.";
-      void reportPlaybackDiagnostic(diagnosticPayload(reason, false, "Usuário saiu do player após falha.", true))
-        .catch(() => undefined);
+      void reportPlaybackDiagnostic(diagnosticPayload(
+        reason, false, "RECOVERY_EXHAUSTED: usuário saiu do player após falha.", true, lastFailureCode.current
+      )).catch(() => undefined);
     }
     onClose();
   }, [diagnosticPayload, onClose, recovery]);
 
   const retryManually = useCallback(() => {
+    retriesBySource.current = {};
     localRetries.current = 0;
     terminalFailureReported.current = false;
+    recoveryLock.current = false;
+    stableConfirmed.current = false;
     setRecovery("retrying");
+    setRecoveryDetail("Nova tentativa solicitada manualmente.");
+    setSourceStartIndex(snapshotRef.current.sourceIndex);
     setReloadAttempt(value => value + 1);
   }, []);
 
@@ -439,10 +555,10 @@ export function PlayerScreen({
 
   const progress = snapshot.duration > 0 ? Math.min(100, snapshot.currentTime / snapshot.duration * 100) : 0;
   const errorTitle = recovery === "retrying" ? "Reconectando a reprodução"
-    : recovery === "switching" ? "Ativando a lista reserva"
-      : recovery === "failed" ? "Não foi possível recuperar" : "Analisando a falha";
-  const errorAction = recovery === "retrying" ? `Tentativa ${Math.max(1, localRetries.current)} de 2 na origem atual...`
-    : recovery === "switching" ? "Localizando o mesmo conteúdo na lista reserva..." : null;
+    : recovery === "source_switching" ? "Alternando origem"
+      : recovery === "playlist_switching" ? "Ativando a lista reserva"
+        : recovery === "failed" ? "Não foi possível recuperar" : "Analisando a falha";
+  const errorAction = recoveryDetail;
 
   return <main className="player-screen">
     {networkOffline && <section className="player-network"><span>SEM INTERNET</span><h2>A conexão foi interrompida</h2><p>A reprodução continuará automaticamente quando a internet voltar.</p></section>}
@@ -450,7 +566,7 @@ export function PlayerScreen({
     {nextEpisodeCountdown != null && <section className="next-episode-card"><small>PRÓXIMO EPISÓDIO</small><h2>{seriesQueue[seriesQueueIndex + 1]?.name}</h2><p>Iniciando em {nextEpisodeCountdown} segundo{nextEpisodeCountdown === 1 ? "" : "s"}.</p><div><button data-tv-focusable="true" data-autofocus="true" onClick={() => changeEpisode(seriesQueueIndex + 1)}>Assistir agora</button><button data-tv-focusable="true" onClick={() => setNextEpisodeCountdown(null)}>Cancelar</button></div></section>}
     {snapshot.status === "error" && <section className="player-error"><h2>{errorTitle}</h2><p>{snapshot.error}</p>{errorAction && <span className="source-retry"><i className="spinner" /> {errorAction}</span>}{recovery === "failed" && <div className="player-error-actions"><button data-tv-focusable="true" data-autofocus="true" className="primary" onClick={retryManually}>Tentar novamente</button><button data-tv-focusable="true" className="secondary" onClick={closePlayer}>Voltar aos detalhes</button></div>}</section>}
     <section className={`player-overlay ${controls || snapshot.status === "error" ? "visible" : ""}`}>
-      <header><button data-tv-focusable="true" data-autofocus={snapshot.status !== "error" ? "true" : undefined} onClick={closePlayer}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECA PLAYER TV"}</small><strong>{item.name}</strong>{item.live && programs[0] && <span className="player-program"><b>AGORA</b> {programs[0].title}{programs[1] && <em>DEPOIS • {programs[1].title}</em>}</span>}</div>{snapshot.sourceCount > 1 && <span className={`source-badge ${snapshot.sourceIndex > 0 ? "alternative" : ""}`}>{snapshot.sourceIndex > 0 ? "ORIGEM ALTERNATIVA" : "ORIGEM PRINCIPAL"}</span>}</header>
+      <header><button data-tv-focusable="true" data-autofocus={snapshot.status !== "error" ? "true" : undefined} onClick={closePlayer}>‹</button><div><small>{item.live ? "TV AO VIVO" : "RONECA PLAYER TV"}</small><strong>{item.name}</strong>{item.live && programs[0] && <span className="player-program"><b>AGORA</b> {programs[0].title}{programs[1] && <em>DEPOIS • {programs[1].title}</em>}</span>}</div>{snapshot.sourceCount > 1 && <span className={`source-badge ${snapshot.sourceIndex > 0 ? "alternative" : ""}`}>{snapshot.sourceIndex > 0 ? `ORIGEM ${snapshot.sourceIndex + 1}` : "ORIGEM PRINCIPAL"}</span>}</header>
       {snapshot.status !== "error" && <footer><button data-tv-focusable="true" className="play-control" onClick={toggle}>{snapshot.status === "playing" ? "Ⅱ" : "▶"}</button>{!item.live && <button data-tv-focusable="true" className="player-seek-control" onClick={() => adapter.current?.seek(-10)}>↶ 10s</button>}{!item.live && <div className="timeline"><div><i style={{ width: `${progress}%` }} /></div><span>{time(snapshot.currentTime)} / {time(snapshot.duration)}</span></div>}{!item.live && <button data-tv-focusable="true" className="player-seek-control" onClick={() => adapter.current?.seek(10)}>10s ↷</button>}{item.live && <div className="live-badge"><i /> AO VIVO</div>}{item.live && channels.length > 1 && <button data-tv-focusable="true" className="track-control channel-control" onClick={() => setChannelPanel(true)}>☰ Canais</button>}{item.kind === "episode" && seriesQueue.length > 1 && <button data-tv-focusable="true" className="track-control channel-control" onClick={() => setEpisodePanel(true)}>☰ Episódios</button>}<button data-tv-focusable="true" className="track-control" onClick={() => setTrackPanel(true)}>♪ Áudio e legendas</button></footer>}
     </section>
     {channelPanel && <aside className="channel-panel"><header><div><p className="eyebrow">TV AO VIVO</p><h2>{item.meta || "Canais"}</h2><small>{channels.length} canais nesta categoria</small></div><button data-tv-focusable="true" onClick={() => setChannelPanel(false)}>×</button></header><section>{channels.map((channel, index) => <button key={channel.id} data-tv-focusable="true" data-autofocus={channel.id === item.id || index === 0 ? "true" : undefined} className={channel.id === item.id ? "selected" : ""} onClick={() => { onChangeChannel?.(channel); setChannelPanel(false); }}><span>{channel.logo ? <img src={channel.logo} alt="" /> : <b>R</b>}</span><span><strong>{channel.name}</strong><small>{channel.groupTitle || "TV ao vivo"}</small></span><b>{channel.id === item.id ? "NO AR" : "▶"}</b></button>)}</section></aside>}
