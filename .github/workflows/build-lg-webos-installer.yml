@@ -93,10 +93,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          jq -r '"IPK: \(.artifact)\nVersão: \(.version)\nSHA-256: \(.sha256)\nTamanho: \(.sizeBytes) bytes\nBaseline Android: \(.baselineAndroid)\nStatus: \(.status)"' \
+          jq -r '"IPK: \(.artifact)\nVersão: \(.version)\nSHA-256: \(.sha256)\nTamanho: \(.sizeBytes) bytes\nBaseline Android: \(.baselineAndroid)\nStatus técnico: \(.status)"' \
             smart-tv/artifacts/webos-release-metadata.json >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Este workflow apenas constrói e valida. Ele NÃO promove nem publica Stable." >> "$GITHUB_STEP_SUMMARY"
+          jq -r '"LG-10: \(.state)\nAprovação física: \(.physicalApproval)\nParidade aprovada: \(.parityApproved)\nElegível a Stable: \(.stableEligible)\nArtefato exato obrigatório: \(.exactArtifactRequired)"' \
+            smart-tv/artifacts/lg10-homologation-manifest.json >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Este workflow apenas constrói e valida o RC. Ele NÃO promove nem publica Stable." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload verified LG installer artifact
         uses: actions/upload-artifact@v4
@@ -106,6 +109,7 @@ jobs:
             smart-tv/artifacts/*.ipk
             smart-tv/artifacts/SHA256SUMS
             smart-tv/artifacts/webos-release-metadata.json
+            smart-tv/artifacts/lg10-homologation-manifest.json
           if-no-files-found: error
           retention-days: 14
 
