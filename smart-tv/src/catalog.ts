@@ -160,7 +160,14 @@ function candidates(session: DeviceSession): DevicePlaylist[] {
     name: session.playlistName || "Lista selecionada",
     priority: 1,
     role: "primary",
-    cacheParts: session.cacheParts
+    cacheParts: session.cacheParts,
+    cacheStatus: null,
+    cacheUpdatedAt: null,
+    consecutiveFailures: 0,
+    lastSuccessAt: null,
+    lastFailureAt: null,
+    cooldownUntil: null,
+    lastError: null
   }];
 }
 
