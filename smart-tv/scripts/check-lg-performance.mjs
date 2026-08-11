@@ -16,6 +16,8 @@ function requireToken(source, token, message) {
 
 const vite = read("vite.config.ts");
 const main = read("src/main.tsx");
+const app = read("src/App.tsx");
+const shell = read("src/content/MainShell.tsx");
 const compat = read("src/legacyCompat.ts");
 const profile = read("src/performanceProfile.ts");
 const series = read("src/series/SeriesDetailScreen.tsx");
@@ -46,11 +48,26 @@ for (const token of [
   'tier: "legacy"',
   "catalogPageSize: 30",
   "episodePageSize: 18",
+  "searchLimitPerKind: 10",
   'tier: "standard"',
   "catalogPageSize: 42",
+  "episodePageSize: 24",
   'tier: "modern"',
-  "catalogPageSize: 60"
+  "catalogPageSize: 60",
+  "episodePageSize: 36",
+  "searchLimitPerKind: 20"
 ]) requireToken(profile, token, "perfil adaptativo incompleto");
+
+requireToken(app, "SMART_TV_PERFORMANCE_PROFILE.catalogPageSize", "App não aplica o page size do tier");
+for (const token of [
+  "SMART_TV_PERFORMANCE_PROFILE.searchLimitPerKind",
+  "pageCount",
+  "pageStart",
+  "Página anterior",
+  "Carregar mais",
+  "filteredCards.slice(pageStart, pageStart + pageSize)",
+  'selected !== "Início"'
+]) requireToken(shell, token, "catálogo/Home ainda não estão limitados pelo perfil");
 
 for (const token of [
   "SMART_TV_PERFORMANCE_PROFILE.episodePageSize",
@@ -61,6 +78,7 @@ for (const token of [
 ]) requireToken(series, token, "séries grandes ainda não estão limitadas");
 
 requireToken(focus, "bestScore", "D-pad ainda não usa seleção linear");
+requireToken(focus, "lanePenalty", "score LG-03 precisa preservar penalidade de faixa");
 if (focus.includes(".sort((a, b) => a.score - b.score)")) {
   throw new Error("LG-09: D-pad voltou a ordenar todos os candidatos a cada tecla.");
 }
@@ -133,4 +151,4 @@ if (/\bimport\.meta\b/.test(javascript) || /\bimport\s*\(/.test(javascript)) {
   throw new Error("LG-09: bundle final ainda contém dependência ESM dinâmica.");
 }
 
-console.log("LG-09: Chromium 53, entrada clássica, perfis de hardware, episódios limitados, D-pad linear e cleanup do player validados no bundle webOS.");
+console.log("LG-09: Chromium 53, entrada clássica, perfis de hardware, catálogo/episódios limitados, D-pad linear e cleanup do player validados no bundle webOS.");
