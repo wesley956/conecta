@@ -95,6 +95,7 @@ jobs:
           set -euo pipefail
           jq -r '"IPK: \(.artifact)\nVersão: \(.version)\nSHA-256: \(.sha256)\nTamanho: \(.sizeBytes) bytes\nBaseline Android: \(.baselineAndroid)\nStatus técnico: \(.status)"' \
             smart-tv/artifacts/webos-release-metadata.json >> "$GITHUB_STEP_SUMMARY"
+          echo "Seller Lounge icon: lg-seller-lounge-icon-400.png (400x400, derivado da marca oficial)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           jq -r '"LG-10: \(.state)\nAprovação física: \(.physicalApproval)\nParidade aprovada: \(.parityApproved)\nElegível a Stable: \(.stableEligible)\nArtefato exato obrigatório: \(.exactArtifactRequired)"' \
             smart-tv/artifacts/lg10-homologation-manifest.json >> "$GITHUB_STEP_SUMMARY"
@@ -107,6 +108,7 @@ jobs:
           name: roneca-play-tv-lg-ipk
           path: |
             smart-tv/artifacts/*.ipk
+            smart-tv/artifacts/lg-seller-lounge-icon-400.png
             smart-tv/artifacts/SHA256SUMS
             smart-tv/artifacts/webos-release-metadata.json
             smart-tv/artifacts/lg10-homologation-manifest.json
