@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { buildSupportCode, sanitizeDiagnosticText } from "./diagnosticSafety";
 import { platform } from "./platform";
 
 const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
@@ -7,18 +8,51 @@ const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }
 export interface DevicePlaylist {
-  id: string; name: string; priority: number; role: "primary" | "backup"; cacheParts: CacheParts | null;
+  id: string;
+  name: string;
+  priority: number;
+  role: "primary" | "backup";
+  cacheParts: CacheParts | null;
+  cacheStatus: string | null;
+  cacheUpdatedAt: string | null;
+  consecutiveFailures: number;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  cooldownUntil: string | null;
+  lastError: string | null;
 }
 export interface DeviceSession {
-  status: DeviceAccessStatus; deviceCode: string | null; clientName: string | null; expiresAt: string | null;
-  playlistName: string | null; selectedPlaylistId: string | null; cacheVersion: string | null;
-  cacheItemCount: number; cacheError: string | null; cacheParts: CacheParts | null; playlists: DevicePlaylist[];
-  message: string | null; refreshing: boolean;
+  status: DeviceAccessStatus;
+  deviceCode: string | null;
+  supportCode: string | null;
+  clientName: string | null;
+  expiresAt: string | null;
+  playlistName: string | null;
+  selectedPlaylistId: string | null;
+  cacheVersion: string | null;
+  cacheItemCount: number;
+  cacheError: string | null;
+  cacheParts: CacheParts | null;
+  playlists: DevicePlaylist[];
+  message: string | null;
+  refreshing: boolean;
 }
 interface DeviceResponse {
-  active?: boolean; status?: string; deviceCode?: string; deviceCredential?: string; clientName?: string;
-  expiresAt?: string; playlistName?: string; selectedPlaylistId?: string; cacheVersion?: string;
-  cacheItemCount?: number; cacheError?: string; cacheParts?: CacheParts; playlists?: unknown; message?: string;
+  active?: boolean;
+  status?: string;
+  deviceCode?: string;
+  deviceCredential?: string;
+  clientName?: string;
+  expiresAt?: string;
+  playlistName?: string;
+  selectedPlaylistId?: string;
+  cacheVersion?: string;
+  cacheItemCount?: number;
+  cacheError?: string;
+  cacheParts?: CacheParts;
+  playlists?: unknown;
+  message?: string;
+  unlinked?: boolean;
 }
 export interface PlaybackDiagnosticReport {
   clientEventId: string;
@@ -43,7 +77,7 @@ export interface PlaybackDiagnosticReport {
   occurredAt?: string;
 }
 const initialSession: DeviceSession = {
-  status: "loading", deviceCode: null, clientName: null, expiresAt: null, playlistName: null,
+  status: "loading", deviceCode: null, supportCode: null, clientName: null, expiresAt: null, playlistName: null,
   selectedPlaylistId: null, cacheVersion: null, cacheItemCount: 0, cacheError: null,
   cacheParts: null, playlists: [], message: null, refreshing: false
 };
@@ -87,6 +121,9 @@ async function post(endpoint: "device-activate" | "device-config" | "series-deta
     window.clearTimeout(timeout);
   }
 }
+function safeString(value: unknown, limit = 320) {
+  return sanitizeDiagnosticText(value, limit);
+}
 function validPlaylists(value: unknown): DevicePlaylist[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry, index) => {
@@ -96,14 +133,21 @@ function validPlaylists(value: unknown): DevicePlaylist[] {
     const cacheParts = item.cacheParts && typeof item.cacheParts === "object"
       ? item.cacheParts as CacheParts
       : null;
-    if (!id || !cacheParts) return [];
+    if (!id) return [];
     const priority = Math.max(1, Number(item.priority || index + 1));
     return [{
       id,
       name: String(item.name || ("Lista " + (index + 1))),
       priority,
       role: String(item.role || (priority === 1 ? "primary" : "backup")) === "backup" ? "backup" as const : "primary" as const,
-      cacheParts
+      cacheParts,
+      cacheStatus: item.cacheStatus == null ? null : String(item.cacheStatus),
+      cacheUpdatedAt: item.cacheUpdatedAt == null ? null : String(item.cacheUpdatedAt),
+      consecutiveFailures: Math.max(0, Number(item.consecutiveFailures || 0)),
+      lastSuccessAt: item.lastSuccessAt == null ? null : String(item.lastSuccessAt),
+      lastFailureAt: item.lastFailureAt == null ? null : String(item.lastFailureAt),
+      cooldownUntil: item.cooldownUntil == null ? null : String(item.cooldownUntil),
+      lastError: safeString(item.lastError, 420)
     }];
   }).sort((left, right) => left.priority - right.priority);
 }
@@ -113,13 +157,17 @@ function mapResponse(httpStatus: number, body: DeviceResponse): DeviceSession {
   else if (httpStatus >= 500) status = "error";
   else if (!["pending", "active", "blocked", "expired"].includes(status)) status = httpStatus >= 400 ? "blocked" : "pending";
   return {
-    status, deviceCode: body.deviceCode || readStored("deviceCode"), clientName: body.clientName || null,
+    status, deviceCode: body.deviceCode || readStored("deviceCode"), supportCode: null, clientName: body.clientName || null,
     expiresAt: body.expiresAt || null, playlistName: body.playlistName || null,
     selectedPlaylistId: body.selectedPlaylistId || null, cacheVersion: body.cacheVersion || null,
-    cacheItemCount: Number(body.cacheItemCount || 0), cacheError: body.cacheError || null,
+    cacheItemCount: Number(body.cacheItemCount || 0), cacheError: safeString(body.cacheError, 420),
     cacheParts: body.cacheParts || null, playlists: validPlaylists(body.playlists),
-    message: body.message || null, refreshing: false
+    message: safeString(body.message, 420), refreshing: false
   };
+}
+async function attachSupportCode(session: DeviceSession): Promise<DeviceSession> {
+  const supportCode = await buildSupportCode(session.deviceCode, readStored("deviceUuid")).catch(() => null);
+  return { ...session, supportCode };
 }
 async function activate(): Promise<DeviceSession> {
   const deviceUuid = getOrCreateDeviceUuid();
@@ -129,14 +177,14 @@ async function activate(): Promise<DeviceSession> {
   if (body.deviceCode) writeStored("deviceCode", body.deviceCode);
   if (body.deviceCredential) writeStored("deviceCredential", body.deviceCredential);
   if (body.active && readStored("deviceCode") && readStored("deviceCredential")) return fetchConfiguration();
-  return mapResponse(response.status, body);
+  return attachSupportCode(mapResponse(response.status, body));
 }
 export async function fetchConfiguration(): Promise<DeviceSession> {
   const deviceCode = readStored("deviceCode"); const credential = readStored("deviceCredential");
   if (!deviceCode || !credential) return activate();
   const { response, body } = await post("device-config", { deviceCode, deviceUuid: getOrCreateDeviceUuid() }, credential);
   if (body.deviceCode && body.deviceCode !== deviceCode) writeStored("deviceCode", body.deviceCode);
-  return mapResponse(response.status, body);
+  return attachSupportCode(mapResponse(response.status, body));
 }
 interface PlaylistHealthContext {
   correlationId?: string;
@@ -152,13 +200,14 @@ async function reportPlaylistHealth(
   const deviceCode = readStored("deviceCode");
   const credential = readStored("deviceCredential");
   if (!deviceCode || !credential || !playlistId) return;
+  const safeError = safeString(error, 500);
   await post("device-config", {
     deviceCode,
     deviceUuid: getOrCreateDeviceUuid(),
     playlistHealth: {
       playlistId,
       status,
-      ...(error ? { error: error.slice(0, 500) } : {}),
+      ...(safeError ? { error: safeError } : {}),
       ...(context.correlationId ? { correlationId: context.correlationId } : {}),
       ...(context.failoverAttemptId ? { failoverAttemptId: context.failoverAttemptId } : {})
     }
@@ -180,6 +229,9 @@ export async function reportPlaybackDiagnostic(report: PlaybackDiagnosticReport)
   if (!deviceCode || !credential || !report.clientEventId) return;
   const { response } = await post("playback-diagnostics-report", {
     ...report,
+    contentTitle: safeString(report.contentTitle, 300) || undefined,
+    errorMessage: safeString(report.errorMessage, 800) || "Falha de reprodução.",
+    recoveryAction: safeString(report.recoveryAction, 500) || undefined,
     deviceCode,
     deviceUuid: getOrCreateDeviceUuid(),
     platform: platform === "browser" ? "smart-tv-preview" : platform,
@@ -238,7 +290,7 @@ export async function fetchSeriesSeasons(seriesId: string, playlistId?: string |
     ...(playlistId ? { playlistId } : {})
   }, deviceCredential);
   const payload = body as DeviceResponse & { seasons?: unknown };
-  if (!response.ok) throw new Error(payload.message || "Não foi possível carregar os episódios desta série.");
+  if (!response.ok) throw new Error(safeString(payload.message, 420) || "Não foi possível carregar os episódios desta série.");
   const seasons = validSeasons(payload.seasons);
   if (!seasons.length) throw new Error("Nenhum episódio foi encontrado para esta série.");
   return seasons;
@@ -274,7 +326,10 @@ export async function fetchChannelEpg(channelId: string, playlistId?: string | n
 }
 async function loadSession() {
   try { return readStored("deviceCode") && readStored("deviceCredential") ? await fetchConfiguration() : await activate(); }
-  catch (error) { return { ...initialSession, status: "error" as const, message: error instanceof Error ? error.message : "Falha ao conectar com o painel." }; }
+  catch (error) {
+    const fallback = { ...initialSession, status: "error" as const, message: safeString(error instanceof Error ? error.message : error, 420) || "Falha ao conectar com o painel." };
+    return attachSupportCode(fallback);
+  }
 }
 export function useDeviceSession() {
   const [session, setSession] = useState<DeviceSession>(initialSession);
@@ -282,7 +337,21 @@ export function useDeviceSession() {
   const renewConfiguration = useCallback(async () => { const next = await fetchConfiguration(); setSession(next); return next; }, []);
   const reset = useCallback(async () => {
     removeStored("deviceCode"); removeStored("deviceCredential"); removeStored("deviceUuid");
-    setSession(initialSession); const next = await loadSession(); setSession(next);
+    setSession(initialSession); const next = await loadSession(); setSession(next); return next;
+  }, []);
+  const unlink = useCallback(async () => {
+    const deviceCode = readStored("deviceCode");
+    const credential = readStored("deviceCredential");
+    const deviceUuid = readStored("deviceUuid");
+    if (deviceCode && credential && deviceUuid) {
+      const { response, body } = await post("device-config", { deviceCode, deviceUuid, action: "unlink" }, credential);
+      if (!response.ok || body.unlinked !== true) throw new Error("Não foi possível desvincular este aparelho agora.");
+    }
+    removeStored("deviceCode"); removeStored("deviceCredential"); removeStored("deviceUuid");
+    setSession(initialSession);
+    const next = await loadSession();
+    setSession(next);
+    return next;
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -290,5 +359,5 @@ export function useDeviceSession() {
     const timer = window.setInterval(() => void refresh(), 15_000);
     return () => window.clearInterval(timer);
   }, [refresh, session.status]);
-  return { session, refresh, renewConfiguration, reset };
+  return { session, refresh, renewConfiguration, reset, unlink };
 }
