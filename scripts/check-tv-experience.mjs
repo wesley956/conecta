@@ -1,8 +1,12 @@
 import fs from 'node:fs';
 
 const read = path => fs.readFileSync(path, 'utf8');
+const readIfExists = path => fs.existsSync(path) ? read(path) : '';
 const app = read('smart-tv/src/App.tsx');
-const styles = read('smart-tv/src/experience.css');
+const contentShell = readIfExists('smart-tv/src/content/MainShell.tsx');
+const contentCss = readIfExists('smart-tv/src/content.css');
+const tvExperience = `${app}\n${contentShell}`;
+const styles = `${read('smart-tv/src/experience.css')}\n${contentCss}`;
 const player = read('smart-tv/src/player/PlayerScreen.tsx');
 const androidHome = read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/home/HomeScreen.kt');
 const androidCatalog = read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/catalog/CatalogListScreen.kt');
@@ -15,16 +19,18 @@ function requireCheck(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-for (const snippet of [
-  'function HomeMediaSection',
-  'const discoveryCards = [',
-  'title="Para explorar agora"',
-  'recentCards.length === 0 && favoriteCards.length === 0',
-  '<small>{item.meta}</small>',
-  'RONECA PLAYER TV',
-  'Roneca Player TV',
-]) {
-  requireCheck(app.includes(snippet), `Experiência da home Smart TV incompleta: ${snippet}`);
+const homeContracts = [
+  ['function HomeMediaSection', 'function HomeRow'],
+  ['const discoveryCards = [', 'const discoveryCards = useMemo'],
+  ['title="Para explorar agora"'],
+  ['recentCards.length === 0 && favoriteCards.length === 0'],
+  ['<small>{item.meta}</small>'],
+  ['RONECA PLAYER TV'],
+  ['Roneca Player TV'],
+];
+
+for (const alternatives of homeContracts) {
+  requireCheck(alternatives.some(snippet => tvExperience.includes(snippet)), `Experiência da home Smart TV incompleta: ${alternatives.join(' | ')}`);
 }
 
 for (const snippet of [
@@ -56,7 +62,7 @@ for (const snippet of [
   requireCheck(androidHome.includes(snippet), `Paridade da home Android TV incompleta: ${snippet}`);
 }
 
-const visibleBrandSources = [app, player, androidHome, androidCatalog, androidSettings, androidActivation, androidPlayer, androidSeriesPlayer];
+const visibleBrandSources = [app, contentShell, player, androidHome, androidCatalog, androidSettings, androidActivation, androidPlayer, androidSeriesPlayer];
 for (const source of visibleBrandSources) {
   requireCheck(!source.includes('"RONECAPLAYTV'), 'Nome antigo RONECAPLAYTV ainda aparece em texto visível.');
   requireCheck(!source.includes('"RonecaPlayTV'), 'Nome antigo RonecaPlayTV ainda aparece em texto visível.');
