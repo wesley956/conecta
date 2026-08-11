@@ -282,6 +282,7 @@ export function App() {
       onChangePlayback={replacePlayback}
       onClose={() => setPlayback(null)}
       onProgress={(currentTime, duration) => library.remember(playback, currentTime, duration)}
+      onStablePlayback={catalog.confirmPlaybackStable}
       onTerminalPlaybackFailure={async (reason, currentTime, duration, diagnosticEventId) => {
         const result = await catalog.failover({
           attemptId: diagnosticEventId,
