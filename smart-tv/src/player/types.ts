@@ -19,6 +19,8 @@ export interface PlaybackQueueItem {
   episodeNumber: number;
 }
 
+export type SeriesQueueEntry = PlaybackQueueItem;
+
 export interface PlaybackItem {
   id: string;
   contentKey: string;
