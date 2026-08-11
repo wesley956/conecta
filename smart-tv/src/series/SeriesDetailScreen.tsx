@@ -5,8 +5,9 @@ import { fetchSeriesSeasons } from "../deviceSession";
 import { focusAutofocus, moveFocus, restoreFocus } from "../focus";
 import type { LibraryItem } from "../mediaLibrary";
 import { progressFraction, resumableProgress } from "../mediaLibrary";
+import { SMART_TV_PERFORMANCE_PROFILE } from "../performanceProfile";
 import { isBackKey } from "../platform";
-import type { PlaybackItem } from "../player/types";
+import type { PlaybackItem, SeriesQueueEntry } from "../player/types";
 
 function urls(url: string, alternatives?: string[]) {
   return Array.from(new Set([...(alternatives || []), url].filter(value => /^https?:\/\//i.test(value))));
@@ -23,6 +24,31 @@ function progressFor(history: LibraryItem[], contentKey: string, id: string) {
   return history.find(item =>
     item.kind === "episode" && (item.contentKey === contentKey || (!item.contentKey && item.id === id))
   );
+}
+
+function buildEpisodeQueue(series: Series, seasons: Season[]): SeriesQueueEntry[] {
+  const orderedSeasons = seasons.slice().sort((a, b) => a.number - b.number);
+  const queue: SeriesQueueEntry[] = [];
+  const seriesKey = seriesContentKey(series);
+  for (let seasonIndex = 0; seasonIndex < orderedSeasons.length; seasonIndex += 1) {
+    const season = orderedSeasons[seasonIndex];
+    const episodes = season.episodes.slice().sort((a, b) => a.number - b.number);
+    for (let episodeIndex = 0; episodeIndex < episodes.length; episodeIndex += 1) {
+      const episode = episodes[episodeIndex];
+      queue.push({
+        id: episode.id,
+        contentKey: episodeContentKey(series.name, season, episode),
+        seriesKey,
+        name: `${series.name} • T${season.number}E${episode.number}`,
+        urls: urls(episode.url, episode.playbackUrls),
+        image: series.cover,
+        meta: `${series.name} • T${season.number}E${episode.number}`,
+        seasonNumber: season.number,
+        episodeNumber: episode.number
+      });
+    }
+  }
+  return queue;
 }
 
 export function SeriesDetailScreen({
@@ -56,29 +82,12 @@ export function SeriesDetailScreen({
     : embedded[0]?.number ?? selectedSeasonNumber ?? 1;
   const [seasons, setSeasons] = useState<Season[]>(embedded);
   const [selectedSeason, setSelectedSeason] = useState(initialSeason);
+  const [episodePage, setEpisodePage] = useState(0);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     embedded.length || !series.xtreamSeriesId ? "ready" : "loading"
   );
   const [message, setMessage] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-
-  const episodeQueue = useMemo(() => seasons
-    .slice()
-    .sort((a, b) => a.number - b.number)
-    .flatMap(season => season.episodes
-      .slice()
-      .sort((a, b) => a.number - b.number)
-      .map(episode => ({
-        id: episode.id,
-        contentKey: episodeContentKey(series.name, season, episode),
-        seriesKey: seriesContentKey(series),
-        name: `${series.name} • T${season.number}E${episode.number}`,
-        urls: urls(episode.url, episode.playbackUrls),
-        image: series.cover,
-        meta: `${series.name} • T${season.number}E${episode.number}`,
-        seasonNumber: season.number,
-        episodeNumber: episode.number
-      }))), [seasons, series]);
 
   useEffect(() => {
     const preferred = selectedSeasonNumber && embedded.some(item => item.number === selectedSeasonNumber)
@@ -86,6 +95,7 @@ export function SeriesDetailScreen({
       : embedded[0]?.number ?? selectedSeasonNumber ?? 1;
     setSeasons(embedded);
     setSelectedSeason(preferred);
+    setEpisodePage(0);
     setStatus(embedded.length || !series.xtreamSeriesId ? "ready" : "loading");
     setMessage(null);
   }, [embedded, selectedSeasonNumber, series.id, series.xtreamSeriesId]);
@@ -103,6 +113,7 @@ export function SeriesDetailScreen({
           : value[0]?.number ?? 1;
         setSeasons(value);
         setSelectedSeason(preferred);
+        setEpisodePage(0);
         setStatus("ready");
       })
       .catch(error => {
@@ -132,15 +143,42 @@ export function SeriesDetailScreen({
       if (!restoreFocus("playback-return", root)) focusAutofocus(root);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [series.id, selectedSeason]);
+  }, [episodePage, series.id, selectedSeason]);
 
   const chooseSeason = (seasonNumber: number) => {
     setSelectedSeason(seasonNumber);
+    setEpisodePage(0);
     onSelectedSeasonChange(seasonNumber);
   };
 
   const season = seasons.find(item => item.number === selectedSeason) || seasons[0];
   const episodeCount = seasons.reduce((sum, item) => sum + item.episodes.length, 0);
+  const episodePageSize = SMART_TV_PERFORMANCE_PROFILE.episodePageSize;
+  const episodePages = season ? Math.max(1, Math.ceil(season.episodes.length / episodePageSize)) : 1;
+  const safeEpisodePage = Math.min(episodePage, episodePages - 1);
+  const episodeStart = safeEpisodePage * episodePageSize;
+  const visibleEpisodes = season?.episodes.slice(episodeStart, episodeStart + episodePageSize) || [];
+
+  const playEpisode = (seasonValue: Season, episode: Season["episodes"][number]) => {
+    const contentKey = episodeContentKey(series.name, seasonValue, episode);
+    const episodeQueue = buildEpisodeQueue(series, seasons);
+    let episodeQueueIndex = 0;
+    for (let index = 0; index < episodeQueue.length; index += 1) {
+      if (episodeQueue[index].contentKey === contentKey) { episodeQueueIndex = index; break; }
+    }
+    onPlay({
+      id: episode.id,
+      contentKey,
+      name: `${series.name} • T${seasonValue.number}E${episode.number}`,
+      urls: urls(episode.url, episode.playbackUrls),
+      live: false,
+      kind: "episode",
+      image: series.cover,
+      meta: `${series.name} • T${seasonValue.number}E${episode.number}`,
+      seriesQueue: episodeQueue,
+      seriesQueueIndex: episodeQueueIndex
+    });
+  };
 
   return <main className="series-detail">
     <header className="series-header">
@@ -172,13 +210,16 @@ export function SeriesDetailScreen({
       <div className="season-row">{seasons.map(item =>
         <button key={item.number} data-tv-focusable="true" data-focus-key={`series:season:${item.number}`} className={`season-chip ${item.number === season.number ? "selected" : ""}`} onClick={() => chooseSeason(item.number)}>Temporada {item.number}</button>
       )}</div>
-      <h2>Episódios • Temporada {season.number}</h2>
-      <div className="episode-list">{season.episodes.map(episode => {
+      <div className="season-heading"><h2>Episódios • Temporada {season.number}</h2><small>Página {safeEpisodePage + 1} de {episodePages} • até {episodePageSize} por vez</small></div>
+      {episodePages > 1 && <div className="season-row">
+        <button data-tv-focusable="true" data-focus-key="series:episode-page:prev" className="season-chip" disabled={safeEpisodePage <= 0} onClick={() => setEpisodePage(value => Math.max(0, value - 1))}>← Episódios anteriores</button>
+        <button data-tv-focusable="true" data-focus-key="series:episode-page:next" className="season-chip" disabled={safeEpisodePage >= episodePages - 1} onClick={() => setEpisodePage(value => Math.min(episodePages - 1, value + 1))}>Próximos episódios →</button>
+      </div>}
+      <div className="episode-list">{visibleEpisodes.map(episode => {
         const contentKey = episodeContentKey(series.name, season, episode);
         const saved = progressFor(history, contentKey, episode.id);
         const canResume = resumableProgress(saved);
         const percent = Math.round(progressFraction(saved) * 100);
-        const queueIndex = episodeQueue.findIndex(item => item.contentKey === contentKey);
         const playable = urls(episode.url, episode.playbackUrls).length > 0;
         return <button
           key={contentKey}
@@ -186,18 +227,7 @@ export function SeriesDetailScreen({
           data-focus-key={`series:episode:${contentKey}`}
           className={`episode-row ${canResume ? "has-progress" : ""}`}
           disabled={!playable}
-          onClick={() => playable && onPlay({
-            id: episode.id,
-            contentKey,
-            name: `${series.name} • T${season.number}E${episode.number}`,
-            urls: urls(episode.url, episode.playbackUrls),
-            live: false,
-            kind: "episode",
-            image: series.cover,
-            meta: `${series.name} • T${season.number}E${episode.number}`,
-            seriesQueue: episodeQueue,
-            seriesQueueIndex: Math.max(0, queueIndex)
-          })}
+          onClick={() => playable && playEpisode(season, episode)}
         >
           <span className="episode-number">{episode.number}</span>
           <span className="episode-copy">
@@ -214,7 +244,7 @@ export function SeriesDetailScreen({
       <div><h2>Você também pode gostar</h2><small>Séries do mesmo estilo</small></div>
       <div className="related-row">{recommendations.map(item =>
         <button key={seriesContentKey(item)} data-tv-focusable="true" data-focus-key={`series:related:${seriesContentKey(item)}`} onClick={() => onOpenRecommendation(item)}>
-          <span>{item.cover ? <img src={item.cover} alt={item.name} onError={event => { event.currentTarget.style.display = "none"; }} /> : <b>R</b>}</span>
+          <span>{item.cover ? <img src={item.cover} alt={item.name} loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} /> : <b>R</b>}</span>
           <strong>{item.name}</strong><small>{item.category || "Série"}</small>
         </button>
       )}</div>

@@ -15,11 +15,13 @@ const shell = read("src/content/MainShell.tsx");
 const cards = read("src/content/cards.ts");
 const css = read("src/content.css");
 const main = read("src/main.tsx");
+const performance = read("src/performanceProfile.ts");
 
-assert(app.includes("const PAGE_SIZE = 60"), "catálogo precisa manter paginação progressiva de 60 itens.");
-assert(shell.includes("slice(0, 20).map(channelCard)"), "Busca global precisa limitar Canais a 20 resultados como o APK.");
-assert(shell.includes("slice(0, 20).map(movieCard)"), "Busca global precisa limitar Filmes a 20 resultados como o APK.");
-assert(shell.includes("slice(0, 20).map(seriesCard)"), "Busca global precisa limitar Séries a 20 resultados como o APK.");
+assert(app.includes("SMART_TV_PERFORMANCE_PROFILE.catalogPageSize"), "catálogo precisa usar janela adaptativa por hardware.");
+assert(performance.includes("catalogPageSize: 60"), "tier moderno precisa manter paridade de 60 itens por página.");
+assert(performance.includes("searchLimitPerKind: 20"), "tier moderno precisa manter busca com até 20 resultados por tipo como o APK.");
+assert(shell.includes("SMART_TV_PERFORMANCE_PROFILE.searchLimitPerKind"), "busca global precisa adaptar limite sem perder o teto moderno de 20.");
+assert(shell.includes("pageStart") && shell.includes("pageCount") && shell.includes("Página anterior") && shell.includes("Carregar mais"), "catálogo precisa paginar sem acumular DOM indefinidamente.");
 assert(shell.includes('<SearchGroup title="Canais"') && shell.includes('<SearchGroup title="Filmes"') && shell.includes('<SearchGroup title="Séries"'), "Busca global deve separar resultados por tipo.");
 assert(shell.includes('label="Favoritos"') && shell.includes('label="A-Z"'), "Canais precisam expor Favoritos e A-Z.");
 assert(shell.includes('["Todos", "Minha Lista", "Continuar"'), "Filmes precisam manter Todos, Minha Lista e Continuar.");
@@ -48,4 +50,4 @@ if (fs.existsSync(staged)) {
   assert(packagedCss.includes("content-poster-card") && packagedCss.includes("global-search-row") && packagedCss.includes("content-channel-card"), "CSS LG-04 não chegou ao bundle webOS final.");
 }
 
-console.log("LG-04: Home, catálogo, busca agrupada, biblioteca, paginação e imagens validados no bundle webOS.");
+console.log("LG-04: Home, catálogo, busca agrupada, biblioteca, paginação adaptativa e imagens validados no bundle webOS.");

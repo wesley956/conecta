@@ -4,6 +4,7 @@ import { sanitizeDiagnosticText } from "../diagnosticSafety";
 import type { DeviceSession } from "../deviceSession";
 import { APP_VERSION } from "../deviceSession";
 import type { LibraryItem } from "../mediaLibrary";
+import { SMART_TV_PERFORMANCE_PROFILE } from "../performanceProfile";
 import type { SmartTvPlayerSettings } from "../playerSettings";
 import { platform } from "../platform";
 import type { TvAppUpdate } from "../appUpdate";
@@ -167,23 +168,41 @@ function ChannelCard({ item, favorite, onOpen, onFavorite }: {
   </div>;
 }
 
-function LoadMore({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
-  if (shown >= total) return null;
-  return <FocusableButton data-focus-key="catalog:load-more" className="content-load-more" onClick={onMore}>
-    <b>＋</b><strong>Carregar mais</strong><small>{(total - shown).toLocaleString("pt-BR")} itens restantes</small>
-  </FocusableButton>;
+function LoadMore({ pageIndex, pageCount, total, pageSize, onPrevious, onMore }: {
+  pageIndex: number;
+  pageCount: number;
+  total: number;
+  pageSize: number;
+  onPrevious: () => void;
+  onMore: () => void;
+}) {
+  if (pageCount <= 1) return null;
+  const remaining = Math.max(0, total - (pageIndex + 1) * pageSize);
+  return <>
+    {pageIndex > 0 && <FocusableButton data-focus-key="catalog:page-previous" className="content-load-more" onClick={onPrevious}>
+      <b>←</b><strong>Página anterior</strong><small>Página {pageIndex} de {pageCount}</small>
+    </FocusableButton>}
+    {pageIndex + 1 < pageCount && <FocusableButton data-focus-key="catalog:load-more" className="content-load-more" onClick={onMore}>
+      <b>＋</b><strong>Carregar mais</strong><small>{remaining.toLocaleString("pt-BR")} itens nas próximas páginas</small>
+    </FocusableButton>}
+  </>;
 }
 
-function CatalogGrid({ section, cards, total, library, onOpen, onMore }: {
+function CatalogGrid({ section, cards, total, pageIndex, pageCount, pageSize, library, onOpen, onPrevious, onMore }: {
   section: MainSection;
   cards: MediaCard[];
   total: number;
+  pageIndex: number;
+  pageCount: number;
+  pageSize: number;
   library: MainShellLibrary;
   onOpen: (item: MediaCard) => void;
+  onPrevious: () => void;
   onMore: () => void;
 }) {
   const scrollKey = `catalog-${encodeURIComponent(section)}`;
   useScrollMemory(scrollKey);
+  const pager = <LoadMore pageIndex={pageIndex} pageCount={pageCount} total={total} pageSize={pageSize} onPrevious={onPrevious} onMore={onMore} />;
   if (section === "Canais") {
     return <section className="content-channel-grid" {...scrollProps(scrollKey)}>
       {cards.map(item => <ChannelCard
@@ -193,7 +212,7 @@ function CatalogGrid({ section, cards, total, library, onOpen, onMore }: {
         onOpen={onOpen}
         onFavorite={value => library.toggleFavorite({ id: value.id, contentKey: value.contentKey, kind: value.kind, name: value.name, image: value.image, meta: value.meta })}
       />)}
-      <LoadMore shown={cards.length} total={total} onMore={onMore} />
+      {pager}
     </section>;
   }
   return <section className="content-poster-grid" {...scrollProps(scrollKey)}>
@@ -204,7 +223,7 @@ function CatalogGrid({ section, cards, total, library, onOpen, onMore }: {
       started={Boolean(item.progress && item.progress > 0)}
       onOpen={onOpen}
     />)}
-    <LoadMore shown={cards.length} total={total} onMore={onMore} />
+    {pager}
   </section>;
 }
 
@@ -254,9 +273,10 @@ function GlobalSearch({ query, setQuery, catalog, onOpen }: {
   onOpen: (item: MediaCard) => void;
 }) {
   const term = normalized(query);
-  const channels = useMemo(() => term ? catalog.data.channels.filter(item => normalized(item.name).includes(term)).slice(0, 20).map(channelCard) : [], [catalog.data.channels, term]);
-  const movies = useMemo(() => term ? catalog.data.movies.filter(item => normalized(item.name).includes(term)).slice(0, 20).map(movieCard) : [], [catalog.data.movies, term]);
-  const series = useMemo(() => term ? catalog.data.series.filter(item => normalized(item.name).includes(term)).slice(0, 20).map(seriesCard) : [], [catalog.data.series, term]);
+  const limit = SMART_TV_PERFORMANCE_PROFILE.searchLimitPerKind;
+  const channels = useMemo(() => term ? catalog.data.channels.filter(item => normalized(item.name).includes(term)).slice(0, limit).map(channelCard) : [], [catalog.data.channels, limit, term]);
+  const movies = useMemo(() => term ? catalog.data.movies.filter(item => normalized(item.name).includes(term)).slice(0, limit).map(movieCard) : [], [catalog.data.movies, limit, term]);
+  const series = useMemo(() => term ? catalog.data.series.filter(item => normalized(item.name).includes(term)).slice(0, limit).map(seriesCard) : [], [catalog.data.series, limit, term]);
   const total = channels.length + movies.length + series.length;
   const scrollKey = `global-search-${encodeURIComponent(term)}`;
   useScrollMemory(scrollKey);
@@ -451,18 +471,33 @@ export function MainShell(props: MainShellProps) {
   const counts = useMemo(() => ({ channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length }), [catalog.data]);
   const recentCards = useMemo(() => libraryCards(catalog.data, library.history).filter(item => item.kind !== "channel").slice(0, 6), [catalog.data, library.history]);
   const favoriteCards = useMemo(() => libraryCards(catalog.data, library.favorites).filter(item => item.kind === "movie" || item.kind === "series").slice(0, 6), [catalog.data, library.favorites]);
-  const discoveryCards = useMemo(() => [...catalog.data.movies.map(movieCard), ...catalog.data.series.map(seriesCard)].slice(0, 6), [catalog.data.movies, catalog.data.series]);
-  const heroPool = useMemo(() => catalog.data.movies.filter(item => item.cover).slice(0, 12), [catalog.data.movies]);
+  const discoveryCards = useMemo(() => [
+    ...catalog.data.movies.slice(0, 6).map(movieCard),
+    ...catalog.data.series.slice(0, 6).map(seriesCard)
+  ].slice(0, 6), [catalog.data.movies, catalog.data.series]);
+  const heroPool = useMemo(() => {
+    const values: import("../catalog").Movie[] = [];
+    for (let index = 0; index < catalog.data.movies.length && values.length < 12; index += 1) {
+      if (catalog.data.movies[index].cover) values.push(catalog.data.movies[index]);
+    }
+    return values;
+  }, [catalog.data.movies]);
   const featuredMovie = heroPool[featuredIndex % Math.max(1, heroPool.length)] || catalog.data.movies[0];
   const railMovie = heroPool[(featuredIndex + 1) % Math.max(1, heroPool.length)] || catalog.data.movies[1] || featuredMovie;
-  const seriesPool = useMemo(() => catalog.data.series.filter(item => item.cover).slice(0, 12), [catalog.data.series]);
+  const seriesPool = useMemo(() => {
+    const values: import("../catalog").Series[] = [];
+    for (let index = 0; index < catalog.data.series.length && values.length < 12; index += 1) {
+      if (catalog.data.series[index].cover) values.push(catalog.data.series[index]);
+    }
+    return values;
+  }, [catalog.data.series]);
   const featuredSeries = seriesPool[featuredIndex % Math.max(1, seriesPool.length)] || catalog.data.series[0];
 
   useEffect(() => {
-    if (heroPool.length + seriesPool.length <= 1) return;
+    if (selected !== "Início" || heroPool.length + seriesPool.length <= 1) return;
     const timer = window.setInterval(() => setFeaturedIndex(value => value + 1), 12_000);
     return () => window.clearInterval(timer);
-  }, [heroPool.length, seriesPool.length]);
+  }, [heroPool.length, selected, seriesPool.length]);
 
   const categories = useMemo(() => {
     if (selected === "Canais") return ["Todos", ...Array.from(new Set(catalog.data.channels.map(item => item.groupTitle || "Outros"))).sort((a, b) => a.localeCompare(b, "pt-BR"))];
@@ -473,7 +508,17 @@ export function MainShell(props: MainShellProps) {
 
   const filteredCards = useMemo(() => {
     const term = normalized(query);
-    const historyIds = new Set(library.history.map(item => item.contentKey || `${item.kind}:${item.id}`));
+    const historyIds = new Set<string>();
+    const historyByKey = new Map<string, LibraryItem>();
+    const startedSeries = new Set<string>();
+    for (let index = 0; index < library.history.length; index += 1) {
+      const value = library.history[index];
+      const key = value.contentKey || `${value.kind}:${value.id}`;
+      historyIds.add(key);
+      historyByKey.set(key, value);
+      if (value.kind === "episode") startedSeries.add((value.meta || value.name).split(" • ")[0]);
+    }
+
     if (selected === "Canais") {
       let values = catalog.data.channels
         .filter(item => category === "Todos" || (item.groupTitle || "Outros") === category)
@@ -490,27 +535,30 @@ export function MainShell(props: MainShellProps) {
         (item.category || "Outros") === category;
       return filterMatches && (!term || normalized(item.name).includes(term));
     }).map(movieCard).map(card => {
-      const saved = library.history.find(value => (value.contentKey || `${value.kind}:${value.id}`) === card.contentKey || (value.kind === "movie" && value.id === card.id));
+      const saved = historyByKey.get(card.contentKey) || historyByKey.get(`movie:${card.id}`);
       return saved?.duration && saved.currentTime ? { ...card, progress: Math.min(100, saved.currentTime / saved.duration * 100) } : card;
     });
     if (selected === "Séries") return catalog.data.series.filter(item => {
       const card = seriesCard(item);
-      const started = library.history.some(value => value.kind === "episode" && (value.meta || value.name).startsWith(`${item.name} •`));
+      const started = startedSeries.has(item.name);
       const filterMatches = category === "Todas" ||
         (category === "Minha Lista" && library.isFavorite("series", item.id, card.contentKey)) ||
         (category === "Continuar" && started) ||
         (item.category || "Outros") === category;
       return filterMatches && (!term || normalized(item.name).includes(term));
-    }).map(seriesCard).map(card => {
-      const started = library.history.some(value => value.kind === "episode" && (value.meta || value.name).startsWith(`${card.name} •`));
-      return started ? { ...card, progress: 1 } : card;
-    });
+    }).map(seriesCard).map(card => startedSeries.has(card.name) ? { ...card, progress: 1 } : card);
     if (selected === "Minha lista") return libraryCards(catalog.data, library.favorites).filter(item => item.kind === "movie" || item.kind === "series");
     return [];
   }, [catalog.data, category, channelAlphabetical, channelFavoritesOnly, library, query, selected]);
 
-  const visibleCards = filteredCards.slice(0, visibleLimit);
+  const pageCount = Math.max(1, Math.ceil(filteredCards.length / pageSize));
+  const requestedPageIndex = Math.max(0, Math.ceil(visibleLimit / pageSize) - 1);
+  const pageIndex = Math.min(requestedPageIndex, pageCount - 1);
+  const pageStart = pageIndex * pageSize;
+  const visibleCards = filteredCards.slice(pageStart, pageStart + pageSize);
   const resetPage = () => setVisibleLimit(pageSize);
+  const previousPage = () => setVisibleLimit(Math.max(pageSize, pageIndex * pageSize));
+  const nextPage = () => setVisibleLimit(Math.min(pageCount * pageSize, (pageIndex + 2) * pageSize));
   const homeScrollKey = "home";
   useScrollMemory(homeScrollKey);
   useScrollMemory("settings");
@@ -557,10 +605,10 @@ export function MainShell(props: MainShellProps) {
       {catalog.status === "ready" && ["Canais", "Filmes", "Séries"].includes(selected) && <>
         <CatalogToolbar selected={selected} query={query} setQuery={value => { setQuery(value); resetPage(); }} filteredCount={filteredCards.length} />
         <Filters selected={selected} categories={categories} category={category} setCategory={setCategory} favoritesOnly={channelFavoritesOnly} setFavoritesOnly={setChannelFavoritesOnly} alphabetical={channelAlphabetical} setAlphabetical={setChannelAlphabetical} resetPage={resetPage} />
-        {filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} library={library} onOpen={onOpenCard} onMore={() => setVisibleLimit(current => typeof current === "number" ? current + pageSize : pageSize * 2)} /> : <EmptyState title={selected === "Canais" ? "Nenhum canal encontrado" : selected === "Filmes" ? "Nenhum filme encontrado" : "Nenhuma série encontrada"} message="Tente outro nome, filtro ou categoria." />}
+        {filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} pageIndex={pageIndex} pageCount={pageCount} pageSize={pageSize} library={library} onOpen={onOpenCard} onPrevious={previousPage} onMore={nextPage} /> : <EmptyState title={selected === "Canais" ? "Nenhum canal encontrado" : selected === "Filmes" ? "Nenhum filme encontrado" : "Nenhuma série encontrada"} message="Tente outro nome, filtro ou categoria." />}
       </>}
 
-      {catalog.status === "ready" && selected === "Minha lista" && (filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} library={library} onOpen={onOpenCard} onMore={() => setVisibleLimit(current => typeof current === "number" ? current + pageSize : pageSize * 2)} /> : <EmptyState title="Sua lista está vazia" message="Adicione filmes e séries pelos detalhes do conteúdo. Canais favoritos ficam em Canais → Favoritos." />)}
+      {catalog.status === "ready" && selected === "Minha lista" && (filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} pageIndex={pageIndex} pageCount={pageCount} pageSize={pageSize} library={library} onOpen={onOpenCard} onPrevious={previousPage} onMore={nextPage} /> : <EmptyState title="Sua lista está vazia" message="Adicione filmes e séries pelos detalhes do conteúdo. Canais favoritos ficam em Canais → Favoritos." />)}
 
       {catalog.status === "ready" && selected === "Configurações" && <Settings catalog={catalog} session={session} settings={settings} updateSettings={updateSettings} appUpdate={appUpdate} online={online} openDialog={openDialog} />}
     </section>
