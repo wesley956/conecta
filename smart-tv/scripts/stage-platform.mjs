@@ -39,13 +39,52 @@ fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
 fs.cpSync(dist, output, { recursive: true });
 
+function classicizeWebOsEntry(html) {
+  let converted = html.replace(/<script\b([^>]*)>/gi, (tag, attributes) => {
+    if (!/\btype=["']module["']/i.test(attributes)) return tag;
+    const cleaned = attributes
+      .replace(/\s*type=["']module["']/i, "")
+      .replace(/\s*crossorigin(?:=["'][^"']*["'])?/i, "")
+      .replace(/\s*defer(?:=["'][^"']*["'])?/i, "");
+    return `<script defer${cleaned}>`;
+  });
+  converted = converted.replace(/\s*<link\b[^>]*\brel=["']modulepreload["'][^>]*>/gi, "");
+  return converted;
+}
+
+function validateClassicWebOsBundle() {
+  const indexPath = path.join(output, "index.html");
+  const html = fs.readFileSync(indexPath, "utf8");
+  if (/\btype=["']module["']/i.test(html) || /\brel=["']modulepreload["']/i.test(html)) {
+    throw new Error("LG-09: o pacote webOS ainda depende de ES Modules, incompatível com Chromium 53.");
+  }
+
+  const assets = path.join(output, "assets");
+  const javascriptFiles = fs.existsSync(assets)
+    ? fs.readdirSync(assets).filter(name => name.endsWith(".js"))
+    : [];
+  if (!javascriptFiles.length) throw new Error("LG-09: bundle JavaScript webOS não encontrado.");
+
+  for (const fileName of javascriptFiles) {
+    const source = fs.readFileSync(path.join(assets, fileName), "utf8");
+    if (/\bimport\.meta\b/.test(source) || /\bimport\s*\(/.test(source)) {
+      throw new Error(`LG-09: ${fileName} ainda contém import dinâmico/import.meta incompatível com a entrada clássica.`);
+    }
+    if (/(^|[;{}\n])\s*(?:import|export)\s+[A-Za-z*{]/m.test(source)) {
+      throw new Error(`LG-09: ${fileName} ainda contém sintaxe ESM no bundle webOS.`);
+    }
+  }
+}
+
 if (platform === "webos") {
   const indexPath = path.join(output, "index.html");
   let html = fs.readFileSync(indexPath, "utf8");
   html = html
     .replace(/\s*<script[^>]*src=["']\$WEBAPIS\/webapis\/webapis\.js["'][^>]*><\/script>/gi, "")
     .replace(/\s*<object[^>]*type=["']application\/avplayer["'][^>]*><\/object>/gi, "");
+  html = classicizeWebOsEntry(html);
   fs.writeFileSync(indexPath, html);
+  validateClassicWebOsBundle();
 }
 
 const manifest = platform === "webos" ? "appinfo.json" : "config.xml";
