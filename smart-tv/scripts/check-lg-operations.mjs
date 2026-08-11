@@ -38,7 +38,7 @@ for (const token of [
   "Limpar dados desta TV",
   "Verificar atualização do aplicativo",
   "Stable publicada",
-  "não envie senha, token nem URL da lista"
+  "Não envie senha, token nem URL da lista"
 ]) requireToken(shell, token, "configurações/diagnóstico incompletos");
 
 for (const token of [
@@ -92,8 +92,7 @@ for (const token of [
   "device_uuid: null",
   "device_credential_hash: null"
 ]) requireToken(unlink, token, "desvínculo seguro incompleto");
-requireToken(config, "[functions.device-unlink]", "device-unlink não registrado no config.toml");
-requireToken(config, "verify_jwt = false", "configuração explícita da função ausente");
+requireToken(config, "[functions.device-unlink]\nverify_jwt = false", "device-unlink não registrado com autenticação própria");
 requireToken(release, ".eq('published', true)", "consulta do app não está restrita a release publicada");
 requireToken(diagnostics, "safeDiagnosticText", "segunda camada de sanitização do backend ausente");
 
@@ -107,7 +106,7 @@ for (const token of [
   "Verificar atualização do aplicativo",
   "Aspecto da imagem",
   "Último failover",
-  "RP-LG-"
+  "Não envie senha, token nem URL da lista"
 ]) requireToken(js, token, "experiência LG-08 não chegou ao bundle final");
 
 console.log("LG-08: configurações, update Stable, diagnóstico seguro, manutenção e desvínculo validados no bundle webOS.");
