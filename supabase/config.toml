@@ -69,6 +69,9 @@ verify_jwt = false
 [functions.device-activate]
 verify_jwt = false
 
+[functions.device-unlink]
+verify_jwt = false
+
 [functions.series-detail]
 verify_jwt = false
 

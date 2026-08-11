@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CatalogFailoverResult } from "../catalog";
+import { sanitizeDiagnosticText } from "../diagnosticSafety";
 import type { DeviceSession } from "../deviceSession";
 import { APP_VERSION } from "../deviceSession";
 import type { LibraryItem } from "../mediaLibrary";
@@ -10,7 +11,7 @@ import type { MediaCard } from "./cards";
 import { channelCard, libraryCards, movieCard, normalized, seriesCard } from "./cards";
 
 export type MainSection = "Início" | "Buscar" | "Canais" | "Filmes" | "Séries" | "Minha lista" | "Configurações";
-export type AppDialog = "privacy" | "support" | "unlink" | "clear-data" | null;
+export type AppDialog = "privacy" | "support" | "unlink" | "clear-data" | "clear-cache" | null;
 
 export type MainShellCatalog = {
   status: "idle" | "loading" | "ready" | "error";
@@ -35,8 +36,11 @@ export type MainShellLibrary = {
 };
 
 export type MainShellAppUpdate = {
+  latest: TvAppUpdate | null;
   update: TvAppUpdate | null;
   checking: boolean;
+  lastCheckedAt: string | null;
+  error: string | null;
   refresh: () => Promise<TvAppUpdate | null>;
   dismiss: () => void;
 };
@@ -65,7 +69,8 @@ type MainShellProps = {
   dialog: AppDialog;
   openDialog: (value: Exclude<AppDialog, null>) => void;
   closeDialog: () => void;
-  onResetDevice: () => void;
+  onClearCache: () => Promise<void> | void;
+  onUnlinkDevice: () => Promise<void> | void;
   onOpenCard: (item: MediaCard) => void;
   onOpenMovie: (movie: import("../catalog").Movie) => void;
   onOpenSeries: (series: import("../catalog").Series) => void;
@@ -331,6 +336,24 @@ function Filters({ selected, categories, category, setCategory, favoritesOnly, s
   return <section className="content-filter-row">{categories.map(value => <FilterChip key={value} label={value} selected={category === value} focusKey={`filter:${selected}:${value}`} onClick={() => { setCategory(value); resetPage(); }} />)}</section>;
 }
 
+function failoverLabel(outcome: MainShellCatalog["lastFailoverOutcome"]) {
+  if (!outcome) return "Nenhum failover nesta sessão";
+  return {
+    switching: "Alternando para uma lista reserva",
+    switched: "Lista reserva ativada e aguardando/confirmando reprodução",
+    busy: "Outra recuperação já estava em andamento",
+    no_active_playlist: "Sem lista ativa para failover",
+    no_backup: "Nenhuma lista reserva disponível",
+    catalog_failed: "A lista reserva não pôde ser carregada"
+  }[outcome];
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString("pt-BR") : null;
+}
+
 function Settings({ catalog, session, settings, updateSettings, appUpdate, online, openDialog }: {
   catalog: MainShellCatalog;
   session: DeviceSession;
@@ -341,48 +364,77 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
   openDialog: (value: Exclude<AppDialog, null>) => void;
 }) {
   const counts = { channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length };
+  const activePlaylistId = catalog.activePlaylistId || session.selectedPlaylistId;
+  const activePlaylist = session.playlists.find(value => value.id === activePlaylistId) || null;
+  const lastFailure = sanitizeDiagnosticText(catalog.lastFailure || activePlaylist?.lastError || session.cacheError, 360);
+  const stableVersion = appUpdate.latest?.versionName || null;
+  const updateDescription = appUpdate.error
+    ? `Falha na última consulta: ${sanitizeDiagnosticText(appUpdate.error, 180) || "erro desconhecido"}`
+    : appUpdate.update
+      ? `Stable ${appUpdate.update.versionName} disponível${appUpdate.update.mandatory ? " • atualização obrigatória" : ""}.`
+      : stableVersion
+        ? `Stable publicada: ${stableVersion}. Esta TV está na versão ${APP_VERSION}.`
+        : "Nenhuma versão Stable publicada foi informada pelo serviço.";
+
   return <section className="settings-list content-settings-scroll" data-scroll-key="settings" onScroll={event => scrollMemory.set("settings", event.currentTarget.scrollTop)}>
-    <div className="settings-heading"><p className="eyebrow">AJUSTES DO APP</p><h2>Configurações</h2><small>Preferências, diagnóstico e informações desta TV</small></div>
-    <section className="settings-card"><span><strong>Atualizar conteúdo</strong><small>Sincronizar novamente a lista ativa sem apagar o último catálogo válido.</small></span><FocusableButton data-autofocus="true" data-focus-key="settings:refresh-content" onClick={catalog.retry}>ATUALIZAR</FocusableButton></section>
+    <div className="settings-heading"><p className="eyebrow">AJUSTES DO APP</p><h2>Configurações</h2><small>Preferências, operação, diagnóstico e informações seguras desta TV</small></div>
+    <section className="settings-card"><span><strong>Atualizar conteúdo</strong><small>Sincroniza novamente catálogo/listas. Não verifica nem instala uma nova versão do aplicativo.</small></span><FocusableButton data-autofocus="true" data-focus-key="settings:refresh-content" onClick={catalog.retry}>ATUALIZAR</FocusableButton></section>
+
     <p className="settings-section-title">PLAYER</p>
-    <section className="settings-card info"><span><strong>Decodificação</strong><small>{platform === "tizen" ? "Samsung AVPlay nativo com seleção automática de formato." : "Player HTML5 otimizado para o webOS da televisão."}</small></span><b>{platform === "tizen" ? "AVPLAY" : "HTML5"}</b></section>
+    <section className="settings-card info"><span><strong>Tecnologia de reprodução</strong><small>{platform === "tizen" ? "Samsung AVPlay nativo com seleção automática de formato." : "Player HTML5 otimizado para o webOS da televisão."}</small></span><b>{platform === "tizen" ? "AVPLAY" : "HTML5"}</b></section>
+    <section className="settings-card"><span><strong>Aspecto da imagem</strong><small>Original preserva a proporção; Preencher ocupa a tela; Estender força a imagem ao quadro.</small></span><div className="settings-options">{(["Original", "Preencher", "Estender"] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:aspect:${value}`} className={settings.aspectMode === value ? "selected" : ""} onClick={() => updateSettings({ aspectMode: value })}>{value}</FocusableButton>)}</div></section>
     <section className="settings-card"><span><strong>Buffer inicial</strong><small>Um buffer maior ajuda conexões instáveis, mas demora um pouco mais para iniciar.</small></span><div className="settings-options">{([2, 5, 10] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:buffer:${value}`} className={settings.bufferSeconds === value ? "selected" : ""} onClick={() => updateSettings({ bufferSeconds: value })}>{value}s</FocusableButton>)}</div></section>
     <section className="settings-card"><span><strong>Reconexão automática</strong><small>Tentar novamente, alternar origens e usar a lista reserva sem fechar o player.</small></span><FocusableButton data-focus-key="settings:reconnect" className={settings.automaticReconnect ? "selected" : ""} onClick={() => updateSettings({ automaticReconnect: !settings.automaticReconnect })}>{settings.automaticReconnect ? "ATIVA" : "DESATIVADA"}</FocusableButton></section>
     <section className="settings-card"><span><strong>Som de abertura</strong><small>Reproduzir a assinatura sonora ao iniciar o aplicativo.</small></span><FocusableButton data-focus-key="settings:launch-sound" className={settings.launchSoundEnabled ? "selected" : ""} onClick={() => updateSettings({ launchSoundEnabled: !settings.launchSoundEnabled })}>{settings.launchSoundEnabled ? "ATIVO" : "DESATIVADO"}</FocusableButton></section>
+
     <p className="settings-section-title">DIAGNÓSTICO</p>
     <section className="settings-card info"><span><strong>{catalog.usingBackupPlaylist ? "Lista reserva em uso" : "Lista principal em uso"}</strong><small>{catalog.activePlaylistName || session.playlistName || "Lista ativa"} • {counts.channels} canais • {counts.movies} filmes • {counts.series} séries</small></span><b>{online ? "CONECTADO" : "SEM INTERNET"}</b></section>
-    <section className="settings-card info"><span><strong>Última sincronização</strong><small>{catalog.lastSuccessfulSync ? new Date(catalog.lastSuccessfulSync).toLocaleString("pt-BR") : "Ainda não concluída"}{catalog.lastFailure ? ` • Última falha: ${catalog.lastFailure}` : ""}</small></span><b>{catalog.usingBackupPlaylist ? "RESERVA" : "PRINCIPAL"}</b></section>
+    <section className="settings-card info"><span><strong>Saúde da lista ativa</strong><small>Cache {activePlaylist?.cacheStatus || "não informado"} • falhas consecutivas {activePlaylist?.consecutiveFailures || 0}{formatDate(activePlaylist?.lastSuccessAt) ? ` • último sucesso ${formatDate(activePlaylist?.lastSuccessAt)}` : ""}</small></span><b>{activePlaylist?.role === "backup" || catalog.usingBackupPlaylist ? "RESERVA" : "PRINCIPAL"}</b></section>
+    <section className="settings-card info"><span><strong>Última sincronização</strong><small>{formatDate(catalog.lastSuccessfulSync) || "Ainda não concluída"}{lastFailure ? ` • Última falha: ${lastFailure}` : ""}</small></span><b>{lastFailure ? "ATENÇÃO" : "OK"}</b></section>
+    <section className="settings-card info"><span><strong>Último failover</strong><small>{failoverLabel(catalog.lastFailoverOutcome)}</small></span><b>{catalog.lastFailoverOutcome === "switched" ? "RECUPERADO" : catalog.lastFailoverOutcome ? "REGISTRADO" : "SEM EVENTO"}</b></section>
+    <section className="settings-card info"><span><strong>Código de suporte</strong><small>Use este código curto ao falar com o suporte. Não envie senha, token nem URL da lista.</small></span><b>{session.supportCode || "INDISPONÍVEL"}</b></section>
     {session.expiresAt && Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 86_400_000) <= 7 && <section className="settings-card warning-card"><span><strong>Assinatura próxima do vencimento</strong><small>Vencimento em {new Date(session.expiresAt).toLocaleDateString("pt-BR")}. Fale com seu vendedor para renovar.</small></span><b>ATENÇÃO</b></section>}
+
     <p className="settings-section-title">APLICATIVO</p>
-    <section className="settings-card"><span><strong>Atualizações do aplicativo</strong><small>Versão atual {APP_VERSION}</small></span><FocusableButton data-focus-key="settings:app-update" onClick={() => void appUpdate.refresh()}>{appUpdate.checking ? "AGUARDE" : "VERIFICAR"}</FocusableButton></section>
-    <section className="settings-card info"><span><strong>{session.clientName || "Roneca Player TV"}</strong><small>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"} • Código {session.deviceCode}</small></span><b>SMART TV</b></section>
-    <section className="settings-card"><span><strong>Suporte</strong><small>Consultar os dados que ajudam a identificar esta TV.</small></span><FocusableButton data-focus-key="settings:support" onClick={() => openDialog("support")}>ABRIR</FocusableButton></section>
-    <section className="settings-card"><span><strong>Privacidade</strong><small>Entender quais dados ficam nesta TV e quais são usados na ativação.</small></span><FocusableButton data-focus-key="settings:privacy" onClick={() => openDialog("privacy")}>LER</FocusableButton></section>
-    <section className="settings-card danger-card"><span><strong>Limpar dados desta TV</strong><small>Remover favoritos, histórico e progresso salvos localmente.</small></span><FocusableButton data-focus-key="settings:clear-data" className="danger" onClick={() => openDialog("clear-data")}>LIMPAR</FocusableButton></section>
-    <section className="settings-card danger-card"><span><strong>Desvincular aparelho</strong><small>Encerrar esta ativação e gerar um novo código para a TV.</small></span><FocusableButton data-focus-key="settings:unlink" className="danger" onClick={() => openDialog("unlink")}>DESVINCULAR</FocusableButton></section>
+    <section className="settings-card"><span><strong>Verificar atualização do aplicativo</strong><small>{updateDescription}{appUpdate.lastCheckedAt ? ` • Verificado ${formatDate(appUpdate.lastCheckedAt)}` : ""}</small></span><FocusableButton data-focus-key="settings:app-update" onClick={() => void appUpdate.refresh()}>{appUpdate.checking ? "AGUARDE" : "VERIFICAR"}</FocusableButton></section>
+    <section className="settings-card info"><span><strong>{session.clientName || "Roneca Player TV"}</strong><small>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"} • App {APP_VERSION} • suporte {session.supportCode || "indisponível"}</small></span><b>SMART TV</b></section>
+    <section className="settings-card"><span><strong>Suporte</strong><small>Consultar versão, lista ativa, conexão, failover e identificação segura desta TV.</small></span><FocusableButton data-focus-key="settings:support" onClick={() => openDialog("support")}>ABRIR</FocusableButton></section>
+    <section className="settings-card"><span><strong>Privacidade</strong><small>Entender quais dados ficam nesta TV e quais são usados na ativação e diagnóstico.</small></span><FocusableButton data-focus-key="settings:privacy" onClick={() => openDialog("privacy")}>LER</FocusableButton></section>
+    <section className="settings-card"><span><strong>Limpar cache temporário</strong><small>Remove somente dados reconstruíveis. Ativação, favoritos, progresso e preferências são preservados.</small></span><FocusableButton data-focus-key="settings:clear-cache" onClick={() => openDialog("clear-cache")}>LIMPAR CACHE</FocusableButton></section>
+    <section className="settings-card danger-card"><span><strong>Limpar dados desta TV</strong><small>Remover favoritos, histórico e progresso salvos localmente sem desvincular o aparelho.</small></span><FocusableButton data-focus-key="settings:clear-data" className="danger" onClick={() => openDialog("clear-data")}>LIMPAR DADOS</FocusableButton></section>
+    <section className="settings-card danger-card"><span><strong>Desvincular aparelho</strong><small>Revogar esta instalação no servidor e gerar uma nova identidade/código de ativação.</small></span><FocusableButton data-focus-key="settings:unlink" className="danger" onClick={() => openDialog("unlink")}>DESVINCULAR</FocusableButton></section>
   </section>;
 }
 
-function Dialog({ dialog, session, catalog, online, closeDialog, clearAll, resetDevice }: {
+function Dialog({ dialog, session, catalog, online, closeDialog, clearAll, clearCache, unlinkDevice }: {
   dialog: Exclude<AppDialog, null>;
   session: DeviceSession;
   catalog: MainShellCatalog;
   online: boolean;
   closeDialog: () => void;
   clearAll: () => void;
-  resetDevice: () => void;
+  clearCache: () => Promise<void> | void;
+  unlinkDevice: () => Promise<void> | void;
 }) {
+  const supportFailure = sanitizeDiagnosticText(catalog.lastFailure || session.cacheError, 360);
+  const title = dialog === "privacy" ? "Privacidade nesta TV"
+    : dialog === "support" ? "Dados para suporte"
+      : dialog === "unlink" ? "Desvincular este aparelho?"
+        : dialog === "clear-cache" ? "Limpar cache temporário?"
+          : "Limpar dados locais?";
   return <section className="app-dialog-backdrop" role="presentation"><article className="app-dialog" role="dialog" aria-modal="true">
     <p className="eyebrow">{dialog === "privacy" ? "PRIVACIDADE" : dialog === "support" ? "SUPORTE" : "CONFIRMAÇÃO"}</p>
-    <h2>{dialog === "privacy" ? "Privacidade nesta TV" : dialog === "support" ? "Dados para suporte" : dialog === "unlink" ? "Desvincular este aparelho?" : "Limpar dados locais?"}</h2>
-    {dialog === "privacy" && <div className="dialog-copy"><p>O aplicativo usa uma identidade exclusiva do aparelho para consultar a ativação, a validade do acesso e as listas autorizadas no painel.</p><p>Favoritos, histórico, progresso e preferências ficam armazenados localmente nesta TV.</p><p>Diagnósticos enviam somente aparelho, conteúdo, posição, versão e tipo de erro. URLs e credenciais nunca são exibidas.</p></div>}
-    {dialog === "support" && <dl><dt>Código do aparelho</dt><dd>{session.deviceCode || "Não disponível"}</dd><dt>Plataforma</dt><dd>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"}</dd><dt>Versão</dt><dd>{APP_VERSION}</dd><dt>Lista ativa</dt><dd>{catalog.activePlaylistName || session.playlistName || "Não disponível"} ({catalog.usingBackupPlaylist ? "reserva" : "principal"})</dd><dt>Conexão</dt><dd>{online ? "Conectada" : "Sem internet"}</dd></dl>}
-    {dialog === "unlink" && <p>Esta TV voltará para a tela de ativação e receberá um novo código. Favoritos, histórico e progresso também serão removidos.</p>}
-    {dialog === "clear-data" && <p>Favoritos, histórico e progresso serão removidos somente desta TV. A ativação e a lista continuarão funcionando.</p>}
+    <h2>{title}</h2>
+    {dialog === "privacy" && <div className="dialog-copy"><p>O aplicativo usa uma identidade exclusiva do aparelho para consultar ativação, validade e listas autorizadas.</p><p>Favoritos, histórico, progresso e preferências permanecem no armazenamento local da TV; cache temporário é reconstruível.</p><p>Diagnósticos são sanitizados no cliente e novamente no servidor. O suporte deve usar o código curto e nunca solicitar senha, token ou URL completa da lista.</p></div>}
+    {dialog === "support" && <dl><dt>Código de suporte</dt><dd>{session.supportCode || "Não disponível"}</dd><dt>Plataforma</dt><dd>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"}</dd><dt>Versão do app</dt><dd>{APP_VERSION}</dd><dt>Lista ativa</dt><dd>{catalog.activePlaylistName || session.playlistName || "Não disponível"} ({catalog.usingBackupPlaylist ? "reserva" : "principal"})</dd><dt>Conexão</dt><dd>{online ? "Conectada" : "Sem internet"}</dd><dt>Último failover</dt><dd>{failoverLabel(catalog.lastFailoverOutcome)}</dd><dt>Última falha</dt><dd>{supportFailure || "Nenhuma falha registrada"}</dd></dl>}
+    {dialog === "unlink" && <p>Esta instalação será revogada no servidor, a credencial atual deixará de funcionar e a TV voltará para a ativação com uma nova identidade. Favoritos, histórico e progresso locais também serão removidos.</p>}
+    {dialog === "clear-cache" && <p>Somente cache e estado temporário reconstruível serão removidos. Ativação, favoritos, progresso e preferências serão preservados.</p>}
+    {dialog === "clear-data" && <p>Favoritos, histórico e progresso serão removidos somente desta TV. A ativação, a lista e as preferências do player continuarão funcionando.</p>}
     <div className="dialog-actions">
       {(dialog === "privacy" || dialog === "support") && <FocusableButton data-autofocus="true" data-focus-key="dialog:close" className="primary" onClick={closeDialog}>FECHAR</FocusableButton>}
+      {dialog === "clear-cache" && <><FocusableButton data-autofocus="true" data-focus-key="dialog:confirm-cache" className="primary" onClick={() => { closeDialog(); void clearCache(); }}>LIMPAR CACHE</FocusableButton><FocusableButton data-focus-key="dialog:cancel-cache" className="secondary" onClick={closeDialog}>CANCELAR</FocusableButton></>}
       {dialog === "clear-data" && <><FocusableButton data-autofocus="true" data-focus-key="dialog:confirm-clear" className="danger" onClick={() => { clearAll(); closeDialog(); }}>CONFIRMAR LIMPEZA</FocusableButton><FocusableButton data-focus-key="dialog:cancel-clear" className="secondary" onClick={closeDialog}>CANCELAR</FocusableButton></>}
-      {dialog === "unlink" && <><FocusableButton data-autofocus="true" data-focus-key="dialog:confirm-unlink" className="danger" onClick={() => { clearAll(); closeDialog(); resetDevice(); }}>DESVINCULAR</FocusableButton><FocusableButton data-focus-key="dialog:cancel-unlink" className="secondary" onClick={closeDialog}>CANCELAR</FocusableButton></>}
+      {dialog === "unlink" && <><FocusableButton data-autofocus="true" data-focus-key="dialog:confirm-unlink" className="danger" onClick={() => { clearAll(); closeDialog(); void unlinkDevice(); }}>DESVINCULAR</FocusableButton><FocusableButton data-focus-key="dialog:cancel-unlink" className="secondary" onClick={closeDialog}>CANCELAR</FocusableButton></>}
     </div>
   </article></section>;
 }
@@ -392,7 +444,7 @@ export function MainShell(props: MainShellProps) {
     selected, setSelected, query, setQuery, category, setCategory,
     channelFavoritesOnly, setChannelFavoritesOnly, channelAlphabetical, setChannelAlphabetical,
     visibleLimit, setVisibleLimit, pageSize, catalog, session, library, settings, updateSettings,
-    appUpdate, online, dialog, openDialog, closeDialog, onResetDevice, onOpenCard, onOpenMovie, onOpenSeries
+    appUpdate, online, dialog, openDialog, closeDialog, onClearCache, onUnlinkDevice, onOpenCard, onOpenMovie, onOpenSeries
   } = props;
 
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -467,7 +519,7 @@ export function MainShell(props: MainShellProps) {
     <aside className="rail"><div className="brand"><span className="brand-mark">RP</span><span className="brand-name">RONECA</span></div><nav>{destinations.map(item => <FocusableButton key={item.label} data-focus-key={`nav:${item.label}`} className={`nav-item ${selected === item.label ? "selected" : ""}`} onClick={() => setSelected(item.label)}><span>{item.icon}</span><strong>{item.label}</strong></FocusableButton>)}</nav><small className="platform">{platform.toUpperCase()}</small></aside>
     <section className={`content ${["Canais", "Filmes", "Séries", "Minha lista"].includes(selected) ? "catalog-view" : ""}`}>
       {!online && <aside className="connection-banner" role="status"><b>Sem internet</b><span>O último catálogo válido continua disponível. A sincronização volta automaticamente quando a conexão retornar.</span></aside>}
-      {appUpdate.update && <aside className="update-banner" role="status"><span><b>Nova versão {appUpdate.update.versionName}</b><small>{window.location.protocol === "https:" ? "A versão estável será carregada automaticamente na próxima abertura." : platform === "webos" ? "Atualize pela LG Content Store ou pelo pacote IPK do painel." : "Atualize pela Samsung Apps ou pelo pacote WGT do painel."}</small></span><FocusableButton data-focus-key="update:dismiss" onClick={appUpdate.dismiss}>Agora não</FocusableButton></aside>}
+      {appUpdate.update && <aside className="update-banner" role="status"><span><b>Stable {appUpdate.update.versionName} disponível</b><small>Uma versão publicada foi detectada. A instalação continua sujeita ao canal oficial LG/pacote homologado; esta verificação não promove Candidate para Stable.</small></span><FocusableButton data-focus-key="update:dismiss" onClick={appUpdate.dismiss}>Agora não</FocusableButton></aside>}
       <MainHeader selected={selected} session={session} usingBackup={catalog.usingBackupPlaylist} onSearch={() => setSelected("Buscar")} />
 
       {catalog.status === "loading" && <section className="state-panel content-loading-state"><span className="spinner" /><h2>Carregando seu catálogo</h2><p>Buscando canais, filmes e séries com segurança.</p></section>}
@@ -512,6 +564,6 @@ export function MainShell(props: MainShellProps) {
 
       {catalog.status === "ready" && selected === "Configurações" && <Settings catalog={catalog} session={session} settings={settings} updateSettings={updateSettings} appUpdate={appUpdate} online={online} openDialog={openDialog} />}
     </section>
-    {dialog && <Dialog dialog={dialog} session={session} catalog={catalog} online={online} closeDialog={closeDialog} clearAll={library.clearAll} resetDevice={onResetDevice} />}
+    {dialog && <Dialog dialog={dialog} session={session} catalog={catalog} online={online} closeDialog={closeDialog} clearAll={library.clearAll} clearCache={onClearCache} unlinkDevice={onUnlinkDevice} />}
   </main>;
 }
