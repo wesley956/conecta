@@ -16,13 +16,14 @@ import { clearReconstructibleCache } from "./localMaintenance";
 import { resumableProgress, useMediaLibrary } from "./mediaLibrary";
 import type { LibraryItem } from "./mediaLibrary";
 import { MovieDetailScreen } from "./movie/MovieDetailScreen";
+import { SMART_TV_PERFORMANCE_PROFILE } from "./performanceProfile";
 import { closeApplication, isBackKey, platform } from "./platform";
 import { PlayerScreen } from "./player/PlayerScreen";
 import type { PlaybackItem } from "./player/types";
 import { useSmartTvPlayerSettings } from "./playerSettings";
 import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
 
-const PAGE_SIZE = 60;
+const PAGE_SIZE = SMART_TV_PERFORMANCE_PROFILE.catalogPageSize;
 type SuccessfulCatalogFailover = Extract<CatalogFailoverResult, { outcome: "switched" }>;
 
 function FocusableButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
