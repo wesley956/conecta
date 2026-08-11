@@ -6,6 +6,7 @@ import "./experience.css";
 import "./parity.css";
 import "./brand.css";
 import "./content.css";
+import "./detail.css";
 import "./navigation.css";
 
 createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);

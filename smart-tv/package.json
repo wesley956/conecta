@@ -17,7 +17,8 @@
     "validate:lg-branding": "node scripts/check-lg-branding.mjs",
     "validate:lg-navigation": "node scripts/check-lg-navigation.mjs",
     "validate:lg-content": "node scripts/check-lg-content.mjs",
-    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding && npm run validate:lg-navigation && npm run validate:lg-content",
+    "validate:lg-vod": "node scripts/check-lg-vod-details.mjs",
+    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding && npm run validate:lg-navigation && npm run validate:lg-content && npm run validate:lg-vod",
     "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs",
     "package:tizen": "npm run stage:tizen && node scripts/package-tizen.mjs",
     "package:tizen:signed": "npm run stage:tizen && node scripts/package-tizen.mjs --signed"
