@@ -12,6 +12,7 @@ import type { AppDialog, MainSection } from "./content/MainShell";
 import { recommendedMovies, recommendedSeries } from "./content/recommendations";
 import { focusAutofocus, moveFocus, rememberFocus, restoreFocus } from "./focus";
 import { playLaunchSoundOnce } from "./launchSound";
+import { clearReconstructibleCache } from "./localMaintenance";
 import { resumableProgress, useMediaLibrary } from "./mediaLibrary";
 import type { LibraryItem } from "./mediaLibrary";
 import { MovieDetailScreen } from "./movie/MovieDetailScreen";
@@ -127,7 +128,7 @@ export function App() {
   const [dialog, setDialog] = useState<AppDialog>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
 
-  const { session, refresh, renewConfiguration, reset } = useDeviceSession();
+  const { session, refresh, renewConfiguration, reset, unlink } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
   const appUpdate = useAppUpdate(session.status === "active");
   const library = useMediaLibrary();
@@ -380,7 +381,8 @@ export function App() {
     dialog={dialog}
     openDialog={openDialog}
     closeDialog={closeDialog}
-    onResetDevice={() => void reset()}
+    onClearCache={async () => { await clearReconstructibleCache(); catalog.retry(); }}
+    onUnlinkDevice={() => void unlink().catch(() => undefined)}
     onOpenCard={openCard}
     onOpenMovie={openMovieFromApp}
     onOpenSeries={openSeriesFromApp}
