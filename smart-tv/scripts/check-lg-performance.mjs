@@ -97,11 +97,13 @@ if (focus.includes(".sort((a, b) => a.score - b.score)")) {
 }
 
 for (const token of [
+  "TIMEUPDATE_PUBLISH_INTERVAL_MS = 500",
+  "lastTimePublishedAt",
   "this.cleanups.forEach",
   "this.cleanups = []",
   "this.video?.remove()",
   "this.video = null"
-]) requireToken(html5, token, "liberação do player HTML5 incompleta");
+]) requireToken(html5, token, "throttle/cleanup do player HTML5 incompleto");
 
 for (const token of [
   "classicizeWebOsEntry",
@@ -164,4 +166,4 @@ if (/\bimport\.meta\b/.test(javascript) || /\bimport\s*\(/.test(javascript)) {
   throw new Error("LG-09: bundle final ainda contém dependência ESM dinâmica.");
 }
 
-console.log("LG-09: Chromium 53, entrada clássica, perfis de hardware, catálogo/episódios/drawers limitados, D-pad linear, monitor estável e cleanup do player validados no bundle webOS.");
+console.log("LG-09: Chromium 53, entrada clássica, perfis de hardware, catálogo/episódios/drawers limitados, D-pad linear, timeupdate controlado e cleanup do player validados no bundle webOS.");
