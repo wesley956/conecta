@@ -1,11 +1,15 @@
 import fs from "node:fs";
 
 const read = path => fs.readFileSync(path, "utf8");
+const readIfExists = path => fs.existsSync(path) ? read(path) : "";
 const login = read("admin-panel/index.html");
 const dashboard = `${read("admin-panel/dashboard.html")}\n${read("admin-panel/dashboard.js")}`;
 const panelCss = read("admin-panel/panel-redesign.css");
 const tvApp = read("smart-tv/src/App.tsx");
-const tvStyles = `${read("smart-tv/src/styles.css")}\n${read("smart-tv/src/experience.css")}`;
+const tvShell = readIfExists("smart-tv/src/content/MainShell.tsx");
+const tvCards = readIfExists("smart-tv/src/content/cards.ts");
+const tvExperience = `${tvApp}\n${tvShell}\n${tvCards}`;
+const tvStyles = `${read("smart-tv/src/styles.css")}\n${read("smart-tv/src/experience.css")}\n${readIfExists("smart-tv/src/content.css")}`;
 const androidColors = read("native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/components/FocusableActionCard.kt");
 const androidNavigation = read("native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/navigation/MainNavigationBar.kt");
 const brand = read("docs/BRAND_VISUAL_ARCHITECTURE.md");
@@ -84,12 +88,22 @@ for (const id of [
   requireCheck(dashboard.includes(`<label for="${id}">`), `O controle ${id} perdeu o rótulo associado.`);
 }
 
-requireCheck(tvApp.includes('className="card-copy"'), "Os cards Explorar precisam separar rótulo e contagem.");
-requireCheck(tvApp.includes('featured-media ${featuredMovie?.cover ? "" : "is-placeholder"}'), "O placeholder de filme precisa de estado visual explícito.");
-requireCheck(tvApp.includes('featured-media ${featuredSeries?.cover ? "" : "is-placeholder"}'), "O placeholder de série precisa de estado visual explícito.");
+const legacyExploreCopy = tvApp.includes('className="card-copy"');
+const modularExploreCopy = tvShell.includes('className="content-quick-card"') &&
+  tvShell.includes('<span><strong>{label}</strong><small>{subtitle}</small></span>');
+requireCheck(legacyExploreCopy || modularExploreCopy, "Os cards Explorar precisam separar rótulo e contagem.");
+
+const legacyMoviePlaceholder = tvApp.includes('featured-media ${featuredMovie?.cover ? "" : "is-placeholder"}');
+const modularMoviePlaceholder = tvShell.includes('<Poster image={railMovie?.cover}') && tvExperience.includes('poster-fallback');
+requireCheck(legacyMoviePlaceholder || modularMoviePlaceholder, "O placeholder de filme precisa de estado visual explícito.");
+
+const legacySeriesPlaceholder = tvApp.includes('featured-media ${featuredSeries?.cover ? "" : "is-placeholder"}');
+const modularSeriesPlaceholder = tvShell.includes('<Poster image={featuredSeries?.cover}') && tvExperience.includes('poster-fallback');
+requireCheck(legacySeriesPlaceholder || modularSeriesPlaceholder, "O placeholder de série precisa de estado visual explícito.");
+
 requireCheck(tvStyles.includes("--muted: #a39d91"), "O texto secundário da Smart TV perdeu o token de contraste AA.");
 requireCheck(tvStyles.includes("--focus: #ff3b30"), "A Smart TV perdeu o token único de foco.");
-requireCheck(tvStyles.includes(".card-copy {"), "O espaçamento interno dos cards Explorar não está protegido.");
+requireCheck(tvStyles.includes(".card-copy {") || tvStyles.includes(".content-quick-card > span:nth-child(2)"), "O espaçamento interno dos cards Explorar não está protegido.");
 requireCheck(contrast("#a39d91", "#11100e") >= 4.5, "O texto secundário não alcança contraste AA sobre a superfície.");
 requireCheck(contrast("#a39d91", "#050505") >= 4.5, "O texto secundário não alcança contraste AA sobre o fundo.");
 
@@ -103,7 +117,7 @@ requireCheck(androidNavigation.includes("fontSize = if (isTelevision) 11.sp else
 requireCheck(androidNavigation.includes("fontSize = 10.sp"), "Os rótulos da navegação inferior ficaram pequenos demais.");
 
 for (const term of ["Cruz Stars", "Roneca Player TV", "44 × 44 px", "foco"] ) {
-  requireCheck(brand.includes(term), `A arquitetura visual não documenta: ${term}`);
+  requireCheck(brand.includes(term), `A arquitetura visual perdeu a regra documentada: ${term}`);
 }
 
-console.log("✅ Fundamentos de layout validados: hierarquia, rótulos, toque, contraste, foco e marca.");
+console.log("✅ Fundações visuais: hierarquia, rótulos, contraste, densidade e estados de foco validados.");
