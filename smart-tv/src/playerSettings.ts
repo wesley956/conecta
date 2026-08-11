@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type SmartTvBufferSeconds = 2 | 5 | 10;
 export type SmartTvAspectMode = "Original" | "Preencher" | "Estender";
@@ -11,6 +11,7 @@ export interface SmartTvPlayerSettings {
 }
 
 const STORAGE_KEY = "roneca.smart-tv.player-settings.v1";
+const SETTINGS_EVENT = "roneca:smart-tv-player-settings";
 const defaults: SmartTvPlayerSettings = {
   automaticReconnect: true,
   bufferSeconds: 5,
@@ -45,17 +46,45 @@ function write(settings: SmartTvPlayerSettings) {
   catch { /* a sessão atual continua usando a preferência */ }
 }
 
+function broadcast(settings: SmartTvPlayerSettings) {
+  try { window.dispatchEvent(new CustomEvent<SmartTvPlayerSettings>(SETTINGS_EVENT, { detail: settings })); }
+  catch { /* webOS legado pode não expor CustomEvent completo */ }
+}
+
+export function readAspectModePreference(): SmartTvAspectMode {
+  return read().aspectMode;
+}
+
+export function setAspectModePreference(aspectMode: SmartTvAspectMode) {
+  const next = normalize({ ...read(), aspectMode });
+  write(next);
+  broadcast(next);
+  return next.aspectMode;
+}
+
 export function useSmartTvPlayerSettings() {
   const [settings, setSettingsState] = useState<SmartTvPlayerSettings>(read);
+
+  useEffect(() => {
+    const onSettings = (event: Event) => {
+      const detail = (event as CustomEvent<SmartTvPlayerSettings>).detail;
+      setSettingsState(normalize(detail || read()));
+    };
+    window.addEventListener(SETTINGS_EVENT, onSettings);
+    return () => window.removeEventListener(SETTINGS_EVENT, onSettings);
+  }, []);
+
   const setSettings = useCallback((next: SmartTvPlayerSettings) => {
     const normalized = normalize(next);
     setSettingsState(normalized);
     write(normalized);
+    broadcast(normalized);
   }, []);
   const update = useCallback((patch: Partial<SmartTvPlayerSettings>) => {
     setSettingsState(current => {
       const next = normalize({ ...current, ...patch });
       write(next);
+      broadcast(next);
       return next;
     });
   }, []);
