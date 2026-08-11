@@ -13,6 +13,7 @@ interface HtmlVideoWithTracks extends HTMLVideoElement {
 }
 
 const AUTO_RESUME_WINDOW_MS = 60_000;
+const TIMEUPDATE_PUBLISH_INTERVAL_MS = 500;
 
 export class Html5Player implements PlayerAdapter {
   private video: HTMLVideoElement | null = null;
@@ -25,6 +26,7 @@ export class Html5Player implements PlayerAdapter {
   private wasPlayingBeforeSuspend = false;
   private allowLifecycleAutoPlay = false;
   private lifecyclePlayRequested = false;
+  private lastTimePublishedAt = 0;
 
   constructor(private readonly update: SnapshotListener) {}
 
@@ -37,6 +39,7 @@ export class Html5Player implements PlayerAdapter {
     video.setAttribute("webkit-playsinline", "true");
     document.body.prepend(video);
     this.video = video;
+    this.lastTimePublishedAt = 0;
     const on = (name: keyof HTMLMediaElementEventMap, handler: EventListener) => {
       video.addEventListener(name, handler);
       this.cleanups.push(() => video.removeEventListener(name, handler));
@@ -46,10 +49,19 @@ export class Html5Player implements PlayerAdapter {
     on("waiting", () => { if (!this.suspended) this.update({ buffering: true }); });
     on("stalled", () => { if (!this.suspended) this.update({ buffering: true }); });
     on("canplay", () => { if (!this.suspended) this.update({ buffering: false }); });
-    on("timeupdate", () => { if (!this.suspended) this.update({ currentTime: video.currentTime || 0 }); });
+    on("timeupdate", () => {
+      if (this.suspended) return;
+      const now = Date.now();
+      if (now - this.lastTimePublishedAt < TIMEUPDATE_PUBLISH_INTERVAL_MS && !video.ended) return;
+      this.lastTimePublishedAt = now;
+      this.update({ currentTime: video.currentTime || 0 });
+    });
     on("durationchange", () => this.update({ duration: Number.isFinite(video.duration) ? video.duration : 0 }));
     on("loadedmetadata", () => this.publishTracks());
-    on("ended", () => this.update({ status: "ended", buffering: false }));
+    on("ended", () => {
+      this.lastTimePublishedAt = 0;
+      this.update({ status: "ended", currentTime: video.currentTime || 0, buffering: false });
+    });
     on("error", () => {
       if (this.tryingSource || this.suspended) return;
       const code = video.error?.code;
@@ -123,6 +135,7 @@ export class Html5Player implements PlayerAdapter {
   seek(seconds: number) {
     if (!this.video || !Number.isFinite(this.video.duration)) return;
     this.video.currentTime = Math.max(0, Math.min(this.video.duration, this.video.currentTime + seconds));
+    this.lastTimePublishedAt = 0;
   }
 
   selectTrack(kind: "audio" | "text", index: number | null) {
@@ -143,6 +156,7 @@ export class Html5Player implements PlayerAdapter {
     if (!this.video) return;
     this.lifecyclePlayRequested = false;
     this.suspended = false;
+    this.lastTimePublishedAt = 0;
     this.video.pause();
     this.video.removeAttribute("src");
     this.video.load();
@@ -155,6 +169,7 @@ export class Html5Player implements PlayerAdapter {
     this.video?.remove();
     this.video = null;
     this.activeUrl = null;
+    this.lastTimePublishedAt = 0;
   }
 
   private suspendForLifecycle() {
@@ -166,6 +181,7 @@ export class Html5Player implements PlayerAdapter {
     this.wasPlayingBeforeSuspend = !video.paused && !video.ended;
     this.allowLifecycleAutoPlay = false;
     this.lifecyclePlayRequested = this.wasPlayingBeforeSuspend;
+    this.lastTimePublishedAt = 0;
     video.pause();
     video.removeAttribute("src");
     video.load();
@@ -210,6 +226,7 @@ export class Html5Player implements PlayerAdapter {
     });
 
     this.suspended = false;
+    this.lastTimePublishedAt = 0;
     this.update({ currentTime: position, buffering: false, status: shouldPlay ? "loading" : "paused" });
     if (shouldPlay) {
       try { await video.play(); }
