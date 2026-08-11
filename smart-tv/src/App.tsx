@@ -9,9 +9,10 @@ import { channelCard, movieCard, normalized, playableUrls, queueFromSeasons } fr
 import type { MediaCard } from "./content/cards";
 import { MainShell } from "./content/MainShell";
 import type { AppDialog, MainSection } from "./content/MainShell";
+import { recommendedMovies, recommendedSeries } from "./content/recommendations";
 import { focusAutofocus, moveFocus, rememberFocus, restoreFocus } from "./focus";
 import { playLaunchSoundOnce } from "./launchSound";
-import { useMediaLibrary } from "./mediaLibrary";
+import { resumableProgress, useMediaLibrary } from "./mediaLibrary";
 import type { LibraryItem } from "./mediaLibrary";
 import { MovieDetailScreen } from "./movie/MovieDetailScreen";
 import { closeApplication, isBackKey, platform } from "./platform";
@@ -117,6 +118,7 @@ export function App() {
   const [playback, setPlayback] = useState<PlaybackItem | null>(null);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
+  const [seriesSeasonMemory, setSeriesSeasonMemory] = useState<Record<string, number>>({});
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
   const [channelFavoritesOnly, setChannelFavoritesOnly] = useState(false);
@@ -233,8 +235,7 @@ export function App() {
     const saved = library.history.find(value =>
       value.kind === kind && (value.contentKey === item.contentKey || (!value.contentKey && value.id === item.id))
     );
-    const canResume = !item.live && Boolean(saved?.currentTime && saved.currentTime >= 30) && Boolean(saved?.duration && saved.duration - (saved.currentTime || 0) > 60);
-    return canResume ? { ...item, startTime: saved?.currentTime } : item;
+    return !item.live && resumableProgress(saved) ? { ...item, startTime: saved?.currentTime } : item;
   }, [library.history]);
 
   const beginPlayback = useCallback((item: PlaybackItem) => {
@@ -302,40 +303,53 @@ export function App() {
     />;
   }
 
-  if (selectedMovie) return <MovieDetailScreen
-    movie={selectedMovie}
-    favorite={library.isFavorite("movie", selectedMovie.id, movieContentKey(selectedMovie))}
-    onBack={() => setSelectedMovie(null)}
-    onFavorite={() => library.toggleFavorite({
-      id: selectedMovie.id,
-      contentKey: movieContentKey(selectedMovie),
-      kind: "movie",
-      name: selectedMovie.name,
-      image: selectedMovie.cover,
-      meta: [selectedMovie.year || "", selectedMovie.category].filter(Boolean).join(" • ")
-    })}
-    related={catalog.data.movies.filter(item => item.id !== selectedMovie.id && item.category === selectedMovie.category).slice(0, 5)}
-    onOpenMovie={setSelectedMovie}
-    onPlay={beginPlayback}
-  />;
+  if (selectedMovie) {
+    const contentKey = movieContentKey(selectedMovie);
+    const progress = library.history.find(item =>
+      item.kind === "movie" && (item.contentKey === contentKey || (!item.contentKey && item.id === selectedMovie.id))
+    );
+    return <MovieDetailScreen
+      movie={selectedMovie}
+      favorite={library.isFavorite("movie", selectedMovie.id, contentKey)}
+      progress={progress}
+      onBack={() => setSelectedMovie(null)}
+      onFavorite={() => library.toggleFavorite({
+        id: selectedMovie.id,
+        contentKey,
+        kind: "movie",
+        name: selectedMovie.name,
+        image: selectedMovie.cover,
+        meta: [selectedMovie.year || "", selectedMovie.category].filter(Boolean).join(" • ")
+      })}
+      related={recommendedMovies(selectedMovie, catalog.data.movies)}
+      onOpenMovie={setSelectedMovie}
+      onPlay={beginPlayback}
+    />;
+  }
 
-  if (selectedSeries) return <SeriesDetailScreen
-    series={selectedSeries}
-    playlistId={catalog.activePlaylistId || session.selectedPlaylistId}
-    favorite={library.isFavorite("series", selectedSeries.id, seriesContentKey(selectedSeries))}
-    recommendations={catalog.data.series.filter(item => item.id !== selectedSeries.id && item.category === selectedSeries.category).slice(0, 5)}
-    onBack={() => setSelectedSeries(null)}
-    onFavorite={() => library.toggleFavorite({
-      id: selectedSeries.id,
-      contentKey: seriesContentKey(selectedSeries),
-      kind: "series",
-      name: selectedSeries.name,
-      image: selectedSeries.cover,
-      meta: selectedSeries.category || "Séries"
-    })}
-    onOpenRecommendation={setSelectedSeries}
-    onPlay={beginPlayback}
-  />;
+  if (selectedSeries) {
+    const contentKey = seriesContentKey(selectedSeries);
+    return <SeriesDetailScreen
+      series={selectedSeries}
+      playlistId={catalog.activePlaylistId || session.selectedPlaylistId}
+      favorite={library.isFavorite("series", selectedSeries.id, contentKey)}
+      history={library.history}
+      selectedSeasonNumber={seriesSeasonMemory[contentKey]}
+      recommendations={recommendedSeries(selectedSeries, catalog.data.series)}
+      onBack={() => setSelectedSeries(null)}
+      onFavorite={() => library.toggleFavorite({
+        id: selectedSeries.id,
+        contentKey,
+        kind: "series",
+        name: selectedSeries.name,
+        image: selectedSeries.cover,
+        meta: selectedSeries.category || "Séries"
+      })}
+      onSelectedSeasonChange={seasonNumber => setSeriesSeasonMemory(current => ({ ...current, [contentKey]: seasonNumber }))}
+      onOpenRecommendation={setSelectedSeries}
+      onPlay={beginPlayback}
+    />;
+  }
 
   if (session.status !== "active") {
     return <ActivationScreen session={session} onRefresh={() => void refresh()} onReset={() => void reset()} />;
