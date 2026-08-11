@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { resizePngFile } from "./png-brand-derivatives.mjs";
 
 const root = process.cwd();
 const source = path.join(root, "platforms", "webos-hosted");
@@ -15,6 +16,7 @@ const officialAppIcon = path.resolve(
   "drawable-nodpi",
   "ic_app.png"
 );
+const sellerLoungeIcon = path.join(root, "artifacts", "lg-seller-lounge-icon-400.png");
 const channel = process.env.RONECA_TV_HOSTED_CHANNEL === "test" ? "test" : "stable";
 const rawUrl = process.env.RONECA_TV_HOSTED_URL || "https://conecta-five-iota.vercel.app/tv/";
 const hostedUrl = rawUrl.endsWith("/") ? rawUrl : rawUrl + "/";
@@ -48,7 +50,8 @@ fs.writeFileSync(
   path.join(output, "index.html"),
   replace(fs.readFileSync(path.join(source, "index.template.html"), "utf8"))
 );
-fs.copyFileSync(officialAppIcon, path.join(output, "icon.png"));
-fs.copyFileSync(officialAppIcon, path.join(output, "largeIcon.png"));
+resizePngFile(officialAppIcon, path.join(output, "icon.png"), 80, 80);
+resizePngFile(officialAppIcon, path.join(output, "largeIcon.png"), 130, 130);
+resizePngFile(officialAppIcon, sellerLoungeIcon, 400, 400);
 
 console.log(`Pacote LG hospedado preparado para o canal ${channel}: ${hostedUrl}`);

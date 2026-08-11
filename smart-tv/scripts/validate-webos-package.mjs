@@ -45,13 +45,14 @@ try {
   fail(`appinfo.json não é JSON válido: ${error instanceof Error ? error.message : String(error)}`);
 }
 
-const requiredFields = ["id", "version", "vendor", "type", "main", "title", "icon", "largeIcon"];
+const requiredFields = ["id", "version", "vendor", "type", "main", "title", "icon", "largeIcon", "resolution"];
 for (const field of requiredFields) {
   if (typeof appInfo[field] !== "string" || !appInfo[field].trim()) fail(`appinfo.json: campo ${field} ausente/vazio.`);
 }
 if (appInfo.id !== appId) fail(`App ID ${appInfo.id} não corresponde a ${appId}.`);
 if (appInfo.version !== version) fail(`Versão staged ${appInfo.version} diverge de package.json ${version}.`);
 if (appInfo.type !== "web") fail(`appinfo.json type deve ser web, encontrado ${appInfo.type}.`);
+if (appInfo.resolution !== "1920x1080") fail(`appinfo.json resolution deve ser 1920x1080, encontrado ${appInfo.resolution}.`);
 
 const stagedRoot = path.resolve(stagedDir);
 for (const relativeFile of [appInfo.main, appInfo.icon, appInfo.largeIcon]) {
@@ -119,6 +120,7 @@ const metadata = {
   generatedAt: new Date().toISOString(),
   validation: {
     manifest: true,
+    resolutionFhd: true,
     referencedAssets: true,
     ipkArStructure: true,
     ipkRequiredFiles: true
@@ -130,4 +132,4 @@ fs.writeFileSync(path.join(artifactsDir, "webos-release-metadata.json"), `${JSON
 
 console.log(`LG-01: ${path.basename(ipkPath)} validado.`);
 console.log(`LG-01: SHA-256 ${sha256}`);
-console.log(`LG-01: ${sizeBytes} bytes; versão ${version}; baseline Android ${baselineAndroid}.`);
+console.log(`LG-01: ${sizeBytes} bytes; versão ${version}; resolução ${appInfo.resolution}; baseline Android ${baselineAndroid}.`);
