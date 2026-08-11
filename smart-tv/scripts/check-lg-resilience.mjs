@@ -14,6 +14,7 @@ function requireToken(source, token, message) {
   if (!source.includes(token)) throw new Error(`LG-07: ${message}: ${token}`);
 }
 
+const app = read("src/App.tsx");
 const player = read("src/player/PlayerScreen.tsx");
 const policy = read("src/player/failurePolicy.ts");
 const catalog = read("src/catalog.ts");
@@ -56,6 +57,7 @@ if (failoverBody.includes("reportPlaylistSuccess(candidate.id)")) {
 }
 requireToken(catalog, "confirmPlaybackStable", "confirmação de saúde após playback estável ausente");
 requireToken(catalog, "Validando reprodução", "estado intermediário de failover ausente");
+requireToken(app, "onStablePlayback={catalog.confirmPlaybackStable}", "App não confirma a lista após playback estável");
 
 if (!fs.existsSync(output)) throw new Error("LG-07: execute stage:webos/package:webos antes da validação do bundle.");
 const assets = path.join(output, "assets");
