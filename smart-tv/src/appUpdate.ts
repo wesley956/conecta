@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { sanitizeDiagnosticText } from "./diagnosticSafety";
 import { APP_VERSION } from "./deviceSession";
 import { platform } from "./platform";
 
@@ -41,38 +42,56 @@ async function checkLatest(): Promise<TvAppUpdate | null> {
   const credential = readStored("deviceCredential");
   if (!deviceCode || !deviceUuid || !credential) return null;
 
-  const response = await fetch(RELEASE_URL, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "x-device-credential": credential
-    },
-    body: JSON.stringify({ action: "manifest", platform, deviceCode, deviceUuid }),
-    cache: "no-store",
-    redirect: "error"
-  });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error("Não foi possível consultar atualizações.");
-  const release = await response.json() as TvAppUpdate;
-  return isNewer(release.versionName, APP_VERSION) ? release : null;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(RELEASE_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "x-device-credential": credential
+      },
+      body: JSON.stringify({ action: "manifest", platform, deviceCode, deviceUuid }),
+      cache: "no-store",
+      redirect: "error",
+      signal: controller.signal
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error("Não foi possível consultar a versão Stable.");
+    const release = await response.json() as TvAppUpdate;
+    return release;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("A consulta da versão Stable excedeu o tempo limite.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function useAppUpdate(enabled: boolean) {
+  const [latest, setLatest] = useState<TvAppUpdate | null>(null);
   const [update, setUpdate] = useState<TvAppUpdate | null>(null);
   const [checking, setChecking] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!enabled) return null;
     setChecking(true);
+    setError(null);
     try {
-      const latest = await checkLatest();
-      setUpdate(latest);
-      return latest;
-    } catch {
+      const release = await checkLatest();
+      setLatest(release);
+      const available = release && isNewer(release.versionName, APP_VERSION) ? release : null;
+      setUpdate(available);
+      return available;
+    } catch (failure) {
+      setError(sanitizeDiagnosticText(failure instanceof Error ? failure.message : failure, 220) || "Falha ao verificar atualização.");
       return null;
     } finally {
+      setLastCheckedAt(new Date().toISOString());
       setChecking(false);
     }
   }, [enabled]);
@@ -84,5 +103,13 @@ export function useAppUpdate(enabled: boolean) {
     return () => window.clearInterval(timer);
   }, [enabled, refresh]);
 
-  return { update, checking, refresh, dismiss: () => setUpdate(null) };
+  return {
+    latest,
+    update,
+    checking,
+    lastCheckedAt,
+    error,
+    refresh,
+    dismiss: () => setUpdate(null)
+  };
 }
