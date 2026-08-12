@@ -46,8 +46,9 @@ import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
 import kotlinx.coroutines.delay
 
 /**
- * Painel secundário da tela de catálogo. Ele é renderizado dentro do conteúdo,
- * portanto o rail principal permanece visível à esquerda sem disputar foco.
+ * Painel fixo da tela de catálogo para TV. A largura usa 18% da área disponível,
+ * deixando o catálogo como elemento principal; em mobile os chips clássicos são
+ * preservados pelas telas consumidoras.
  */
 @Composable
 fun TvCategorySidePanel(
@@ -69,38 +70,38 @@ fun TvCategorySidePanel(
 
     Column(
         modifier = modifier
-            .width(320.dp)
+            .fillMaxWidth(0.18f)
             .fillMaxHeight()
             .background(RonecaColors.SurfaceOverlay)
             .border(width = 1.dp, color = RonecaColors.Border)
-            .padding(start = 20.dp, end = 16.dp, top = 24.dp, bottom = 18.dp),
+            .padding(start = 12.dp, end = 10.dp, top = 16.dp, bottom = 12.dp),
     ) {
         Text(
             text = title.uppercase(),
             color = RonecaColors.Primary,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp,
+            letterSpacing = 1.2.sp,
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = "Categorias",
             color = RonecaColors.TextPrimary,
-            fontSize = 24.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = "${categories.size} opções",
             color = RonecaColors.TextSecondary,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 3.dp, vertical = 3.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             itemsIndexed(categories, key = { _, category -> category }) { index, category ->
                 val selected = category == selectedCategory
@@ -145,12 +146,12 @@ private fun TvCategorySidePanelRow(
 ) {
     var focused by remember(label) { mutableStateOf(false) }
     val interaction = remember(label) { MutableInteractionSource() }
-    val shape = RoundedCornerShape(13.dp)
+    val shape = RoundedCornerShape(10.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .ronecaFocusScale(focused = focused, focusedScale = 1.018f)
+            .ronecaFocusScale(focused = focused, focusedScale = 1.012f)
             .clip(shape)
             .background(
                 when {
@@ -191,14 +192,14 @@ private fun TvCategorySidePanelRow(
             }
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .focusable()
-            .padding(horizontal = 15.dp, vertical = 13.dp),
+            .padding(horizontal = 10.dp, vertical = 9.dp),
     ) {
         if (focused) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .width(4.dp)
-                    .height(28.dp)
+                    .width(3.dp)
+                    .height(22.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(RonecaColors.RedStrong),
             )
@@ -206,7 +207,7 @@ private fun TvCategorySidePanelRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = if (focused) 10.dp else 0.dp),
+                .padding(start = if (focused) 7.dp else 0.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -214,19 +215,19 @@ private fun TvCategorySidePanelRow(
                 text = label,
                 modifier = Modifier.weight(1f),
                 color = RonecaColors.TextPrimary,
-                fontSize = 15.sp,
+                fontSize = 13.sp,
                 fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = buildString {
                     if (count != null) append(count)
                     if (selected) append("  ✓")
                 },
                 color = if (focused) RonecaColors.TextPrimary else RonecaColors.PrimaryStrong,
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
             )
         }

@@ -35,6 +35,7 @@ app. O player continua sob `NativePlaybackKeyRouter` e controles Media3.
 - `Configurações > Interface > Exibição das categorias` oferece `Clássica` e `Painel lateral`;
 - `Clássica` é o padrão compatível e preserva a faixa horizontal do APK publicado;
 - `Painel lateral` mantém as categorias fixas à esquerda e suporta 100+ opções;
+- em TV/TV Box, o painel ocupa 18% da tela, com tipografia e espaçamento compactos;
 - nesse modo, o rail principal fica totalmente recolhido enquanto o catálogo está aberto;
 - a categoria atual usa check; o foco usa escala, borda vermelha de 3 dp e marcador lateral;
 - `OK` aplica sem remover o painel e foca o primeiro item coerente do grid;
