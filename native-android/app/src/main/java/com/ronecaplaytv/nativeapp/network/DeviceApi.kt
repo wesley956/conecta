@@ -2,6 +2,9 @@ package com.ronecaplaytv.nativeapp.network
 
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.activation.DeviceSourceEndpoint
+import com.ronecaplaytv.nativeapp.activation.SupportContactPolicy
+import com.ronecaplaytv.nativeapp.activation.SupportProfile
+import com.ronecaplaytv.nativeapp.activation.SupportProfileSource
 import com.ronecaplaytv.nativeapp.catalog.NativeEpisode
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import kotlinx.coroutines.Dispatchers
@@ -209,6 +212,7 @@ data class DeviceActivationResponse(
     val credentialIssued: Boolean,
     val clientName: String?,
     val expiresAt: String?,
+    val supportProfile: SupportProfile,
     val message: String?,
 ) {
     companion object {
@@ -221,6 +225,7 @@ data class DeviceActivationResponse(
             credentialIssued = json.optBoolean("credentialIssued", false),
             clientName = json.optNullableString("clientName"),
             expiresAt = json.optNullableString("expiresAt"),
+            supportProfile = json.optSupportProfile(),
             message = json.optNullableString("message"),
         )
     }
@@ -240,6 +245,7 @@ data class DeviceConfigResponse(
     val moviesUrl: String?,
     val seriesUrl: String?,
     val playlists: List<DevicePlaylistConfig>,
+    val supportProfile: SupportProfile,
     val message: String?,
 ) {
     companion object {
@@ -305,6 +311,7 @@ data class DeviceConfigResponse(
                 moviesUrl = cacheParts?.optNullableString("moviesUrl"),
                 seriesUrl = cacheParts?.optNullableString("seriesUrl"),
                 playlists = playlists,
+                supportProfile = json.optSupportProfile(),
                 message = json.optNullableString("message"),
             )
         }
@@ -382,4 +389,35 @@ data class SeriesEpisodesResponse(
 private fun JSONObject.optNullableString(key: String): String? {
     if (!has(key) || isNull(key)) return null
     return optString(key).trim().takeIf { it.isNotEmpty() }
+}
+
+private fun JSONObject.optSupportProfile(): SupportProfile {
+    val profile = optJSONObject("supportProfile") ?: return SupportProfile.generic()
+    if (!profile.optBoolean("showInApp", true)) return SupportProfile.generic()
+
+    val source = when (profile.optString("source").trim().lowercase()) {
+        "seller" -> SupportProfileSource.Seller
+        "system" -> SupportProfileSource.System
+        else -> SupportProfileSource.Generic
+    }
+    val displayName = profile.optNullableString("displayName")
+        ?.take(120)
+        ?: "Suporte"
+    val whatsapp = profile.optNullableString("whatsapp")
+        ?.takeIf { SupportContactPolicy.safeWhatsappUri(it) != null }
+    val email = profile.optNullableString("email")
+        ?.takeIf { SupportContactPolicy.safeEmailUri(it) != null }
+    val contactUrl = profile.optNullableString("contactUrl")
+        ?.let(SupportContactPolicy::safeHttpsUri)
+
+    return SupportProfile(
+        source = source,
+        displayName = displayName,
+        whatsapp = whatsapp,
+        email = email,
+        supportText = profile.optNullableString("supportText")?.take(280),
+        businessHours = profile.optNullableString("businessHours")?.take(160),
+        contactUrl = contactUrl,
+        showInApp = true,
+    )
 }

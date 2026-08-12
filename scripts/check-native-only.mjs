@@ -82,6 +82,8 @@ const performanceFiles = {
     'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/playback/PlaybackScreen.kt',
   build:
     'native-android/app/build.gradle.kts',
+  navigationPolicy:
+    'native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/navigation/TvNavigationPolicy.kt',
 };
 
 const performanceSources = Object.fromEntries(
@@ -96,7 +98,8 @@ for (const [key, marker] of [
   if (!performanceSources[key].includes(marker)) {
     throw new Error(`${performanceFiles[key]} voltou a reconstruir todos os IDs durante o foco.`);
   }
-  if (!performanceSources[key].includes('KeyEventType.KeyDown')) {
+  if (!performanceSources[key].includes('isRonecaActivationKey') ||
+      !performanceSources.navigationPolicy.includes('type != KeyEventType.KeyDown')) {
     throw new Error(`${performanceFiles[key]} deve responder ao primeiro pressionamento de OK.`);
   }
 }

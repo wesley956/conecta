@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -49,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.R
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -65,10 +69,19 @@ enum class MainTab(val label: String) {
 fun MainNavigationRail(
     selectedTab: MainTab,
     isTelevision: Boolean,
+    focusRequestKey: Int = 0,
     onSelect: (MainTab) -> Unit,
 ) {
     val railWidth = if (isTelevision) 108.dp else 84.dp
     val scrollState = rememberScrollState()
+    val selectedTabRequester = remember { FocusRequester() }
+
+    LaunchedEffect(focusRequestKey, selectedTab) {
+        if (focusRequestKey > 0) {
+            delay(40)
+            runCatching { selectedTabRequester.requestFocus() }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -104,6 +117,11 @@ fun MainNavigationRail(
                     tab = tab,
                     selected = tab == selectedTab,
                     isTelevision = isTelevision,
+                    modifier = if (tab == selectedTab) {
+                        Modifier.focusRequester(selectedTabRequester)
+                    } else {
+                        Modifier
+                    },
                     onClick = { onSelect(tab) },
                 )
             }
@@ -118,10 +136,15 @@ fun MainNavigationRail(
         )
         Spacer(modifier = Modifier.height(7.dp))
         RailItem(
-            tab = MainTab.Settings,
-            selected = selectedTab == MainTab.Settings,
-            isTelevision = isTelevision,
-            onClick = { onSelect(MainTab.Settings) },
+        tab = MainTab.Settings,
+        selected = selectedTab == MainTab.Settings,
+        isTelevision = isTelevision,
+        modifier = if (selectedTab == MainTab.Settings) {
+            Modifier.focusRequester(selectedTabRequester)
+        } else {
+            Modifier
+        },
+        onClick = { onSelect(MainTab.Settings) },
         )
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -166,6 +189,7 @@ private fun RailItem(
     tab: MainTab,
     selected: Boolean,
     isTelevision: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -175,7 +199,7 @@ private fun RailItem(
     val height = if (isTelevision) 54.dp else 42.dp
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .width(width)
             .height(height)
             .clip(RoundedCornerShape(11.dp))
@@ -187,7 +211,11 @@ private fun RailItem(
                 },
             )
             .border(
-                width = if (active) 1.dp else 0.dp,
+                width = when {
+                    focused -> 3.dp
+                    selected -> 1.dp
+                    else -> 0.dp
+                },
                 color = when {
                     focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary.copy(alpha = 0.68f)

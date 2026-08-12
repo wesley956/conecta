@@ -1,0 +1,118 @@
+name: Build isolated Android homologation candidate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'native-android/**'
+      - 'scripts/check-native-only.mjs'
+      - '.github/workflows/build-native-android-homologation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-android-homologation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    name: Isolated APK for manual homologation only
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact candidate commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install and validate complete candidate contract
+        run: |
+          npm ci
+          npm run verify
+          node scripts/check-native-only.mjs
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: yes | sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
+
+      - name: Test and assemble isolated optimized APK
+        working-directory: native-android
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleHomologation
+
+      - name: Verify identity and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^[[:space:]]*versionName = "\([^"]*\)"/\1/p' native-android/app/build.gradle.kts | head -n1)
+          VERSION_CODE=$(sed -n 's/^[[:space:]]*versionCode = \([0-9][0-9]*\)/\1/p' native-android/app/build.gradle.kts | head -n1)
+          SHORT_SHA=$(printf '%s' "$GITHUB_SHA" | cut -c1-8)
+          APK_SOURCE="native-android/app/build/outputs/apk/homologation/app-homologation.apk"
+          APK_NAME="ronecaPlayerTV-homologacao-v${VERSION}-code${VERSION_CODE}-${SHORT_SHA}.apk"
+
+          mkdir -p homologation
+          cp "$APK_SOURCE" "homologation/$APK_NAME"
+
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          "$APKSIGNER" verify --verbose "homologation/$APK_NAME"
+
+          BADGING=$($AAPT dump badging "homologation/$APK_NAME" | head -n1)
+          printf '%s' "$BADGING" | grep -F "package: name='com.ronecaplaytv.nativeapp.homologation'"
+          printf '%s' "$BADGING" | grep -F "versionCode='$VERSION_CODE'"
+          printf '%s' "$BADGING" | grep -F "versionName='${VERSION}-homologacao'"
+
+          APK_SHA256=$(sha256sum "homologation/$APK_NAME" | awk '{print $1}')
+          APK_SIZE_BYTES=$(stat -c '%s' "homologation/$APK_NAME")
+          printf '%s  %s\n' "$APK_SHA256" "$APK_NAME" > "homologation/$APK_NAME.sha256"
+
+          jq -n \
+            --arg purpose "manual-homologation-only" \
+            --arg packageName "com.ronecaplaytv.nativeapp.homologation" \
+            --arg versionName "${VERSION}-homologacao" \
+            --argjson versionCode "$VERSION_CODE" \
+            --arg commit "$GITHUB_SHA" \
+            --arg apk "$APK_NAME" \
+            --arg sha256 "$APK_SHA256" \
+            --argjson sizeBytes "$APK_SIZE_BYTES" \
+            '{
+              purpose: $purpose,
+              productionRelease: false,
+              updaterPublished: false,
+              productionSigningKeyUsed: false,
+              packageName: $packageName,
+              versionName: $versionName,
+              versionCode: $versionCode,
+              commit: $commit,
+              apk: $apk,
+              sha256: $sha256,
+              sizeBytes: $sizeBytes
+            }' > homologation/homologation-manifest.json
+
+      - name: Upload private homologation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ronecaPlayerTV-isolated-homologation-${{ github.sha }}
+          path: homologation/
+          if-no-files-found: error
+          retention-days: 30

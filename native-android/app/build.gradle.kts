@@ -26,8 +26,8 @@ android {
         applicationId = "com.ronecaplaytv.nativeapp"
         minSdk = 23
         targetSdk = 36
-        versionCode = 46
-        versionName = "2.9.5"
+        versionCode = 47
+        versionName = "2.9.6"
 
         buildConfigField(
             "String",
@@ -63,6 +63,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+        create("homologation") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".homologation"
+            versionNameSuffix = "-homologacao"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
         }
     }
 
@@ -101,6 +108,7 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.4.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("com.google.zxing:core:3.5.4")
 
     testImplementation("junit:junit:4.13.2")
 }

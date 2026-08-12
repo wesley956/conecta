@@ -1,5 +1,6 @@
 package com.ronecaplaytv.nativeapp.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -52,6 +54,7 @@ import com.ronecaplaytv.nativeapp.ui.search.SearchScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesDetailScreen
 import com.ronecaplaytv.nativeapp.ui.series.SeriesScreen
 import com.ronecaplaytv.nativeapp.ui.settings.PlaylistDiagnosticsState
+import com.ronecaplaytv.nativeapp.ui.settings.CategoryDisplayMode
 import com.ronecaplaytv.nativeapp.ui.settings.SettingsScreen
 import com.ronecaplaytv.nativeapp.ui.theme.RonecaPlayTVTheme
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
@@ -229,6 +232,9 @@ fun RonecaPlayTVApp(
     var activeSeriesPlayback by remember { mutableStateOf<ActiveSeriesPlayback?>(null) }
     var pendingSeriesResume by remember { mutableStateOf<Pair<NativeSeries, SavedProgress>?>(null) }
     var settingsState by remember { mutableStateOf(playerSettingsPreferences.load()) }
+    var mainNavigationFocusRequestKey by remember { mutableStateOf(0) }
+    var categoryPanelFocusRequestKey by remember { mutableStateOf(0) }
+    var mainNavigationOverlayOpen by remember { mutableStateOf(false) }
     var favoriteChannelIds by remember { mutableStateOf(playbackPreferences.favoriteChannels()) }
     var favoriteMovieIds by remember { mutableStateOf(playbackPreferences.favoriteMovies()) }
     var favoriteSeriesIds by remember { mutableStateOf(playbackPreferences.favoriteSeries()) }
@@ -341,6 +347,8 @@ fun RonecaPlayTVApp(
     ) {
         if (sessionState.isActive) {
             catalogViewModel.load(
+                accessStatus = sessionState.status,
+                deviceCode = sessionState.deviceCode,
                 channelsUrl = sessionState.channelsUrl,
                 moviesUrl = sessionState.moviesUrl,
                 seriesUrl = sessionState.seriesUrl,
@@ -371,6 +379,8 @@ fun RonecaPlayTVApp(
     fun refreshCatalog() {
         activationViewModel.refresh()
         catalogViewModel.load(
+            accessStatus = sessionState.status,
+            deviceCode = sessionState.deviceCode,
             channelsUrl = sessionState.channelsUrl,
             moviesUrl = sessionState.moviesUrl,
             seriesUrl = sessionState.seriesUrl,
@@ -650,6 +660,8 @@ fun RonecaPlayTVApp(
     }
 
     fun selectMainTab(tab: MainTab) {
+        mainNavigationOverlayOpen = false
+        categoryPanelFocusRequestKey += 1
         destination = when (tab) {
             MainTab.Home -> NativeDestination.Home
             MainTab.Channels -> NativeDestination.Channels
@@ -773,6 +785,33 @@ fun RonecaPlayTVApp(
         NativeDestination.Playback,
         NativeDestination.Settings,
     )
+    val fixedCategoryPanelActive = isWideLayout &&
+        settingsState.categoryDisplayMode == CategoryDisplayMode.SidePanel &&
+        baseDestination in setOf(
+            NativeDestination.Channels,
+            NativeDestination.Movies,
+            NativeDestination.Series,
+        )
+
+    fun openMainNavigationOverlay() {
+        if (!mainNavigationOverlayOpen) {
+            mainNavigationOverlayOpen = true
+            mainNavigationFocusRequestKey += 1
+        }
+    }
+
+    BackHandler(enabled = sessionState.isActive && fixedCategoryPanelActive) {
+        if (mainNavigationOverlayOpen) {
+            mainNavigationOverlayOpen = false
+            categoryPanelFocusRequestKey += 1
+        } else {
+            openMainNavigationOverlay()
+        }
+    }
+
+    LaunchedEffect(fixedCategoryPanelActive) {
+        if (!fixedCategoryPanelActive) mainNavigationOverlayOpen = false
+    }
 
     RonecaPlayTVTheme {
         if (!sessionState.isActive) {
@@ -823,6 +862,9 @@ fun RonecaPlayTVApp(
                     NativeDestination.Channels -> ChannelsScreen(
                         channels = catalogState.channels,
                         isTelevision = isWideLayout,
+                        categoryDisplayMode = settingsState.categoryDisplayMode,
+                        categoryPanelFocusRequestKey = categoryPanelFocusRequestKey,
+                        onRequestMainNavigationFocus = ::openMainNavigationOverlay,
                         favoriteIds = favoriteChannelDisplayIds,
                         onToggleFavorite = { channel ->
                             favoriteChannelIds = playbackPreferences.toggleFavoriteChannel(
@@ -835,6 +877,9 @@ fun RonecaPlayTVApp(
                     NativeDestination.Movies -> MoviesScreen(
                         movies = catalogState.movies,
                         isTelevision = isWideLayout,
+                        categoryDisplayMode = settingsState.categoryDisplayMode,
+                        categoryPanelFocusRequestKey = categoryPanelFocusRequestKey,
+                        onRequestMainNavigationFocus = ::openMainNavigationOverlay,
                         favoriteIds = favoriteMovieDisplayIds,
                         startedIds = startedMovieIds,
                         onOpenDetails = { movie -> openMovieDetails(movie, NativeDestination.Movies) },
@@ -878,6 +923,9 @@ fun RonecaPlayTVApp(
                     NativeDestination.Series -> SeriesScreen(
                         series = catalogState.series,
                         isTelevision = isWideLayout,
+                        categoryDisplayMode = settingsState.categoryDisplayMode,
+                        categoryPanelFocusRequestKey = categoryPanelFocusRequestKey,
+                        onRequestMainNavigationFocus = ::openMainNavigationOverlay,
                         favoriteIds = favoriteSeriesDisplayIds,
                         startedSeriesIds = startedSeriesIds,
                         onOpenDetails = { series -> openSeriesDetails(series, NativeDestination.Series) },
@@ -994,6 +1042,7 @@ fun RonecaPlayTVApp(
                             movies = catalogState.movies.size,
                             series = catalogState.series.size,
                         ),
+                        supportProfile = sessionState.supportProfile,
                         onStateChange = { updated ->
                             settingsState = updated
                             playerSettingsPreferences.save(updated)
@@ -1008,7 +1057,28 @@ fun RonecaPlayTVApp(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            if (destination != NativeDestination.Player && showMainNavigation && isWideLayout) {
+            if (destination != NativeDestination.Player && fixedCategoryPanelActive) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(RonecaColors.Background),
+                ) {
+                    screenContent()
+                    if (mainNavigationOverlayOpen) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.56f)),
+                        )
+                        MainNavigationRail(
+                            selectedTab = selectedTab,
+                            isTelevision = isTelevision || settingsState.forceTvMode,
+                            focusRequestKey = mainNavigationFocusRequestKey,
+                            onSelect = ::selectMainTab,
+                        )
+                    }
+                }
+            } else if (destination != NativeDestination.Player && showMainNavigation && isWideLayout) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1017,6 +1087,7 @@ fun RonecaPlayTVApp(
                     MainNavigationRail(
                         selectedTab = selectedTab,
                         isTelevision = isTelevision || settingsState.forceTvMode,
+                        focusRequestKey = mainNavigationFocusRequestKey,
                         onSelect = ::selectMainTab,
                     )
                     Box(

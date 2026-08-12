@@ -171,6 +171,8 @@ fun SeriesNativePlayerScreen(
                 setHandleAudioBecomingNoisy(true)
             }
     }
+    val subtitleController = rememberPlayerSubtitleController(player)
+    val currentSubtitlePanelVisible = rememberUpdatedState(subtitleController.panelVisible)
 
     fun recoverOrFail(failure: PlaybackFailure) {
         if (!automaticReconnect) {
@@ -200,6 +202,7 @@ fun SeriesNativePlayerScreen(
             coroutineScope.launch {
                 delay(retryDelayMs)
                 currentSources.getOrNull(sourceIndex)?.let { source ->
+                    subtitleController.resetForContentChange()
                     player.setMediaItem(mediaItemForSeries(source))
                     if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
                     player.prepare()
@@ -266,6 +269,23 @@ fun SeriesNativePlayerScreen(
         }
     }
 
+    fun openSubtitlePanel() {
+        if (subtitleController.options.isEmpty()) return
+        episodeDrawerVisible = false
+        controlsVisible = false
+        media3Controller?.hideController()
+        subtitleController.openPanel()
+    }
+
+    fun closeSubtitlePanel() {
+        subtitleController.closePanel()
+        coroutineScope.launch {
+            delay(80)
+            controlsVisible = true
+            media3Controller?.showAndFocusSubtitles()
+        }
+    }
+
     fun selectEntry(index: Int, resumePositionMs: Long, notify: Boolean) {
         val entry = entries.getOrNull(index) ?: return
         currentIndex = index
@@ -297,6 +317,7 @@ fun SeriesNativePlayerScreen(
             playerMessage = "Este episódio não possui uma fonte válida."
             return@LaunchedEffect
         }
+        subtitleController.resetForContentChange()
         player.setMediaItem(mediaItemForSeries(source))
         player.prepare()
         if (pendingSeekMs > 0L) {
@@ -425,7 +446,11 @@ fun SeriesNativePlayerScreen(
             when (event.keyCode) {
                 AndroidKeyEvent.KEYCODE_BACK -> {
                     if (actionUp) {
-                        if (currentEpisodeDrawerVisible.value) closeDrawer() else onBack()
+                        when {
+                            currentSubtitlePanelVisible.value -> closeSubtitlePanel()
+                            currentEpisodeDrawerVisible.value -> closeDrawer()
+                            else -> onBack()
+                        }
                     }
                     true
                 }
@@ -468,7 +493,11 @@ fun SeriesNativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
                 AndroidKeyEvent.KEYCODE_SPACE,
                 -> {
-                    if (currentEpisodeDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentEpisodeDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (initialActionDown) togglePlayPause()
@@ -477,7 +506,11 @@ fun SeriesNativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (currentEpisodeDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentEpisodeDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (actionDown) seekBy(-SERIES_SEEK_STEP_MS)
@@ -486,7 +519,11 @@ fun SeriesNativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (currentEpisodeDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentEpisodeDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (actionDown) seekBy(SERIES_SEEK_STEP_MS)
@@ -497,7 +534,11 @@ fun SeriesNativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_DPAD_UP,
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 -> {
-                    if (currentEpisodeDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentEpisodeDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (actionDown) showPlayPauseControls()
@@ -512,7 +553,11 @@ fun SeriesNativePlayerScreen(
     }
 
     BackHandler {
-        if (episodeDrawerVisible) closeDrawer() else onBack()
+        when {
+            subtitleController.panelVisible -> closeSubtitlePanel()
+            episodeDrawerVisible -> closeDrawer()
+            else -> onBack()
+        }
     }
 
     val chromeTitle = buildString {
@@ -534,8 +579,10 @@ fun SeriesNativePlayerScreen(
             aspectMode = resolvedAspectMode,
             drawerLabel = "Episódios",
             drawerVisible = episodeDrawerVisible,
+            subtitleTrackCount = subtitleController.options.size,
             onBack = onBack,
             onOpenDrawer = { openDrawer() },
+            onOpenSubtitles = ::openSubtitlePanel,
             onAspectModeChange = { onAspectModeChange(it.storageValue) },
             onControllerVisibilityChanged = { controlsVisible = it },
             onControllerReady = { media3Controller = it },
@@ -574,6 +621,24 @@ fun SeriesNativePlayerScreen(
                     }
                 },
                 modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+
+        if (subtitleController.panelVisible) {
+            SubtitleSelectorDialog(
+                options = subtitleController.options,
+                selectedId = subtitleController.selectedId,
+                disabled = subtitleController.explicitlyDisabled,
+                isTelevision = isTelevision,
+                onDisable = {
+                    subtitleController.disable()
+                    closeSubtitlePanel()
+                },
+                onSelect = { optionId ->
+                    subtitleController.select(optionId)
+                    closeSubtitlePanel()
+                },
+                onDismiss = ::closeSubtitlePanel,
             )
         }
     }

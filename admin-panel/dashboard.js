@@ -95,6 +95,7 @@ function setTab(tab) {
     playlists: ['Negócio', 'Listas', 'Organize as listas e entenda onde cada uma está em uso.'],
     audit: ['Controle', 'Histórico', 'Consulte alterações importantes sem misturar auditoria com a rotina.'],
     app: ['Distribuição', 'Aplicativo', 'Baixe o APK ou gere um link temporário para o Downloader.'],
+    support: ['Configurações', 'Suporte oficial', 'Defina o contato público usado pelos aplicativos quando não houver responsável próprio.'],
   };
 
   document.querySelectorAll('.tab').forEach(btn => {
@@ -110,7 +111,7 @@ function setTab(tab) {
   if ($('adminPageTitle')) $('adminPageTitle').textContent = page[1];
   if ($('adminPageDescription')) $('adminPageDescription').textContent = page[2];
   const navMore = $('adminNavMore');
-  const overflowTabs = new Set(['customers', 'playlists', 'audit', 'app']);
+  const overflowTabs = new Set(['customers', 'playlists', 'audit', 'app', 'support']);
   if (navMore) {
     navMore.classList.toggle('active', overflowTabs.has(tab));
     const summaryLabel = navMore.querySelector('summary span');
@@ -122,6 +123,7 @@ function setTab(tab) {
     if (window.matchMedia('(max-width: 820px)').matches) navMore.open = false;
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (tab === 'support') window.RonecaSupportProfile?.loadAll();
 }
 
 function normalize(value) {

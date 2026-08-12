@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -39,13 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -55,13 +53,20 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.TvCategorySidePanel
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
+import com.ronecaplaytv.nativeapp.ui.navigation.deterministicFocusId
+import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
+import com.ronecaplaytv.nativeapp.ui.settings.CategoryDisplayMode
 import kotlinx.coroutines.delay
 
 @Composable
 fun ChannelsScreen(
     channels: List<NativeChannel>,
     isTelevision: Boolean,
+    categoryDisplayMode: CategoryDisplayMode,
+    categoryPanelFocusRequestKey: Int,
+    onRequestMainNavigationFocus: () -> Unit,
     favoriteIds: Set<String>,
     onToggleFavorite: (NativeChannel) -> Unit,
     onPlay: (NativeChannel) -> Unit,
@@ -72,18 +77,29 @@ fun ChannelsScreen(
     var alphabetical by rememberSaveable { mutableStateOf(false) }
     var lastFocusedChannelId by rememberSaveable { mutableStateOf<String?>(null) }
     var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
+    var focusCatalogAfterPanel by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
+    var entryFocusPending by remember { mutableStateOf(true) }
 
     val categoryState = rememberLazyListState()
     val gridState = rememberLazyGridState()
     val mobileListState = rememberLazyListState()
     val restoreFocusRequester = remember { FocusRequester() }
+    val categoryPanelRequester = remember { FocusRequester() }
 
     val categories = remember(channels) {
         listOf("Todos") + channels
             .map { it.groupTitle.ifBlank { "Outros" } }
             .distinct()
             .sorted()
+    }
+    val categoryCounts = remember(channels) {
+        buildMap {
+            put("Todos", channels.size)
+            channels.groupingBy { it.groupTitle.ifBlank { "Outros" } }
+                .eachCount()
+                .forEach { (category, count) -> put(category, count) }
+        }
     }
 
     val filteredChannels = remember(
@@ -119,27 +135,67 @@ fun ChannelsScreen(
 
     LaunchedEffect(filterSignature, filteredChannelIds, isTelevision) {
         val firstId = filteredChannelIds.firstOrNull()
-        if (appliedFilterSignature != filterSignature) {
+        val filterChanged = appliedFilterSignature != filterSignature
+        val focusedItemMissing = lastFocusedChannelId !in filteredChannelIds
+        if (filterChanged) {
             appliedFilterSignature = filterSignature
             lastFocusedChannelId = firstId
             if (filteredChannels.isNotEmpty()) {
                 if (isTelevision) gridState.scrollToItem(0) else mobileListState.scrollToItem(0)
             }
-        } else if (lastFocusedChannelId !in filteredChannelIds) {
-            lastFocusedChannelId = firstId
+        } else if (focusedItemMissing) {
+            lastFocusedChannelId = deterministicFocusId(lastFocusedChannelId, filteredChannelIds)
         }
 
-        if (isTelevision && !searchFocused && lastFocusedChannelId != null) {
+        if (
+            isTelevision && !searchFocused && lastFocusedChannelId != null &&
+            (entryFocusPending || filterChanged || focusedItemMissing)
+        ) {
             delay(100)
             runCatching { restoreFocusRequester.requestFocus() }
+            entryFocusPending = false
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RonecaColors.Background),
+    LaunchedEffect(categories, selectedCategory) {
+        if (selectedCategory !in categories) selectedCategory = "Todos"
+    }
+
+    LaunchedEffect(
+        focusCatalogAfterPanel,
+        lastFocusedChannelId,
     ) {
+        if (focusCatalogAfterPanel && lastFocusedChannelId != null) {
+            delay(140)
+            runCatching { restoreFocusRequester.requestFocus() }
+            focusCatalogAfterPanel = false
+        }
+    }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (isTelevision && categoryDisplayMode == CategoryDisplayMode.SidePanel) {
+            TvCategorySidePanel(
+                title = "TV ao vivo",
+                categories = categories,
+                selectedCategory = selectedCategory,
+                categoryCounts = categoryCounts,
+                focusRequestKey = categoryPanelFocusRequestKey,
+                selectedFocusRequester = categoryPanelRequester,
+                onSelect = { category ->
+                    focusCatalogAfterPanel = true
+                    favoritesOnly = false
+                    selectedCategory = category
+                },
+                onExitToMainMenu = onRequestMainNavigationFocus,
+                onMoveToCatalog = { focusCatalogAfterPanel = true },
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(RonecaColors.Background),
+        ) {
         val sidePadding = if (isTelevision) 24.dp else 18.dp
 
         Column(
@@ -177,11 +233,8 @@ fun ChannelsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
-                LazyRow(
-                    state = categoryState,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    item {
+                if (categoryDisplayMode == CategoryDisplayMode.SidePanel) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         FilterChip(
                             label = "Todos",
                             selected = !favoritesOnly && !alphabetical && selectedCategory == "Todos",
@@ -191,30 +244,57 @@ fun ChannelsScreen(
                                 selectedCategory = "Todos"
                             },
                         )
-                    }
-                    item {
                         FilterChip(
                             label = "Favoritos",
                             selected = favoritesOnly,
                             onClick = { favoritesOnly = !favoritesOnly },
                         )
-                    }
-                    item {
                         FilterChip(
                             label = "A-Z",
                             selected = alphabetical,
                             onClick = { alphabetical = !alphabetical },
                         )
                     }
-                    items(categories.drop(1), key = { it }) { category ->
-                        FilterChip(
-                            label = category,
-                            selected = selectedCategory == category,
-                            onClick = {
-                                favoritesOnly = false
-                                selectedCategory = category
-                            },
-                        )
+                } else {
+                    LazyRow(
+                        state = categoryState,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        item {
+                            FilterChip(
+                                label = "Todos",
+                                selected = !favoritesOnly && !alphabetical && selectedCategory == "Todos",
+                                onClick = {
+                                    favoritesOnly = false
+                                    alphabetical = false
+                                    selectedCategory = "Todos"
+                                },
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                label = "Favoritos",
+                                selected = favoritesOnly,
+                                onClick = { favoritesOnly = !favoritesOnly },
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                label = "A-Z",
+                                selected = alphabetical,
+                                onClick = { alphabetical = !alphabetical },
+                            )
+                        }
+                        items(categories.drop(1), key = { it }) { category ->
+                            FilterChip(
+                                label = category,
+                                selected = selectedCategory == category,
+                                onClick = {
+                                    favoritesOnly = false
+                                    selectedCategory = category
+                                },
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -290,11 +370,18 @@ fun ChannelsScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(filteredChannels, key = NativeChannel::id) { channel ->
-                    val focusModifier = if (channel.id == lastFocusedChannelId) {
-                        Modifier.focusRequester(restoreFocusRequester)
+                itemsIndexed(filteredChannels, key = { _, channel -> channel.id }) { index, channel ->
+                    val panelNavigationModifier = if (
+                        categoryDisplayMode == CategoryDisplayMode.SidePanel && index % 3 == 0
+                    ) {
+                        Modifier.focusProperties { left = categoryPanelRequester }
                     } else {
                         Modifier
+                    }
+                    val focusModifier = if (channel.id == lastFocusedChannelId) {
+                        panelNavigationModifier.then(Modifier.focusRequester(restoreFocusRequester))
+                    } else {
+                        panelNavigationModifier
                     }
                     ChannelItem(
                         channel = channel,
@@ -341,6 +428,7 @@ fun ChannelsScreen(
                     )
                 }
             }
+        }
         }
     }
 }
@@ -390,7 +478,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
+            .ronecaFocusScale(focused = focused)
             .clip(RoundedCornerShape(999.dp))
             .background(
                 when {
@@ -400,7 +488,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 },
             )
             .border(
-                width = if (focused) 2.dp else 1.dp,
+                width = if (focused) 3.dp else 1.dp,
                 color = when {
                     focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary
@@ -457,12 +545,8 @@ private fun ChannelItem(
                 if (it.isFocused) onFocused()
             }
             .onPreviewKeyEvent { event ->
-                val activationKey = event.key == Key.DirectionCenter ||
-                    event.key == Key.Enter ||
-                    event.key == Key.NumPadEnter ||
-                    event.key == Key.Spacebar
-                if (activationKey) {
-                    if (event.type == KeyEventType.KeyDown) onPlay()
+                if (event.isRonecaActivationKey()) {
+                    onPlay()
                     true
                 } else {
                     false

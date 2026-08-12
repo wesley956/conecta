@@ -8,6 +8,8 @@ import com.ronecaplaytv.nativeapp.network.DeviceConfigDirectApi
 import com.ronecaplaytv.nativeapp.network.DeviceConfigResponse
 import com.ronecaplaytv.nativeapp.network.ProviderAttemptApi
 import com.ronecaplaytv.nativeapp.network.ProviderAttemptReport
+import com.ronecaplaytv.nativeapp.persistence.CatalogSnapshotAccessPolicy
+import com.ronecaplaytv.nativeapp.persistence.CatalogSnapshotStore
 import com.ronecaplaytv.nativeapp.security.DeviceIdentityStore
 import com.ronecaplaytv.nativeapp.security.SecureCredentialStore
 
@@ -17,6 +19,7 @@ class DeviceSessionRepository(context: Context) {
     private val api = DeviceApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
     private val directConfigApi = DeviceConfigDirectApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
     private val providerAttemptApi = ProviderAttemptApi(BuildConfig.SUPABASE_FUNCTIONS_URL)
+    private val catalogSnapshotStore = CatalogSnapshotStore(context)
 
     suspend fun bootstrap(isTelevision: Boolean): DeviceSessionState {
         val deviceCode = identityStore.getDeviceCode()
@@ -41,6 +44,7 @@ class DeviceSessionRepository(context: Context) {
     }
 
     suspend fun resetAndActivate(isTelevision: Boolean): DeviceSessionState {
+        catalogSnapshotStore.clearAll()
         identityStore.clearDeviceCode()
         credentialStore.clear()
         return activate(isTelevision)
@@ -111,16 +115,22 @@ class DeviceSessionRepository(context: Context) {
         }
 
         if (response.active && credential == null) {
+            catalogSnapshotStore.clearAll()
             return DeviceSessionState(
                 status = DeviceAccessStatus.Blocked,
                 deviceCode = deviceCode,
                 clientName = response.clientName,
                 expiresAt = response.expiresAt,
+                supportProfile = response.supportProfile,
                 message = "Aparelho ativo, mas sem credencial local. Gere um novo código seguro.",
             )
         }
 
-        return response.toSessionState()
+        return response.toSessionState().also { state ->
+            if (CatalogSnapshotAccessPolicy.mustInvalidate(state.status)) {
+                catalogSnapshotStore.clearAll()
+            }
+        }
     }
 
     private suspend fun fetchConfig(
@@ -137,7 +147,11 @@ class DeviceSessionRepository(context: Context) {
             identityStore.saveDeviceCode(response.deviceCode)
         }
 
-        return response.toSessionState()
+        return response.toSessionState().also { state ->
+            if (CatalogSnapshotAccessPolicy.mustInvalidate(state.status)) {
+                catalogSnapshotStore.clearAll()
+            }
+        }
     }
 
     private fun DeviceActivationResponse.toSessionState() = DeviceSessionState(
@@ -145,6 +159,7 @@ class DeviceSessionRepository(context: Context) {
         deviceCode = deviceCode,
         clientName = clientName,
         expiresAt = expiresAt,
+        supportProfile = supportProfile,
         message = message,
     )
 
@@ -160,6 +175,7 @@ class DeviceSessionRepository(context: Context) {
         moviesUrl = moviesUrl,
         seriesUrl = seriesUrl,
         playlists = playlists,
+        supportProfile = supportProfile,
         message = message,
     )
 

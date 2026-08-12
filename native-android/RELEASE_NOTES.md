@@ -1,3 +1,14 @@
+# RonecaPlayTV 2.9.6
+
+- Adiciona snapshot local seguro do catálogo para reaberturas mais rápidas, sem misturar dados entre aparelhos, contas ou listas.
+- Mantém foco e navegação responsivos enquanto o catálogo é hidratado e as consultas são concluídas em segundo plano.
+- Unifica a navegação por D-pad em Canais, Filmes e Séries, com retorno previsível entre menu, categorias e conteúdo.
+- Permite escolher em `Configurações > Interface` entre categorias Clássicas e Painel lateral; em TVs, o painel compacto usa 18% da largura e mantém o foco vermelho evidente.
+- Preserva automaticamente o modo Clássico em celulares e salva a preferência visual individualmente em cada aparelho.
+- Torna a ativação responsiva e adiciona suporte oficial ou do vendedor, com contato e QR Code resolvidos pelo backend.
+- Adiciona `Configurações > Suporte` com os dados do responsável pelo dispositivo, sem telefone ou e-mail fixos no aplicativo.
+- Expõe no player as faixas de legenda detectadas pelo Media3 e permite selecionar ou desativar legendas durante a reprodução.
+
 # RonecaPlayTV 2.9.5
 
 - Consolida a identidade visual em uma única fonte: Roneca branco, Player dourado e TV vermelho.

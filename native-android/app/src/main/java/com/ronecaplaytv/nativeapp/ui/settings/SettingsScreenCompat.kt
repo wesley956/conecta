@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.ronecaplaytv.nativeapp.activation.SupportProfile
 import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import kotlinx.coroutines.delay
@@ -22,6 +23,7 @@ fun SettingsScreen(
     state: PlayerSettingsState,
     appUpdateState: AppUpdateState,
     playlistDiagnostics: PlaylistDiagnosticsState,
+    supportProfile: SupportProfile,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
     onCheckForAppUpdate: () -> Unit,
@@ -40,6 +42,7 @@ fun SettingsScreen(
         refreshMessage = refreshMessage,
         appUpdateState = appUpdateState,
         playlistDiagnostics = playlistDiagnostics,
+        supportProfile = supportProfile,
         onStateChange = { updated ->
             persistedState = updated
             preferences.save(updated)

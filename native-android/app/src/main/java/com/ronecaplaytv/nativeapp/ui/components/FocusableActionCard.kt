@@ -29,15 +29,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
 
 object RonecaColors {
     val Background = Color(0xFF080809)
@@ -100,16 +97,10 @@ fun FocusableActionCard(
             .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (!enabled || event.type != KeyEventType.KeyDown) {
+                if (!enabled) {
                     return@onPreviewKeyEvent false
                 }
-
-                val shouldActivate = event.key == Key.DirectionCenter ||
-                    event.key == Key.Enter ||
-                    event.key == Key.NumPadEnter ||
-                    event.key == Key.Spacebar
-
-                if (shouldActivate) {
+                if (event.isRonecaActivationKey()) {
                     onClick()
                     true
                 } else {

@@ -38,8 +38,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.BuildConfig
+import com.ronecaplaytv.nativeapp.activation.SupportProfile
+import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.player.PlayerAspectMode
+import com.ronecaplaytv.nativeapp.ui.support.SupportDialog
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import java.text.DateFormat
 import java.util.Date
@@ -52,6 +55,7 @@ data class PlayerSettingsState(
     val automaticReconnect: Boolean = true,
     val forceTvMode: Boolean = false,
     val launchSoundEnabled: Boolean = true,
+    val categoryDisplayMode: CategoryDisplayMode = CategoryDisplayMode.Classic,
 )
 
 data class PlaylistDiagnosticsState(
@@ -72,10 +76,13 @@ fun SettingsScreen(
     refreshMessage: String?,
     appUpdateState: AppUpdateState,
     playlistDiagnostics: PlaylistDiagnosticsState,
+    supportProfile: SupportProfile,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
     onCheckForAppUpdate: () -> Unit,
 ) {
+    var showSupportDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -98,6 +105,20 @@ fun SettingsScreen(
             )
         }
         item { CurrentProfileCard(isTelevision = isTelevision, state = state) }
+
+        item { SectionTitle("SUPORTE", isTelevision) }
+        item {
+            FocusableActionCard(
+                title = supportProfile.displayName,
+                subtitle = supportProfile.supportText ?: "Contato responsável por este aparelho.",
+                badge = if (supportProfile.primaryContactUri != null) "ABRIR" else "INFO",
+                enabled = true,
+                isTelevision = isTelevision,
+                accentColor = RonecaColors.Green,
+                modifier = Modifier.fillMaxWidth().height(if (isTelevision) 98.dp else 88.dp),
+                onClick = { showSupportDialog = true },
+            )
+        }
 
         item { SectionTitle("DIAGNÓSTICO DAS LISTAS", isTelevision) }
         item {
@@ -142,6 +163,18 @@ fun SettingsScreen(
         }
 
         item { SectionTitle("INTERFACE", isTelevision) }
+        item {
+            ChoiceSettingRow(
+                title = "Exibição das categorias",
+                subtitle = "Clássica mantém a faixa original; Painel lateral fixa as categorias e recolhe o menu principal.",
+                options = CategoryDisplayMode.entries.map(CategoryDisplayMode::label),
+                selected = state.categoryDisplayMode.label,
+                isTelevision = isTelevision,
+                onSelect = { label ->
+                    onStateChange(state.copy(categoryDisplayMode = CategoryDisplayMode.fromLabel(label)))
+                },
+            )
+        }
         item {
             ToggleSettingRow(
                 title = "Som de abertura",
@@ -188,6 +221,14 @@ fun SettingsScreen(
                 isTelevision = isTelevision,
             )
         }
+    }
+
+    if (showSupportDialog) {
+        SupportDialog(
+            profile = supportProfile,
+            isTelevision = isTelevision,
+            onDismiss = { showSupportDialog = false },
+        )
     }
 }
 

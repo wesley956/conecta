@@ -176,6 +176,8 @@ fun NativePlayerScreen(
                 }
             }
     }
+    val subtitleController = rememberPlayerSubtitleController(player)
+    val currentSubtitlePanelVisible = rememberUpdatedState(subtitleController.panelVisible)
 
     fun rebuildPlayerSession(positionMs: Long, forceSoftware: Boolean = false) {
         restartPositionMs = positionMs.coerceAtLeast(0L)
@@ -303,6 +305,23 @@ fun NativePlayerScreen(
         coroutineScope.launch {
             delay(80)
             showPlayPauseControls()
+        }
+    }
+
+    fun openSubtitlePanel() {
+        if (subtitleController.options.isEmpty()) return
+        channelDrawerVisible = false
+        controlsVisible = false
+        media3Controller?.hideController()
+        subtitleController.openPanel()
+    }
+
+    fun closeSubtitlePanel() {
+        subtitleController.closePanel()
+        coroutineScope.launch {
+            delay(80)
+            controlsVisible = true
+            media3Controller?.showAndFocusSubtitles()
         }
     }
 
@@ -442,7 +461,11 @@ fun NativePlayerScreen(
             when (event.keyCode) {
                 AndroidKeyEvent.KEYCODE_BACK -> {
                     if (actionUp) {
-                        if (currentChannelDrawerVisible.value) closeDrawer() else onBack()
+                        when {
+                            currentSubtitlePanelVisible.value -> closeSubtitlePanel()
+                            currentChannelDrawerVisible.value -> closeDrawer()
+                            else -> onBack()
+                        }
                     }
                     true
                 }
@@ -485,7 +508,11 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
                 AndroidKeyEvent.KEYCODE_SPACE,
                 -> {
-                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentChannelDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (initialActionDown) togglePlayPause()
@@ -494,7 +521,11 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentChannelDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (actionDown) seekBy(-PLAYER_SEEK_STEP_MS)
@@ -503,7 +534,11 @@ fun NativePlayerScreen(
                 }
 
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentChannelDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (actionDown) seekBy(PLAYER_SEEK_STEP_MS)
@@ -514,7 +549,11 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_DPAD_UP,
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 -> {
-                    if (currentChannelDrawerVisible.value || currentControlsVisible.value) {
+                    if (
+                        currentSubtitlePanelVisible.value ||
+                        currentChannelDrawerVisible.value ||
+                        currentControlsVisible.value
+                    ) {
                         false
                     } else {
                         if (actionDown) showPlayPauseControls()
@@ -529,7 +568,11 @@ fun NativePlayerScreen(
     }
 
     BackHandler {
-        if (channelDrawerVisible) closeDrawer() else onBack()
+        when {
+            subtitleController.panelVisible -> closeSubtitlePanel()
+            channelDrawerVisible -> closeDrawer()
+            else -> onBack()
+        }
     }
 
     Box(
@@ -546,8 +589,10 @@ fun NativePlayerScreen(
             aspectMode = resolvedAspectMode,
             drawerLabel = relatedChannels.takeIf { it.isNotEmpty() }?.let { "Canais" },
             drawerVisible = channelDrawerVisible,
+            subtitleTrackCount = subtitleController.options.size,
             onBack = onBack,
             onOpenDrawer = relatedChannels.takeIf { it.isNotEmpty() }?.let { { openDrawer() } },
+            onOpenSubtitles = ::openSubtitlePanel,
             onAspectModeChange = { onAspectModeChange(it.storageValue) },
             onControllerVisibilityChanged = { controlsVisible = it },
             onControllerReady = { media3Controller = it },
@@ -581,6 +626,24 @@ fun NativePlayerScreen(
                     onSelectChannel(channel)
                 },
                 modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+
+        if (subtitleController.panelVisible) {
+            SubtitleSelectorDialog(
+                options = subtitleController.options,
+                selectedId = subtitleController.selectedId,
+                disabled = subtitleController.explicitlyDisabled,
+                isTelevision = isTelevision,
+                onDisable = {
+                    subtitleController.disable()
+                    closeSubtitlePanel()
+                },
+                onSelect = { optionId ->
+                    subtitleController.select(optionId)
+                    closeSubtitlePanel()
+                },
+                onDismiss = ::closeSubtitlePanel,
             )
         }
     }

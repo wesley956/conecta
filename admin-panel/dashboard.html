@@ -928,6 +928,7 @@ tbody tr:hover td {
   <link rel="stylesheet" href="./pro-panel.css" />
   <link rel="stylesheet" href="./panel-ux.css" />
   <link rel="stylesheet" href="./panel-redesign.css" />
+  <link rel="stylesheet" href="./support-profile.css" />
   <link rel="stylesheet" href="./app-release.css" />
   <link rel="stylesheet" href="./roneca-panel-premium.css" />
 </head>
@@ -998,6 +999,9 @@ tbody tr:hover td {
           </button>
           <button class="tab" data-tab="app" onclick="setTab('app')" title="Aplicativo" aria-label="Aplicativo">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>Aplicativo</span>
+          </button>
+          <button class="tab" data-tab="support" onclick="setTab('support')" title="Suporte oficial" aria-label="Suporte oficial">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 16 0M4 13v5h4v-6H4M20 13v5h-4v-6h4M16 20h-4"/></svg><span>Suporte</span>
           </button>
         </div>
       </details>
@@ -1446,6 +1450,32 @@ tbody tr:hover td {
       </div>
     </section>
 
+    <section id="section-support" class="section" data-support-profile data-support-role="system">
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <h2>Suporte oficial do sistema</h2>
+            <p class="sub">Contato público mostrado antes do vínculo com um vendedor e usado como fallback.</p>
+          </div>
+        </div>
+        <div class="support-profile-shell">
+          <form class="support-profile-form" data-support-form novalidate>
+            <div class="support-profile-field wide"><label for="adminSupportDisplayName">Nome de exibição</label><input id="adminSupportDisplayName" name="displayName" maxlength="120" required /></div>
+            <div class="support-profile-field"><label for="adminSupportWhatsapp">WhatsApp</label><input id="adminSupportWhatsapp" name="whatsapp" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="5511999999999" /></div>
+            <div class="support-profile-field"><label for="adminSupportEmail">E-mail</label><input id="adminSupportEmail" name="email" type="email" autocomplete="email" maxlength="254" /></div>
+            <div class="support-profile-field wide"><label for="adminSupportUrl">URL HTTPS opcional</label><input id="adminSupportUrl" name="contactUrl" type="url" inputmode="url" maxlength="2048" placeholder="https://..." /></div>
+            <div class="support-profile-field wide"><label for="adminSupportText">Texto curto de atendimento</label><textarea id="adminSupportText" name="supportText" maxlength="280"></textarea></div>
+            <div class="support-profile-field wide"><label for="adminSupportHours">Horário de atendimento</label><input id="adminSupportHours" name="businessHours" maxlength="160" /></div>
+            <label class="support-profile-visibility"><input name="enabled" type="checkbox" /><span>Habilitar suporte oficial nos aplicativos</span></label>
+            <div class="support-profile-actions"><button class="btn primary" type="submit">Salvar suporte</button><button class="btn" type="button" data-support-reload>Recarregar</button><p class="support-profile-status" data-support-status role="status"></p></div>
+          </form>
+          <aside class="support-profile-preview" data-support-preview aria-label="Prévia do suporte no aplicativo">
+            <small>Prévia no aplicativo</small><strong data-preview-name>Suporte</strong><p data-preview-contact>Contato ainda não informado</p><p data-preview-text>Sem mensagem adicional.</p><small data-preview-hours>Horário não informado.</small>
+          </aside>
+        </div>
+      </div>
+    </section>
+
     <section id="section-audit" class="section">
       <div class="card">
         <h2>Histórico do painel</h2>
@@ -1650,6 +1680,7 @@ tbody tr:hover td {
 <script src="./panel-auth-session.js"></script>
 <script src="./dashboard.js"></script>
 <script src="./app-release.js"></script>
+<script src="./support-profile.js"></script>
 <script src="./roneca-panel-premium.js"></script>
 <script src="./mobile-more-navigation.js"></script>
 </body>

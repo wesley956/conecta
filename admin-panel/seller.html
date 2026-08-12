@@ -231,6 +231,7 @@
   <link rel="stylesheet" href="./seller-portal-ux.css" />
   <link rel="stylesheet" href="./seller-lists-ux.css" />
   <link rel="stylesheet" href="./panel-redesign.css" />
+  <link rel="stylesheet" href="./support-profile.css" />
   <link rel="stylesheet" href="./app-release.css" />
   <link rel="stylesheet" href="./seller-activation-wizard.css" />
   <link rel="stylesheet" href="./roneca-panel-premium.css" />
@@ -288,6 +289,7 @@
         <button data-seller-nav="lists" type="button" onclick="sellerPortalNavigate('lists')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Minhas listas</span></button>
         <button data-seller-nav="credits" type="button" onclick="sellerPortalNavigate('credits')"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/></svg><span>Créditos</span></button>
         <button data-seller-nav="app" type="button" onclick="sellerPortalNavigate('app')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>Baixar aplicativo</span></button>
+        <button data-seller-nav="support" type="button" onclick="sellerPortalNavigate('support')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 13a8 8 0 0 1 16 0M4 13v5h4v-6H4M20 13v5h-4v-6h4M16 20h-4"/></svg><span>Meu suporte</span></button>
       </nav>
 
       <div id="sellerOverviewCard" class="card seller-v2-overview seller-portal-section" data-seller-section="home">
@@ -381,6 +383,26 @@
         </div>
         <p class="muted" data-app-release-status role="status"></p>
       </div>
+      <div class="card seller-portal-section" data-seller-section="support" data-support-profile data-support-role="seller" hidden>
+        <div class="section-title">
+          <div><h2>Perfil de suporte</h2><p class="muted">Este contato será exibido aos dispositivos vinculados à sua conta.</p></div>
+        </div>
+        <div class="support-profile-shell">
+          <form class="support-profile-form" data-support-form novalidate>
+            <div class="support-profile-field wide"><label for="sellerSupportDisplayName">Nome comercial</label><input id="sellerSupportDisplayName" name="displayName" maxlength="120" required /></div>
+            <div class="support-profile-field"><label for="sellerSupportWhatsapp">WhatsApp</label><input id="sellerSupportWhatsapp" name="whatsapp" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="5511999999999" /></div>
+            <div class="support-profile-field"><label for="sellerSupportEmail">E-mail opcional</label><input id="sellerSupportEmail" name="email" type="email" autocomplete="email" maxlength="254" /></div>
+            <div class="support-profile-field wide"><label for="sellerSupportUrl">URL HTTPS opcional</label><input id="sellerSupportUrl" name="contactUrl" type="url" inputmode="url" maxlength="2048" placeholder="https://..." /></div>
+            <div class="support-profile-field wide"><label for="sellerSupportText">Texto curto de atendimento</label><textarea id="sellerSupportText" name="supportText" maxlength="280"></textarea></div>
+            <div class="support-profile-field wide"><label for="sellerSupportHours">Horário de atendimento</label><input id="sellerSupportHours" name="businessHours" maxlength="160" /></div>
+            <label class="support-profile-visibility"><input name="showInApp" type="checkbox" checked /><span>Exibir contato no aplicativo</span></label>
+            <div class="support-profile-actions"><button class="primary" type="submit">Salvar perfil</button><button type="button" data-support-reload>Recarregar</button><p class="support-profile-status" data-support-status role="status"></p></div>
+          </form>
+          <aside class="support-profile-preview" data-support-preview aria-label="Prévia do suporte no aplicativo">
+            <small>Prévia no aplicativo</small><strong data-preview-name>Meu suporte</strong><p data-preview-contact>Contato ainda não informado</p><p data-preview-text>Sem mensagem adicional.</p><small data-preview-hours>Horário não informado.</small>
+          </aside>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -398,7 +420,7 @@
       const dashboard = $('dashboardView');
       if (!dashboard) return;
 
-      const allowedSections = new Set(['home', 'activation', 'devices', 'lists', 'credits', 'app']);
+      const allowedSections = new Set(['home', 'activation', 'devices', 'lists', 'credits', 'app', 'support']);
       const activeSection = allowedSections.has(section) ? section : 'home';
       dashboard.dataset.activeSection = activeSection;
 
@@ -414,6 +436,7 @@
         if (active) item.setAttribute('aria-current', 'page');
         else item.removeAttribute('aria-current');
       });
+      if (activeSection === 'support') window.RonecaSupportProfile?.loadAll();
     }
 
     function sellerPortalNavigate(section) {
@@ -657,6 +680,7 @@
   <script src="./seller-portal-ux.js"></script>
   <script src="./seller-lists-ux.js"></script>
   <script src="./app-release.js"></script>
+  <script src="./support-profile.js"></script>
   <script src="./seller-activation-wizard.js"></script>
   <script src="./roneca-panel-premium.js"></script>
   <script src="./mobile-more-navigation.js"></script>

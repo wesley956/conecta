@@ -17,7 +17,7 @@ function requireCheck(condition, message) {
 for (const snippet of [
   'id="adminNavMore"',
   'class="admin-nav-more-menu"',
-  "const overflowTabs = new Set(['customers', 'playlists', 'audit', 'app'])",
+  "const overflowTabs = new Set(['customers', 'playlists', 'audit', 'app', 'support'])",
   '<script src="./mobile-more-navigation.js"></script>',
 ]) {
   requireCheck(dashboard.includes(snippet), `Navegação administrativa compacta incompleta: ${snippet}`);

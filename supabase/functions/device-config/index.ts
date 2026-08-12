@@ -3,6 +3,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { resolveActiveLabSession } from '../_shared/labSession.ts';
 import { resolvePlaylistAccessMode } from '../_shared/playlistAccessMode.ts';
 import { safeDiagnosticIdentifier, safeDiagnosticText } from '../_shared/diagnosticSafety.ts';
+import {
+  genericSupportProfile,
+  resolveDeviceSupportProfile,
+} from '../_shared/supportProfile.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -160,6 +164,7 @@ serve(async request => {
         device_uuid,
         device_credential_hash,
         client_name,
+        seller_id,
         status,
         subscription_expires_at,
         playlist:panel_playlists(${PLAYLIST_FIELDS}),
@@ -286,6 +291,10 @@ serve(async request => {
     const expiresAt = labContext?.expiresAt || device.subscription_expires_at;
     const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
     const legacyPlaylist = Array.isArray(device.playlist) ? device.playlist[0] : device.playlist;
+    const supportProfile = await resolveDeviceSupportProfile(
+      supabase,
+      labContext ? null : device.seller_id || null,
+    ).catch(() => genericSupportProfile());
 
     if (!labContext && (device.status !== 'active' || expired)) {
       return json({
@@ -294,6 +303,7 @@ serve(async request => {
         deviceCode: device.device_code,
         clientName: device.client_name,
         expiresAt,
+        supportProfile,
         message: expired ? 'Assinatura expirada.' : 'Aparelho não ativo.',
       });
     }
@@ -332,6 +342,7 @@ serve(async request => {
         deviceCode: device.device_code,
         clientName: device.client_name,
         expiresAt,
+        supportProfile,
         labMode: Boolean(labContext),
         labSessionId: labContext?.sessionId || null,
         labSessionExpiresAt: labContext?.expiresAt || null,
@@ -420,6 +431,7 @@ serve(async request => {
       deviceCode: device.device_code,
       clientName: device.client_name,
       expiresAt,
+      supportProfile,
       labMode: Boolean(labContext),
       labSessionId: labContext?.sessionId || null,
       labSessionExpiresAt: labContext?.expiresAt || null,

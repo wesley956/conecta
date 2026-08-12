@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "preverify": "npm run check:support-profiles && npm run check:android-catalog-performance && npm run check:android-tv-navigation && npm run check:android-support-experience && npm run check:android-subtitles",
     "verify": "npm run check:migration-versions && npm run check:m3u-parser && npm run check:universal-playlist-source && npm run check:outbound-fetch-security && npm run check:xtream-contract && npm run check:playlist-cache-resilience && npm run check:playlist-cache-manifest && npm run check:playlist-qualification && npm run check:playlist-lifecycle-lote3 && npm run check:lote4-activation-experience && npm run check:lote5-seller-auth-security && npm run check:lote6-finance-integration && npm run check:supabase-production-deploy && npm run check:seller-playlist-crud && npm run check:panel-auth && npm run check:seller-provisioning && npm run check:seller-temporary-access && npm run check:playlist-failover && npm run check:failover-continuity && npm run check:playlist-hybrid && npm run check:inline-playlist-activation && npm run check:finance-module && npm run check:subscriptions && npm run check:app-release && npm run check:commercial-security && npm run check:commercial-consolidation && npm run check:commercial-consistency && npm run check:admin-operations && npm run check:playback-diagnostics && npm run check:diagnostics-security && npm run check:layout-foundations && npm run check:responsive-operations && npm run check:panel-runtime-graph && npm run check:panel-premium && npm run check:tv-experience && npm run check:smart-tv-parity && npm run check:lg-review && npm run check:panel-improvements && npm run check:series-detail-resilience && npm run check:foreign-key-indexes && npm run check:android-improvements",
     "panel:config": "node scripts/generate-panel-config.mjs",
     "smart-tv:hosted": "npm ci --prefix smart-tv && npm run build --prefix smart-tv && node scripts/stage-hosted-tv.mjs",
@@ -11,6 +12,7 @@
     "check:end-to-end": "node scripts/check-lote2-browser-e2e.mjs && node scripts/check-lote4-browser-ux.mjs",
     "check:m3u-parser": "echo '::notice title=Painel etapa 1::m3u-parser' && node scripts/check-m3u-parser.mjs",
     "check:migration-versions": "node scripts/check-migration-versions.mjs",
+    "check:support-profiles": "node --experimental-strip-types scripts/check-support-profiles.mjs",
     "check:seller-playlist-crud": "node --check admin-panel/seller-lists-ux.js && node scripts/check-seller-playlist-crud.mjs",
     "check:panel-auth": "echo '::notice title=Painel etapa 4::panel-auth' && node scripts/check-panel-auth-session.mjs",
     "check:seller-provisioning": "echo '::notice title=Painel etapa 5::seller-provisioning' && node scripts/check-seller-provisioning.mjs",
@@ -49,7 +51,11 @@
     "check:panel-improvements": "node scripts/check-panel-improvements.mjs",
     "check:series-detail-resilience": "node scripts/check-series-detail-resilience.mjs",
     "check:foreign-key-indexes": "node scripts/check-foreign-key-indexes.mjs",
-    "check:android-improvements": "node scripts/check-android-improvements.mjs"
+    "check:android-improvements": "node scripts/check-android-improvements.mjs",
+    "check:android-catalog-performance": "node scripts/check-android-catalog-performance.mjs",
+    "check:android-tv-navigation": "node scripts/check-android-tv-navigation.mjs",
+    "check:android-support-experience": "node scripts/check-android-support-experience.mjs",
+    "check:android-subtitles": "node scripts/check-android-subtitles.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.1",
