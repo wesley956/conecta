@@ -998,6 +998,7 @@ fun RonecaPlayTVApp(
                             movies = catalogState.movies.size,
                             series = catalogState.series.size,
                         ),
+                        supportProfile = sessionState.supportProfile,
                         onStateChange = { updated ->
                             settingsState = updated
                             playerSettingsPreferences.save(updated)

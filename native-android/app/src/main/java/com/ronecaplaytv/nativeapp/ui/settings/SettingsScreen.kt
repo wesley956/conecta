@@ -38,8 +38,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.BuildConfig
+import com.ronecaplaytv.nativeapp.activation.SupportProfile
+import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.player.PlayerAspectMode
+import com.ronecaplaytv.nativeapp.ui.support.SupportDialog
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import java.text.DateFormat
 import java.util.Date
@@ -72,10 +75,13 @@ fun SettingsScreen(
     refreshMessage: String?,
     appUpdateState: AppUpdateState,
     playlistDiagnostics: PlaylistDiagnosticsState,
+    supportProfile: SupportProfile,
     onStateChange: (PlayerSettingsState) -> Unit,
     onRefreshContent: () -> Unit,
     onCheckForAppUpdate: () -> Unit,
 ) {
+    var showSupportDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -98,6 +104,20 @@ fun SettingsScreen(
             )
         }
         item { CurrentProfileCard(isTelevision = isTelevision, state = state) }
+
+        item { SectionTitle("SUPORTE", isTelevision) }
+        item {
+            FocusableActionCard(
+                title = supportProfile.displayName,
+                subtitle = supportProfile.supportText ?: "Contato responsável por este aparelho.",
+                badge = if (supportProfile.primaryContactUri != null) "ABRIR" else "INFO",
+                enabled = true,
+                isTelevision = isTelevision,
+                accentColor = RonecaColors.Green,
+                modifier = Modifier.fillMaxWidth().height(if (isTelevision) 98.dp else 88.dp),
+                onClick = { showSupportDialog = true },
+            )
+        }
 
         item { SectionTitle("DIAGNÓSTICO DAS LISTAS", isTelevision) }
         item {
@@ -188,6 +208,14 @@ fun SettingsScreen(
                 isTelevision = isTelevision,
             )
         }
+    }
+
+    if (showSupportDialog) {
+        SupportDialog(
+            profile = supportProfile,
+            isTelevision = isTelevision,
+            onDismiss = { showSupportDialog = false },
+        )
     }
 }
 
