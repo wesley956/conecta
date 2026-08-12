@@ -9,6 +9,7 @@
     'admin-panel': true,
     'admin-credit-adjust': true,
     'seller-panel': true,
+    'support-panel': true,
     'seller-device-flow': true,
     'seller-provision': true,
     'seller-delete': true,

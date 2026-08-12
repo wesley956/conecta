@@ -1,5 +1,9 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import {
+  genericSupportProfile,
+  resolveSystemSupportProfile,
+} from '../_shared/supportProfile.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -209,6 +213,7 @@ serve(async request => {
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  const supportProfile = await resolveSystemSupportProfile(supabase).catch(() => genericSupportProfile());
 
   try {
     const limitMetadata = {
@@ -298,6 +303,7 @@ serve(async request => {
         customerWhatsapp,
         sellerLinked: Boolean(preservedSellerId),
         sellerName: null,
+        supportProfile,
         expiresAt: existingDevice.subscription_expires_at,
         message: existingDevice.status === 'active'
           ? 'Aparelho já ativo.'
@@ -343,6 +349,7 @@ serve(async request => {
           customerWhatsapp,
           sellerLinked: false,
           sellerName: null,
+          supportProfile,
           message: 'Código criado. Envie este código ao vendedor/admin para liberar o acesso.',
         });
       }
