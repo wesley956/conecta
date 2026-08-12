@@ -23,6 +23,7 @@ data class DeviceSessionState(
     val moviesUrl: String? = null,
     val seriesUrl: String? = null,
     val playlists: List<DevicePlaylistConfig> = emptyList(),
+    val supportProfile: SupportProfile = SupportProfile.generic(),
     val message: String? = null,
     val isRefreshing: Boolean = false,
 ) {

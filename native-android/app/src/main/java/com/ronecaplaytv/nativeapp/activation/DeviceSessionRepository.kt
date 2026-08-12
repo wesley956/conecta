@@ -121,6 +121,7 @@ class DeviceSessionRepository(context: Context) {
                 deviceCode = deviceCode,
                 clientName = response.clientName,
                 expiresAt = response.expiresAt,
+                supportProfile = response.supportProfile,
                 message = "Aparelho ativo, mas sem credencial local. Gere um novo código seguro.",
             )
         }
@@ -158,6 +159,7 @@ class DeviceSessionRepository(context: Context) {
         deviceCode = deviceCode,
         clientName = clientName,
         expiresAt = expiresAt,
+        supportProfile = supportProfile,
         message = message,
     )
 
@@ -173,6 +175,7 @@ class DeviceSessionRepository(context: Context) {
         moviesUrl = moviesUrl,
         seriesUrl = seriesUrl,
         playlists = playlists,
+        supportProfile = supportProfile,
         message = message,
     )
 

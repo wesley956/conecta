@@ -80,6 +80,7 @@ class ActivationViewModel(application: Application) : AndroidViewModel(applicati
                     DeviceSessionState(
                         status = DeviceAccessStatus.Error,
                         deviceCode = mutableState.value.deviceCode,
+                        supportProfile = mutableState.value.supportProfile,
                         message = error.message ?: "Não foi possível conectar ao painel.",
                     )
                 }
