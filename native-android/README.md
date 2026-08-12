@@ -8,10 +8,10 @@ Cliente Android nativo oficial da RonecaPlayTV para Android TV, Google TV, TV Bo
 
 ## Estado atual
 
-Baseline Android auditada em **11/08/2026**:
+Release Android Direct preparada em **12/08/2026**:
 
-- versão: **2.9.5**
-- `versionCode`: **46**
+- versão: **2.9.6**
+- `versionCode`: **47**
 - `applicationId`: `com.ronecaplaytv.nativeapp`
 - `compileSdk`: 36
 - `minSdk`: 23
@@ -19,7 +19,7 @@ Baseline Android auditada em **11/08/2026**:
 - Java: 17
 - stack principal: Kotlin, Jetpack Compose, Compose for TV, AndroidX Media3/ExoPlayer, Coroutines, Coil e OkHttp
 
-A release 2.9.5 é também a referência Android congelada usada pelo ciclo atual de homologação LG.
+A release 2.9.5 permanece como a referência Android congelada usada pelo ciclo atual de homologação LG.
 
 ## Plataformas
 

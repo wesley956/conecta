@@ -7,8 +7,8 @@ Ele não cria tag, GitHub Release, registro em `app_releases`, arquivo no Storag
 ## Identidade intencional
 
 - package: `com.ronecaplaytv.nativeapp.homologation`;
-- versionName: `2.9.5-homologacao`;
-- versionCode: `46`;
+- versionName: `2.9.6-homologacao`;
+- versionCode: `47`;
 - build release com minify/shrink;
 - assinatura de teste Android, sem acessar a chave permanente de produção;
 - nome do arquivo inclui `homologacao` e o commit exato.
