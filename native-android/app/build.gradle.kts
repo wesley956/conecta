@@ -64,6 +64,13 @@ android {
                 "proguard-rules.pro",
             )
         }
+        create("homologation") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".homologation"
+            versionNameSuffix = "-homologacao"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
