@@ -41,11 +41,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -55,7 +51,12 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.TvCategoryButton
+import com.ronecaplaytv.nativeapp.ui.components.TvCategorySelector
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
+import com.ronecaplaytv.nativeapp.ui.navigation.deterministicFocusId
+import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
+import com.ronecaplaytv.nativeapp.ui.navigation.tvBrowsableCategories
 import kotlinx.coroutines.delay
 
 private const val FILTER_ALL = "Todos"
@@ -74,7 +75,9 @@ fun MoviesScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(FILTER_ALL) }
     var lastFocusedMovieId by rememberSaveable { mutableStateOf<String?>(null) }
     var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
+    var categorySelectorOpen by rememberSaveable { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
+    var entryFocusPending by remember { mutableStateOf(true) }
 
     val gridState = rememberLazyGridState()
     val categoryState = rememberLazyListState()
@@ -83,6 +86,9 @@ fun MoviesScreen(
     val categories = remember(movies) {
         listOf(FILTER_ALL, FILTER_FAVORITES, FILTER_CONTINUE) +
             movies.map { it.category.ifBlank { "Outros" } }.distinct().sorted()
+    }
+    val tvCategories = remember(categories) {
+        tvBrowsableCategories(categories, setOf(FILTER_FAVORITES, FILTER_CONTINUE))
     }
     val filtered = remember(movies, query, selectedCategory, favoriteIds, startedIds) {
         movies.filter { movie ->
@@ -112,18 +118,28 @@ fun MoviesScreen(
 
     LaunchedEffect(filterSignature, filteredMovieIds, isTelevision) {
         val firstId = filteredMovieIds.firstOrNull()
-        if (appliedFilterSignature != filterSignature) {
+        val filterChanged = appliedFilterSignature != filterSignature
+        val focusedItemMissing = lastFocusedMovieId !in filteredMovieIds
+        if (filterChanged) {
             appliedFilterSignature = filterSignature
             lastFocusedMovieId = firstId
             if (filtered.isNotEmpty()) gridState.scrollToItem(0)
-        } else if (lastFocusedMovieId !in filteredMovieIds) {
-            lastFocusedMovieId = firstId
+        } else if (focusedItemMissing) {
+            lastFocusedMovieId = deterministicFocusId(lastFocusedMovieId, filteredMovieIds)
         }
 
-        if (isTelevision && !searchFocused && lastFocusedMovieId != null) {
+        if (
+            isTelevision && !searchFocused && !categorySelectorOpen && lastFocusedMovieId != null &&
+            (entryFocusPending || filterChanged || focusedItemMissing)
+        ) {
             delay(100)
             runCatching { restoreFocusRequester.requestFocus() }
+            entryFocusPending = false
         }
+    }
+
+    LaunchedEffect(categories, selectedCategory) {
+        if (selectedCategory !in categories) selectedCategory = FILTER_ALL
     }
 
     Column(
@@ -187,16 +203,35 @@ fun MoviesScreen(
                 )
             }
             Spacer(modifier = Modifier.height(if (isTelevision) 9.dp else 10.dp))
-            LazyRow(
-                state = categoryState,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-            ) {
-                items(categories, key = { it }) { category ->
-                    MovieCategoryChip(
-                        label = category,
-                        selected = selectedCategory == category,
-                        onClick = { selectedCategory = category },
+            if (isTelevision) {
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(FILTER_ALL, FILTER_FAVORITES, FILTER_CONTINUE).forEach { category ->
+                        MovieCategoryChip(
+                            label = category,
+                            selected = selectedCategory == category,
+                            onClick = { selectedCategory = category },
+                        )
+                    }
+                    TvCategoryButton(
+                        selectedCategory = selectedCategory.takeUnless {
+                            it == FILTER_FAVORITES || it == FILTER_CONTINUE
+                        } ?: FILTER_ALL,
+                        categoryCount = tvCategories.size,
+                        onClick = { categorySelectorOpen = true },
                     )
+                }
+            } else {
+                LazyRow(
+                    state = categoryState,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    items(categories, key = { it }) { category ->
+                        MovieCategoryChip(
+                            label = category,
+                            selected = selectedCategory == category,
+                            onClick = { selectedCategory = category },
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(if (isTelevision) 10.dp else 14.dp))
@@ -234,6 +269,16 @@ fun MoviesScreen(
                 )
             }
         }
+    }
+
+    if (categorySelectorOpen) {
+        TvCategorySelector(
+            title = "Categorias de filmes",
+            categories = tvCategories,
+            selectedCategory = selectedCategory.takeIf(tvCategories::contains) ?: FILTER_ALL,
+            onSelect = { selectedCategory = it },
+            onDismiss = { categorySelectorOpen = false },
+        )
     }
 }
 
@@ -282,7 +327,7 @@ private fun MovieCategoryChip(label: String, selected: Boolean, onClick: () -> U
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
-            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
+            .ronecaFocusScale(focused = focused)
             .clip(RoundedCornerShape(999.dp))
             .background(
                 when {
@@ -349,12 +394,8 @@ private fun MoviePosterCard(
                 if (it.isFocused) onFocused()
             }
             .onPreviewKeyEvent { event ->
-                val activationKey = event.key == Key.DirectionCenter ||
-                    event.key == Key.Enter ||
-                    event.key == Key.NumPadEnter ||
-                    event.key == Key.Spacebar
-                if (activationKey) {
-                    if (event.type == KeyEventType.KeyDown) onClick()
+                if (event.isRonecaActivationKey()) {
+                    onClick()
                     true
                 } else {
                     false
