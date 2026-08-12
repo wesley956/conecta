@@ -481,7 +481,7 @@ private fun HeroButton(
     Box(
         modifier = Modifier
             .then(requestModifier)
-            .ronecaFocusScale(focused = focused, focusedScale = 1.045f)
+            .ronecaFocusScale(focused = focused)
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
                 if (
