@@ -8,8 +8,9 @@ import {
 } from '../supabase/functions/_shared/supportProfile.ts';
 
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [migration, deviceActivate, deviceConfig, supportPanel, panelAuth, config, adminHtml, sellerHtml, ui] = await Promise.all([
-  read('supabase/migrations/20260811234420_support_profiles_contract.sql'),
+const [migration, indexMigration, deviceActivate, deviceConfig, supportPanel, panelAuth, config, adminHtml, sellerHtml, ui] = await Promise.all([
+  read('supabase/migrations/20260812084220_support_profiles_contract.sql'),
+  read('supabase/migrations/20260812084809_support_profiles_fk_indexes.sql'),
   read('supabase/functions/device-activate/index.ts'),
   read('supabase/functions/device-config/index.ts'),
   read('supabase/functions/support-panel/index.ts'),
@@ -24,6 +25,8 @@ for (const table of ['panel_system_support_profiles', 'panel_seller_support_prof
   assert.match(migration, new RegExp(`alter table public\\.${table} force row level security`));
   assert.match(migration, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated`));
 }
+assert.match(indexMigration, /panel_system_support_profiles_updated_by_idx/);
+assert.match(indexMigration, /panel_seller_support_profiles_updated_by_idx/);
 assert.match(config, /\[functions\.support-panel\][\s\S]*?verify_jwt = true/);
 assert.match(panelAuth, /'support-panel': true/);
 assert.match(supportPanel, /requirePanelPrincipal\(request, supabase, \['owner', 'admin', 'seller'\]\)/);
