@@ -60,6 +60,13 @@ data class NativeCatalogState(
     val lastFailoverAtMillis: Long? = null,
     val lastFailoverAttemptId: String? = null,
     val lastFailoverOutcome: String? = null,
+    val restoredFromSnapshot: Boolean = false,
+    val snapshotSavedAtMillis: Long? = null,
+    val snapshotAgeMillis: Long? = null,
+    val snapshotReadMillis: Long? = null,
+    val snapshotSizeBytes: Long? = null,
+    val snapshotStale: Boolean = false,
+    val loadGeneration: Long = 0L,
 ) {
     val isLoading: Boolean
         get() = loadingSection != null

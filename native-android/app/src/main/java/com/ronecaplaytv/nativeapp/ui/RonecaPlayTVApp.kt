@@ -341,6 +341,8 @@ fun RonecaPlayTVApp(
     ) {
         if (sessionState.isActive) {
             catalogViewModel.load(
+                accessStatus = sessionState.status,
+                deviceCode = sessionState.deviceCode,
                 channelsUrl = sessionState.channelsUrl,
                 moviesUrl = sessionState.moviesUrl,
                 seriesUrl = sessionState.seriesUrl,
@@ -371,6 +373,8 @@ fun RonecaPlayTVApp(
     fun refreshCatalog() {
         activationViewModel.refresh()
         catalogViewModel.load(
+            accessStatus = sessionState.status,
+            deviceCode = sessionState.deviceCode,
             channelsUrl = sessionState.channelsUrl,
             moviesUrl = sessionState.moviesUrl,
             seriesUrl = sessionState.seriesUrl,
