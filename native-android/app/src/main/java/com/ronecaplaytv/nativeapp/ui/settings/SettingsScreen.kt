@@ -55,6 +55,7 @@ data class PlayerSettingsState(
     val automaticReconnect: Boolean = true,
     val forceTvMode: Boolean = false,
     val launchSoundEnabled: Boolean = true,
+    val categoryDisplayMode: CategoryDisplayMode = CategoryDisplayMode.Classic,
 )
 
 data class PlaylistDiagnosticsState(
@@ -162,6 +163,18 @@ fun SettingsScreen(
         }
 
         item { SectionTitle("INTERFACE", isTelevision) }
+        item {
+            ChoiceSettingRow(
+                title = "Exibição das categorias",
+                subtitle = "Clássica mantém a faixa original; Painel lateral fixa as categorias e recolhe o menu principal.",
+                options = CategoryDisplayMode.entries.map(CategoryDisplayMode::label),
+                selected = state.categoryDisplayMode.label,
+                isTelevision = isTelevision,
+                onSelect = { label ->
+                    onStateChange(state.copy(categoryDisplayMode = CategoryDisplayMode.fromLabel(label)))
+                },
+            )
+        }
         item {
             ToggleSettingRow(
                 title = "Som de abertura",

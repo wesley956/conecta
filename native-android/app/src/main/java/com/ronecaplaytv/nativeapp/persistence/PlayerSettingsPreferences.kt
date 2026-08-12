@@ -2,6 +2,7 @@ package com.ronecaplaytv.nativeapp.persistence
 
 import android.content.Context
 import com.ronecaplaytv.nativeapp.ui.player.PlayerAspectMode
+import com.ronecaplaytv.nativeapp.ui.settings.CategoryDisplayMode
 import com.ronecaplaytv.nativeapp.ui.settings.PlayerSettingsState
 
 /**
@@ -23,6 +24,9 @@ class PlayerSettingsPreferences(context: Context) {
         automaticReconnect = preferences.getBoolean(KEY_AUTOMATIC_RECONNECT, true),
         forceTvMode = preferences.getBoolean(KEY_FORCE_TV_MODE, false),
         launchSoundEnabled = preferences.getBoolean(KEY_LAUNCH_SOUND_ENABLED, true),
+        categoryDisplayMode = CategoryDisplayMode.fromStorage(
+            preferences.getString(KEY_CATEGORY_DISPLAY_MODE, CategoryDisplayMode.Classic.storageValue),
+        ),
     )
 
     fun save(state: PlayerSettingsState) {
@@ -34,6 +38,7 @@ class PlayerSettingsPreferences(context: Context) {
             .putBoolean(KEY_AUTOMATIC_RECONNECT, state.automaticReconnect)
             .putBoolean(KEY_FORCE_TV_MODE, state.forceTvMode)
             .putBoolean(KEY_LAUNCH_SOUND_ENABLED, state.launchSoundEnabled)
+            .putString(KEY_CATEGORY_DISPLAY_MODE, state.categoryDisplayMode.storageValue)
             .apply()
     }
 
@@ -46,5 +51,6 @@ class PlayerSettingsPreferences(context: Context) {
         const val KEY_AUTOMATIC_RECONNECT = "automatic_reconnect"
         const val KEY_FORCE_TV_MODE = "force_tv_mode"
         const val KEY_LAUNCH_SOUND_ENABLED = "launch_sound_enabled"
+        const val KEY_CATEGORY_DISPLAY_MODE = "category_display_mode"
     }
 }

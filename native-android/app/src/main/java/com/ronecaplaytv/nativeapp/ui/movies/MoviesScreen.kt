@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,12 +53,12 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
-import com.ronecaplaytv.nativeapp.ui.components.TvCategoryButton
-import com.ronecaplaytv.nativeapp.ui.components.TvCategorySelector
+import com.ronecaplaytv.nativeapp.ui.components.TvCategorySidePanel
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import com.ronecaplaytv.nativeapp.ui.navigation.deterministicFocusId
 import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
 import com.ronecaplaytv.nativeapp.ui.navigation.tvBrowsableCategories
+import com.ronecaplaytv.nativeapp.ui.settings.CategoryDisplayMode
 import kotlinx.coroutines.delay
 
 private const val FILTER_ALL = "Todos"
@@ -67,6 +69,9 @@ private const val FILTER_CONTINUE = "Continuar"
 fun MoviesScreen(
     movies: List<NativeMovie>,
     isTelevision: Boolean,
+    categoryDisplayMode: CategoryDisplayMode,
+    categoryPanelFocusRequestKey: Int,
+    onRequestMainNavigationFocus: () -> Unit,
     favoriteIds: Set<String>,
     startedIds: Set<String>,
     onOpenDetails: (NativeMovie) -> Unit,
@@ -75,13 +80,14 @@ fun MoviesScreen(
     var selectedCategory by rememberSaveable { mutableStateOf(FILTER_ALL) }
     var lastFocusedMovieId by rememberSaveable { mutableStateOf<String?>(null) }
     var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
-    var categorySelectorOpen by rememberSaveable { mutableStateOf(false) }
+    var focusCatalogAfterPanel by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
     var entryFocusPending by remember { mutableStateOf(true) }
 
     val gridState = rememberLazyGridState()
     val categoryState = rememberLazyListState()
     val restoreFocusRequester = remember { FocusRequester() }
+    val categoryPanelRequester = remember { FocusRequester() }
 
     val categories = remember(movies) {
         listOf(FILTER_ALL, FILTER_FAVORITES, FILTER_CONTINUE) +
@@ -89,6 +95,14 @@ fun MoviesScreen(
     }
     val tvCategories = remember(categories) {
         tvBrowsableCategories(categories, setOf(FILTER_FAVORITES, FILTER_CONTINUE))
+    }
+    val categoryCounts = remember(movies) {
+        buildMap {
+            put(FILTER_ALL, movies.size)
+            movies.groupingBy { it.category.ifBlank { "Outros" } }
+                .eachCount()
+                .forEach { (category, count) -> put(category, count) }
+        }
     }
     val filtered = remember(movies, query, selectedCategory, favoriteIds, startedIds) {
         movies.filter { movie ->
@@ -129,7 +143,7 @@ fun MoviesScreen(
         }
 
         if (
-            isTelevision && !searchFocused && !categorySelectorOpen && lastFocusedMovieId != null &&
+            isTelevision && !searchFocused && lastFocusedMovieId != null &&
             (entryFocusPending || filterChanged || focusedItemMissing)
         ) {
             delay(100)
@@ -142,11 +156,40 @@ fun MoviesScreen(
         if (selectedCategory !in categories) selectedCategory = FILTER_ALL
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RonecaColors.Background),
+    LaunchedEffect(
+        focusCatalogAfterPanel,
+        lastFocusedMovieId,
     ) {
+        if (focusCatalogAfterPanel && lastFocusedMovieId != null) {
+            delay(140)
+            runCatching { restoreFocusRequester.requestFocus() }
+            focusCatalogAfterPanel = false
+        }
+    }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (isTelevision && categoryDisplayMode == CategoryDisplayMode.SidePanel) {
+            TvCategorySidePanel(
+                title = "Filmes",
+                categories = tvCategories,
+                selectedCategory = selectedCategory.takeIf(tvCategories::contains) ?: FILTER_ALL,
+                categoryCounts = categoryCounts,
+                focusRequestKey = categoryPanelFocusRequestKey,
+                selectedFocusRequester = categoryPanelRequester,
+                onSelect = { category ->
+                    focusCatalogAfterPanel = true
+                    selectedCategory = category
+                },
+                onExitToMainMenu = onRequestMainNavigationFocus,
+                onMoveToCatalog = { focusCatalogAfterPanel = true },
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(RonecaColors.Background),
+        ) {
         val sidePadding = if (isTelevision) 24.dp else 18.dp
         Column(
             modifier = Modifier.padding(
@@ -203,7 +246,7 @@ fun MoviesScreen(
                 )
             }
             Spacer(modifier = Modifier.height(if (isTelevision) 9.dp else 10.dp))
-            if (isTelevision) {
+            if (isTelevision && categoryDisplayMode == CategoryDisplayMode.SidePanel) {
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(FILTER_ALL, FILTER_FAVORITES, FILTER_CONTINUE).forEach { category ->
                         MovieCategoryChip(
@@ -212,13 +255,6 @@ fun MoviesScreen(
                             onClick = { selectedCategory = category },
                         )
                     }
-                    TvCategoryButton(
-                        selectedCategory = selectedCategory.takeUnless {
-                            it == FILTER_FAVORITES || it == FILTER_CONTINUE
-                        } ?: FILTER_ALL,
-                        categoryCount = tvCategories.size,
-                        onClick = { categorySelectorOpen = true },
-                    )
                 }
             } else {
                 LazyRow(
@@ -249,11 +285,20 @@ fun MoviesScreen(
             horizontalArrangement = Arrangement.spacedBy(if (isTelevision) 11.dp else 10.dp),
             verticalArrangement = Arrangement.spacedBy(if (isTelevision) 12.dp else 14.dp),
         ) {
-            items(filtered, key = NativeMovie::id) { movie ->
-                val focusModifier = if (movie.id == lastFocusedMovieId) {
-                    Modifier.focusRequester(restoreFocusRequester)
+            itemsIndexed(filtered, key = { _, movie -> movie.id }) { index, movie ->
+                val panelNavigationModifier = if (
+                    isTelevision &&
+                    categoryDisplayMode == CategoryDisplayMode.SidePanel &&
+                    index % 6 == 0
+                ) {
+                    Modifier.focusProperties { left = categoryPanelRequester }
                 } else {
                     Modifier
+                }
+                val focusModifier = if (movie.id == lastFocusedMovieId) {
+                    panelNavigationModifier.then(Modifier.focusRequester(restoreFocusRequester))
+                } else {
+                    panelNavigationModifier
                 }
                 MoviePosterCard(
                     movie = movie,
@@ -269,16 +314,7 @@ fun MoviesScreen(
                 )
             }
         }
-    }
-
-    if (categorySelectorOpen) {
-        TvCategorySelector(
-            title = "Categorias de filmes",
-            categories = tvCategories,
-            selectedCategory = selectedCategory.takeIf(tvCategories::contains) ?: FILTER_ALL,
-            onSelect = { selectedCategory = it },
-            onDismiss = { categorySelectorOpen = false },
-        )
+        }
     }
 }
 
@@ -337,7 +373,7 @@ private fun MovieCategoryChip(label: String, selected: Boolean, onClick: () -> U
                 },
             )
             .border(
-                width = if (focused) 2.dp else 1.dp,
+                width = if (focused) 3.dp else 1.dp,
                 color = when {
                     focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary

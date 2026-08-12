@@ -30,14 +30,19 @@ app. O player continua sob `NativePlaybackKeyRouter` e controles Media3.
 | Suporte futuro | ação focável; QR apenas visual | Back fecha modal antes de Settings | abre modal; Back fecha modal |
 | Player/drawer | política própria Media3 | nenhum interceptador desta política | roteador nativo preservado |
 
-## Seletor de categorias para TV
+## Exibição de categorias para TV
 
-- `Todos`, `Favoritos`/`Minha Lista`, `Continuar` e `A-Z` permanecem atalhos rápidos;
-- `Categorias` abre lista vertical rolável, inclusive com 100+ opções;
-- selecionado usa marca textual `SELECIONADA ✓`; focado usa borda oficial;
-- abre na categoria atual e solicita foco somente uma vez;
-- confirmar fecha e foca o primeiro item coerente do grid;
-- Back fecha sem alterar e retorna ao botão;
+- `Configurações > Interface > Exibição das categorias` oferece `Clássica` e `Painel lateral`;
+- `Clássica` é o padrão compatível e preserva a faixa horizontal do APK publicado;
+- `Painel lateral` mantém as categorias fixas à esquerda e suporta 100+ opções;
+- nesse modo, o rail principal fica totalmente recolhido enquanto o catálogo está aberto;
+- a categoria atual usa check; o foco usa escala, borda vermelha de 3 dp e marcador lateral;
+- `OK` aplica sem remover o painel e foca o primeiro item coerente do grid;
+- `←` a partir das categorias revela o menu principal sobre a tela;
+- `Back` em Canais, Filmes ou Séries também revela o menu principal;
+- fechar o menu principal com `Back` devolve o foco à categoria atual;
+- `→` a partir das categorias retorna ao último conteúdo coerente do catálogo;
+- `←` na primeira coluna do catálogo retorna diretamente à categoria atual;
 - se categoria desaparecer no refresh, fallback explícito para `Todos`;
 - mobile preserva os chips horizontais touch atuais.
 
@@ -45,4 +50,6 @@ app. O player continua sob `NativePlaybackKeyRouter` e controles Media3.
 
 Validar os fluxos instrumentados da #272 em controle real, inclusive D-pad rápido,
 OK repetido, refresh durante foco, item removido e seletor com 0/3/20/100+
-categorias. Registrar diferenças de TV/TV Box em relação ao CI.
+categorias, alternância persistida entre os dois modos, menu principal recolhido,
+saída por `←`/`Back` e retorno à categoria atual. Registrar diferenças de TV/TV
+Box em relação ao CI.

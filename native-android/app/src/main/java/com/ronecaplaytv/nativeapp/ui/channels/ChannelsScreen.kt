@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -51,17 +53,20 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
-import com.ronecaplaytv.nativeapp.ui.components.TvCategoryButton
-import com.ronecaplaytv.nativeapp.ui.components.TvCategorySelector
+import com.ronecaplaytv.nativeapp.ui.components.TvCategorySidePanel
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import com.ronecaplaytv.nativeapp.ui.navigation.deterministicFocusId
 import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
+import com.ronecaplaytv.nativeapp.ui.settings.CategoryDisplayMode
 import kotlinx.coroutines.delay
 
 @Composable
 fun ChannelsScreen(
     channels: List<NativeChannel>,
     isTelevision: Boolean,
+    categoryDisplayMode: CategoryDisplayMode,
+    categoryPanelFocusRequestKey: Int,
+    onRequestMainNavigationFocus: () -> Unit,
     favoriteIds: Set<String>,
     onToggleFavorite: (NativeChannel) -> Unit,
     onPlay: (NativeChannel) -> Unit,
@@ -72,7 +77,7 @@ fun ChannelsScreen(
     var alphabetical by rememberSaveable { mutableStateOf(false) }
     var lastFocusedChannelId by rememberSaveable { mutableStateOf<String?>(null) }
     var appliedFilterSignature by rememberSaveable { mutableStateOf("") }
-    var categorySelectorOpen by rememberSaveable { mutableStateOf(false) }
+    var focusCatalogAfterPanel by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
     var entryFocusPending by remember { mutableStateOf(true) }
 
@@ -80,12 +85,21 @@ fun ChannelsScreen(
     val gridState = rememberLazyGridState()
     val mobileListState = rememberLazyListState()
     val restoreFocusRequester = remember { FocusRequester() }
+    val categoryPanelRequester = remember { FocusRequester() }
 
     val categories = remember(channels) {
         listOf("Todos") + channels
             .map { it.groupTitle.ifBlank { "Outros" } }
             .distinct()
             .sorted()
+    }
+    val categoryCounts = remember(channels) {
+        buildMap {
+            put("Todos", channels.size)
+            channels.groupingBy { it.groupTitle.ifBlank { "Outros" } }
+                .eachCount()
+                .forEach { (category, count) -> put(category, count) }
+        }
     }
 
     val filteredChannels = remember(
@@ -134,7 +148,7 @@ fun ChannelsScreen(
         }
 
         if (
-            isTelevision && !searchFocused && !categorySelectorOpen && lastFocusedChannelId != null &&
+            isTelevision && !searchFocused && lastFocusedChannelId != null &&
             (entryFocusPending || filterChanged || focusedItemMissing)
         ) {
             delay(100)
@@ -147,11 +161,41 @@ fun ChannelsScreen(
         if (selectedCategory !in categories) selectedCategory = "Todos"
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RonecaColors.Background),
+    LaunchedEffect(
+        focusCatalogAfterPanel,
+        lastFocusedChannelId,
     ) {
+        if (focusCatalogAfterPanel && lastFocusedChannelId != null) {
+            delay(140)
+            runCatching { restoreFocusRequester.requestFocus() }
+            focusCatalogAfterPanel = false
+        }
+    }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (isTelevision && categoryDisplayMode == CategoryDisplayMode.SidePanel) {
+            TvCategorySidePanel(
+                title = "TV ao vivo",
+                categories = categories,
+                selectedCategory = selectedCategory,
+                categoryCounts = categoryCounts,
+                focusRequestKey = categoryPanelFocusRequestKey,
+                selectedFocusRequester = categoryPanelRequester,
+                onSelect = { category ->
+                    focusCatalogAfterPanel = true
+                    favoritesOnly = false
+                    selectedCategory = category
+                },
+                onExitToMainMenu = onRequestMainNavigationFocus,
+                onMoveToCatalog = { focusCatalogAfterPanel = true },
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(RonecaColors.Background),
+        ) {
         val sidePadding = if (isTelevision) 24.dp else 18.dp
 
         Column(
@@ -189,31 +233,69 @@ fun ChannelsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    FilterChip(
-                        label = "Todos",
-                        selected = !favoritesOnly && !alphabetical && selectedCategory == "Todos",
-                        onClick = {
-                            favoritesOnly = false
-                            alphabetical = false
-                            selectedCategory = "Todos"
-                        },
-                    )
-                    FilterChip(
-                        label = "Favoritos",
-                        selected = favoritesOnly,
-                        onClick = { favoritesOnly = !favoritesOnly },
-                    )
-                    FilterChip(
-                        label = "A-Z",
-                        selected = alphabetical,
-                        onClick = { alphabetical = !alphabetical },
-                    )
-                    TvCategoryButton(
-                        selectedCategory = selectedCategory,
-                        categoryCount = categories.size,
-                        onClick = { categorySelectorOpen = true },
-                    )
+                if (categoryDisplayMode == CategoryDisplayMode.SidePanel) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        FilterChip(
+                            label = "Todos",
+                            selected = !favoritesOnly && !alphabetical && selectedCategory == "Todos",
+                            onClick = {
+                                favoritesOnly = false
+                                alphabetical = false
+                                selectedCategory = "Todos"
+                            },
+                        )
+                        FilterChip(
+                            label = "Favoritos",
+                            selected = favoritesOnly,
+                            onClick = { favoritesOnly = !favoritesOnly },
+                        )
+                        FilterChip(
+                            label = "A-Z",
+                            selected = alphabetical,
+                            onClick = { alphabetical = !alphabetical },
+                        )
+                    }
+                } else {
+                    LazyRow(
+                        state = categoryState,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    ) {
+                        item {
+                            FilterChip(
+                                label = "Todos",
+                                selected = !favoritesOnly && !alphabetical && selectedCategory == "Todos",
+                                onClick = {
+                                    favoritesOnly = false
+                                    alphabetical = false
+                                    selectedCategory = "Todos"
+                                },
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                label = "Favoritos",
+                                selected = favoritesOnly,
+                                onClick = { favoritesOnly = !favoritesOnly },
+                            )
+                        }
+                        item {
+                            FilterChip(
+                                label = "A-Z",
+                                selected = alphabetical,
+                                onClick = { alphabetical = !alphabetical },
+                            )
+                        }
+                        items(categories.drop(1), key = { it }) { category ->
+                            FilterChip(
+                                label = category,
+                                selected = selectedCategory == category,
+                                onClick = {
+                                    favoritesOnly = false
+                                    selectedCategory = category
+                                },
+                            )
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
             } else {
@@ -288,11 +370,18 @@ fun ChannelsScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(filteredChannels, key = NativeChannel::id) { channel ->
-                    val focusModifier = if (channel.id == lastFocusedChannelId) {
-                        Modifier.focusRequester(restoreFocusRequester)
+                itemsIndexed(filteredChannels, key = { _, channel -> channel.id }) { index, channel ->
+                    val panelNavigationModifier = if (
+                        categoryDisplayMode == CategoryDisplayMode.SidePanel && index % 3 == 0
+                    ) {
+                        Modifier.focusProperties { left = categoryPanelRequester }
                     } else {
                         Modifier
+                    }
+                    val focusModifier = if (channel.id == lastFocusedChannelId) {
+                        panelNavigationModifier.then(Modifier.focusRequester(restoreFocusRequester))
+                    } else {
+                        panelNavigationModifier
                     }
                     ChannelItem(
                         channel = channel,
@@ -340,19 +429,7 @@ fun ChannelsScreen(
                 }
             }
         }
-    }
-
-    if (categorySelectorOpen) {
-        TvCategorySelector(
-            title = "Categorias de canais",
-            categories = categories,
-            selectedCategory = selectedCategory,
-            onSelect = { category ->
-                favoritesOnly = false
-                selectedCategory = category
-            },
-            onDismiss = { categorySelectorOpen = false },
-        )
+        }
     }
 }
 
@@ -411,7 +488,7 @@ private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 },
             )
             .border(
-                width = if (focused) 2.dp else 1.dp,
+                width = if (focused) 3.dp else 1.dp,
                 color = when {
                     focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary

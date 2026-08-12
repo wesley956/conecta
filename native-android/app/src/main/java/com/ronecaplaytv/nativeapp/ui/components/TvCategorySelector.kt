@@ -8,15 +8,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -31,151 +32,126 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.navigation.isRonecaActivationKey
 import kotlinx.coroutines.delay
 
+/**
+ * Painel secundário da tela de catálogo. Ele é renderizado dentro do conteúdo,
+ * portanto o rail principal permanece visível à esquerda sem disputar foco.
+ */
 @Composable
-fun TvCategoryButton(
-    selectedCategory: String,
-    categoryCount: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val interaction = remember { MutableInteractionSource() }
-    Box(
-        modifier = modifier
-            .ronecaFocusScale(focused = focused)
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
-            .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = if (focused) RonecaColors.Focus else RonecaColors.Border,
-                shape = RoundedCornerShape(999.dp),
-            )
-            .onFocusChanged { focused = it.isFocused }
-            .onPreviewKeyEvent { event ->
-                if (event.isRonecaActivationKey()) {
-                    onClick()
-                    true
-                } else false
-            }
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .focusable()
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        Text(
-            text = "Categorias  •  $selectedCategory  ($categoryCount)",
-            color = if (focused) RonecaColors.TextPrimary else RonecaColors.TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-fun TvCategorySelector(
+fun TvCategorySidePanel(
     title: String,
     categories: List<String>,
     selectedCategory: String,
+    categoryCounts: Map<String, Int>,
+    focusRequestKey: Int,
+    selectedFocusRequester: FocusRequester,
     onSelect: (String) -> Unit,
-    onDismiss: () -> Unit,
+    onExitToMainMenu: () -> Unit,
+    onMoveToCatalog: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    if (categories.isEmpty()) return
+
     val selectedIndex = categories.indexOf(selectedCategory).coerceAtLeast(0)
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = selectedIndex)
-    val selectedRequester = remember { FocusRequester() }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-            usePlatformDefaultWidth = false,
-        ),
+    Column(
+        modifier = modifier
+            .width(320.dp)
+            .fillMaxHeight()
+            .background(RonecaColors.SurfaceOverlay)
+            .border(width = 1.dp, color = RonecaColors.Border)
+            .padding(start = 20.dp, end = 16.dp, top = 24.dp, bottom = 18.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight()
-                .background(Color.Black.copy(alpha = 0.70f)),
-            contentAlignment = Alignment.Center,
+        Text(
+            text = title.uppercase(),
+            color = RonecaColors.Primary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Categorias",
+            color = RonecaColors.TextPrimary,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = "${categories.size} opções",
+            color = RonecaColors.TextSecondary,
+            fontSize = 12.sp,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(min = 430.dp, max = 620.dp)
-                    .fillMaxHeight(0.82f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(RonecaColors.SurfaceOverlay)
-                    .border(1.dp, RonecaColors.Border, RoundedCornerShape(18.dp))
-                    .padding(18.dp),
-            ) {
-                Text(
-                    text = title,
-                    color = RonecaColors.TextPrimary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
+            itemsIndexed(categories, key = { _, category -> category }) { index, category ->
+                val selected = category == selectedCategory
+                TvCategorySidePanelRow(
+                    label = category,
+                    count = categoryCounts[category],
+                    selected = selected,
+                    index = index,
+                    lastIndex = categories.lastIndex,
+                        onExitToMainMenu = onExitToMainMenu,
+                        onMoveToCatalog = onMoveToCatalog,
+                        modifier = if (selected) {
+                            Modifier.focusRequester(selectedFocusRequester)
+                    } else {
+                        Modifier
+                    },
+                    onClick = { onSelect(category) },
                 )
-                Spacer(modifier = Modifier.height(5.dp))
-                Text(
-                    text = "Use ↑/↓ e confirme com OK. Back fecha sem alterar.",
-                    color = RonecaColors.TextSecondary,
-                    fontSize = 12.sp,
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-                LazyColumn(
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
-                ) {
-                    items(categories, key = { it }) { category ->
-                        val selected = category == selectedCategory
-                        TvCategoryRow(
-                            label = category,
-                            selected = selected,
-                            modifier = if (selected) Modifier.focusRequester(selectedRequester) else Modifier,
-                            onClick = {
-                                onSelect(category)
-                                onDismiss()
-                            },
-                        )
-                    }
-                }
             }
         }
     }
 
-    LaunchedEffect(categories, selectedCategory) {
-        if (categories.isNotEmpty()) {
-            listState.scrollToItem(selectedIndex)
-            delay(80)
-            runCatching { selectedRequester.requestFocus() }
-        }
+    LaunchedEffect(focusRequestKey) {
+        if (focusRequestKey <= 0) return@LaunchedEffect
+        listState.scrollToItem(selectedIndex)
+        delay(90)
+        runCatching { selectedFocusRequester.requestFocus() }
     }
 }
 
 @Composable
-private fun TvCategoryRow(
+private fun TvCategorySidePanelRow(
     label: String,
+    count: Int?,
     selected: Boolean,
+    index: Int,
+    lastIndex: Int,
+    onExitToMainMenu: () -> Unit,
+    onMoveToCatalog: () -> Unit,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
     var focused by remember(label) { mutableStateOf(false) }
     val interaction = remember(label) { MutableInteractionSource() }
-    Row(
+    val shape = RoundedCornerShape(13.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .ronecaFocusScale(focused = focused, focusedScale = 1.018f)
+            .clip(shape)
             .background(
                 when {
                     focused -> RonecaColors.SurfaceRaised
@@ -184,41 +160,73 @@ private fun TvCategoryRow(
                 },
             )
             .border(
-                width = if (focused) 2.dp else 1.dp,
+                width = if (focused) 3.dp else 1.dp,
                 color = when {
                     focused -> RonecaColors.Focus
                     selected -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = shape,
             )
             .onFocusChanged { focused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (event.isRonecaActivationKey()) {
-                    onClick()
-                    true
-                } else false
+                when {
+                    event.isRonecaActivationKey() -> {
+                        onClick()
+                        true
+                    }
+                    event.type != KeyEventType.KeyDown -> false
+                    event.key == Key.DirectionLeft -> {
+                        onExitToMainMenu()
+                        true
+                    }
+                    event.key == Key.DirectionRight -> {
+                        onMoveToCatalog()
+                        true
+                    }
+                    event.key == Key.DirectionUp && index == 0 -> true
+                    event.key == Key.DirectionDown && index == lastIndex -> true
+                    else -> false
+                }
             }
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .focusable()
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 15.dp, vertical = 13.dp),
     ) {
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            color = RonecaColors.TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (selected) {
+        if (focused) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(4.dp)
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(RonecaColors.RedStrong),
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = if (focused) 10.dp else 0.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = "SELECIONADA ✓",
-                color = RonecaColors.PrimaryStrong,
-                fontSize = 10.sp,
+                text = label,
+                modifier = Modifier.weight(1f),
+                color = RonecaColors.TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = if (focused || selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = buildString {
+                    if (count != null) append(count)
+                    if (selected) append("  ✓")
+                },
+                color = if (focused) RonecaColors.TextPrimary else RonecaColors.PrimaryStrong,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
