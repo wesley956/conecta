@@ -2,6 +2,13 @@ name: Build isolated Android homologation candidate
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'native-android/**'
+      - 'scripts/check-native-only.mjs'
+      - '.github/workflows/build-native-android-homologation.yml'
 
 permissions:
   contents: read
