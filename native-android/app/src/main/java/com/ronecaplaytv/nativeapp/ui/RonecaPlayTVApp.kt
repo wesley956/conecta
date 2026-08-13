@@ -92,6 +92,13 @@ private data class PendingPlaybackValidation(
     val contentKey: String,
 )
 
+private data class CatalogPreferenceMigration(
+    val channelFavorites: Set<String>,
+    val movieFavorites: Set<String>,
+    val seriesFavorites: Set<String>,
+    val progress: List<SavedProgress>,
+)
+
 private val recommendationSeparators = Regex("[^a-z0-9]+")
 private val recommendationMarks = Regex("\\p{M}+")
 private val playlistWidePlaybackFailures = setOf(
@@ -273,31 +280,64 @@ fun RonecaPlayTVApp(
         catalogState.series,
     ) {
         if (!catalogState.loaded) return@LaunchedEffect
-        favoriteChannelIds = playbackPreferences.migrateFavoriteChannels(
-            catalogState.channels.associate { it.id to ContentIdentity.channel(it) },
-        )
-        favoriteMovieIds = playbackPreferences.migrateFavoriteMovies(
-            catalogState.movies.associate { it.id to ContentIdentity.movie(it) },
-        )
-        favoriteSeriesIds = playbackPreferences.migrateFavoriteSeries(
-            catalogState.series.associate { it.id to ContentIdentity.series(it) },
-        )
-        val progressAliases = buildMap {
-            catalogState.movies.forEach { movie ->
-                put("movie:${movie.id}", ContentIdentity.movie(movie))
+        val migration = withContext(Dispatchers.Default) {
+            val existingChannelFavorites = playbackPreferences.favoriteChannels()
+            val existingMovieFavorites = playbackPreferences.favoriteMovies()
+            val existingSeriesFavorites = playbackPreferences.favoriteSeries()
+            val existingProgress = playbackPreferences.startedProgress()
+
+            val migratedChannels = if (existingChannelFavorites.isEmpty()) {
+                existingChannelFavorites
+            } else {
+                playbackPreferences.migrateFavoriteChannels(
+                    catalogState.channels.associate { it.id to ContentIdentity.channel(it) },
+                )
             }
-            catalogState.series.forEach { series ->
-                series.seasons.forEach { season ->
-                    season.episodes.forEach { episode ->
-                        put(
-                            "episode:${series.id}:${episode.id}",
-                            ContentIdentity.episode(series, season, episode),
-                        )
+            val migratedMovies = if (existingMovieFavorites.isEmpty()) {
+                existingMovieFavorites
+            } else {
+                playbackPreferences.migrateFavoriteMovies(
+                    catalogState.movies.associate { it.id to ContentIdentity.movie(it) },
+                )
+            }
+            val migratedSeries = if (existingSeriesFavorites.isEmpty()) {
+                existingSeriesFavorites
+            } else {
+                playbackPreferences.migrateFavoriteSeries(
+                    catalogState.series.associate { it.id to ContentIdentity.series(it) },
+                )
+            }
+            val migratedProgress = if (existingProgress.isEmpty()) {
+                existingProgress
+            } else {
+                val progressAliases = buildMap {
+                    catalogState.movies.forEach { movie ->
+                        put("movie:${movie.id}", ContentIdentity.movie(movie))
+                    }
+                    catalogState.series.forEach { series ->
+                        series.seasons.forEach { season ->
+                            season.episodes.forEach { episode ->
+                                put(
+                                    "episode:${series.id}:${episode.id}",
+                                    ContentIdentity.episode(series, season, episode),
+                                )
+                            }
+                        }
                     }
                 }
+                playbackPreferences.migrateProgress(progressAliases)
             }
+            CatalogPreferenceMigration(
+                channelFavorites = migratedChannels,
+                movieFavorites = migratedMovies,
+                seriesFavorites = migratedSeries,
+                progress = migratedProgress,
+            )
         }
-        savedProgress = playbackPreferences.migrateProgress(progressAliases)
+        favoriteChannelIds = migration.channelFavorites
+        favoriteMovieIds = migration.movieFavorites
+        favoriteSeriesIds = migration.seriesFavorites
+        savedProgress = migration.progress
     }
 
     LaunchedEffect(
@@ -720,29 +760,39 @@ fun RonecaPlayTVApp(
 
     val progressKeys = remember(savedProgress) { savedProgress.map(SavedProgress::contentKey).toSet() }
     val startedMovieIds = remember(savedProgress, catalogState.movies) {
-        catalogState.movies.filterTo(linkedSetOf()) { movie ->
-            ContentIdentity.movie(movie) in progressKeys || "movie:${movie.id}" in progressKeys
-        }.mapTo(linkedSetOf(), NativeMovie::id)
+        if (progressKeys.isEmpty()) emptySet() else catalogState.movies
+            .filterTo(linkedSetOf()) { movie ->
+                ContentIdentity.movie(movie) in progressKeys || "movie:${movie.id}" in progressKeys
+            }
+            .mapTo(linkedSetOf(), NativeMovie::id)
     }
     val startedSeriesIds = remember(savedProgress, catalogState.series) {
-        catalogState.series.filterTo(linkedSetOf()) { series ->
-            savedProgress.any { ContentIdentity.episodeMatchesSeries(it.contentKey, series) }
-        }.mapTo(linkedSetOf(), NativeSeries::id)
+        if (savedProgress.isEmpty()) emptySet() else catalogState.series
+            .filterTo(linkedSetOf()) { series ->
+                savedProgress.any { ContentIdentity.episodeMatchesSeries(it.contentKey, series) }
+            }
+            .mapTo(linkedSetOf(), NativeSeries::id)
     }
     val favoriteChannelDisplayIds = remember(favoriteChannelIds, catalogState.channels) {
-        catalogState.channels.filterTo(linkedSetOf()) { channel ->
-            ContentIdentity.channel(channel) in favoriteChannelIds || channel.id in favoriteChannelIds
-        }.mapTo(linkedSetOf(), NativeChannel::id)
+        if (favoriteChannelIds.isEmpty()) emptySet() else catalogState.channels
+            .filterTo(linkedSetOf()) { channel ->
+                ContentIdentity.channel(channel) in favoriteChannelIds || channel.id in favoriteChannelIds
+            }
+            .mapTo(linkedSetOf(), NativeChannel::id)
     }
     val favoriteMovieDisplayIds = remember(favoriteMovieIds, catalogState.movies) {
-        catalogState.movies.filterTo(linkedSetOf()) { movie ->
-            ContentIdentity.movie(movie) in favoriteMovieIds || movie.id in favoriteMovieIds
-        }.mapTo(linkedSetOf(), NativeMovie::id)
+        if (favoriteMovieIds.isEmpty()) emptySet() else catalogState.movies
+            .filterTo(linkedSetOf()) { movie ->
+                ContentIdentity.movie(movie) in favoriteMovieIds || movie.id in favoriteMovieIds
+            }
+            .mapTo(linkedSetOf(), NativeMovie::id)
     }
     val favoriteSeriesDisplayIds = remember(favoriteSeriesIds, catalogState.series) {
-        catalogState.series.filterTo(linkedSetOf()) { series ->
-            ContentIdentity.series(series) in favoriteSeriesIds || series.id in favoriteSeriesIds
-        }.mapTo(linkedSetOf(), NativeSeries::id)
+        if (favoriteSeriesIds.isEmpty()) emptySet() else catalogState.series
+            .filterTo(linkedSetOf()) { series ->
+                ContentIdentity.series(series) in favoriteSeriesIds || series.id in favoriteSeriesIds
+            }
+            .mapTo(linkedSetOf(), NativeSeries::id)
     }
 
     val featuredMovies = remember(catalogState.movies) {

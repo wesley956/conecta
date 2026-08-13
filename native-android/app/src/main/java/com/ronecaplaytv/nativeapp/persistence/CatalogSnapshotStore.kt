@@ -2,6 +2,8 @@ package com.ronecaplaytv.nativeapp.persistence
 
 import android.content.Context
 import android.os.SystemClock
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.AtomicFile
 import com.ronecaplaytv.nativeapp.activation.DevicePlaylistConfig
 import com.ronecaplaytv.nativeapp.activation.DeviceAccessStatus
@@ -12,7 +14,17 @@ import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeason
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import java.io.File
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.security.KeyStore
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -37,6 +49,7 @@ internal data class CatalogSnapshotRequest(
     val playlistId: String,
     val playlistRole: String,
     val configFingerprint: String,
+    val authoritativeContentRevision: String?,
 )
 
 internal data class CatalogSnapshotEnvelope(
@@ -88,6 +101,12 @@ internal object CatalogSnapshotIdentity {
             candidate.moviesUrl.isNullOrBlank().not().toString(),
             candidate.seriesUrl.isNullOrBlank().not().toString(),
             candidate.networkPolicy.cacheKey,
+            candidate.accessMode.orEmpty(),
+            candidate.cacheReady.toString(),
+            candidate.updatedAt.orEmpty(),
+            candidate.cacheVersion.orEmpty(),
+            candidate.cacheUpdatedAt.orEmpty(),
+            candidate.cacheManifestSha256.orEmpty(),
             endpointShape,
         ).joinToString("|")
         return CatalogSnapshotRequest(
@@ -95,6 +114,7 @@ internal object CatalogSnapshotIdentity {
             playlistId = candidate.id,
             playlistRole = candidate.role,
             configFingerprint = sha256("catalog-shape:$safeShape"),
+            authoritativeContentRevision = candidate.authoritativeContentRevision,
         )
     }
 
@@ -104,13 +124,14 @@ internal object CatalogSnapshotIdentity {
 }
 
 /**
- * Schema versionado do catálogo visível. URLs de imagens e reprodução nunca são
- * serializadas: elas podem carregar credenciais do provedor e são reconstruídas
- * somente depois que a configuração protegida for revalidada.
+ * Schema versionado do catálogo utilizável. O payload inclui imagens e reprodução,
+ * mas nunca chega ao disco em claro: CatalogSnapshotStore comprime e protege todo
+ * o conteúdo com AES-GCM/Android Keystore antes do AtomicFile.
  */
 internal object CatalogSnapshotCodec {
-    const val SCHEMA_VERSION = 1
-    const val MAX_BYTES = 24L * 1024L * 1024L
+    const val SCHEMA_VERSION = 2
+    const val MAX_ENCRYPTED_BYTES = 32L * 1024L * 1024L
+    const val MAX_PLAINTEXT_BYTES = 96L * 1024L * 1024L
     private val json = Json { ignoreUnknownKeys = true }
 
     fun encode(envelope: CatalogSnapshotEnvelope): ByteArray {
@@ -137,7 +158,7 @@ internal object CatalogSnapshotCodec {
     }
 
     fun decode(bytes: ByteArray): CatalogSnapshotEnvelope? {
-        if (bytes.isEmpty() || bytes.size > MAX_BYTES) return null
+        if (bytes.isEmpty() || bytes.size > MAX_PLAINTEXT_BYTES) return null
         return runCatching {
             val root = json.parseToJsonElement(bytes.toString(Charsets.UTF_8)).jsonObject
             if (root.int("schemaVersion") != SCHEMA_VERSION) return null
@@ -172,6 +193,11 @@ internal object CatalogSnapshotCodec {
                     put("id", channel.id)
                     put("name", channel.name)
                     put("group", channel.groupTitle)
+                    channel.logoUrl?.let { put("logo", it) }
+                    put("primary", channel.primaryUrl)
+                    putJsonArray("playback") {
+                        channel.playbackUrls.distinct().take(MAX_PLAYBACK_URLS).forEach { add(it) }
+                    }
                 }
             }
         }
@@ -183,7 +209,12 @@ internal object CatalogSnapshotCodec {
                     movie.year?.let { put("year", it) }
                     movie.duration?.let { put("duration", it) }
                     movie.synopsis?.let { put("synopsis", it) }
+                    movie.coverUrl?.let { put("cover", it) }
                     put("category", movie.category)
+                    put("primary", movie.primaryUrl)
+                    putJsonArray("playback") {
+                        movie.playbackUrls.distinct().take(MAX_PLAYBACK_URLS).forEach { add(it) }
+                    }
                 }
             }
         }
@@ -193,6 +224,7 @@ internal object CatalogSnapshotCodec {
                     put("id", item.id)
                     put("name", item.name)
                     put("category", item.category)
+                    item.coverUrl?.let { put("cover", it) }
                     item.synopsis?.let { put("synopsis", it) }
                     item.xtreamSeriesId?.let { put("xtreamSeriesId", it) }
                     putJsonArray("seasons") {
@@ -206,6 +238,10 @@ internal object CatalogSnapshotCodec {
                                             put("number", episode.number)
                                             put("name", episode.name)
                                             episode.duration?.let { put("duration", it) }
+                                            put("primary", episode.primaryUrl)
+                                            putJsonArray("playback") {
+                                                episode.playbackUrls.distinct().take(MAX_PLAYBACK_URLS).forEach { add(it) }
+                                            }
                                         }
                                     }
                                 }
@@ -224,9 +260,11 @@ internal object CatalogSnapshotCodec {
                 id = item.requiredString("id", 300),
                 name = item.requiredString("name", 500),
                 groupTitle = item.string("group")?.take(500).orEmpty(),
-                logoUrl = null,
-                primaryUrl = "",
-                playbackUrls = emptyList(),
+                logoUrl = item.safeUrl("logo"),
+                primaryUrl = item.requiredUrl("primary"),
+                playbackUrls = item.safeUrls("playback").ifEmpty {
+                    listOf(item.requiredUrl("primary"))
+                },
             )
         }
         val movies = payload.array("movies").map { element ->
@@ -237,10 +275,12 @@ internal object CatalogSnapshotCodec {
                 year = item["year"]?.jsonPrimitive?.intOrNull,
                 duration = item.string("duration")?.take(120),
                 synopsis = item.string("synopsis")?.take(4_000),
-                coverUrl = null,
+                coverUrl = item.safeUrl("cover"),
                 category = item.string("category")?.take(500).orEmpty(),
-                primaryUrl = "",
-                playbackUrls = emptyList(),
+                primaryUrl = item.requiredUrl("primary"),
+                playbackUrls = item.safeUrls("playback").ifEmpty {
+                    listOf(item.requiredUrl("primary"))
+                },
             )
         }
         val series = payload.array("series").map { element ->
@@ -248,7 +288,7 @@ internal object CatalogSnapshotCodec {
             NativeSeries(
                 id = item.requiredString("id", 300),
                 name = item.requiredString("name", 500),
-                coverUrl = null,
+                coverUrl = item.safeUrl("cover"),
                 category = item.string("category")?.take(500).orEmpty(),
                 synopsis = item.string("synopsis")?.take(4_000),
                 seasons = item.array("seasons").map { seasonElement ->
@@ -262,8 +302,10 @@ internal object CatalogSnapshotCodec {
                                 number = episode.int("number"),
                                 name = episode.requiredString("name", 500),
                                 duration = episode.string("duration")?.take(120),
-                                primaryUrl = "",
-                                playbackUrls = emptyList(),
+                                primaryUrl = episode.requiredUrl("primary"),
+                                playbackUrls = episode.safeUrls("playback").ifEmpty {
+                                    listOf(episode.requiredUrl("primary"))
+                                },
                             )
                         },
                     )
@@ -278,27 +320,49 @@ internal object CatalogSnapshotCodec {
     private fun JsonObject.array(name: String): JsonArray = this[name]?.jsonArray ?: JsonArray(emptyList())
     private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
     private fun JsonObject.int(name: String): Int = this[name]?.jsonPrimitive?.intOrNull ?: 0
+    private fun JsonObject.safeUrl(name: String): String? = string(name)
+        ?.trim()
+        ?.takeIf { it.length in 1..MAX_URL_LENGTH }
+    private fun JsonObject.requiredUrl(name: String): String = requireNotNull(safeUrl(name))
+    private fun JsonObject.safeUrls(name: String): List<String> = array(name)
+        .mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }
+        .filter { it.length in 1..MAX_URL_LENGTH }
+        .distinct()
+        .take(MAX_PLAYBACK_URLS)
     private fun JsonObject.requiredString(name: String, maxLength: Int): String {
         val value = string(name)?.trim().orEmpty()
         require(value.isNotEmpty() && value.length <= maxLength)
         return value
     }
+
+    private const val MAX_URL_LENGTH = 8_192
+    private const val MAX_PLAYBACK_URLS = 8
 }
 
 internal class CatalogSnapshotStore(context: Context) {
     private val directory = File(context.applicationContext.noBackupFilesDir, DIRECTORY_NAME)
+    private val legacyDirectory = File(context.applicationContext.noBackupFilesDir, LEGACY_DIRECTORY_NAME)
+    private val cipher = CatalogSnapshotCipher()
 
     suspend fun read(request: CatalogSnapshotRequest): CatalogSnapshotRead? = withContext(Dispatchers.IO) {
         val atomicFile = AtomicFile(fileFor(request))
         val baseFile = atomicFile.baseFile
         if (!baseFile.isFile) return@withContext null
-        if (baseFile.length() <= 0L || baseFile.length() > CatalogSnapshotCodec.MAX_BYTES) {
+        if (baseFile.length() <= 0L || baseFile.length() > CatalogSnapshotCodec.MAX_ENCRYPTED_BYTES) {
             atomicFile.delete()
             return@withContext null
         }
 
         val started = SystemClock.elapsedRealtimeNanos()
-        val bytes = runCatching { atomicFile.openRead().use { it.readBytes() } }.getOrElse {
+        val encrypted = runCatching { atomicFile.openRead().use { it.readBytes() } }.getOrElse {
+            atomicFile.delete()
+            return@withContext null
+        }
+        val compressed = cipher.open(encrypted, associatedData(request)) ?: run {
+            atomicFile.delete()
+            return@withContext null
+        }
+        val bytes = gunzipBounded(compressed, CatalogSnapshotCodec.MAX_PLAINTEXT_BYTES) ?: run {
             atomicFile.delete()
             return@withContext null
         }
@@ -319,10 +383,10 @@ internal class CatalogSnapshotStore(context: Context) {
         }
         CatalogSnapshotRead(
             envelope = envelope,
-            sizeBytes = bytes.size.toLong(),
+            sizeBytes = encrypted.size.toLong(),
             readMillis = (SystemClock.elapsedRealtimeNanos() - started) / 1_000_000L,
             ageMillis = ageMillis,
-            stale = ageMillis > FRESH_TTL_MILLIS,
+            stale = request.authoritativeContentRevision == null && ageMillis > FRESH_TTL_MILLIS,
         )
     }
 
@@ -345,16 +409,19 @@ internal class CatalogSnapshotStore(context: Context) {
                 ),
             )
         }.getOrNull() ?: return@withContext null
-        if (bytes.size > CatalogSnapshotCodec.MAX_BYTES) return@withContext null
+        if (bytes.size > CatalogSnapshotCodec.MAX_PLAINTEXT_BYTES) return@withContext null
+        val compressed = gzip(bytes)
+        val encrypted = cipher.seal(compressed, associatedData(request)) ?: return@withContext null
+        if (encrypted.size > CatalogSnapshotCodec.MAX_ENCRYPTED_BYTES) return@withContext null
 
         directory.mkdirs()
         val atomicFile = AtomicFile(fileFor(request))
         val output = runCatching { atomicFile.startWrite() }.getOrNull() ?: return@withContext null
         try {
-            output.write(bytes)
+            output.write(encrypted)
             output.fd.sync()
             atomicFile.finishWrite(output)
-            bytes.size.toLong()
+            encrypted.size.toLong()
         } catch (_: Throwable) {
             atomicFile.failWrite(output)
             null
@@ -363,16 +430,116 @@ internal class CatalogSnapshotStore(context: Context) {
 
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         directory.listFiles()?.forEach { file -> AtomicFile(file).delete() }
+        legacyDirectory.listFiles()?.forEach { file -> AtomicFile(file).delete() }
     }
 
     private fun fileFor(request: CatalogSnapshotRequest): File {
         val name = CatalogSnapshotIdentity.sha256("${request.deviceCodeHash}|${request.playlistId}")
-        return File(directory, "$name.json")
+        return File(directory, "$name.bin")
     }
 
+    private fun associatedData(request: CatalogSnapshotRequest): ByteArray =
+        "${request.deviceCodeHash}|${request.playlistId}".toByteArray(Charsets.UTF_8)
+
     private companion object {
-        const val DIRECTORY_NAME = "catalog-snapshots-v1"
+        const val DIRECTORY_NAME = "catalog-snapshots-v2"
+        const val LEGACY_DIRECTORY_NAME = "catalog-snapshots-v1"
         const val FRESH_TTL_MILLIS = 12L * 60L * 60L * 1_000L
-        const val MAX_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1_000L
+        const val MAX_RETENTION_MILLIS = 90L * 24L * 60L * 60L * 1_000L
     }
 }
+
+internal class CatalogSnapshotCipher(
+    private val keyProvider: () -> SecretKey = AndroidCatalogSnapshotKeyStore::getOrCreate,
+) {
+    fun seal(plaintext: ByteArray, associatedData: ByteArray): ByteArray? = runCatching {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, keyProvider())
+        cipher.updateAAD(associatedData)
+        val ciphertext = cipher.doFinal(plaintext)
+        ByteBuffer.allocate(HEADER_BYTES + cipher.iv.size + ciphertext.size)
+            .putInt(MAGIC)
+            .put(VERSION)
+            .put(cipher.iv.size.toByte())
+            .put(cipher.iv)
+            .put(ciphertext)
+            .array()
+    }.getOrNull()
+
+    fun open(sealed: ByteArray, associatedData: ByteArray): ByteArray? = runCatching {
+        require(sealed.size > HEADER_BYTES + MIN_IV_BYTES)
+        val buffer = ByteBuffer.wrap(sealed)
+        require(buffer.int == MAGIC)
+        require(buffer.get() == VERSION)
+        val ivSize = buffer.get().toInt() and 0xff
+        require(ivSize in MIN_IV_BYTES..MAX_IV_BYTES)
+        require(buffer.remaining() > ivSize)
+        val iv = ByteArray(ivSize).also(buffer::get)
+        val ciphertext = ByteArray(buffer.remaining()).also(buffer::get)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            keyProvider(),
+            GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv),
+        )
+        cipher.updateAAD(associatedData)
+        cipher.doFinal(ciphertext)
+    }.getOrNull()
+
+    private companion object {
+        const val MAGIC = 0x52505456
+        const val VERSION: Byte = 1
+        const val HEADER_BYTES = Int.SIZE_BYTES + 2
+        const val MIN_IV_BYTES = 12
+        const val MAX_IV_BYTES = 32
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val GCM_TAG_LENGTH_BITS = 128
+    }
+}
+
+private object AndroidCatalogSnapshotKeyStore {
+    fun getOrCreate(): SecretKey {
+        val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
+        val existing = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+        if (existing != null) return existing
+
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setRandomizedEncryptionRequired(true)
+                .build(),
+        )
+        return generator.generateKey()
+    }
+
+    private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
+    private const val KEY_ALIAS = "roneca_catalog_snapshot_v2"
+}
+
+private fun gzip(bytes: ByteArray): ByteArray = ByteArrayOutputStream().use { output ->
+    GZIPOutputStream(output).use { it.write(bytes) }
+    output.toByteArray()
+}
+
+private fun gunzipBounded(bytes: ByteArray, maximumBytes: Long): ByteArray? = runCatching {
+    GZIPInputStream(ByteArrayInputStream(bytes)).use { input ->
+        ByteArrayOutputStream().use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var total = 0L
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                total += count
+                require(total <= maximumBytes)
+                output.write(buffer, 0, count)
+            }
+            output.toByteArray()
+        }
+    }
+}.getOrNull()

@@ -19,6 +19,7 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLDecoder
+import java.net.URLEncoder
 import java.net.UnknownHostException
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -403,17 +404,17 @@ internal class DirectXtreamClient(context: Context) {
         private const val AUTH_FAILURE_TTL_MS = 30L * 1_000L
         private const val AUTH_TRANSIENT_TTL_MS = 10L * 1_000L
         private const val MAX_AUTH_CACHE_ENTRIES = 32
-        private const val MAX_DIRECT_SERIES_ENTRIES = 128
-        private const val DIRECT_SERIES_TTL_MS = 30L * 60L * 1_000L
+        private const val MAX_DIRECT_SOURCES = 16
+        private const val DIRECT_SOURCE_TTL_MS = 36L * 60L * 60L * 1_000L
         private const val CONNECT_TIMEOUT_MS = 8_000
         private const val READ_TIMEOUT_MS = 18_000
         private const val MAX_RESPONSE_BYTES = 64L * 1024L * 1024L
         private const val AUTH_RESPONSE_BYTES = 1L * 1024L * 1024L
         private const val USER_AGENT = "IPTVSmartersPro"
-        private val directSeries = object : LinkedHashMap<String, DirectSeriesRequest>(64, 0.75f, true) {
+        private val directSources = object : LinkedHashMap<String, DirectSeriesSource>(8, 0.75f, true) {
             override fun removeEldestEntry(
-                eldest: MutableMap.MutableEntry<String, DirectSeriesRequest>?,
-            ): Boolean = size > MAX_DIRECT_SERIES_ENTRIES
+                eldest: MutableMap.MutableEntry<String, DirectSeriesSource>?,
+            ): Boolean = size > MAX_DIRECT_SOURCES
         }
 
         fun supports(markedUrl: String): Boolean = credentialsFrom(markedUrl) != null
@@ -430,33 +431,51 @@ internal class DirectXtreamClient(context: Context) {
 
         fun isDirectSeriesKey(value: String): Boolean = value.startsWith(SERIES_KEY_PREFIX)
 
+        fun restoreSeriesSource(markedUrl: String): Boolean {
+            val credentials = credentialsFrom(markedUrl) ?: return false
+            registerSource(credentials)
+            return true
+        }
+
         suspend fun loadSeriesEpisodes(
             context: Context,
             seriesKey: String,
         ): List<NativeSeason> = withContext(Dispatchers.IO) {
             val now = System.currentTimeMillis()
-            val request = synchronized(directSeries) {
-                directSeries.entries.removeIf { it.value.expiresAtMillis <= now }
-                directSeries[seriesKey]
+            val parts = seriesKey.removePrefix(SERIES_KEY_PREFIX).split(':', limit = 3)
+            if (parts.size != 3 || parts[0] != "v2") {
+                throw CatalogLoadException("Atualize o catálogo antes de abrir os episódios desta série.")
             }
-                ?: throw CatalogLoadException(
+            val source = synchronized(directSources) {
+                directSources.entries.removeIf { it.value.expiresAtMillis <= now }
+                directSources[parts[1]]
+            } ?: throw CatalogLoadException(
                     "Atualize o catálogo antes de abrir os episódios desta série.",
                 )
-            DirectXtreamClient(context.applicationContext).loadSeriesEpisodes(request)
+            val seriesId = decode(parts[2]).takeIf(String::isNotBlank)
+                ?: throw CatalogLoadException("A série selecionada possui um identificador inválido.")
+            DirectXtreamClient(context.applicationContext).loadSeriesEpisodes(
+                DirectSeriesRequest(source.credentials, seriesId),
+            )
         }
 
         private fun registerSeries(
             credentials: XtreamPlaybackSource,
             seriesId: String,
         ): String {
-            val key = SERIES_KEY_PREFIX + sha256(
-                "${credentials.server}|${credentials.username}|$seriesId",
+            val sourceKey = registerSource(credentials)
+            val encodedSeriesId = URLEncoder.encode(seriesId, StandardCharsets.UTF_8.name())
+            return "$SERIES_KEY_PREFIX" + "v2:$sourceKey:$encodedSeriesId"
+        }
+
+        private fun registerSource(credentials: XtreamPlaybackSource): String {
+            val key = sha256(
+                "${credentials.server}|${credentials.username}|${credentials.password}",
             )
-            synchronized(directSeries) {
-                directSeries[key] = DirectSeriesRequest(
+            synchronized(directSources) {
+                directSources[key] = DirectSeriesSource(
                     credentials = credentials,
-                    seriesId = seriesId,
-                    expiresAtMillis = System.currentTimeMillis() + DIRECT_SERIES_TTL_MS,
+                    expiresAtMillis = System.currentTimeMillis() + DIRECT_SOURCE_TTL_MS,
                 )
             }
             return key
@@ -518,6 +537,10 @@ internal class DirectXtreamClient(context: Context) {
     private data class DirectSeriesRequest(
         val credentials: XtreamPlaybackSource,
         val seriesId: String,
+    )
+
+    private data class DirectSeriesSource(
+        val credentials: XtreamPlaybackSource,
         val expiresAtMillis: Long,
     )
 

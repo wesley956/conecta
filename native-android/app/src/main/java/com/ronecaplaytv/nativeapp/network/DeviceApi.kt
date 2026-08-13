@@ -292,6 +292,12 @@ data class DeviceConfigResponse(
                                 seriesUrl = itemCacheParts?.optNullableString("seriesUrl"),
                                 networkPolicy = SourceNetworkPolicy.fromJson(item.optJSONObject("networkPolicy")),
                                 sourceEndpoints = sourceEndpoints,
+                                accessMode = item.optNullableString("accessMode"),
+                                cacheReady = item.optBoolean("cacheReady", false),
+                                updatedAt = item.optNullableString("updatedAt"),
+                                cacheVersion = item.optNullableString("cacheVersion"),
+                                cacheUpdatedAt = item.optNullableString("cacheUpdatedAt"),
+                                cacheManifestSha256 = item.optNullableString("cacheManifestSha256"),
                             ),
                         )
                     }

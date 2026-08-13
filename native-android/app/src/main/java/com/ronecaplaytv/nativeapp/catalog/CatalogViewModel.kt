@@ -19,6 +19,7 @@ import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import java.util.UUID
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,7 +92,21 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         )
         val deviceCodeHash = deviceCode?.trim()?.takeIf(String::isNotEmpty)?.let(CatalogSnapshotIdentity::sha256)
         val key = "${deviceCodeHash.orEmpty()}|" + candidates.joinToString("|") {
-            listOf(it.id, it.channelsUrl, it.moviesUrl, it.seriesUrl, it.networkPolicy.cacheKey, it.sourceEndpoints.joinToString(",") { source -> listOf(source.id, source.channelsUrl, source.moviesUrl, source.seriesUrl).joinToString("~") }).joinToString(":")
+            listOf(
+                it.id,
+                it.channelsUrl,
+                it.moviesUrl,
+                it.seriesUrl,
+                it.networkPolicy.cacheKey,
+                it.accessMode,
+                it.cacheReady,
+                it.updatedAt,
+                it.cacheVersion,
+                it.cacheManifestSha256,
+                it.sourceEndpoints.joinToString(",") { source ->
+                    listOf(source.id, source.channelsUrl, source.moviesUrl, source.seriesUrl).joinToString("~")
+                },
+            ).joinToString(":")
         }
         availablePlaylists = candidates
         activeDeviceCode = deviceCode?.trim()?.takeIf(String::isNotEmpty)
@@ -123,10 +138,35 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             updateForGeneration(generation) {
                 val content = restored ?: previousState.copy()
                 content.copy(
-                    loadingSection = if (content.loaded) "atualizando catálogo" else "catálogo",
+                    loadingSection = if (content.loaded) null else "catálogo",
                     error = null,
                     loadGeneration = generation,
                 )
+            }
+            when (CatalogStartupPolicy.refreshMode(restored, force)) {
+                CatalogStartupRefreshMode.Skip -> {
+                    loadedKey = key
+                    NativeDiagnostics.record(
+                        "catalog.snapshot_startup_ready",
+                        mapOf(
+                            "channels" to visibleState.channels.size,
+                            "movies" to visibleState.movies.size,
+                            "series" to visibleState.series.size,
+                            "generation" to generation,
+                        ),
+                    )
+                    return@launch
+                }
+                CatalogStartupRefreshMode.Deferred -> {
+                    loadedKey = key
+                    delay(CatalogStartupPolicy.DEFERRED_REFRESH_MILLIS)
+                    currentCoroutineContext().ensureActive()
+                    if (!loadCoordinator.isCurrent(generation)) return@launch
+                    updateForGeneration(generation) {
+                        it.copy(loadingSection = "atualizando em segundo plano")
+                    }
+                }
+                CatalogStartupRefreshMode.Immediate -> Unit
             }
             loadFirstAvailable(
                 candidates = candidates,
@@ -192,6 +232,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     lastFailoverAttemptId = attemptId,
                     lastFailoverOutcome = "switched",
                     loadGeneration = generation,
+                    previousState = mutableState.value,
                 )
                 if (!publishForGeneration(generation, state)) return null
                 reportCatalogSuccess(candidate.id)
@@ -291,6 +332,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                         },
                         loadGeneration = generation,
                         snapshotMetrics = previousState,
+                        previousState = previousState,
                     )
                     if (!publishForGeneration(generation, published)) return
                     loadedDeviceCodeHash = deviceCode?.let(CatalogSnapshotIdentity::sha256)
@@ -615,6 +657,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             if (!loadCoordinator.isCurrent(generation)) return null
             val request = CatalogSnapshotIdentity.request(normalizedCode, candidate)
             val restored = snapshotStore.read(request) ?: continue
+            restoreDirectSeriesSources(candidate)
             val state = restored.toState(
                 candidate = candidate,
                 usingBackup = candidateIndex > 0 || candidate.role.equals("backup", true),
@@ -639,6 +682,19 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         return null
     }
 
+    private fun restoreDirectSeriesSources(candidate: DevicePlaylistConfig) {
+        buildList {
+            candidate.channelsUrl?.let(::add)
+            candidate.moviesUrl?.let(::add)
+            candidate.seriesUrl?.let(::add)
+            candidate.sourceEndpoints.forEach { source ->
+                source.channelsUrl?.let(::add)
+                source.moviesUrl?.let(::add)
+                source.seriesUrl?.let(::add)
+            }
+        }.distinct().forEach { DirectXtreamClient.restoreSeriesSource(it) }
+    }
+
     private suspend fun persistSnapshot(
         candidate: DevicePlaylistConfig,
         state: NativeCatalogState,
@@ -648,7 +704,18 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         val normalizedCode = deviceCode?.trim()?.takeIf(String::isNotEmpty) ?: return
         if (!loadCoordinator.isCurrent(generation) || !state.loaded) return
         val request = CatalogSnapshotIdentity.request(normalizedCode, candidate)
-        val sizeBytes = snapshotStore.write(request, state, BuildConfig.VERSION_NAME) ?: return
+        val sizeBytes = snapshotStore.write(request, state, BuildConfig.VERSION_NAME) ?: run {
+            NativeDiagnostics.record(
+                "catalog.snapshot_save_failed",
+                mapOf(
+                    "channels" to state.channels.size,
+                    "movies" to state.movies.size,
+                    "series" to state.series.size,
+                    "generation" to generation,
+                ),
+            )
+            return
+        }
         if (!loadCoordinator.isCurrent(generation)) return
         NativeDiagnostics.record(
             "catalog.snapshot_saved",
@@ -667,7 +734,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         usingBackup: Boolean,
         generation: Long,
     ): NativeCatalogState = envelope.state.copy(
-        loadingSection = "atualizando catálogo",
+        loadingSection = null,
         error = null,
         activePlaylistId = candidate.id,
         activePlaylistName = candidate.name,
@@ -764,10 +831,20 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             lastFailoverOutcome: String? = null,
             loadGeneration: Long,
             snapshotMetrics: NativeCatalogState? = null,
-        ) = NativeCatalogState(
-            channels = channels,
-            movies = movies,
-            series = series,
+            previousState: NativeCatalogState? = null,
+        ): NativeCatalogState {
+            val visible = CatalogStartupPolicy.visibleParts(
+                previous = previousState,
+                candidateId = candidate.id,
+                progressive = progressive,
+                channels = channels,
+                movies = movies,
+                series = series,
+            )
+            return NativeCatalogState(
+            channels = visible.channels,
+            movies = visible.movies,
+            series = visible.series,
             loaded = true,
             activePlaylistId = candidate.id,
             activePlaylistName = candidate.name,
@@ -782,9 +859,10 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             snapshotAgeMillis = snapshotMetrics?.snapshotAgeMillis,
             snapshotReadMillis = snapshotMetrics?.snapshotReadMillis,
             snapshotSizeBytes = snapshotMetrics?.snapshotSizeBytes,
-            snapshotStale = snapshotMetrics?.snapshotStale == true,
+            snapshotStale = false,
             loadGeneration = loadGeneration,
         )
+        }
     }
 
     private data class PendingHydration(
