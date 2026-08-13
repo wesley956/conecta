@@ -6,9 +6,6 @@ import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +31,8 @@ import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val frameJankMonitor = FrameJankMonitor()
+    @Volatile
+    private var launchOverlayActive = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +69,7 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(showLaunch) {
+                launchOverlayActive = showLaunch
                 if (showLaunch) return@LaunchedEffect
                 appUpdateViewModel.checkForUpdates(userInitiated = false)
             }
@@ -82,10 +82,7 @@ class MainActivity : ComponentActivity() {
                         appUpdateViewModel.checkForUpdates(userInitiated = true)
                     },
                 )
-                AnimatedVisibility(
-                    visible = showLaunch,
-                    exit = fadeOut(animationSpec = tween(durationMillis = 450)),
-                ) {
+                if (showLaunch) {
                     RonecaLaunchVideoScreen(
                         playAudio = launchSoundEnabled,
                         onFinished = { showLaunch = false },
@@ -131,6 +128,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        launchOverlayActive = false
         NativeDiagnostics.record(
             "activity.destroy",
             mapOf(
@@ -148,6 +146,15 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (launchOverlayActive && event.keyCode in launchNavigationKeys) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                NativeDiagnostics.record(
+                    "activity.launch_key_blocked",
+                    mapOf("key_code" to event.keyCode),
+                )
+            }
+            return true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
             NativeDiagnostics.record(
                 "activity.back_dispatch",
@@ -161,3 +168,15 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 }
+
+private val launchNavigationKeys = setOf(
+    KeyEvent.KEYCODE_DPAD_UP,
+    KeyEvent.KEYCODE_DPAD_DOWN,
+    KeyEvent.KEYCODE_DPAD_LEFT,
+    KeyEvent.KEYCODE_DPAD_RIGHT,
+    KeyEvent.KEYCODE_DPAD_CENTER,
+    KeyEvent.KEYCODE_ENTER,
+    KeyEvent.KEYCODE_NUMPAD_ENTER,
+    KeyEvent.KEYCODE_BUTTON_A,
+    KeyEvent.KEYCODE_BACK,
+)

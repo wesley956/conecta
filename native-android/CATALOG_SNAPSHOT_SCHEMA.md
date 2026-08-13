@@ -79,7 +79,7 @@ Eventos locais de diagnóstico:
 
 Nenhum evento inclui URL, host, ID de lista ou credencial.
 
-## Homologação física pendente
+## Homologação física e promoção
 
 No APK de homologação, medir em cold start e warm reopen:
 
@@ -92,5 +92,7 @@ No APK de homologação, medir em cold start e warm reopen:
 7. pico de memória/PSS e comportamento em TV Box low-RAM;
 8. principal → reserva, refresh duplo, background/retorno e entrada no player.
 
-Esses resultados físicos completam a definição de pronto; não autorizam
-promoção ou atualização automática.
+O candidato 2.9.7 foi testado fisicamente em TV em 13/08/2026. O vídeo completo,
+a restauração do cache e a reabertura do conteúdo foram aprovados. A transição
+final por crossfade foi adicionada após o teste e autorizada para promoção
+comercial condicionada à suíte automatizada e à compilação assinada verdes.

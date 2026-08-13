@@ -1,11 +1,12 @@
-# RonecaPlayTV 2.9.7 — homologação
+# RonecaPlayTV 2.9.7
 
 - Usa o MP4 oficial completo de 8 segundos como abertura local do Android, com áudio configurável e fallback de tempo/decoder.
+- Revela a tela do aplicativo por baixo do vídeo com um crossfade suave entre 6,5 e 8,057 segundos, sem corte ou quadro preto no encerramento.
 - Restaura canais, filmes, séries, imagens e reprodução de um snapshot AES-GCM comprimido após a autorização do aparelho.
 - Evita baixar e reinterpretar novamente catálogos cuja revisão segura do backend permanece igual.
 - Mantém filmes e séries visíveis enquanto a via rápida Xtream atualiza somente os canais.
 - Adia atualização de origens diretas vencidas até depois da abertura e executa migrações de preferências fora da interface.
-- Candidato restrito ao pacote de homologação; sem publicação em produção ou envio pelo atualizador.
+- Publica o conjunto aprovado na homologação física no APK comercial e no atualizador oficial.
 
 # RonecaPlayTV 2.9.6
 
