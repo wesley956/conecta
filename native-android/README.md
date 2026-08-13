@@ -12,6 +12,7 @@ Release Android Direct preparada em **13/08/2026**:
 
 - versão: **2.9.7**
 - `versionCode`: **48**
+- candidato isolado: **2.9.8-homologacao** (`versionCode 49`), com crossfade nativo em validação física
 - `applicationId`: `com.ronecaplaytv.nativeapp`
 - `compileSdk`: 36
 - `minSdk`: 23

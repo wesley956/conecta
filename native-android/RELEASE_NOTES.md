@@ -1,3 +1,9 @@
+# RonecaPlayTV 2.9.8 — homologação
+
+- Move o crossfade final do ciclo de recomposição do Compose para uma única animação nativa preparada pela GPU, eliminando o engasgo do vídeo quando a marca aparece.
+- Mantém o início da transição em 6,5 segundos, o MP4 e o áudio completos, a Home por baixo e todos os fallbacks da abertura.
+- Candidato restrito ao pacote de homologação; sem publicação comercial ou envio pelo atualizador antes do novo teste físico.
+
 # RonecaPlayTV 2.9.7
 
 - Usa o MP4 oficial completo de 8 segundos como abertura local do Android, com áudio configurável e fallback de tempo/decoder.
