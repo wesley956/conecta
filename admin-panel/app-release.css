@@ -55,3 +55,36 @@
 .app-release-platform {
   min-width: 150px;
 }
+
+/*
+  Ações de aparelho do vendedor precisam ficar explícitas.
+  O redesign anterior colocou Bloquear/Excluir dentro de <details> "Administrar",
+  fazendo a exclusão parecer removida. Mantemos a mesma lógica/handlers e apenas
+  trazemos as ações destrutivas de volta para a linha principal do card.
+*/
+body.seller-v2 .seller-device-actions .seller-more-actions {
+  display: contents;
+}
+
+body.seller-v2 .seller-device-actions .seller-more-actions > summary {
+  display: none !important;
+}
+
+body.seller-v2 .seller-device-actions .seller-more-actions .seller-more-actions-menu,
+body.seller-v2 .seller-device-actions .seller-more-actions:not([open]) .seller-more-actions-menu {
+  position: static !important;
+  inset: auto !important;
+  z-index: auto !important;
+  display: contents !important;
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.seller-v2 .seller-device-actions .seller-more-actions-menu > .btn {
+  width: auto !important;
+  justify-content: center !important;
+}
