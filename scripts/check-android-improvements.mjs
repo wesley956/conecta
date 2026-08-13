@@ -52,8 +52,8 @@ const [
   read('admin-panel/roneca-panel-premium.js'),
 ]);
 
-assert.match(build, /versionCode = 48/);
-assert.match(build, /versionName = "2\.9\.7"/);
+assert.match(build, /versionCode = 49/);
+assert.match(build, /versionName = "2\.9\.8"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -125,4 +125,4 @@ assert.match(app, /PendingPlaybackValidation/);
 assert.match(app, /playlistWidePlaybackFailures/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 
-console.log('Android 2.9.7: cache de abertura, VOD estável e identidade visual única validados.');
+console.log('Android 2.9.8: crossfade nativo, cache de abertura e VOD estável validados.');
