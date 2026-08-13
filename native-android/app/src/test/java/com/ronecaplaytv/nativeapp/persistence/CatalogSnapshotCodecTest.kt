@@ -6,6 +6,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeCatalogState
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
+import javax.crypto.KeyGenerator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -15,7 +16,7 @@ import org.junit.Test
 
 class CatalogSnapshotCodecTest {
     @Test
-    fun roundTripKeepsMetadataWithoutPersistingProviderUrlsOrCredentials() {
+    fun roundTripKeepsFullyUsableCatalogBeforeEncryptedPersistence() {
         val sensitiveUrl = "http://provider.example/live?username=customer&password=secret"
         val state = NativeCatalogState(
             channels = listOf(
@@ -32,26 +33,49 @@ class CatalogSnapshotCodecTest {
         val envelope = envelope(state)
 
         val encoded = CatalogSnapshotCodec.encode(envelope)
-        val raw = encoded.toString(Charsets.UTF_8)
-        assertFalse(raw.contains("provider.example"))
-        assertFalse(raw.contains("customer"))
-        assertFalse(raw.contains("secret"))
-
         val decoded = CatalogSnapshotCodec.decode(encoded)
         assertNotNull(decoded)
         requireNotNull(decoded)
         assertEquals(1, decoded.state.channels.size)
-        assertEquals("", decoded.state.channels.single().primaryUrl)
-        assertTrue(decoded.state.channels.single().playbackUrls.isEmpty())
-        assertNull(decoded.state.movies.single().coverUrl)
-        assertNull(decoded.state.series.single().coverUrl)
+        assertEquals(sensitiveUrl, decoded.state.channels.single().primaryUrl)
+        assertEquals(listOf(sensitiveUrl), decoded.state.channels.single().playbackUrls)
+        assertEquals(sensitiveUrl, decoded.state.movies.single().coverUrl)
+        assertEquals(sensitiveUrl, decoded.state.series.single().coverUrl)
+    }
+
+    @Test
+    fun encryptedEnvelopeDoesNotExposeProviderDataAndRejectsTampering() {
+        val sensitiveUrl = "http://provider.example/live?username=customer&password=secret"
+        val plaintext = CatalogSnapshotCodec.encode(
+            envelope(
+                NativeCatalogState(
+                    channels = listOf(
+                        NativeChannel("c1", "Canal", "Geral", sensitiveUrl, sensitiveUrl, listOf(sensitiveUrl)),
+                    ),
+                    loaded = true,
+                ),
+            ),
+        )
+        val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        val cipher = CatalogSnapshotCipher { key }
+        val aad = "device|playlist".toByteArray()
+
+        val sealed = cipher.seal(plaintext, aad)
+        assertNotNull(sealed)
+        requireNotNull(sealed)
+        assertFalse(sealed.toString(Charsets.ISO_8859_1).contains("provider.example"))
+        assertTrue(plaintext.contentEquals(cipher.open(sealed, aad)))
+
+        val tampered = sealed.copyOf().also { it[it.lastIndex] = (it.last() + 1).toByte() }
+        assertNull(cipher.open(tampered, aad))
+        assertNull(cipher.open(sealed, "other-device".toByteArray()))
     }
 
     @Test
     fun corruptionAndUnknownSchemaAreRejected() {
         val encoded = CatalogSnapshotCodec.encode(envelope(sampleState())).toString(Charsets.UTF_8)
         val corrupted = encoded.replace("Canal", "Canal alterado").toByteArray()
-        val unknownSchema = encoded.replace("\"schemaVersion\":1", "\"schemaVersion\":99").toByteArray()
+        val unknownSchema = encoded.replace("\"schemaVersion\":2", "\"schemaVersion\":99").toByteArray()
 
         assertNull(CatalogSnapshotCodec.decode(corrupted))
         assertNull(CatalogSnapshotCodec.decode(unknownSchema))
@@ -98,12 +122,14 @@ class CatalogSnapshotCodecTest {
         playlistRole = "primary",
         configFingerprint = "f".repeat(64),
         savedAtMillis = 1_700_000_000_000L,
-        appVersion = "2.9.5",
+        appVersion = "2.9.7",
         state = state,
     )
 
     private fun sampleState() = NativeCatalogState(
-        channels = listOf(NativeChannel("c1", "Canal", "Geral", null, "", emptyList())),
+        channels = listOf(
+            NativeChannel("c1", "Canal", "Geral", null, "https://stream.example/live", listOf("https://stream.example/live")),
+        ),
         loaded = true,
     )
 }

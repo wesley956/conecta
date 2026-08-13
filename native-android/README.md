@@ -10,7 +10,7 @@ Cliente Android nativo oficial da RonecaPlayTV para Android TV, Google TV, TV Bo
 
 Release Android Direct preparada em **12/08/2026**:
 
-- versão: **2.9.6**
+- versão em homologação: **2.9.7-homologacao** (`versionCode 48`)
 - `versionCode`: **47**
 - `applicationId`: `com.ronecaplaytv.nativeapp`
 - `compileSdk`: 36

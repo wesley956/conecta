@@ -27,7 +27,7 @@ import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
 import com.ronecaplaytv.nativeapp.platform.DeviceFormFactor
 import com.ronecaplaytv.nativeapp.ui.RonecaPlayTVApp
 import com.ronecaplaytv.nativeapp.ui.player.NativePlaybackKeyRouter
-import com.ronecaplaytv.nativeapp.ui.splash.RonecaLaunchScreen
+import com.ronecaplaytv.nativeapp.ui.splash.RonecaLaunchVideoScreen
 import com.ronecaplaytv.nativeapp.ui.update.AppUpdateOverlay
 import com.ronecaplaytv.nativeapp.update.AppUpdateViewModel
 import kotlinx.coroutines.delay
@@ -65,8 +65,12 @@ class MainActivity : ComponentActivity() {
             val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
 
             LaunchedEffect(Unit) {
-                delay(4_000)
+                delay(12_000)
                 showLaunch = false
+            }
+
+            LaunchedEffect(showLaunch) {
+                if (showLaunch) return@LaunchedEffect
                 appUpdateViewModel.checkForUpdates(userInitiated = false)
             }
 
@@ -82,9 +86,9 @@ class MainActivity : ComponentActivity() {
                     visible = showLaunch,
                     exit = fadeOut(animationSpec = tween(durationMillis = 450)),
                 ) {
-                    RonecaLaunchScreen(
-                        isTelevision = isTelevision,
-                        playSound = launchSoundEnabled,
+                    RonecaLaunchVideoScreen(
+                        playAudio = launchSoundEnabled,
+                        onFinished = { showLaunch = false },
                     )
                 }
                 if (!showLaunch) {
