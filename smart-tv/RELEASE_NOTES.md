@@ -11,6 +11,12 @@
 - snapshot é isolado por aparelho/lista, versionado, limitado e expira em sete dias;
 - “Limpar cache temporário” remove o snapshot sem apagar ativação, favoritos, progresso ou preferências;
 - Stable continua bloqueado até a homologação física do artifact exato.
+- ativação e Configurações passam a consumir o perfil de suporte oficial/vendedor resolvido pelo backend;
+- contatos são aceitos somente como HTTPS sem credenciais, WhatsApp válido ou e-mail válido;
+- modo de categorias Clássica/Painel lateral disponível e persistente;
+- painel lateral compacto usa 18% da área, recolhe o menu principal e implementa esquerda/direita/Back;
+- player restaura foco na faixa ativa e diferencia visualmente opção selecionada de opção focada;
+- legendas podem ser desativadas e a escolha fecha o painel sem sair do player.
 
 # ronecaPlayer TV 1.0.0
 

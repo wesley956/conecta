@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 
 export type SmartTvBufferSeconds = 2 | 5 | 10;
 export type SmartTvAspectMode = "Original" | "Preencher" | "Estender";
+export type SmartTvCategoryDisplayMode = "Clássica" | "Painel lateral";
 
 export interface SmartTvPlayerSettings {
   automaticReconnect: boolean;
   bufferSeconds: SmartTvBufferSeconds;
   launchSoundEnabled: boolean;
   aspectMode: SmartTvAspectMode;
+  categoryDisplayMode: SmartTvCategoryDisplayMode;
 }
 
 const STORAGE_KEY = "roneca.smart-tv.player-settings.v1";
@@ -16,7 +18,8 @@ const defaults: SmartTvPlayerSettings = {
   automaticReconnect: true,
   bufferSeconds: 5,
   launchSoundEnabled: true,
-  aspectMode: "Original"
+  aspectMode: "Original",
+  categoryDisplayMode: "Clássica"
 };
 
 function normalizeAspect(value: unknown): SmartTvAspectMode {
@@ -32,7 +35,8 @@ function normalize(value: unknown): SmartTvPlayerSettings {
     automaticReconnect: raw.automaticReconnect !== false,
     bufferSeconds,
     launchSoundEnabled: raw.launchSoundEnabled !== false,
-    aspectMode: normalizeAspect(raw.aspectMode)
+    aspectMode: normalizeAspect(raw.aspectMode),
+    categoryDisplayMode: raw.categoryDisplayMode === "Painel lateral" ? "Painel lateral" : "Clássica"
   };
 }
 

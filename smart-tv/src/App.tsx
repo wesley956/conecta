@@ -43,6 +43,7 @@ function ActivationScreen({ session, onRefresh, onReset }: {
     expired: "Assinatura expirada",
     error: "Falha de conexão"
   }[session.status];
+  const support = session.supportProfile;
   return <main className="activation-shell"><section className="activation-panel">
     <div className="activation-brand"><span className="brand-mark">R</span><span><b>RONECA</b><small>PLAYER TV</small></span></div>
     <p className="eyebrow">{platform === "webos" ? "LG WEBOS" : platform === "tizen" ? "SAMSUNG TIZEN" : "PRÉ-VISUALIZAÇÃO"}</p>
@@ -53,7 +54,15 @@ function ActivationScreen({ session, onRefresh, onReset }: {
       <FocusableButton data-autofocus="true" data-focus-key="activation:refresh" className="primary" disabled={session.refreshing || session.status === "loading"} onClick={onRefresh}>{session.refreshing ? "Atualizando..." : "Atualizar acesso"}</FocusableButton>
       {(session.status === "blocked" || session.status === "error") && <FocusableButton data-focus-key="activation:reset" className="secondary danger" onClick={onReset}>Gerar novo código</FocusableButton>}
     </div>
-  </section><div className="activation-art"><i /><span>R</span></div></main>;
+  </section><aside className="activation-support-card">
+    <p className="eyebrow">PRECISA DE AJUDA?</p>
+    <h2>{support.displayName}</h2>
+    <p>{support.supportText || "Envie este código ao seu fornecedor."}</p>
+    {support.businessHours && <small>{support.businessHours}</small>}
+    {support.whatsapp && <strong>WhatsApp: {support.whatsapp}</strong>}
+    {support.email && <strong>{support.email}</strong>}
+    {support.primaryContactUri && <div className="support-contact-uri"><span>CONTATO SEGURO</span><code>{support.primaryContactUri.replace(/^mailto:/, "")}</code><small>Aponte a câmera para o QR Code quando disponível ou use este contato.</small></div>}
+  </aside></main>;
 }
 
 async function recoveredPlayback(item: PlaybackItem, result: SuccessfulCatalogFailover): Promise<PlaybackItem | null> {

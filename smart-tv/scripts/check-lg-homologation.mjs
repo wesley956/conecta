@@ -40,6 +40,7 @@ for (const gate of [
   "validate:lg-operations",
   "validate:lg-performance",
   "validate:lg-2.9.8-pack",
+  "validate:lg-2.9.8-pack-2",
   "validate:lg-homologation"
 ]) requireToken(verified, gate, "cadeia cumulativa de homologação incompleta");
 
