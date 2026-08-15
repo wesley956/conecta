@@ -22,6 +22,7 @@ function removeMatching(storage: Storage | undefined) {
 
 export async function clearReconstructibleCache(): Promise<number> {
   let removed = 0;
+  removed += await clearCatalogSnapshots();
   removed += removeMatching(globalThis.localStorage);
   removed += removeMatching(globalThis.sessionStorage);
   try {
@@ -37,3 +38,4 @@ export async function clearReconstructibleCache(): Promise<number> {
   }
   return removed;
 }
+import { clearCatalogSnapshots } from "./catalogSnapshot";

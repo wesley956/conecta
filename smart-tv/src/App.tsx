@@ -11,7 +11,6 @@ import { MainShell } from "./content/MainShell";
 import type { AppDialog, MainSection } from "./content/MainShell";
 import { recommendedMovies, recommendedSeries } from "./content/recommendations";
 import { focusAutofocus, moveFocus, rememberFocus, restoreFocus } from "./focus";
-import { playLaunchSoundOnce } from "./launchSound";
 import { clearReconstructibleCache } from "./localMaintenance";
 import { resumableProgress, useMediaLibrary } from "./mediaLibrary";
 import type { LibraryItem } from "./mediaLibrary";
@@ -148,8 +147,6 @@ export function App() {
     ];
     library.reconcileIdentities(identities);
   }, [catalog.data, library.reconcileIdentities]);
-
-  useEffect(() => { void playLaunchSoundOnce(settings.launchSoundEnabled); }, [settings.launchSoundEnabled]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);

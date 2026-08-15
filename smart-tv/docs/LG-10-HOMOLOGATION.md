@@ -10,7 +10,8 @@ Stable permanece bloqueado até aprovação física e promoção explícita pela
 
 ## Identidade da referência
 
-- Android de referência: RonecaPlayTV 2.9.5.
+- Android de referência: RonecaPlayTV 2.9.8 (`versionCode 49`, tag `v2.9.8`, commit `48de0c8`).
+- Versão webOS desta etapa: 1.1.0 Candidate.
 - LG App ID: `com.ronecaplaytv.app`.
 - O arquivo `artifacts/lg10-homologation-manifest.json` é a ficha técnica do RC produzido pelo CI.
 - O arquivo `artifacts/SHA256SUMS` é a referência de integridade do IPK.
@@ -59,9 +60,9 @@ Após atualizar, verificar os mesmos itens. Uma atualização que cria um novo d
 
 ## Fluxos funcionais obrigatórios
 
-Executar no LG e, quando aplicável, repetir lado a lado no Android 2.9.5:
+Executar no LG e, quando aplicável, repetir lado a lado no Android 2.9.8:
 
-1. Splash/abertura.
+1. Splash/abertura: reproduzir 8,057 s, iniciar o crossfade em 6,5 s, revelar a Home já montada e impedir vazamento de D-pad/OK/Back.
 2. Ativação.
 3. Home.
 4. Busca.
@@ -84,6 +85,8 @@ Executar no LG e, quando aplicável, repetir lado a lado no Android 2.9.5:
 21. Lista principal falhando → reserva.
 22. Standby/resume.
 23. Reinício completo da TV.
+24. Segunda abertura com snapshot local antes da resposta remota.
+25. Snapshot inválido/corrompido e limpeza somente do cache reconstruível.
 
 ## Performance física LG-09 dentro da homologação
 

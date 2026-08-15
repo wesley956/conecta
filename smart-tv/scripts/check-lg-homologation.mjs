@@ -22,7 +22,7 @@ const matrix = read("docs/LG-10-PARITY-MATRIX.md");
 if (metadata.platform !== "webos") throw new Error("LG-10: metadata não representa webOS.");
 if (metadata.appId !== "com.ronecaplaytv.app") throw new Error(`LG-10: App ID inesperado: ${metadata.appId}`);
 if (metadata.version !== packageJson.version) throw new Error("LG-10: versão do candidate diverge do package.json.");
-if (metadata.baselineAndroid !== "2.9.5") throw new Error("LG-10: baseline Android deve continuar 2.9.5.");
+if (metadata.baselineAndroid !== "2.9.8") throw new Error("LG-10: baseline Android deve continuar 2.9.8.");
 if (metadata.status !== "CANDIDATE") throw new Error(`LG-10: candidate técnico precisa chegar como CANDIDATE, recebido ${metadata.status}.`);
 if (!/^[a-f0-9]{64}$/i.test(metadata.sha256 || "")) throw new Error("LG-10: SHA-256 do IPK inválido.");
 if (!Number.isFinite(metadata.sizeBytes) || metadata.sizeBytes <= 0) throw new Error("LG-10: tamanho do IPK inválido.");
@@ -39,6 +39,7 @@ for (const gate of [
   "validate:lg-resilience",
   "validate:lg-operations",
   "validate:lg-performance",
+  "validate:lg-2.9.8-pack",
   "validate:lg-homologation"
 ]) requireToken(verified, gate, "cadeia cumulativa de homologação incompleta");
 

@@ -1,6 +1,8 @@
 # LG-10 — Matriz de paridade Android APK × LG IPK
 
-Android de referência: **RonecaPlayTV 2.9.5**.
+Android de referência: **RonecaPlayTV 2.9.8** (`versionCode 49`, tag `v2.9.8`, commit `48de0c8`).
+
+Esta revisão substitui a antiga baseline 2.9.5. O RC 1.0.0 anterior permanece histórico e não comprova paridade com o APK comercial atual.
 
 ## Classificação
 
@@ -26,9 +28,10 @@ Nenhum **C crítico** pode permanecer no RC aprovado.
 
 ## Matriz obrigatória
 
-| Área | Android 2.9.5 | LG webOS | Classe | Evidência | Diferença/justificativa | Ação |
+| Área | Android 2.9.8 | LG webOS 1.1.0 | Classe | Evidência | Diferença/justificativa | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
 | Splash/abertura |  |  |  |  |  |  |
+| Vídeo/crossfade | MP4 oficial; fade a partir de 6,5 s | MP4 derivado da mesma fonte; app montado atrás do overlay |  |  |  | #293 |
 | Ativação |  |  |  |  |  |  |
 | Home |  |  |  |  |  |  |
 | Busca |  |  |  |  |  |  |
@@ -42,7 +45,10 @@ Nenhum **C crítico** pode permanecer no RC aprovado.
 | Áudio/legendas |  |  |  |  |  |  |
 | Aspecto da imagem |  |  |  |  |  |  |
 | Configurações |  |  |  |  |  |  |
+| Categorias Clássica/Painel lateral |  |  |  |  |  | #296 |
+| Suporte responsável/QR |  |  |  |  |  | #295 |
 | Diagnóstico |  |  |  |  |  |  |
+| Snapshot/cache de startup | Snapshot seguro local e refresh em segundo plano | IndexedDB criptografado e refresh em segundo plano |  |  |  | #294 |
 | Failover/recovery |  |  |  |  |  |  |
 
 ## Gates físicos complementares

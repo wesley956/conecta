@@ -36,7 +36,7 @@ function normalize(value: unknown): SmartTvPlayerSettings {
   };
 }
 
-function read(): SmartTvPlayerSettings {
+export function readSmartTvPlayerSettings(): SmartTvPlayerSettings {
   try { return normalize(JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null")); }
   catch { return defaults; }
 }
@@ -52,23 +52,23 @@ function broadcast(settings: SmartTvPlayerSettings) {
 }
 
 export function readAspectModePreference(): SmartTvAspectMode {
-  return read().aspectMode;
+  return readSmartTvPlayerSettings().aspectMode;
 }
 
 export function setAspectModePreference(aspectMode: SmartTvAspectMode) {
-  const next = normalize({ ...read(), aspectMode });
+  const next = normalize({ ...readSmartTvPlayerSettings(), aspectMode });
   write(next);
   broadcast(next);
   return next.aspectMode;
 }
 
 export function useSmartTvPlayerSettings() {
-  const [settings, setSettingsState] = useState<SmartTvPlayerSettings>(read);
+  const [settings, setSettingsState] = useState<SmartTvPlayerSettings>(readSmartTvPlayerSettings);
 
   useEffect(() => {
     const onSettings = (event: Event) => {
       const detail = (event as CustomEvent<SmartTvPlayerSettings>).detail;
-      setSettingsState(normalize(detail || read()));
+      setSettingsState(normalize(detail || readSmartTvPlayerSettings()));
     };
     window.addEventListener(SETTINGS_EVENT, onSettings);
     return () => window.removeEventListener(SETTINGS_EVENT, onSettings);

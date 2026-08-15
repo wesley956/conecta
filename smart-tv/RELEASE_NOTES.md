@@ -1,3 +1,17 @@
+# ronecaPlayer TV 1.1.0 — candidate de paridade Android 2.9.8
+
+- baseline atualizada para o APK comercial 2.9.8 (`versionCode 49`, tag `v2.9.8`, commit `48de0c8`);
+- vídeo oficial Android incluído no IPK a partir da mesma fonte versionada;
+- Home e bootstrap iniciam atrás do overlay e aparecem por crossfade a partir de 6,5 s;
+- D-pad, OK e Back ficam bloqueados durante a abertura;
+- vídeo/decoder são liberados ao terminar, falhar ou atingir o timeout de segurança;
+- catálogo válido é salvo em snapshot IndexedDB criptografado com AES-GCM e chave não exportável;
+- segunda abertura restaura o catálogo local antes do refresh remoto;
+- atualização em segundo plano não zera o último catálogo utilizável;
+- snapshot é isolado por aparelho/lista, versionado, limitado e expira em sete dias;
+- “Limpar cache temporário” remove o snapshot sem apagar ativação, favoritos, progresso ou preferências;
+- Stable continua bloqueado até a homologação física do artifact exato.
+
 # ronecaPlayer TV 1.0.0
 
 Versão de paridade funcional com o aplicativo Android para LG webOS e Samsung Tizen:

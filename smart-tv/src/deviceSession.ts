@@ -3,7 +3,7 @@ import { buildSupportCode, sanitizeDiagnosticText } from "./diagnosticSafety";
 import { platform } from "./platform";
 
 const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = platform === "webos" ? "1.1.0" : "1.0.0";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }
