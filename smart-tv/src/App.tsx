@@ -136,6 +136,7 @@ export function App() {
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [dialog, setDialog] = useState<AppDialog>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
 
   const { session, refresh, renewConfiguration, reset, unlink } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
@@ -388,7 +389,12 @@ export function App() {
     dialog={dialog}
     openDialog={openDialog}
     closeDialog={closeDialog}
-    onClearCache={async () => { await clearReconstructibleCache(); catalog.retry(); }}
+    maintenanceMessage={maintenanceMessage}
+    onClearCache={async () => {
+      const removed = await clearReconstructibleCache();
+      setMaintenanceMessage(removed > 0 ? "Cache temporário removido. Atualizando o catálogo..." : "Nenhum cache temporário precisava ser removido.");
+      catalog.retry();
+    }}
     onUnlinkDevice={() => void unlink().catch(() => undefined)}
     onOpenCard={openCard}
     onOpenMovie={openMovieFromApp}

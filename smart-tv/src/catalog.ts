@@ -91,6 +91,8 @@ type CatalogState = {
   lastFailure: string | null;
   lastFailoverAttemptId: string | null;
   lastFailoverOutcome: CatalogFailoverResult["outcome"] | "switching" | null;
+  restoredFromSnapshot: boolean;
+  snapshotSavedAt: string | null;
 };
 
 const emptyCatalog: Catalog = { channels: [], movies: [], series: [] };
@@ -104,7 +106,9 @@ const initialState: CatalogState = {
   lastSuccessfulSync: null,
   lastFailure: null,
   lastFailoverAttemptId: null,
-  lastFailoverOutcome: null
+  lastFailoverOutcome: null,
+  restoredFromSnapshot: false,
+  snapshotSavedAt: null
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -235,7 +239,9 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             lastSuccessfulSync: new Date(restored.savedAt).toISOString(),
             lastFailure: null,
             lastFailoverAttemptId: null,
-            lastFailoverOutcome: null
+            lastFailoverOutcome: null,
+            restoredFromSnapshot: true,
+            snapshotSavedAt: new Date(restored.savedAt).toISOString()
           });
         }
 
@@ -267,7 +273,9 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
               lastSuccessfulSync: new Date().toISOString(),
               lastFailure: usingBackup ? "O servidor selecionou a lista reserva para esta sincronização." : null,
               lastFailoverAttemptId: null,
-              lastFailoverOutcome: null
+              lastFailoverOutcome: null,
+              restoredFromSnapshot: false,
+              snapshotSavedAt: new Date().toISOString()
             });
             void saveCatalogSnapshot(
               freshSession.deviceCode,
@@ -360,7 +368,9 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             lastSuccessfulSync: new Date().toISOString(),
             lastFailure: reason,
             lastFailoverAttemptId: attemptId,
-            lastFailoverOutcome: "switched"
+            lastFailoverOutcome: "switched",
+            restoredFromSnapshot: false,
+            snapshotSavedAt: new Date().toISOString()
           });
           void saveCatalogSnapshot(
             freshSession.deviceCode,

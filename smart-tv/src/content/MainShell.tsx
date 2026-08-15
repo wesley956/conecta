@@ -25,6 +25,8 @@ export type MainShellCatalog = {
   lastFailure: string | null;
   lastFailoverAttemptId: string | null;
   lastFailoverOutcome: CatalogFailoverResult["outcome"] | "switching" | null;
+  restoredFromSnapshot: boolean;
+  snapshotSavedAt: string | null;
   retry: () => void;
 };
 
@@ -70,6 +72,7 @@ type MainShellProps = {
   dialog: AppDialog;
   openDialog: (value: Exclude<AppDialog, null>) => void;
   closeDialog: () => void;
+  maintenanceMessage: string | null;
   onClearCache: () => Promise<void> | void;
   onUnlinkDevice: () => Promise<void> | void;
   onOpenCard: (item: MediaCard) => void;
@@ -403,7 +406,7 @@ function formatDate(value: string | null | undefined) {
   return Number.isFinite(date.getTime()) ? date.toLocaleString("pt-BR") : null;
 }
 
-function Settings({ catalog, session, settings, updateSettings, appUpdate, online, openDialog }: {
+function Settings({ catalog, session, settings, updateSettings, appUpdate, online, openDialog, maintenanceMessage }: {
   catalog: MainShellCatalog;
   session: DeviceSession;
   settings: SmartTvPlayerSettings;
@@ -411,6 +414,7 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
   appUpdate: MainShellAppUpdate;
   online: boolean;
   openDialog: (value: Exclude<AppDialog, null>) => void;
+  maintenanceMessage: string | null;
 }) {
   const counts = { channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length };
   const activePlaylistId = catalog.activePlaylistId || session.selectedPlaylistId;
@@ -428,9 +432,12 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
   return <section className="settings-list content-settings-scroll" data-scroll-key="settings" onScroll={event => scrollMemory.set("settings", event.currentTarget.scrollTop)}>
     <div className="settings-heading"><p className="eyebrow">AJUSTES DO APP</p><h2>Configurações</h2><small>Preferências, operação, diagnóstico e informações seguras desta TV</small></div>
     <section className="settings-card"><span><strong>Atualizar conteúdo</strong><small>Sincroniza novamente catálogo/listas. Não verifica nem instala uma nova versão do aplicativo.</small></span><FocusableButton data-autofocus="true" data-focus-key="settings:refresh-content" onClick={catalog.retry}>ATUALIZAR</FocusableButton></section>
+    {maintenanceMessage && <section className="settings-card info"><span><strong>Manutenção local</strong><small>{maintenanceMessage}</small></span><b>CONCLUÍDA</b></section>}
+    <section className="settings-card info"><span><strong>Perfil atual</strong><small>{session.clientName || "Aparelho ativo"} • {catalog.activePlaylistName || session.playlistName || "Lista ativa"} • {catalog.usingBackupPlaylist ? "reserva" : "principal"}</small></span><b>{session.expiresAt ? `ATÉ ${new Date(session.expiresAt).toLocaleDateString("pt-BR")}` : "ATIVO"}</b></section>
 
     <p className="settings-section-title">PLAYER</p>
     <section className="settings-card info"><span><strong>Tecnologia de reprodução</strong><small>{platform === "tizen" ? "Samsung AVPlay nativo com seleção automática de formato." : "Player HTML5 otimizado para o webOS da televisão."}</small></span><b>{platform === "tizen" ? "AVPLAY" : "HTML5"}</b></section>
+    <section className="settings-card info"><span><strong>Decodificação</strong><small>O Android permite Hardware/Software. No webOS, firmware e player da TV selecionam o decoder compatível automaticamente.</small></span><b>AUTOMÁTICA</b></section>
     <section className="settings-card"><span><strong>Aspecto da imagem</strong><small>Original preserva a proporção; Preencher ocupa a tela; Estender força a imagem ao quadro.</small></span><div className="settings-options">{(["Original", "Preencher", "Estender"] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:aspect:${value}`} className={settings.aspectMode === value ? "selected" : ""} onClick={() => updateSettings({ aspectMode: value })}>{value}</FocusableButton>)}</div></section>
     <section className="settings-card"><span><strong>Buffer inicial</strong><small>Um buffer maior ajuda conexões instáveis, mas demora um pouco mais para iniciar.</small></span><div className="settings-options">{([2, 5, 10] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:buffer:${value}`} className={settings.bufferSeconds === value ? "selected" : ""} onClick={() => updateSettings({ bufferSeconds: value })}>{value}s</FocusableButton>)}</div></section>
     <section className="settings-card"><span><strong>Reconexão automática</strong><small>Tentar novamente, alternar origens e usar a lista reserva sem fechar o player.</small></span><FocusableButton data-focus-key="settings:reconnect" className={settings.automaticReconnect ? "selected" : ""} onClick={() => updateSettings({ automaticReconnect: !settings.automaticReconnect })}>{settings.automaticReconnect ? "ATIVA" : "DESATIVADA"}</FocusableButton></section>
@@ -443,6 +450,7 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
     <section className="settings-card info"><span><strong>{catalog.usingBackupPlaylist ? "Lista reserva em uso" : "Lista principal em uso"}</strong><small>{catalog.activePlaylistName || session.playlistName || "Lista ativa"} • {counts.channels} canais • {counts.movies} filmes • {counts.series} séries</small></span><b>{online ? "CONECTADO" : "SEM INTERNET"}</b></section>
     <section className="settings-card info"><span><strong>Saúde da lista ativa</strong><small>Cache {activePlaylist?.cacheStatus || "não informado"} • falhas consecutivas {activePlaylist?.consecutiveFailures || 0}{formatDate(activePlaylist?.lastSuccessAt) ? ` • último sucesso ${formatDate(activePlaylist?.lastSuccessAt)}` : ""}</small></span><b>{activePlaylist?.role === "backup" || catalog.usingBackupPlaylist ? "RESERVA" : "PRINCIPAL"}</b></section>
     <section className="settings-card info"><span><strong>Última sincronização</strong><small>{formatDate(catalog.lastSuccessfulSync) || "Ainda não concluída"}{lastFailure ? ` • Última falha: ${lastFailure}` : ""}</small></span><b>{lastFailure ? "ATENÇÃO" : "OK"}</b></section>
+    <section className="settings-card info"><span><strong>Inicialização do catálogo</strong><small>{catalog.restoredFromSnapshot ? "Snapshot local seguro restaurado antes da rede." : "Catálogo confirmado pela sincronização remota."}{catalog.snapshotSavedAt ? ` • snapshot ${formatDate(catalog.snapshotSavedAt)}` : ""}</small></span><b>{catalog.restoredFromSnapshot ? "CACHE LOCAL" : "ATUALIZADO"}</b></section>
     <section className="settings-card info"><span><strong>Último failover</strong><small>{failoverLabel(catalog.lastFailoverOutcome)}</small></span><b>{catalog.lastFailoverOutcome === "switched" ? "RECUPERADO" : catalog.lastFailoverOutcome ? "REGISTRADO" : "SEM EVENTO"}</b></section>
     <section className="settings-card info"><span><strong>Código de suporte</strong><small>Use este código curto ao falar com o suporte. Não envie senha, token nem URL da lista.</small></span><b>{session.supportCode || "INDISPONÍVEL"}</b></section>
     {session.expiresAt && Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 86_400_000) <= 7 && <section className="settings-card warning-card"><span><strong>Assinatura próxima do vencimento</strong><small>Vencimento em {new Date(session.expiresAt).toLocaleDateString("pt-BR")}. Fale com seu vendedor para renovar.</small></span><b>ATENÇÃO</b></section>}
@@ -496,7 +504,7 @@ export function MainShell(props: MainShellProps) {
     selected, setSelected, query, setQuery, category, setCategory,
     channelFavoritesOnly, setChannelFavoritesOnly, channelAlphabetical, setChannelAlphabetical,
     visibleLimit, setVisibleLimit, pageSize, catalog, session, library, settings, updateSettings,
-    appUpdate, online, dialog, openDialog, closeDialog, onClearCache, onUnlinkDevice, onOpenCard, onOpenMovie, onOpenSeries
+    appUpdate, online, dialog, openDialog, closeDialog, maintenanceMessage, onClearCache, onUnlinkDevice, onOpenCard, onOpenMovie, onOpenSeries
   } = props;
 
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -684,7 +692,7 @@ export function MainShell(props: MainShellProps) {
 
       {catalog.status === "ready" && selected === "Minha lista" && (filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} pageIndex={pageIndex} pageCount={pageCount} pageSize={pageSize} library={library} onOpen={onOpenCard} onPrevious={previousPage} onMore={nextPage} /> : <EmptyState title="Sua lista está vazia" message="Adicione filmes e séries pelos detalhes do conteúdo. Canais favoritos ficam em Canais → Favoritos." />)}
 
-      {catalog.status === "ready" && selected === "Configurações" && <Settings catalog={catalog} session={session} settings={settings} updateSettings={updateSettings} appUpdate={appUpdate} online={online} openDialog={openDialog} />}
+      {catalog.status === "ready" && selected === "Configurações" && <Settings catalog={catalog} session={session} settings={settings} updateSettings={updateSettings} appUpdate={appUpdate} online={online} openDialog={openDialog} maintenanceMessage={maintenanceMessage} />}
     </section>
     {dialog && <Dialog dialog={dialog} session={session} catalog={catalog} online={online} closeDialog={closeDialog} clearAll={library.clearAll} clearCache={onClearCache} unlinkDevice={onUnlinkDevice} />}
   </main>;

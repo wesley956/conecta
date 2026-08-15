@@ -41,6 +41,7 @@ for (const gate of [
   "validate:lg-performance",
   "validate:lg-2.9.8-pack",
   "validate:lg-2.9.8-pack-2",
+  "validate:lg-2.9.8-pack-3",
   "validate:lg-homologation"
 ]) requireToken(verified, gate, "cadeia cumulativa de homologação incompleta");
 
@@ -95,7 +96,7 @@ const manifest = {
   sha256: metadata.sha256,
   sizeBytes: metadata.sizeBytes,
   builtAt: metadata.builtAt,
-  automatedGateChain: ["LG-01", "LG-02", "LG-03", "LG-04", "LG-05", "LG-06", "LG-07", "LG-08", "LG-09", "LG-10"],
+  automatedGateChain: ["LG-01", "LG-02", "LG-03", "LG-04", "LG-05", "LG-06", "LG-07", "LG-08", "LG-09", "LG-10", "LG-2.9.8-PACK-1", "LG-2.9.8-PACK-2", "LG-2.9.8-PACK-3"],
   physicalApproval: false,
   parityApproved: false,
   stableEligible: false,
@@ -107,6 +108,11 @@ const manifest = {
     "upgrade-n-to-n-plus-1",
     "identity-and-user-state-preservation",
     "android-vs-lg-parity",
+    "launch-video-crossfade",
+    "encrypted-catalog-snapshot",
+    "support-profile-and-local-qr",
+    "classic-and-side-category-navigation",
+    "real-subtitle-tracks",
     "live-vod-tracks-aspect-epg",
     "network-recovery-source-switch-failover",
     "standby-resume",

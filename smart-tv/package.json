@@ -25,7 +25,8 @@
     "validate:lg-homologation": "node scripts/check-lg-homologation.mjs",
     "validate:lg-2.9.8-pack": "node scripts/check-lg-2.9.8-pack.mjs",
     "validate:lg-2.9.8-pack-2": "node scripts/check-lg-2.9.8-pack-2.mjs",
-    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding && npm run validate:lg-navigation && npm run validate:lg-content && npm run validate:lg-vod && npm run validate:lg-player && npm run validate:lg-resilience && npm run validate:lg-operations && npm run validate:lg-performance && npm run validate:lg-2.9.8-pack && npm run validate:lg-2.9.8-pack-2 && npm run validate:lg-homologation",
+    "validate:lg-2.9.8-pack-3": "node scripts/check-lg-2.9.8-pack-3.mjs",
+    "package:webos:verified": "npm run package:webos && npm run validate:webos-package && npm run validate:lg-branding && npm run validate:lg-navigation && npm run validate:lg-content && npm run validate:lg-vod && npm run validate:lg-player && npm run validate:lg-resilience && npm run validate:lg-operations && npm run validate:lg-performance && npm run validate:lg-2.9.8-pack && npm run validate:lg-2.9.8-pack-2 && npm run validate:lg-2.9.8-pack-3 && npm run validate:lg-homologation",
     "package:webos:hosted": "npm run stage:webos:hosted && node scripts/package-webos-hosted.mjs",
     "package:tizen": "npm run stage:tizen && node scripts/package-tizen.mjs",
     "package:tizen:signed": "npm run stage:tizen && node scripts/package-tizen.mjs --signed"

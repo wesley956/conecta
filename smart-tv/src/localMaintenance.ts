@@ -1,3 +1,5 @@
+import { clearCatalogSnapshots } from "./catalogSnapshot";
+
 const LOCAL_PREFIXES = [
   "roneca.smart-tv.cache.",
   "roneca.smart-tv.ui.",
@@ -38,4 +40,3 @@ export async function clearReconstructibleCache(): Promise<number> {
   }
   return removed;
 }
-import { clearCatalogSnapshots } from "./catalogSnapshot";
