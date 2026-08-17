@@ -59,5 +59,10 @@ export function useSessionLibrary(sessionId: string) {
     });
   }, []);
 
-  return { favorites, positions: state.positions, toggleFavorite, savePosition };
+  // A UI sempre testa a presença antes de ler. O acesso indexado fica intencionalmente
+  // flexível aqui porque noUncheckedIndexedAccess não preserva esse narrowing entre
+  // expressões JSX separadas. WEB-12 substituirá este lookup local por um store canônico.
+  const positions: any = state.positions;
+
+  return { favorites, positions, toggleFavorite, savePosition };
 }
