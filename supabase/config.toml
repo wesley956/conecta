@@ -176,3 +176,6 @@ verify_jwt = true
 
 [functions.web-access-panel]
 verify_jwt = true
+
+[functions.web-access-panel-core]
+verify_jwt = true
