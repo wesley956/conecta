@@ -1,0 +1,1 @@
+export default function handler(req,res){res.status(200).json({projectId:process.env.VERCEL_PROJECT_ID||null,deploymentId:process.env.VERCEL_DEPLOYMENT_ID||null,environment:process.env.VERCEL_ENV||null,oidcHeader:Boolean(req.headers['x-vercel-oidc-token'])});}
