@@ -112,9 +112,17 @@ function base64UrlDecode(value: string) {
   return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
+function secretMaterial() {
+  const explicit = Deno.env.get('WEB_PLAYER_TOKEN_SECRET');
+  const fallback = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!explicit && !fallback) throw new Error('WEB_TOKEN_SECRET_NOT_CONFIGURED');
+  return explicit || fallback!;
+}
+
 export async function deriveWebPin(pin: string, saltBase64Url: string, iterations: number) {
   if (!/^\d{6}$/.test(pin)) throw new Error('WEB_PIN_INVALID_FORMAT');
-  const key = await crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const pinMaterial = `${pin}:${secretMaterial()}`;
+  const key = await crypto.subtle.importKey('raw', encoder.encode(pinMaterial), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits({
     name: 'PBKDF2',
     hash: 'SHA-256',
@@ -128,13 +136,6 @@ export function newPinSalt() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return base64UrlEncode(bytes);
-}
-
-function secretMaterial() {
-  const explicit = Deno.env.get('WEB_PLAYER_TOKEN_SECRET');
-  const fallback = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!explicit && !fallback) throw new Error('WEB_TOKEN_SECRET_NOT_CONFIGURED');
-  return explicit || fallback!;
 }
 
 let encryptionKeyPromise: Promise<CryptoKey> | null = null;
