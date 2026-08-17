@@ -3,8 +3,10 @@ import path from 'node:path';
 
 const panelDir = 'admin-panel';
 const generatorPath = 'scripts/generate-panel-config.mjs';
+const webStagePath = 'scripts/stage-web-player.mjs';
 const htmlFiles = fs.readdirSync(panelDir).filter(file => file.endsWith('.html')).sort();
 const generator = fs.readFileSync(generatorPath, 'utf8');
+const webStage = fs.readFileSync(webStagePath, 'utf8');
 const published = new Set();
 
 function collectLocalAssets(source) {
@@ -20,6 +22,14 @@ for (const htmlFile of htmlFiles) {
   for (const asset of collectLocalAssets(html)) published.add(asset);
 }
 for (const asset of collectLocalAssets(generator)) published.add(asset);
+
+// WEB-15 injeta estes dois recursos apenas no artefato staged para não duplicar
+// marcação nos HTMLs-fonte. O gate exige que o staging os referencie explicitamente.
+const buildInjected = new Set(['web-access-management.js', 'web-access-management.css']);
+for (const asset of buildInjected) {
+  if (!webStage.includes(asset)) throw new Error('Asset Web declarado como build-injected sem referência no staging: ' + asset);
+  published.add(asset);
+}
 
 const queue = [...published];
 while (queue.length) {
@@ -81,4 +91,4 @@ for (const rule of ['width: 44px;', 'min-height: 44px;', 'grid-template-columns:
   if (!consolidatedCss.includes(rule)) throw new Error('Alvo acessível ausente na camada consolidada: ' + rule);
 }
 
-console.log('✅ Grafo do painel validado: ' + htmlFiles.length + ' páginas e ' + (published.size - 1) + ' recursos publicados, sem camadas v1/inativas.');
+console.log('✅ Grafo do painel validado: ' + htmlFiles.length + ' páginas e ' + (published.size - 1) + ' recursos publicados, incluindo assets staged da WEB-15.');

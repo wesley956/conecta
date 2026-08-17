@@ -87,6 +87,77 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  web-player:
+    name: Web Player — security, PWA, cross-browser and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate Web Player contracts
+        run: |
+          node scripts/check-web-player-foundation.mjs
+          node scripts/check-web-player-batch2.mjs
+          node scripts/check-web-player-pwa.mjs
+
+      - name: Install Web Player dependencies
+        run: npm install --prefix web-player --ignore-scripts --no-audit --no-fund
+
+      - name: Type-check and build Web Player
+        run: |
+          npm run typecheck --prefix web-player
+          npm run build --prefix web-player
+          node scripts/stage-web-player.mjs
+
+      - name: Enforce Web Player JS budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          total=$(find web-player/dist/assets -type f -name '*.js' -printf '%s\n' | awk '{s+=$1} END {print s+0}')
+          echo "Web Player JS raw bytes: ${total}"
+          if [ "${total}" -gt 700000 ]; then
+            echo "::error::Bundle JS do Web Player excedeu 700 KB raw."
+            exit 1
+          fi
+
+      - name: Scan production bundle for forbidden secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'deviceCredential|device_credential|playlist_url|SUPABASE_SERVICE_ROLE_KEY|service_role' web-player/dist; then
+            echo '::error::O bundle Web contém um identificador/segredo proibido.'
+            exit 1
+          fi
+          grep -q 'data-web-access-management="script"' admin-panel/dashboard.html
+          grep -q 'data-web-access-management="script"' admin-panel/seller.html
+          echo 'Bundle Web sem credenciais técnicas conhecidas; módulo de gestão staged.'
+
+      - name: Install Playwright browsers
+        working-directory: web-player
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run Chromium Firefox WebKit smoke
+        working-directory: web-player
+        run: npm run test:e2e
+
+      - name: Upload Web Player evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-player-preview-and-tests
+          path: |
+            web-player/dist
+            web-player/test-results
+          if-no-files-found: warn
+          retention-days: 7
+
   smart-tv:
     name: LG webOS and Samsung Tizen
     runs-on: ubuntu-latest
