@@ -1,4 +1,4 @@
-const VERSION = 'roneca-web-shell-v2';
+const VERSION = 'roneca-web-shell-v3';
 const SHELL_CACHE = `${VERSION}:shell`;
 const SAFE_PATHS = new Set([
   '/web/',
@@ -29,12 +29,16 @@ function safeAsset(url) {
 }
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(SHELL_CACHE).then(cache => cache.addAll([
-    '/web/offline.html',
-    '/web/manifest.webmanifest',
-    '/web/brand/ronecaplaytv-symbol.svg',
-    '/web/brand/ronecaplaytv-wordmark.svg',
-  ])));
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+    await cache.addAll([
+      '/web/offline.html',
+      '/web/manifest.webmanifest',
+      '/web/brand/ronecaplaytv-symbol.svg',
+      '/web/brand/ronecaplaytv-wordmark.svg',
+    ]);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', event => {
