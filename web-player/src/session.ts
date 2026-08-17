@@ -5,7 +5,9 @@ import {
   logout as logoutRequest,
   readStoredRefreshToken,
   refreshSession,
+  storeRefreshToken,
 } from './api';
+import { clearLocalLibrary } from './library';
 import type { SessionInfo } from './types';
 
 type AuthState = {
@@ -15,12 +17,7 @@ type AuthState = {
   error: string | null;
 };
 
-const initialState: AuthState = {
-  booting: true,
-  accessToken: null,
-  session: null,
-  error: null,
-};
+const initialState: AuthState = { booting: true, accessToken: null, session: null, error: null };
 
 export function useWebAuth() {
   const [state, setState] = useState<AuthState>(initialState);
@@ -37,17 +34,28 @@ export function useWebAuth() {
         const refreshed = await refreshSession(stored);
         if (!active || !refreshed) return;
         const session = await fetchSession(refreshed.accessToken);
-        if (active) setState({
-          booting: false,
-          accessToken: refreshed.accessToken,
-          session,
-          error: null,
-        });
+        if (active) setState({ booting: false, accessToken: refreshed.accessToken, session, error: null });
       } catch {
+        clearLocalLibrary();
         if (active) setState({ booting: false, accessToken: null, session: null, error: null });
       }
     })();
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const onInvalid = () => {
+      storeRefreshToken(null);
+      clearLocalLibrary();
+      setState({
+        booting: false,
+        accessToken: null,
+        session: null,
+        error: 'Sua sessão terminou ou o aparelho deixou de estar autorizado. Entre novamente.',
+      });
+    };
+    window.addEventListener('roneca:web-session-invalid', onInvalid);
+    return () => window.removeEventListener('roneca:web-session-invalid', onInvalid);
   }, []);
 
   const login = useCallback(async (deviceCode: string, pin: string) => {
@@ -65,11 +73,14 @@ export function useWebAuth() {
 
   const logout = useCallback(async () => {
     const token = state.accessToken;
+    clearLocalLibrary();
     setState({ booting: false, accessToken: null, session: null, error: null });
     await logoutRequest(token).catch(() => undefined);
   }, [state.accessToken]);
 
   const invalidate = useCallback(() => {
+    storeRefreshToken(null);
+    clearLocalLibrary();
     setState({ booting: false, accessToken: null, session: null, error: null });
   }, []);
 
