@@ -8,7 +8,7 @@ type LibraryState = {
   positions: Record<string, PositionRecord>;
   preferences: CanonicalPreferences | null;
 };
-
+type Identity = { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' };
 type FavoriteType = 'channel' | 'movie' | 'series';
 type ProgressType = 'movie' | 'episode';
 type PendingProgress = { contentKey: string; contentType: ProgressType; position: number; duration: number };
@@ -26,28 +26,33 @@ function readCache(): LibraryState {
       positions: parsed.positions && typeof parsed.positions === 'object' ? parsed.positions : {},
       preferences: parsed.preferences || null,
     };
-  } catch {
-    return emptyState();
-  }
+  } catch { return emptyState(); }
 }
-
 function writeCache(value: LibraryState) {
   try { window.sessionStorage.setItem(CACHE_KEY, JSON.stringify(value)); }
   catch { /* cache é opcional; servidor segue canônico */ }
 }
-
 export function clearLocalLibrary() {
-  try { window.sessionStorage.removeItem(CACHE_KEY); }
-  catch { /* noop */ }
+  try { window.sessionStorage.removeItem(CACHE_KEY); } catch { /* noop */ }
 }
 
-export function useCanonicalLibrary(accessToken: string | null) {
+export function useCanonicalLibrary(accessToken: string | null, identities: Identity[] = []) {
   const [state, setState] = useState<LibraryState>(readCache);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const lastProgressSent = useRef(new Map<string, number>());
   const pendingProgress = useRef(new Map<string, PendingProgress>());
   const timers = useRef(new Map<string, number>());
+
+  const identityByAny = useMemo(() => {
+    const map = new Map<string, Identity>();
+    for (const item of identities) {
+      if (!item.contentId || !item.contentKey) continue;
+      map.set(item.contentId, item);
+      map.set(item.contentKey, item);
+    }
+    return map;
+  }, [identities]);
 
   const applySnapshot = useCallback(async () => {
     if (!accessToken) return;
@@ -67,31 +72,35 @@ export function useCanonicalLibrary(accessToken: string | null) {
         positions,
         preferences: snapshot.preferences,
       };
-      setState(next);
-      writeCache(next);
-      setSyncError(null);
+      setState(next); writeCache(next); setSyncError(null);
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : 'Não foi possível sincronizar sua biblioteca.');
-    } finally {
-      setSyncing(false);
-    }
+    } finally { setSyncing(false); }
   }, [accessToken]);
 
   useEffect(() => {
-    if (!accessToken) {
-      setState(emptyState());
-      return;
-    }
+    if (!accessToken) { setState(emptyState()); return; }
     void applySnapshot();
   }, [accessToken, applySnapshot]);
-
   useEffect(() => writeCache(state), [state]);
 
-  const favorites = useMemo(() => new Set(state.favorites), [state.favorites]);
+  const canonicalFavorites = useMemo(() => new Set(state.favorites), [state.favorites]);
+  const favorites = useMemo(() => {
+    const result = new Set(state.favorites);
+    for (const item of identities) if (canonicalFavorites.has(item.contentKey)) result.add(item.contentId);
+    return result;
+  }, [canonicalFavorites, identities, state.favorites]);
 
-  const toggleFavorite = useCallback((contentKey: string, contentType: FavoriteType) => {
-    if (!accessToken || !contentKey) return;
-    const nextActive = !favorites.has(contentKey);
+  const toggleFavorite = useCallback((identifier: string) => {
+    if (!accessToken || !identifier) return;
+    const identity = identityByAny.get(identifier);
+    if (!identity || !['channel','movie','series'].includes(identity.type)) {
+      setSyncError('Este item ainda não possui identidade sincronizável.');
+      return;
+    }
+    const contentKey = identity.contentKey;
+    const contentType = identity.type as FavoriteType;
+    const nextActive = !canonicalFavorites.has(contentKey);
     setState(current => {
       const set = new Set(current.favorites);
       if (nextActive) set.add(contentKey); else set.delete(contentKey);
@@ -110,7 +119,7 @@ export function useCanonicalLibrary(accessToken: string | null) {
         setSyncError(error instanceof Error ? error.message : 'Falha ao sincronizar favorito.');
         void applySnapshot();
       });
-  }, [accessToken, applySnapshot, favorites]);
+  }, [accessToken, applySnapshot, canonicalFavorites, identityByAny]);
 
   const flushProgress = useCallback((pending: PendingProgress) => {
     if (!accessToken) return;
@@ -120,11 +129,8 @@ export function useCanonicalLibrary(accessToken: string | null) {
     timers.current.delete(pending.contentKey);
     lastProgressSent.current.set(pending.contentKey, Date.now());
     void writeProgress(
-      accessToken,
-      pending.contentKey,
-      pending.contentType,
-      Math.round(pending.position * 1000),
-      Math.round(pending.duration * 1000),
+      accessToken, pending.contentKey, pending.contentType,
+      Math.round(pending.position * 1000), Math.round(pending.duration * 1000),
     ).then(result => {
       setState(current => {
         const positions = { ...current.positions };
@@ -137,13 +143,15 @@ export function useCanonicalLibrary(accessToken: string | null) {
         return { ...current, positions };
       });
       setSyncError(null);
-    }).catch(error => {
-      setSyncError(error instanceof Error ? error.message : 'Falha ao sincronizar progresso.');
-    });
+    }).catch(error => setSyncError(error instanceof Error ? error.message : 'Falha ao sincronizar progresso.'));
   }, [accessToken]);
 
-  const savePosition = useCallback((contentKey: string, contentType: ProgressType, position: number, duration: number) => {
-    if (!accessToken || !contentKey || !Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0) return;
+  const savePosition = useCallback((identifier: string, position: number, duration: number) => {
+    if (!accessToken || !identifier || !Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0) return;
+    const identity = identityByAny.get(identifier);
+    if (!identity || !['movie','episode'].includes(identity.type)) return;
+    const contentKey = identity.contentKey;
+    const contentType = identity.type as ProgressType;
     const safePosition = Math.max(0, Math.min(duration, position));
     setState(current => {
       const positions = { ...current.positions };
@@ -151,16 +159,11 @@ export function useCanonicalLibrary(accessToken: string | null) {
       else positions[contentKey] = { position: safePosition, duration, updatedAt: new Date().toISOString() };
       return { ...current, positions };
     });
-
     if (safePosition < 8) return;
     const pending = { contentKey, contentType, position: safePosition, duration };
     pendingProgress.current.set(contentKey, pending);
-    const lastSent = lastProgressSent.current.get(contentKey) || 0;
-    const elapsed = Date.now() - lastSent;
-    if (elapsed >= 10_000) {
-      flushProgress(pending);
-      return;
-    }
+    const elapsed = Date.now() - (lastProgressSent.current.get(contentKey) || 0);
+    if (elapsed >= 10_000) { flushProgress(pending); return; }
     if (!timers.current.has(contentKey)) {
       const timer = window.setTimeout(() => {
         const latest = pendingProgress.current.get(contentKey);
@@ -168,7 +171,7 @@ export function useCanonicalLibrary(accessToken: string | null) {
       }, Math.max(500, 10_000 - elapsed));
       timers.current.set(contentKey, timer);
     }
-  }, [accessToken, flushProgress]);
+  }, [accessToken, flushProgress, identityByAny]);
 
   const savePreferences = useCallback((preferences: Partial<CanonicalPreferences>) => {
     if (!accessToken) return;
@@ -193,16 +196,17 @@ export function useCanonicalLibrary(accessToken: string | null) {
     for (const pending of pendingProgress.current.values()) flushProgress(pending);
   }, [flushProgress]);
 
-  const positions: Record<string, PositionRecord | undefined> = state.positions;
+  const positions = useMemo(() => {
+    const result: Record<string, PositionRecord | undefined> = { ...state.positions };
+    for (const item of identities) {
+      const value = state.positions[item.contentKey];
+      if (value) result[item.contentId] = value;
+    }
+    return result;
+  }, [identities, state.positions]);
+
   return {
-    favorites,
-    positions,
-    preferences: state.preferences,
-    syncing,
-    syncError,
-    reload: applySnapshot,
-    toggleFavorite,
-    savePosition,
-    savePreferences,
+    favorites, positions, preferences: state.preferences, syncing, syncError,
+    reload: applySnapshot, toggleFavorite, savePosition, savePreferences,
   };
 }
