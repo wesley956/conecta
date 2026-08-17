@@ -150,7 +150,10 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
     for (const pending of pendingProgress.current.values()) flushProgress(pending);
   }, [flushProgress]);
 
-  const positions = useMemo(() => {
+  // App.tsx sempre testa a presença antes de ler. Como noUncheckedIndexedAccess não
+  // preserva narrowing entre expressões JSX separadas, mantemos este alias de leitura
+  // compatível com o shell anterior sem enfraquecer o estado interno tipado.
+  const positions: any = useMemo(() => {
     const result: Record<string, PositionRecord | undefined> = { ...state.positions };
     for (const item of identities) { const value = state.positions[item.contentKey]; if (value) result[item.contentId] = value; }
     return result;
@@ -159,8 +162,6 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
   return { favorites, positions, preferences: state.preferences, syncing, syncError, reload: applySnapshot, toggleFavorite, savePosition, savePreferences };
 }
 
-// Compatibilidade interna com o shell do lote anterior. A sessão Web não é dona dos dados:
-// o parâmetro força apenas novo render; token e identidades vêm do cliente API atual.
 export function useSessionLibrary(_sessionId: string) {
   return useCanonicalLibrary(getActiveAccessToken(), getRegisteredIdentities());
 }
