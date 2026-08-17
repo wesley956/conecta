@@ -41,6 +41,22 @@ function serviceClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function gatewayOriginAllowed(request: Request) {
+  const origin = String(request.headers.get('origin') || '').trim();
+  if (!origin) return false;
+  const configured = String(Deno.env.get('WEB_PLAYER_ORIGINS') || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+  if (configured.includes(origin) || origin === HOMOLOG_ORIGIN) return true;
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'https:' && url.hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
 async function validateSession(sessionId: string, deviceId: string, playlistId: string) {
   const supabase = serviceClient();
   const { data: session, error } = await supabase.from('web_player_sessions').select(`
@@ -196,7 +212,7 @@ serve(async request => {
     assertWebOrigin(request);
     const gatewayEnabled =
       /^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || '')) ||
-      request.headers.get('origin') === HOMOLOG_ORIGIN;
+      gatewayOriginAllowed(request);
     if (!gatewayEnabled) {
       return webJson(request, { ok: false, code: 'WEB_MEDIA_GATEWAY_DISABLED' }, 503);
     }
