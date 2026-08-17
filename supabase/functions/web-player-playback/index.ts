@@ -82,6 +82,21 @@ function directSafe(urlString: string) {
     return true;
   } catch { return false; }
 }
+function gatewayOriginAllowed(request: Request) {
+  const origin = String(request.headers.get('origin') || '').trim();
+  if (!origin) return false;
+  const configured = String(Deno.env.get('WEB_PLAYER_ORIGINS') || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+  if (configured.includes(origin) || origin === HOMOLOG_ORIGIN) return true;
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'https:' && url.hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
 
 async function resolveEpisodeFromSeriesCache(
   supabase: ReturnType<typeof serviceClient>,
@@ -165,7 +180,7 @@ async function authorize(
   });
   const gatewayEnabled =
     /^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || '')) ||
-    request.headers.get('origin') === HOMOLOG_ORIGIN;
+    gatewayOriginAllowed(request);
   if (!gatewayEnabled) return webJson(request, {
     ok: false, code: 'WEB_MEDIA_GATEWAY_REQUIRED', message: 'Esta mídia precisa do gateway Web, ainda não habilitado neste ambiente.',
   }, 409);
