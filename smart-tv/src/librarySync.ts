@@ -4,6 +4,7 @@ const STORAGE_PREFIX = "roneca.smart-tv.";
 export interface SyncedFavorite {
   contentKey: string;
   contentType: "channel" | "movie" | "series";
+  active: boolean;
   version: number;
   updatedAt: string;
 }
@@ -12,6 +13,7 @@ export interface SyncedProgress {
   contentType: "movie" | "episode";
   positionMs: number;
   durationMs: number;
+  completed: boolean;
   version: number;
   updatedAt: string;
 }
