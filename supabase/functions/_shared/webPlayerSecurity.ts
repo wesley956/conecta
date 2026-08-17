@@ -16,13 +16,24 @@ export type WebSessionContext = {
   absoluteExpiresAt: string;
 };
 
+function projectOrigin() {
+  try {
+    const url = Deno.env.get('SUPABASE_URL');
+    return url ? new URL(url).origin : null;
+  } catch {
+    return null;
+  }
+}
+
 function allowedOrigins() {
   const configured = String(Deno.env.get('WEB_PLAYER_ORIGINS') || '')
     .split(',')
     .map(value => value.trim())
     .filter(Boolean);
+  const selfOrigin = projectOrigin();
   return new Set([
     ...configured,
+    ...(selfOrigin ? [selfOrigin] : []),
     'http://localhost:4173',
     'http://localhost:5173',
     'http://127.0.0.1:4173',
@@ -98,12 +109,6 @@ export function constantTimeEqual(left: string, right: string) {
   return difference === 0;
 }
 
-export function randomToken(size = 32) {
-  const bytes = new Uint8Array(size);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes);
-}
-
 function base64UrlEncode(bytes: Uint8Array) {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -114,6 +119,12 @@ function base64UrlDecode(value: string) {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4);
   const binary = atob(padded);
   return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+export function randomToken(size = 32) {
+  const bytes = new Uint8Array(size);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
 }
 
 function secretMaterial() {
