@@ -14,7 +14,7 @@ const FUNCTIONS_URL = String(
   'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1',
 ).replace(/\/$/, '');
 
-export const WEB_PLAYER_VERSION = '0.2.0';
+export const WEB_PLAYER_VERSION = '0.2.1';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
 let activeAccessToken: string | null = null;
 const identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();
@@ -116,12 +116,34 @@ export async function fetchEpg(accessToken: string, contentId: string) {
   return result.programs || [];
 }
 
+function browserMediaRelayUrl(playbackUrl: string) {
+  try {
+    if (!window.location.hostname.endsWith('.vercel.app')) return playbackUrl;
+    const source = new URL(playbackUrl);
+    if (
+      source.hostname !== 'awauvkjkucjqulkklmuo.supabase.co' ||
+      !source.pathname.endsWith('/functions/v1/web-player-media')
+    ) return playbackUrl;
+    const token = source.searchParams.get('token');
+    if (!token) return playbackUrl;
+    return `${window.location.origin}/api/web-media-relay?token=${encodeURIComponent(token)}`;
+  } catch {
+    return playbackUrl;
+  }
+}
+
 function playbackProjection(result: PlaybackAuthorization) {
   return {
-    mode: result.mode, playbackUrl: result.playbackUrl, mediaKind: result.mediaKind,
-    contentType: result.contentType, contentKey: result.contentKey, playlistRole: result.playlistRole,
-    alternativesAvailable: result.alternativesAvailable, recoveryToken: result.recoveryToken,
-    expiresAt: result.expiresAt, recovery: result.recovery,
+    mode: result.mode,
+    playbackUrl: browserMediaRelayUrl(result.playbackUrl),
+    mediaKind: result.mediaKind,
+    contentType: result.contentType,
+    contentKey: result.contentKey,
+    playlistRole: result.playlistRole,
+    alternativesAvailable: result.alternativesAvailable,
+    recoveryToken: result.recoveryToken,
+    expiresAt: result.expiresAt,
+    recovery: result.recovery,
   } satisfies PlaybackAuthorization;
 }
 export async function authorizePlayback(accessToken: string, contentId: string) {
