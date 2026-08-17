@@ -90,6 +90,23 @@ verify_jwt = false
 [functions.playlist-provider-attempt-report]
 verify_jwt = false
 
+# Web Player usa autenticação própria ligada ao aparelho ativo. O gateway valida
+# web_session/token escopado dentro do handler; não usa JWT Supabase do usuário.
+[functions.web-player-auth]
+verify_jwt = false
+
+[functions.web-player-access]
+verify_jwt = false
+
+[functions.web-player-catalog]
+verify_jwt = false
+
+[functions.web-player-playback]
+verify_jwt = false
+
+[functions.web-player-media]
+verify_jwt = false
+
 # Funções de painel usam Supabase Auth e papéis individuais.
 [functions.admin-panel]
 verify_jwt = true
