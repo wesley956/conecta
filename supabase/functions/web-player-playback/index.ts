@@ -47,6 +47,18 @@ function candidateUrls(item: Record<string, unknown>) {
   }).slice(0, 8);
 }
 
+function mediaKind(urlString: string): 'hls' | 'file' | 'unknown' {
+  try {
+    const url = new URL(urlString);
+    const pathname = url.pathname.toLowerCase();
+    if (pathname.endsWith('.m3u8')) return 'hls';
+    if (/\.(mp4|m4v|webm|mov|mkv|ts)$/i.test(pathname)) return 'file';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 function directSafe(urlString: string) {
   if (!/^(1|true|yes)$/i.test(String(Deno.env.get('WEB_ALLOW_DIRECT_SAFE') || ''))) return false;
   try {
@@ -133,11 +145,13 @@ serve(async request => {
     }, 404);
 
     const primary = urls[0];
+    const kind = mediaKind(primary);
     if (directSafe(primary)) {
       return webJson(request, {
         ok: true,
         mode: 'direct-safe',
         playbackUrl: primary,
+        mediaKind: kind,
         contentType: token.type,
         playlistRole: resolved.assignment.role,
         alternativesAvailable: Math.max(0, urls.length - 1),
@@ -171,6 +185,7 @@ serve(async request => {
       ok: true,
       mode: 'gateway',
       playbackUrl: `${functionsUrl}/web-player-media?token=${encodeURIComponent(mediaToken)}`,
+      mediaKind: kind,
       contentType: token.type,
       playlistRole: resolved.assignment.role,
       alternativesAvailable: Math.max(0, urls.length - 1),
