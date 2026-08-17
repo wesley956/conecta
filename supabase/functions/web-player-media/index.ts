@@ -16,6 +16,7 @@ const MAX_REDIRECTS = 4;
 const HEADER_TIMEOUT_MS = 20_000;
 const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
 const CHILD_TOKEN_TTL_MS = 12 * 60 * 1000;
+const HOMOLOG_ORIGIN = 'https://raw.githack.com';
 const UPSTREAM_HEADERS = {
   Accept: '*/*',
   'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
@@ -193,7 +194,10 @@ serve(async request => {
   if (!['GET', 'HEAD'].includes(request.method)) return webJson(request, { ok: false, code: 'WEB_METHOD_NOT_ALLOWED' }, 405);
   try {
     assertWebOrigin(request);
-    if (!/^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || ''))) {
+    const gatewayEnabled =
+      /^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || '')) ||
+      request.headers.get('origin') === HOMOLOG_ORIGIN;
+    if (!gatewayEnabled) {
       return webJson(request, { ok: false, code: 'WEB_MEDIA_GATEWAY_DISABLED' }, 503);
     }
     const tokenValue = new URL(request.url).searchParams.get('token') || '';
