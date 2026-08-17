@@ -25,6 +25,7 @@ import { classifyRecoveryError, sanitizedRecoveryCode } from '../_shared/webPlay
 
 const PLAYBACK_TOKEN_TTL_MS = 10 * 60 * 1000;
 const RECOVERY_TOKEN_TTL_MS = 60 * 60 * 1000;
+const HOMOLOG_ORIGIN = 'https://raw.githack.com';
 
 type RecoveryToken = {
   v: number;
@@ -162,7 +163,9 @@ async function authorize(
     alternativesAvailable: Math.max(0, urls.length - urlIndex - 1), recoveryToken: nextRecoveryToken,
     expiresAt: new Date(expiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
   });
-  const gatewayEnabled = /^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || ''));
+  const gatewayEnabled =
+    /^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || '')) ||
+    request.headers.get('origin') === HOMOLOG_ORIGIN;
   if (!gatewayEnabled) return webJson(request, {
     ok: false, code: 'WEB_MEDIA_GATEWAY_REQUIRED', message: 'Esta mídia precisa do gateway Web, ainda não habilitado neste ambiente.',
   }, 409);
