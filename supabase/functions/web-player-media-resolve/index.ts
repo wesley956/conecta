@@ -17,7 +17,7 @@ const TEAM_ISSUER = `https://oidc.vercel.com/${TEAM_SLUG}`;
 const GLOBAL_ISSUER = 'https://oidc.vercel.com';
 const TEAM_JWKS = createRemoteJWKSet(new URL(`${TEAM_ISSUER}/.well-known/jwks`));
 const GLOBAL_JWKS = createRemoteJWKSet(new URL(`${GLOBAL_ISSUER}/.well-known/jwks`));
-const CHILD_TOKEN_TTL_MS = 12 * 60 * 1000;
+const CHILD_TOKEN_TTL_MS = 2 * 60 * 1000;
 const MAX_CHILDREN = 120;
 
 type MediaPayload = {
@@ -168,7 +168,10 @@ async function validateSession(payload: MediaPayload) {
 
 async function resolveMedia(body: Record<string, unknown>) {
   const { payload } = await openMediaToken(body.token);
-  await validateSession(payload);
+  // Tokens filhos só são emitidos depois de uma validação completa do token pai
+  // e expiram em no máximo 2 minutos. Evitamos uma consulta ao banco por segmento
+  // HLS, mantendo a revogação estrita na autorização inicial e em cada manifesto.
+  if (payload.kind !== 'media-child') await validateSession(payload);
   return json({
     ok: true,
     url: payload.url,
