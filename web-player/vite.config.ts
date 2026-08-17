@@ -14,6 +14,11 @@ export default defineConfig({
           if (id.includes('/node_modules/hls.js/')) return 'media-engine';
           return undefined;
         },
+        chunkFileNames(chunkInfo) {
+          return chunkInfo.name === 'media-engine'
+            ? 'media/[name]-[hash].js'
+            : 'assets/[name]-[hash].js';
+        },
       },
     },
   },
