@@ -1,6 +1,6 @@
 import Hls from 'hls.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EpgProgram, PlaybackAuthorization } from '../types';
+import type { EpgProgram, PlaybackAuthorization, WebChannel } from '../types';
 
 type AspectMode = 'contain' | 'cover' | 'fill';
 
@@ -8,6 +8,11 @@ type Props = {
   authorization: PlaybackAuthorization;
   title: string;
   epg?: EpgProgram[];
+  initialPosition?: number;
+  liveChannels?: WebChannel[];
+  activeContentId?: string;
+  onSwitchChannel?: (channel: WebChannel) => void;
+  onProgress?: (position: number, duration: number) => void;
   onClose: () => void;
 };
 
@@ -29,16 +34,34 @@ function aspectLabel(mode: AspectMode) {
   return 'Original';
 }
 
-export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
+export function WebPlayer({
+  authorization,
+  title,
+  epg = [],
+  initialPosition = 0,
+  liveChannels = [],
+  activeContentId,
+  onSwitchChannel,
+  onProgress,
+  onClose,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const lastCheckpointRef = useRef(0);
   const [aspect, setAspect] = useState<AspectMode>(initialAspect);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [channelDrawer, setChannelDrawer] = useState(false);
   const [audioTracks, setAudioTracks] = useState<Array<{ id: number; name: string }>>([]);
   const [subtitleTracks, setSubtitleTracks] = useState<Array<{ id: number; name: string }>>([]);
   const live = authorization.contentType === 'channel';
+
+  const checkpoint = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || live || !onProgress || !Number.isFinite(video.duration) || video.duration <= 0) return;
+    onProgress(video.currentTime, video.duration);
+  }, [live, onProgress]);
 
   const syncTracks = useCallback((hls: Hls) => {
     setAudioTracks(hls.audioTracks.map((track, index) => ({
@@ -58,14 +81,31 @@ export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
     setReady(false);
     setAudioTracks([]);
     setSubtitleTracks([]);
+    lastCheckpointRef.current = 0;
 
     let disposed = false;
-    const markReady = () => !disposed && setReady(true);
+    const markReady = () => {
+      if (disposed) return;
+      if (!live && initialPosition >= 8 && Number.isFinite(video.duration)) {
+        video.currentTime = Math.min(initialPosition, Math.max(0, video.duration - 1));
+      }
+      setReady(true);
+    };
     const onNativeError = () => {
       if (!disposed) setError('O navegador não conseguiu reproduzir esta origem.');
     };
+    const onPause = () => checkpoint();
+    const onTimeUpdate = () => {
+      if (live || !onProgress) return;
+      const now = Date.now();
+      if (now - lastCheckpointRef.current < 10_000) return;
+      lastCheckpointRef.current = now;
+      checkpoint();
+    };
     video.addEventListener('loadedmetadata', markReady);
     video.addEventListener('error', onNativeError);
+    video.addEventListener('pause', onPause);
+    video.addEventListener('timeupdate', onTimeUpdate);
 
     const destroyHls = () => {
       if (hlsRef.current) {
@@ -116,8 +156,11 @@ export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
 
     return () => {
       disposed = true;
+      checkpoint();
       video.removeEventListener('loadedmetadata', markReady);
       video.removeEventListener('error', onNativeError);
+      video.removeEventListener('pause', onPause);
+      video.removeEventListener('timeupdate', onTimeUpdate);
       destroyHls();
       video.pause();
       video.removeAttribute('src');
@@ -125,7 +168,7 @@ export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
       setAudioTracks([]);
       setSubtitleTracks([]);
     };
-  }, [authorization.mediaKind, authorization.playbackUrl, live, syncTracks]);
+  }, [authorization.mediaKind, authorization.playbackUrl, checkpoint, initialPosition, live, onProgress, syncTracks]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -143,7 +186,8 @@ export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
       const video = videoRef.current;
       if (!video || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       if (event.key === 'Escape') {
-        onClose();
+        if (channelDrawer) setChannelDrawer(false);
+        else onClose();
         return;
       }
       if (event.key === ' ' || event.key.toLowerCase() === 'k') {
@@ -151,16 +195,14 @@ export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
         if (video.paused) void video.play().catch(() => undefined);
         else video.pause();
       }
-      if (!live && event.key === 'ArrowLeft') {
-        video.currentTime = Math.max(0, video.currentTime - 10);
-      }
+      if (!live && event.key === 'ArrowLeft') video.currentTime = Math.max(0, video.currentTime - 10);
       if (!live && event.key === 'ArrowRight' && Number.isFinite(video.duration)) {
         video.currentTime = Math.min(video.duration, video.currentTime + 10);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [live, onClose]);
+  }, [channelDrawer, live, onClose]);
 
   const cycleAspect = () => {
     setAspect(current => current === 'contain' ? 'cover' : current === 'cover' ? 'fill' : 'contain');
@@ -217,7 +259,35 @@ export function WebPlayer({ authorization, title, epg = [], onClose }: Props) {
         {!ready && !error ? <div className="player-status">Preparando reprodução…</div> : null}
         {error ? <div className="player-error" role="alert">{error}</div> : null}
 
+        {live && channelDrawer ? (
+          <aside className="player-channel-drawer" aria-label="Trocar canal">
+            <div className="drawer-heading">
+              <strong>Canais</strong>
+              <button type="button" onClick={() => setChannelDrawer(false)}>Fechar</button>
+            </div>
+            <div className="drawer-list">
+              {liveChannels.slice(0, 120).map(channel => (
+                <button
+                  type="button"
+                  key={channel.contentId}
+                  className={channel.contentId === activeContentId ? 'active' : ''}
+                  onClick={() => {
+                    setChannelDrawer(false);
+                    onSwitchChannel?.(channel);
+                  }}
+                >
+                  {channel.logo ? <img src={channel.logo} alt="" /> : <span className="channel-placeholder">TV</span>}
+                  <span>{channel.title}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
+        ) : null}
+
         <div className="player-actions" aria-label="Opções do player">
+          {live && liveChannels.length ? (
+            <button type="button" onClick={() => setChannelDrawer(value => !value)}>Trocar canal</button>
+          ) : null}
           <button type="button" onClick={cycleAspect}>Aspecto: {aspectLabel(aspect)}</button>
           <button type="button" onClick={() => void toggleFullscreen()}>Tela cheia</button>
           {document.pictureInPictureEnabled ? (
