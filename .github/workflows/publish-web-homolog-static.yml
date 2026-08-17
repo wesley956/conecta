@@ -1,0 +1,71 @@
+name: Publish Web Homolog Static
+
+on:
+  push:
+    branches:
+      - agent/web-player-batch-314-319
+    paths:
+      - 'web-player/**'
+      - '.github/workflows/publish-web-homolog-static.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: web-homolog-static
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install and build relative homolog bundle
+        working-directory: web-player
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npx vite build --base ./
+
+      - name: Adapt PWA paths for function-hosted homologation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          root = Path('web-player/dist')
+          for path in root.rglob('*'):
+              if not path.is_file() or path.suffix.lower() not in {'.html', '.js', '.css', '.webmanifest'}:
+                  continue
+              text = path.read_text(encoding='utf-8')
+              path.write_text(text.replace('/web/', './'), encoding='utf-8')
+          # Homologation is function-hosted; keep PWA progressive but use a no-op SW
+          # so it never caches auth/catalog/media under the temporary route.
+          (root / 'sw.js').write_text("self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));\n", encoding='utf-8')
+          PY
+          rm -rf /tmp/web-homolog-dist
+          cp -R web-player/dist /tmp/web-homolog-dist
+
+      - name: Publish immutable static branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout --orphan web-homolog-static
+          git rm -rf .
+          cp -R /tmp/web-homolog-dist/. .
+          printf '%s\n' '${{ github.sha }}' > SOURCE_SHA
+          touch .nojekyll
+          git add -A
+          git commit -m 'Publish Web Player homolog build ${{ github.sha }}'
+          git push origin HEAD:web-homolog-static --force
