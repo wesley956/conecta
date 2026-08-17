@@ -57,11 +57,18 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
     try {
       const snapshot = await fetchLibrary(accessToken);
       const positions: Record<string, PositionRecord> = {};
-      for (const progress of snapshot.progress) positions[progress.contentKey] = {
-        position: progress.positionMs / 1000, duration: progress.durationMs / 1000, updatedAt: progress.updatedAt,
-      };
+      for (const progress of snapshot.progress) {
+        if (progress.completed) continue;
+        positions[progress.contentKey] = {
+          position: progress.positionMs / 1000,
+          duration: progress.durationMs / 1000,
+          updatedAt: progress.updatedAt,
+        };
+      }
       const next: LibraryState = {
-        favorites: snapshot.favorites.map(item => item.contentKey), positions, preferences: snapshot.preferences,
+        favorites: snapshot.favorites.filter(item => item.active).map(item => item.contentKey),
+        positions,
+        preferences: snapshot.preferences,
       };
       setState(next); writeCache(next); setSyncError(null);
     } catch (error) { setSyncError(error instanceof Error ? error.message : 'Não foi possível sincronizar sua biblioteca.'); }
