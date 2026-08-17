@@ -11,6 +11,7 @@ import {
   webJson,
 } from '../_shared/webPlayerSecurity.ts';
 import { enforceWebRateLimit } from '../_shared/webRateLimit.ts';
+import { loadOrFetchWebSeriesSeasons } from '../_shared/webSeriesDetail.ts';
 import {
   devicePlaylistAssignments,
   downloadCachePart,
@@ -80,18 +81,36 @@ async function seriesDetails(request: Request, body: Record<string, unknown>) {
   const item = resolved.item;
   const seriesName = String(item.name || token.seriesName || 'Série').slice(0, 300);
   let seasons = await projectEpisodes(session, token.playlistId, token.sourceId, item.seasons, seriesName);
-  if (!seasons.length) {
-    const xtreamSeriesId = text(item.xtreamSeriesId || item.xtream_series_id, 64);
-    if (xtreamSeriesId && /^\d{1,20}$/.test(xtreamSeriesId)) {
-      try {
-        const result = await supabase.storage.from('playlist-cache').download(`${token.playlistId}/series-details/${xtreamSeriesId}.json`);
-        if (!result.error && result.data) {
-          const cached = JSON.parse(await result.data.text());
-          seasons = await projectEpisodes(session, token.playlistId, token.sourceId, cached?.seasons, seriesName);
-        }
-      } catch { /* detalhe ainda não materializado */ }
+  const xtreamSeriesId = text(item.xtreamSeriesId || item.xtream_series_id, 64);
+
+  if (!seasons.length && xtreamSeriesId && /^\d{1,20}$/.test(xtreamSeriesId)) {
+    try {
+      const materialized = await loadOrFetchWebSeriesSeasons(
+        supabase,
+        {
+          playlistId: resolved.assignment.playlistId,
+          playlistUrl: resolved.assignment.playlistUrl,
+          cacheVersion: resolved.assignment.cacheVersion,
+        },
+        xtreamSeriesId,
+      );
+      seasons = await projectEpisodes(
+        session,
+        token.playlistId,
+        token.sourceId,
+        materialized,
+        seriesName,
+      );
+    } catch (error) {
+      console.error('web-player series detail provider unavailable', {
+        code: error instanceof Error && error.message.startsWith('WEB_')
+          ? error.message
+          : 'WEB_SERIES_EPISODES_UNAVAILABLE',
+        playlistRole: resolved.assignment.role,
+      });
     }
   }
+
   return webJson(request, {
     ok: true,
     contentId,
@@ -99,7 +118,7 @@ async function seriesDetails(request: Request, body: Record<string, unknown>) {
     title: seriesName,
     seasons,
     detailsReady: seasons.length > 0,
-    message: seasons.length ? null : 'Os episódios desta série ainda estão sendo preparados para o acesso Web.',
+    message: seasons.length ? null : 'Não foi possível carregar os episódios desta série agora.',
   });
 }
 
