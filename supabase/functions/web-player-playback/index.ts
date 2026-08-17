@@ -51,6 +51,7 @@ function serviceClient() {
   if (!url || !key) throw new Error('WEB_SERVER_NOT_CONFIGURED');
   return createClient(url, key, { auth: { persistSession: false } });
 }
+
 function candidateUrls(item: Record<string, unknown>) {
   const candidates = [...(Array.isArray(item.playbackUrls) ? item.playbackUrls : []), item.url];
   const seen = new Set<string>();
@@ -64,14 +65,29 @@ function candidateUrls(item: Record<string, unknown>) {
     } catch { return []; }
   }).slice(0, 8);
 }
-function mediaKind(urlString: string): 'hls' | 'file' | 'unknown' {
+
+function browserCompatibleUrl(urlString: string, contentType: WebContentType) {
+  if (contentType !== 'channel') return urlString;
+  try {
+    const url = new URL(urlString);
+    if (/\.ts$/i.test(url.pathname)) {
+      url.pathname = url.pathname.replace(/\.ts$/i, '.m3u8');
+      return url.toString();
+    }
+  } catch { /* mantém URL original */ }
+  return urlString;
+}
+
+function mediaKind(urlString: string, contentType: WebContentType): 'hls' | 'file' | 'unknown' {
   try {
     const pathname = new URL(urlString).pathname.toLowerCase();
     if (pathname.endsWith('.m3u8')) return 'hls';
+    if (contentType === 'channel' && pathname.endsWith('.ts')) return 'hls';
     if (/\.(mp4|m4v|webm|mov|mkv|ts)$/i.test(pathname)) return 'file';
   } catch { /* unknown */ }
   return 'unknown';
 }
+
 function directSafe(urlString: string) {
   if (!/^(1|true|yes)$/i.test(String(Deno.env.get('WEB_ALLOW_DIRECT_SAFE') || ''))) return false;
   try {
@@ -82,6 +98,7 @@ function directSafe(urlString: string) {
     return true;
   } catch { return false; }
 }
+
 function gatewayOriginAllowed(request: Request) {
   const origin = String(request.headers.get('origin') || '').trim();
   if (!origin) return false;
@@ -133,13 +150,18 @@ async function resolveEpisodeFromSeriesCache(
   throw new Error('WEB_EPISODE_NOT_FOUND');
 }
 
-async function resolveInitial(supabase: ReturnType<typeof serviceClient>, session: Awaited<ReturnType<typeof requireWebSession>>, token: WebContentToken): Promise<Resolved> {
+async function resolveInitial(
+  supabase: ReturnType<typeof serviceClient>,
+  session: Awaited<ReturnType<typeof requireWebSession>>,
+  token: WebContentToken,
+): Promise<Resolved> {
   if (token.type === 'episode') {
     try { return await resolveContentFromCache(supabase, session, token) as Resolved; }
     catch { return await resolveEpisodeFromSeriesCache(supabase, session, token) as Resolved; }
   }
   return await resolveContentFromCache(supabase, session, token) as Resolved;
 }
+
 async function recoveryToken(
   session: Awaited<ReturnType<typeof requireWebSession>>,
   token: Pick<WebContentToken, 'type'|'contentKey'|'sourceId'|'seriesSourceId'|'seriesName'>,
@@ -167,23 +189,27 @@ async function authorize(
   recovery?: { classification: string; backoffMs: number; failover: boolean },
 ) {
   const urls = candidateUrls(resolved.item);
-  const selected = urls[urlIndex];
-  if (!selected) throw new Error('WEB_CONTENT_UNAVAILABLE');
-  const kind = mediaKind(selected);
+  const rawSelected = urls[urlIndex];
+  if (!rawSelected) throw new Error('WEB_CONTENT_UNAVAILABLE');
+  const selected = browserCompatibleUrl(rawSelected, token.type);
+  const kind = mediaKind(selected, token.type);
   const nextRecoveryToken = await recoveryToken(session, token, resolved.assignment, urlIndex, sameOriginAttempts);
   const expiresAtMs = Date.now() + PLAYBACK_TOKEN_TTL_MS;
+
   if (directSafe(selected)) return webJson(request, {
     ok: true, mode: 'direct-safe', playbackUrl: selected, mediaKind: kind, contentType: token.type,
     contentKey: token.contentKey, playlistRole: resolved.assignment.role,
     alternativesAvailable: Math.max(0, urls.length - urlIndex - 1), recoveryToken: nextRecoveryToken,
     expiresAt: new Date(expiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
   });
+
   const gatewayEnabled =
     /^(1|true|yes)$/i.test(String(Deno.env.get('WEB_MEDIA_GATEWAY_ENABLED') || '')) ||
     gatewayOriginAllowed(request);
   if (!gatewayEnabled) return webJson(request, {
     ok: false, code: 'WEB_MEDIA_GATEWAY_REQUIRED', message: 'Esta mídia precisa do gateway Web, ainda não habilitado neste ambiente.',
   }, 409);
+
   const mediaToken = await sealWebPayload({
     v: 1, kind: 'media', sessionId: session.id, deviceId: session.deviceId, contentType: token.type,
     contentKey: token.contentKey, playlistId: resolved.assignment.playlistId, playlistRole: resolved.assignment.role,
