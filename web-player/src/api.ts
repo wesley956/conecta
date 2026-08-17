@@ -1,7 +1,9 @@
 import type {
   AuthTokens,
+  CanonicalPreferences,
   Catalog,
   EpgProgram,
+  LibrarySnapshot,
   PlaybackAuthorization,
   SessionInfo,
   WebSeason,
@@ -12,17 +14,20 @@ const FUNCTIONS_URL = String(
   'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1',
 ).replace(/\/$/, '');
 
+export const WEB_PLAYER_VERSION = '0.2.0';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
 
 export class ApiError extends Error {
   code: string;
   status: number;
+  payload: Record<string, unknown>;
 
-  constructor(code: string, message: string, status: number) {
+  constructor(code: string, message: string, status: number, payload: Record<string, unknown> = {}) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.status = status;
+    this.payload = payload;
   }
 }
 
@@ -53,6 +58,7 @@ async function post<T>(endpoint: string, payload: Record<string, unknown>, acces
         String(body.code || `HTTP_${response.status}`),
         String(body.message || 'Não foi possível concluir esta operação.'),
         response.status,
+        body,
       );
     }
     return body as T;
@@ -136,9 +142,10 @@ export async function fetchCatalog(accessToken: string) {
 }
 
 export async function fetchSeries(accessToken: string, contentId: string) {
-  const result = await post<{
+  return await post<{
     ok: true;
     contentId: string;
+    contentKey: string;
     title: string;
     seasons: WebSeason[];
     detailsReady: boolean;
@@ -147,7 +154,6 @@ export async function fetchSeries(accessToken: string, contentId: string) {
     action: 'series',
     contentId,
   }, accessToken);
-  return result;
 }
 
 export async function fetchEpg(accessToken: string, contentId: string) {
@@ -162,17 +168,96 @@ export async function fetchEpg(accessToken: string, contentId: string) {
   return result.programs || [];
 }
 
-export async function authorizePlayback(accessToken: string, contentId: string) {
-  const result = await post<{ ok: true } & PlaybackAuthorization>('web-player-playback', {
-    contentId,
-  }, accessToken);
+function playbackProjection(result: PlaybackAuthorization) {
   return {
     mode: result.mode,
     playbackUrl: result.playbackUrl,
     mediaKind: result.mediaKind,
     contentType: result.contentType,
+    contentKey: result.contentKey,
     playlistRole: result.playlistRole,
     alternativesAvailable: result.alternativesAvailable,
+    recoveryToken: result.recoveryToken,
     expiresAt: result.expiresAt,
+    recovery: result.recovery,
   } satisfies PlaybackAuthorization;
+}
+
+export async function authorizePlayback(accessToken: string, contentId: string) {
+  const result = await post<{ ok: true } & PlaybackAuthorization>('web-player-playback', {
+    action: 'authorize',
+    contentId,
+  }, accessToken);
+  return playbackProjection(result);
+}
+
+export async function recoverPlayback(accessToken: string, recoveryToken: string, errorCode: string) {
+  const result = await post<{ ok: true } & PlaybackAuthorization>('web-player-playback', {
+    action: 'recover',
+    recoveryToken,
+    errorCode,
+  }, accessToken);
+  return playbackProjection(result);
+}
+
+export async function fetchLibrary(accessToken: string) {
+  const result = await post<{ ok: true } & LibrarySnapshot>('web-player-library', { action: 'get' }, accessToken);
+  return { favorites: result.favorites || [], progress: result.progress || [], preferences: result.preferences || null } satisfies LibrarySnapshot;
+}
+
+export async function writeFavorite(
+  accessToken: string,
+  contentKey: string,
+  contentType: 'channel' | 'movie' | 'series',
+  active: boolean,
+) {
+  return await post<{ ok: true; favorite: { contentKey: string; active: boolean; version: number; updatedAt: string } }>(
+    'web-player-library',
+    { action: 'favorite', contentKey, contentType, active },
+    accessToken,
+  );
+}
+
+export async function writeProgress(
+  accessToken: string,
+  contentKey: string,
+  contentType: 'movie' | 'episode',
+  positionMs: number,
+  durationMs: number,
+) {
+  return await post<{ ok: true; progress: { contentKey: string; positionMs: number; durationMs: number; completed: boolean; version: number; updatedAt: string } }>(
+    'web-player-library',
+    { action: 'progress', contentKey, contentType, positionMs, durationMs },
+    accessToken,
+  );
+}
+
+export async function resetProgress(accessToken: string, contentKey: string, contentType: 'movie' | 'episode') {
+  return await post('web-player-library', { action: 'reset-progress', contentKey, contentType }, accessToken);
+}
+
+export async function writePreferences(accessToken: string, preferences: Partial<CanonicalPreferences>) {
+  return await post<{ ok: true; preferences: CanonicalPreferences }>('web-player-library', {
+    action: 'preferences',
+    aspectMode: preferences.aspectMode,
+    language: preferences.language,
+    subtitleLanguage: preferences.subtitleLanguage,
+  }, accessToken);
+}
+
+export async function reportWebDiagnostic(
+  accessToken: string,
+  event: {
+    correlationId?: string;
+    stage: 'authorize' | 'gateway' | 'player' | 'recovery' | 'session' | 'pwa';
+    errorCode: string;
+    contentType?: 'channel' | 'movie' | 'episode' | 'unknown';
+    playlistRole?: 'primary' | 'backup';
+    recovered?: boolean;
+  },
+) {
+  return await post<{ ok: true; correlationId: string }>('web-player-diagnostics', {
+    ...event,
+    webVersion: WEB_PLAYER_VERSION,
+  }, accessToken);
 }
