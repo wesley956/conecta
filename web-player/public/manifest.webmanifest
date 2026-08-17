@@ -1,0 +1,27 @@
+{
+  "id": "/web/",
+  "name": "RonecaPlayTV Web",
+  "short_name": "RonecaPlayTV",
+  "description": "RonecaPlayTV no navegador para aparelhos ativos.",
+  "start_url": "/web/",
+  "scope": "/web/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0e10",
+  "theme_color": "#111214",
+  "categories": ["entertainment", "video"],
+  "icons": [
+    {
+      "src": "/web/brand/ronecaplaytv-symbol.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/web/brand/ronecaplaytv-symbol.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
