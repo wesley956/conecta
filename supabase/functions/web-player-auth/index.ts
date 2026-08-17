@@ -96,7 +96,7 @@ async function login(request: Request, body: Record<string, unknown>) {
   );
 
   let validPin = false;
-  if (eligible) {
+  if (eligible && device) {
     try {
       const derived = await deriveWebPin(pin, device.web_pin_salt, Number(device.web_pin_iterations || 210000));
       validPin = constantTimeEqual(derived, device.web_pin_hash);
