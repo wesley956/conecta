@@ -14,13 +14,19 @@ function showUpdatePrompt(registration: ServiceWorkerRegistration) {
 export async function registerPwa() {
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
   try {
-    const registration = await navigator.serviceWorker.register('/web/sw.js', { scope: '/web/' });
-    if (registration.waiting) showUpdatePrompt(registration);
+    const registration = await navigator.serviceWorker.register('/web/sw.js', {
+      scope: '/web/',
+      updateViaCache: 'none',
+    });
+    await registration.update().catch(() => undefined);
+    if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     registration.addEventListener('updatefound', () => {
       const worker = registration.installing;
       if (!worker) return;
       worker.addEventListener('statechange', () => {
-        if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdatePrompt(registration);
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          worker.postMessage({ type: 'SKIP_WAITING' });
+        }
       });
     });
     let refreshing = false;
