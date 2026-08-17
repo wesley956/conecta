@@ -1,1 +1,1 @@
-export { default } from '../server/web-media-relay-core.js';
+export { default } from './web-media-relay-v3.js';
