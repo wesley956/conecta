@@ -18,17 +18,12 @@ export async function enforceWebRateLimit(
 ) {
   const policy = POLICY[bucket];
   const subjectHash = await webRateSubject(subject);
-  const since = new Date(Date.now() - policy.windowSeconds * 1000).toISOString();
-  const { count, error } = await supabase.from('web_player_rate_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('bucket', bucket)
-    .eq('subject_hash', subjectHash)
-    .gte('occurred_at', since);
-  if (error) throw new Error('WEB_RATE_LIMIT_UNAVAILABLE');
-  if (Number(count || 0) >= policy.limit) throw new Error('WEB_RATE_LIMITED');
-  const { error: insertError } = await supabase.from('web_player_rate_events').insert({
-    subject_hash: subjectHash,
-    bucket,
+  const { data, error } = await supabase.rpc('web_player_take_rate_limit', {
+    p_bucket: bucket,
+    p_subject_hash: subjectHash,
+    p_limit: policy.limit,
+    p_window_seconds: policy.windowSeconds,
   });
-  if (insertError) throw new Error('WEB_RATE_LIMIT_UNAVAILABLE');
+  if (error) throw new Error('WEB_RATE_LIMIT_UNAVAILABLE');
+  if (data !== true) throw new Error('WEB_RATE_LIMITED');
 }
