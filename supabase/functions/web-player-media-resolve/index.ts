@@ -15,7 +15,8 @@ const PROJECT_NAME = 'conecta';
 const AUDIENCE = `https://vercel.com/${TEAM_SLUG}`;
 const TEAM_ISSUER = `https://oidc.vercel.com/${TEAM_SLUG}`;
 const GLOBAL_ISSUER = 'https://oidc.vercel.com';
-const JWKS = createRemoteJWKSet(new URL('https://oidc.vercel.com/.well-known/jwks'));
+const TEAM_JWKS = createRemoteJWKSet(new URL(`${TEAM_ISSUER}/.well-known/jwks`));
+const GLOBAL_JWKS = createRemoteJWKSet(new URL(`${GLOBAL_ISSUER}/.well-known/jwks`));
 const CHILD_TOKEN_TTL_MS = 12 * 60 * 1000;
 const MAX_CHILDREN = 120;
 
@@ -57,20 +58,30 @@ function bearer(request: Request) {
   return match?.[1] || '';
 }
 
+async function verifyVercelOidc(token: string) {
+  try {
+    return (await jwtVerify(token, TEAM_JWKS, {
+      issuer: TEAM_ISSUER,
+      audience: AUDIENCE,
+    })).payload;
+  } catch {
+    return (await jwtVerify(token, GLOBAL_JWKS, {
+      issuer: GLOBAL_ISSUER,
+      audience: AUDIENCE,
+    })).payload;
+  }
+}
+
 async function requireVercelProject(request: Request) {
   const token = bearer(request);
   if (!token || token.length > 16_384) throw new Error('WEB_RELAY_OIDC_REQUIRED');
-  const { payload } = await jwtVerify(token, JWKS, {
-    issuer: [TEAM_ISSUER, GLOBAL_ISSUER],
-    audience: AUDIENCE,
-  });
+  const payload = await verifyVercelOidc(token);
   const subject = String(payload.sub || '');
   const validSubject = new Set([
     `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:production`,
     `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:preview`,
   ]);
   if (!validSubject.has(subject)) throw new Error('WEB_RELAY_OIDC_FORBIDDEN');
-  return subject;
 }
 
 async function readBody(request: Request) {
