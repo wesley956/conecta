@@ -60,9 +60,10 @@ function privateIpv6(ip) {
 }
 
 function isPrivateIp(ip) {
-  const family = net.isIP(ip.replace(/^\[|\]$/g, ''));
-  if (family === 4) return privateIpv4(ip);
-  if (family === 6) return privateIpv6(ip.replace(/^\[|\]$/g, ''));
+  const normalized = ip.replace(/^\[|\]$/g, '');
+  const family = net.isIP(normalized);
+  if (family === 4) return privateIpv4(normalized);
+  if (family === 6) return privateIpv6(normalized);
   return true;
 }
 
@@ -118,8 +119,13 @@ function isFileMedia(url, contentType) {
   return /\.(mp4|m4v|webm|mov|mkv)(?:$|\?)/i.test(url.toString());
 }
 
-async function resolver(action, payload) {
-  const oidc = process.env.VERCEL_OIDC_TOKEN;
+function runtimeOidc(req) {
+  const header = req.headers['x-vercel-oidc-token'];
+  const value = Array.isArray(header) ? header[0] : header;
+  return String(value || process.env.VERCEL_OIDC_TOKEN || '').trim();
+}
+
+async function resolver(action, payload, oidc) {
   if (!oidc) throw new Error('RELAY_OIDC_MISSING');
   const response = await fetch(RESOLVER_URL, {
     method: 'POST',
@@ -138,12 +144,16 @@ async function resolver(action, payload) {
   return body;
 }
 
-async function requestUpstream(rawUrl, options = {}, redirectsLeft = MAX_REDIRECTS, redirectedFromTrustedHost = false) {
+async function requestUpstream(rawUrl, options = {}, redirectsLeft = MAX_REDIRECTS) {
   const target = validateUrlShape(rawUrl);
   await assertPublicTarget(target);
   const isHttps = target.protocol === 'https:';
   const literalIp = net.isIP(target.hostname.replace(/^\[|\]$/g, '')) > 0;
-  const insecurePublicIpCompatibility = Boolean(isHttps && literalIp && redirectedFromTrustedHost);
+  // A URL só chega aqui depois de um token de mídia autenticado pelo Supabase.
+  // O provedor em homologação redireciona para um IP HTTPS público com um
+  // certificado legado que o navegador/Supabase não aceitam. A exceção TLS é
+  // limitada a IP literal público e nunca vale para rede local/reservada.
+  const insecurePublicIpCompatibility = Boolean(isHttps && literalIp);
   const requester = isHttps ? https.request : http.request;
 
   return await new Promise((resolve, reject) => {
@@ -170,8 +180,7 @@ async function requestUpstream(rawUrl, options = {}, redirectsLeft = MAX_REDIREC
           reject(new Error('RELAY_REDIRECT_INVALID'));
           return;
         }
-        const trustedHop = redirectedFromTrustedHost || !literalIp;
-        void requestUpstream(next.toString(), options, redirectsLeft - 1, trustedHop)
+        void requestUpstream(next.toString(), options, redirectsLeft - 1)
           .then(resolve)
           .catch(reject);
         return;
@@ -217,11 +226,11 @@ function manifestUrls(manifest, parentUrl) {
   return ordered;
 }
 
-async function sealUrlMap(parentToken, urls) {
+async function sealUrlMap(parentToken, urls, oidc) {
   const map = new Map();
   for (let offset = 0; offset < urls.length; offset += CHILD_BATCH) {
     const batch = urls.slice(offset, offset + CHILD_BATCH);
-    const result = await resolver('sealChildren', { parentToken, urls: batch });
+    const result = await resolver('sealChildren', { parentToken, urls: batch }, oidc);
     if (!Array.isArray(result.tokens) || result.tokens.length !== batch.length) throw new Error('RELAY_CHILD_TOKEN_MISMATCH');
     batch.forEach((url, index) => map.set(url, result.tokens[index]));
   }
@@ -267,8 +276,10 @@ export default async function handler(req, res) {
     const requestUrl = new URL(req.url || '/', `https://${req.headers.host || 'localhost'}`);
     const token = String(requestUrl.searchParams.get('token') || '');
     if (!token || token.length > 8192) return json(res, 400, { ok: false, code: 'WEB_MEDIA_TOKEN_INVALID' });
+    const oidc = runtimeOidc(req);
+    if (!oidc) return json(res, 503, { ok: false, code: 'WEB_MEDIA_RELAY_OIDC_UNAVAILABLE' });
 
-    const resolved = await resolver('resolve', { token });
+    const resolved = await resolver('resolve', { token }, oidc);
     const target = validateUrlShape(resolved.url);
     const manifest = isManifestUrl(target);
     const fileMedia = !manifest && isFileMedia(target, resolved.contentType);
@@ -289,7 +300,7 @@ export default async function handler(req, res) {
       const body = await readLimited(response, MAX_MANIFEST_BYTES);
       if (!body.trim().startsWith('#EXTM3U')) return json(res, 502, { ok: false, code: 'WEB_MEDIA_MANIFEST_INVALID' });
       const urls = manifestUrls(body, finalUrl);
-      const tokenMap = await sealUrlMap(token, urls);
+      const tokenMap = await sealUrlMap(token, urls, oidc);
       const rewritten = rewriteManifest(body, finalUrl, tokenMap);
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
@@ -305,9 +316,6 @@ export default async function handler(req, res) {
       return res.end();
     }
 
-    // For files, the bounded Range keeps each serverless invocation short. If
-    // an upstream ignores the Range and returns a huge 200, fail closed rather
-    // than holding a function open for the whole movie.
     if (fileMedia && range && status !== 206) {
       const length = Number(response.headers['content-length'] || 0);
       if (!length || length > MAX_RANGE_BYTES) {
