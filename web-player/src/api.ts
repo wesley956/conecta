@@ -14,7 +14,7 @@ const FUNCTIONS_URL = String(
   'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1',
 ).replace(/\/$/, '');
 
-export const WEB_PLAYER_VERSION = '0.2.1';
+export const WEB_PLAYER_VERSION = '0.2.2';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
 let activeAccessToken: string | null = null;
 const identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();
@@ -118,7 +118,6 @@ export async function fetchEpg(accessToken: string, contentId: string) {
 
 function browserMediaRelayUrl(playbackUrl: string) {
   try {
-    if (!window.location.hostname.endsWith('.vercel.app')) return playbackUrl;
     const source = new URL(playbackUrl);
     if (
       source.hostname !== 'awauvkjkucjqulkklmuo.supabase.co' ||
@@ -126,6 +125,7 @@ function browserMediaRelayUrl(playbackUrl: string) {
     ) return playbackUrl;
     const token = source.searchParams.get('token');
     if (!token) return playbackUrl;
+    if (window.location.protocol !== 'https:' || window.location.hostname === 'raw.githack.com') return playbackUrl;
     return `${window.location.origin}/api/web-media-relay?token=${encodeURIComponent(token)}`;
   } catch {
     return playbackUrl;
