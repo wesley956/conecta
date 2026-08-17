@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { PlaybackItem } from "./player/types";
-import { syncFavorite, syncProgress } from "./librarySync";
+import { fetchSyncedLibrary, syncFavorite, syncProgress } from "./librarySync";
 
 export type LibraryKind = "channel" | "movie" | "series" | "episode";
 
@@ -21,6 +21,8 @@ const HISTORY_KEY = "roneca.smart-tv.history.v1";
 const MAX_HISTORY = 60;
 export const MIN_PROGRESS_SECONDS = 8;
 export const COMPLETION_THRESHOLD_SECONDS = 45;
+
+type CatalogLibraryItem = Pick<LibraryItem, "id" | "kind" | "contentKey" | "name" | "image" | "meta">;
 
 function read(key: string): LibraryItem[] {
   try {
@@ -65,6 +67,8 @@ export function resumableProgress(item?: Pick<LibraryItem, "currentTime" | "dura
 export function useMediaLibrary() {
   const [favorites, setFavorites] = useState<LibraryItem[]>(() => read(FAVORITES_KEY));
   const [history, setHistory] = useState<LibraryItem[]>(() => read(HISTORY_KEY));
+  const hydrationInFlight = useRef(false);
+  const hydratedServer = useRef(false);
 
   const toggleFavorite = useCallback((item: Omit<LibraryItem, "updatedAt">) => {
     setFavorites(current => {
@@ -126,7 +130,7 @@ export function useMediaLibrary() {
     });
   }, []);
 
-  const reconcileIdentities = useCallback((catalogItems: Array<Pick<LibraryItem, "id" | "kind" | "contentKey">>) => {
+  const reconcileIdentities = useCallback((catalogItems: CatalogLibraryItem[]) => {
     const aliases = new Map(catalogItems.map(item => [`${item.kind}:${item.id}`, item.contentKey]));
     const reconcile = (items: LibraryItem[]) => {
       let changed = false;
@@ -142,6 +146,7 @@ export function useMediaLibrary() {
       });
       return changed ? next : items;
     };
+
     setFavorites(current => {
       const next = reconcile(current);
       if (next === current) return current;
@@ -154,6 +159,79 @@ export function useMediaLibrary() {
       write(HISTORY_KEY, next);
       return next;
     });
+
+    if (!catalogItems.length || hydratedServer.current || hydrationInFlight.current) return;
+    hydrationInFlight.current = true;
+    void (async () => {
+      try {
+        let snapshot = await fetchSyncedLibrary();
+        const remoteFavoriteKeys = new Set(snapshot.favorites.map(item => item.contentKey));
+        const remoteProgressKeys = new Set(snapshot.progress.map(item => item.contentKey));
+        let migrated = false;
+
+        for (const item of reconcile(read(FAVORITES_KEY))) {
+          if (!item.contentKey || remoteFavoriteKeys.has(item.contentKey)) continue;
+          if (!["channel", "movie", "series"].includes(item.kind)) continue;
+          await syncFavorite(item.contentKey, item.kind as "channel" | "movie" | "series", true).catch(() => undefined);
+          migrated = true;
+        }
+        for (const item of reconcile(read(HISTORY_KEY))) {
+          if (!item.contentKey || remoteProgressKeys.has(item.contentKey)) continue;
+          if (!["movie", "episode"].includes(item.kind) || !resumableProgress(item)) continue;
+          await syncProgress(
+            item.contentKey,
+            item.kind as "movie" | "episode",
+            Number(item.currentTime || 0),
+            Number(item.duration || 0)
+          ).catch(() => undefined);
+          migrated = true;
+        }
+        if (migrated) snapshot = await fetchSyncedLibrary();
+
+        const catalogByKey = new Map(catalogItems.flatMap(item => item.contentKey ? [[item.contentKey, item] as const] : []));
+        const legacyFavorites = reconcile(read(FAVORITES_KEY)).filter(item => !item.contentKey);
+        const canonicalFavorites = snapshot.favorites.flatMap(remote => {
+          if (!remote.active) return [];
+          const catalogItem = catalogByKey.get(remote.contentKey);
+          if (!catalogItem || !["channel", "movie", "series"].includes(catalogItem.kind)) return [];
+          return [{
+            ...catalogItem,
+            contentKey: remote.contentKey,
+            updatedAt: new Date(remote.updatedAt).getTime() || Date.now()
+          } satisfies LibraryItem];
+        });
+        const nextFavorites = [...canonicalFavorites, ...legacyFavorites].slice(0, 100);
+        setFavorites(nextFavorites);
+        write(FAVORITES_KEY, nextFavorites);
+
+        const legacyHistory = reconcile(read(HISTORY_KEY)).filter(item => !item.contentKey);
+        const canonicalHistory = snapshot.progress.flatMap(remote => {
+          if (remote.completed) return [];
+          const catalogItem = catalogByKey.get(remote.contentKey);
+          if (!catalogItem || !["movie", "episode"].includes(catalogItem.kind)) return [];
+          const currentTime = remote.positionMs / 1000;
+          const duration = remote.durationMs / 1000;
+          if (currentTime < MIN_PROGRESS_SECONDS || duration - currentTime <= COMPLETION_THRESHOLD_SECONDS) return [];
+          return [{
+            ...catalogItem,
+            contentKey: remote.contentKey,
+            updatedAt: new Date(remote.updatedAt).getTime() || Date.now(),
+            currentTime,
+            duration
+          } satisfies LibraryItem];
+        });
+        const nextHistory = [...canonicalHistory, ...legacyHistory]
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .slice(0, MAX_HISTORY);
+        setHistory(nextHistory);
+        write(HISTORY_KEY, nextHistory);
+        hydratedServer.current = true;
+      } catch {
+        // Offline/aparelho recém-ativado continua no cache local e tenta de novo no próximo catálogo.
+      } finally {
+        hydrationInFlight.current = false;
+      }
+    })();
   }, []);
 
   const clearHistory = useCallback(() => {
