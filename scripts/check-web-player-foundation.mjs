@@ -12,6 +12,7 @@ const requiredFiles = [
   'supabase/functions/web-player-catalog/index.ts',
   'supabase/functions/web-player-playback/index.ts',
   'supabase/functions/web-player-media/index.ts',
+  'supabase/functions/_shared/webMediaTransport.ts',
   'supabase/functions/_shared/webPlayerSecurity.ts',
   'supabase/functions/_shared/webPlayerCatalog.ts',
   'supabase/migrations/20260817043000_web_player_foundation.sql',
@@ -85,8 +86,15 @@ if (fs.existsSync(path.join(root, 'supabase/functions/web-player-playback/index.
 if (fs.existsSync(path.join(root, 'supabase/functions/web-player-media/index.ts'))) {
   const media = read('supabase/functions/web-player-media/index.ts');
   if (/searchParams\.get\(['"]url['"]\)/.test(media)) failures.push('media gateway não pode aceitar URL arbitrária do browser');
-  for (const marker of ['assertAllowedPlaylistUrl', 'assertPublicPlaylistTarget', 'validateSession', 'rewriteManifest']) {
+  for (const marker of ['validateSession', 'rewriteManifest']) {
     if (!media.includes(marker)) failures.push(`media gateway sem proteção obrigatória: ${marker}`);
+  }
+}
+
+if (fs.existsSync(path.join(root, 'supabase/functions/_shared/webMediaTransport.ts'))) {
+  const transport = read('supabase/functions/_shared/webMediaTransport.ts');
+  for (const marker of ['assertAllowedPlaylistUrl', 'assertPublicPlaylistTarget']) {
+    if (!transport.includes(marker)) failures.push(`transporte de mídia sem proteção obrigatória: ${marker}`);
   }
 }
 
