@@ -1,0 +1,548 @@
+.experience-login-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.experience-login-page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 44%, rgba(223,37,45,.11), transparent 32%),
+    radial-gradient(circle at 42% 72%, rgba(225,173,67,.055), transparent 28%);
+}
+
+.experience-login-brand,
+.experience-login-card {
+  position: relative;
+  z-index: 2;
+}
+
+.experience-login-brand {
+  max-width: 920px;
+}
+
+.experience-login-brand .login-symbol {
+  width: clamp(132px, 15vw, 220px);
+  margin-bottom: 1.65rem;
+}
+
+.experience-login-brand .login-wordmark {
+  width: min(820px, 100%);
+}
+
+.login-brand-glow {
+  position: absolute;
+  z-index: -1;
+  left: -8%;
+  top: -20%;
+  width: min(680px, 75vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(223,37,45,.15), rgba(225,173,67,.035) 42%, transparent 70%);
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.ambient-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient-particle {
+  position: absolute;
+  bottom: -16vh;
+  border-radius: 50%;
+  animation-name: ambient-rise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.ambient-particle.red { color: #ef3942; background: currentColor; }
+.ambient-particle.gold { color: #e1ad43; background: currentColor; }
+.ambient-particle.white { color: #f4f5f7; background: currentColor; }
+
+@keyframes ambient-rise {
+  0% { transform: translate3d(0, 0, 0) scale(.75); opacity: 0; }
+  12% { opacity: .65; }
+  72% { opacity: .45; }
+  100% { transform: translate3d(var(--particle-drift, 0), -126vh, 0) scale(1.08); opacity: 0; }
+}
+
+.launch-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #000;
+  opacity: 1;
+  transition: opacity 1.45s cubic-bezier(.22,.61,.36,1);
+  pointer-events: all;
+}
+
+.launch-splash.is-fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.launch-splash-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.launch-splash.reduced {
+  background: radial-gradient(circle at 50% 42%, rgba(223,37,45,.12), transparent 32%), #08090b;
+  transition-duration: .35s;
+}
+
+.launch-splash.reduced img {
+  width: min(520px, 72vw);
+  filter: drop-shadow(0 18px 45px rgba(0,0,0,.55));
+}
+
+.experience-hero {
+  position: relative;
+  min-height: min(68vh, 720px);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: #101216;
+}
+
+.experience-hero-backdrop,
+.experience-hero-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.experience-hero-backdrop {
+  background-size: cover;
+  background-position: center 24%;
+  animation: hero-reveal .42s ease both;
+  transform: scale(1.015);
+}
+
+.experience-hero-scrim {
+  z-index: 1;
+  background:
+    linear-gradient(90deg, rgba(9,10,12,.98) 0%, rgba(9,10,12,.79) 42%, rgba(9,10,12,.3) 73%, rgba(9,10,12,.18) 100%),
+    linear-gradient(0deg, rgba(13,14,16,.9) 0%, transparent 40%);
+}
+
+.experience-hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 760px;
+  padding: clamp(3rem, 8vw, 7rem);
+  animation: hero-copy-in .38s ease both;
+}
+
+.experience-hero h1 {
+  font-size: clamp(2.4rem, 5.8vw, 5.4rem);
+  line-height: .96;
+  letter-spacing: -.05em;
+  margin: .65rem 0 1rem;
+}
+
+.experience-hero p {
+  max-width: 650px;
+  color: #c4c7cd;
+  font-size: clamp(.96rem, 1.6vw, 1.17rem);
+  line-height: 1.58;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.experience-hero.fallback .hero-copy {
+  padding: clamp(3rem, 8vw, 7rem);
+}
+
+.hero-indicators {
+  position: absolute;
+  z-index: 4;
+  right: clamp(1rem, 3vw, 2.5rem);
+  bottom: clamp(1rem, 2vw, 1.8rem);
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+
+.hero-indicators button {
+  width: 24px;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,.34);
+  transition: width .2s ease, background .2s ease;
+}
+
+.hero-indicators button.active {
+  width: 38px;
+  background: #ef3139;
+}
+
+@keyframes hero-reveal {
+  from { opacity: .2; transform: scale(1.035); }
+  to { opacity: 1; transform: scale(1.015); }
+}
+
+@keyframes hero-copy-in {
+  from { opacity: .15; transform: translateY(9px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.poster-card-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.poster-card-shell > .poster-card {
+  width: 100%;
+}
+
+.horizontal-list .poster-card-shell {
+  flex: 0 0 clamp(132px, 14vw, 184px);
+  scroll-snap-align: start;
+}
+
+.poster-grid .poster-card-shell {
+  min-width: 0;
+}
+
+.hover-preview {
+  position: fixed;
+  z-index: 185;
+  width: min(350px, calc(100vw - 32px));
+  min-height: 242px;
+  display: grid;
+  grid-template-columns: 132px minmax(0,1fr);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 18px;
+  background: rgba(19,21,25,.98);
+  box-shadow: 0 28px 78px rgba(0,0,0,.62);
+  backdrop-filter: blur(18px);
+  transform-origin: center center;
+  animation: preview-pop .18s ease both;
+}
+
+.hover-preview-art {
+  min-height: 242px;
+  background: #111316;
+}
+
+.hover-preview-art > img,
+.hover-preview-art > .media-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hover-preview-copy {
+  min-width: 0;
+  padding: 1rem .95rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.hover-preview-copy > strong {
+  width: 100%;
+  font-size: 1rem;
+  line-height: 1.15;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hover-preview-copy > small {
+  margin-top: .45rem;
+  color: #9297a0;
+  font-size: .7rem;
+  line-height: 1.35;
+}
+
+.hover-preview-copy > p {
+  margin: .7rem 0 .85rem;
+  color: #c0c3c8;
+  font-size: .76rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hover-preview-actions {
+  width: 100%;
+  margin-top: auto;
+  display: grid;
+  gap: .4rem;
+}
+
+.hover-preview-actions button {
+  width: 100%;
+  min-height: 34px;
+  padding: .45rem .55rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #23262b;
+  font-size: .72rem;
+  font-weight: 750;
+}
+
+.hover-preview-actions .primary-button {
+  background: linear-gradient(135deg, var(--red-strong), #9e111a);
+}
+
+@keyframes preview-pop {
+  from { opacity: 0; transform: scale(.96) translateY(5px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.experience-detail-overlay {
+  padding: clamp(.7rem, 2vw, 1.5rem);
+  place-items: stretch center;
+  background: rgba(4,5,7,.93);
+}
+
+.experience-detail-surface {
+  position: relative;
+  isolation: isolate;
+  width: min(1460px, 100%);
+  min-height: min(820px, calc(100vh - 3rem));
+  max-height: calc(100vh - 3rem);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: #111316;
+  box-shadow: 0 34px 92px rgba(0,0,0,.66);
+}
+
+.experience-detail-backdrop {
+  position: absolute;
+  z-index: -3;
+  inset: 0 0 auto 0;
+  height: min(72vh, 690px);
+  background-size: cover;
+  background-position: center 22%;
+  filter: saturate(.88);
+  opacity: .62;
+}
+
+.experience-detail-shade {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(12,13,16,.97) 0%, rgba(12,13,16,.82) 42%, rgba(12,13,16,.42) 76%, rgba(12,13,16,.65) 100%),
+    linear-gradient(0deg, #111316 36%, rgba(17,19,22,.82) 59%, rgba(17,19,22,.18) 100%);
+}
+
+.experience-detail-surface .detail-close {
+  position: sticky;
+  float: right;
+  top: 1rem;
+  margin: 1rem 1rem 0 0;
+  z-index: 10;
+}
+
+.experience-detail-header {
+  position: relative;
+  z-index: 1;
+  clear: both;
+  display: grid;
+  grid-template-columns: minmax(190px, 280px) minmax(0, 1fr);
+  align-items: end;
+  gap: clamp(1.5rem, 4vw, 3.2rem);
+  min-height: 530px;
+  padding: clamp(2rem, 5vw, 5rem) clamp(1rem, 4vw, 4rem) 2.2rem;
+}
+
+.experience-detail-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: #111316;
+  box-shadow: 0 24px 55px rgba(0,0,0,.42);
+}
+
+.experience-detail-poster > img,
+.experience-detail-poster > .media-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.experience-detail-copy {
+  max-width: 760px;
+  padding-bottom: 1.2rem;
+}
+
+.experience-detail-copy h2 {
+  font-size: clamp(2.4rem, 5vw, 5.1rem);
+  line-height: .96;
+  letter-spacing: -.05em;
+  margin: .6rem 0 1rem;
+}
+
+.experience-detail-copy > p {
+  color: #c1c4ca;
+  max-width: 720px;
+  line-height: 1.65;
+}
+
+.detail-recommendations {
+  position: relative;
+  z-index: 2;
+  padding-top: 1.2rem;
+  padding-bottom: 2rem;
+  background: linear-gradient(180deg, rgba(17,19,22,.75), #111316 30%);
+}
+
+.series-seasons-area {
+  position: relative;
+  z-index: 2;
+  padding: .5rem clamp(1rem, 4vw, 4rem) 1.5rem;
+}
+
+.season-selector-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.season-selector-heading h3 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.season-selector-heading span {
+  color: #8f949c;
+  font-size: .78rem;
+}
+
+.season-tabs {
+  display: flex;
+  gap: .55rem;
+  overflow-x: auto;
+  padding: .9rem .15rem 1rem;
+  scrollbar-width: thin;
+}
+
+.season-tabs button {
+  flex: 0 0 auto;
+  min-width: 58px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #1a1d21;
+  color: #a8adb5;
+  font-weight: 800;
+}
+
+.season-tabs button:hover,
+.season-tabs button:focus-visible {
+  border-color: rgba(239,49,57,.5);
+  color: #fff;
+}
+
+.season-tabs button.active {
+  background: linear-gradient(135deg, rgba(239,49,57,.92), rgba(159,17,26,.92));
+  border-color: rgba(255,108,114,.6);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(185,13,24,.2);
+}
+
+.experience-episode-list {
+  max-width: 960px;
+}
+
+.experience-episode-list button {
+  min-height: 64px;
+  background: rgba(19,21,25,.9);
+}
+
+@media (max-width: 900px) {
+  .experience-login-brand .login-symbol { width: clamp(112px, 16vw, 160px); }
+  .experience-hero-copy { padding-left: clamp(1.5rem, 6vw, 4rem); }
+  .experience-detail-header { grid-template-columns: 190px minmax(0,1fr); min-height: 470px; }
+  .experience-detail-copy h2 { font-size: clamp(2.2rem, 6vw, 4rem); }
+}
+
+@media (max-width: 640px) {
+  .experience-login-page { gap: 1.3rem; }
+  .experience-login-brand { text-align: center; }
+  .experience-login-brand .login-symbol { width: 88px; margin: 0 auto .75rem; }
+  .experience-login-brand .login-wordmark { width: 285px; margin: 0 auto .55rem; }
+  .login-brand-glow { left: 50%; transform: translateX(-50%); top: -32%; width: 460px; }
+  .ambient-particle:nth-child(n+15) { display: none; }
+
+  .experience-hero { min-height: 54vh; }
+  .experience-hero-scrim {
+    background:
+      linear-gradient(0deg, rgba(9,10,12,.98) 0%, rgba(9,10,12,.78) 46%, rgba(9,10,12,.3) 100%),
+      linear-gradient(90deg, rgba(9,10,12,.68), rgba(9,10,12,.15));
+  }
+  .experience-hero-copy { padding: 3.2rem 1rem 3.2rem; }
+  .experience-hero h1 { font-size: clamp(2.25rem, 11vw, 3.4rem); }
+  .experience-hero p { -webkit-line-clamp: 3; font-size: .9rem; }
+  .hero-indicators { left: 1rem; right: auto; bottom: 1rem; }
+  .hero-indicators button { width: 17px; }
+  .hero-indicators button.active { width: 29px; }
+
+  .horizontal-list .poster-card-shell { flex-basis: 132px; }
+  .hover-preview { display: none; }
+
+  .experience-detail-overlay { padding: .45rem; align-items: end; }
+  .experience-detail-surface { width: 100%; min-height: 92vh; max-height: 94vh; border-radius: 22px 22px 14px 14px; }
+  .experience-detail-backdrop { height: 54vh; opacity: .48; }
+  .experience-detail-shade {
+    background:
+      linear-gradient(0deg, #111316 44%, rgba(17,19,22,.84) 70%, rgba(17,19,22,.38) 100%);
+  }
+  .experience-detail-header { grid-template-columns: 100px minmax(0,1fr); min-height: 440px; gap: 1rem; padding: 4.5rem .9rem 1.5rem; align-items: end; }
+  .experience-detail-poster { border-radius: 12px; }
+  .experience-detail-copy { padding-bottom: 0; }
+  .experience-detail-copy h2 { font-size: clamp(2rem, 9vw, 3rem); margin-bottom: .7rem; }
+  .experience-detail-copy > p { font-size: .84rem; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .detail-recommendations { padding-top: .8rem; }
+  .series-seasons-area { padding: .5rem .9rem 1.2rem; }
+  .season-tabs button { min-width: 52px; min-height: 40px; }
+}
+
+@media (max-width: 390px) {
+  .experience-login-brand .login-wordmark { width: 250px; }
+  .experience-detail-header { grid-template-columns: 1fr; min-height: auto; padding-top: 4rem; }
+  .experience-detail-poster { width: 112px; }
+  .series-header .experience-detail-poster { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-particles { display: none; }
+  .experience-hero-backdrop,
+  .experience-hero-copy,
+  .hover-preview { animation: none !important; }
+  .hero-indicators button { transition: none !important; }
+  .launch-splash { transition-duration: .01ms !important; }
+}
