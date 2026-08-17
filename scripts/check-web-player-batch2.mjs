@@ -66,7 +66,8 @@ const smartIdentity = read('smart-tv/src/contentIdentity.ts');
 for (const prefix of ['channel:', 'movie:', 'series:', 'episode:']) expect(smartIdentity.includes(prefix), `Smart TV contentKey sem ${prefix}`);
 const androidAdapter = read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/network/LibrarySyncApi.kt');
 expect(androidAdapter.includes('/device-library'), 'Android adapter precisa usar device-library');
-expect(!androidAdapter.includes('web_session'), 'Android não pode reutilizar web_session');
+expect(androidAdapter.includes('x-device-credential'), 'Android adapter deve autenticar com a credencial do aparelho');
+expect(!androidAdapter.includes('/web-player-auth'), 'Android adapter não pode autenticar pela sessão Web');
 
 const rates = read('supabase/functions/_shared/webRateLimit.ts');
 for (const policy of ['refresh:', 'catalog:', 'playback:', 'diagnostic:', 'panel:']) expect(rates.includes(policy), `rate policy ausente: ${policy}`);
