@@ -91,6 +91,7 @@ export type PlaybackAuthorization = {
 export type CanonicalFavorite = {
   contentKey: string;
   contentType: 'channel' | 'movie' | 'series';
+  active: boolean;
   version: number;
   updatedAt: string;
 };
@@ -100,6 +101,7 @@ export type CanonicalProgress = {
   contentType: 'movie' | 'episode';
   positionMs: number;
   durationMs: number;
+  completed: boolean;
   version: number;
   updatedAt: string;
 };
