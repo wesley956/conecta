@@ -8,6 +8,7 @@ import {
   storeRefreshToken,
 } from './api';
 import { clearLocalLibrary } from './library';
+import { clearPwaPrivateState } from './pwa';
 import type { SessionInfo } from './types';
 
 type AuthState = {
@@ -18,6 +19,12 @@ type AuthState = {
 };
 
 const initialState: AuthState = { booting: true, accessToken: null, session: null, error: null };
+
+function clearPrivateClientState() {
+  storeRefreshToken(null);
+  clearLocalLibrary();
+  clearPwaPrivateState();
+}
 
 export function useWebAuth() {
   const [state, setState] = useState<AuthState>(initialState);
@@ -36,7 +43,7 @@ export function useWebAuth() {
         const session = await fetchSession(refreshed.accessToken);
         if (active) setState({ booting: false, accessToken: refreshed.accessToken, session, error: null });
       } catch {
-        clearLocalLibrary();
+        clearPrivateClientState();
         if (active) setState({ booting: false, accessToken: null, session: null, error: null });
       }
     })();
@@ -45,8 +52,7 @@ export function useWebAuth() {
 
   useEffect(() => {
     const onInvalid = () => {
-      storeRefreshToken(null);
-      clearLocalLibrary();
+      clearPrivateClientState();
       setState({
         booting: false,
         accessToken: null,
@@ -73,14 +79,13 @@ export function useWebAuth() {
 
   const logout = useCallback(async () => {
     const token = state.accessToken;
-    clearLocalLibrary();
+    clearPrivateClientState();
     setState({ booting: false, accessToken: null, session: null, error: null });
     await logoutRequest(token).catch(() => undefined);
   }, [state.accessToken]);
 
   const invalidate = useCallback(() => {
-    storeRefreshToken(null);
-    clearLocalLibrary();
+    clearPrivateClientState();
     setState({ booting: false, accessToken: null, session: null, error: null });
   }, []);
 
