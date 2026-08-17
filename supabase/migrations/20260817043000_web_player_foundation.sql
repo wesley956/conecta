@@ -75,7 +75,7 @@ revoke all on table public.web_player_sessions from public, anon, authenticated;
 revoke all on table public.web_player_login_attempts from public, anon, authenticated;
 grant select, insert, update, delete on table public.web_player_sessions to service_role;
 grant select, insert, update, delete on table public.web_player_login_attempts to service_role;
-grant usage, select on all sequences in schema public to service_role;
+grant usage, select on sequence public.web_player_login_attempts_id_seq to service_role;
 
 -- Criação serializada de sessão: bloqueia a linha do aparelho para que requests
 -- concorrentes não ultrapassem o limite configurado.
