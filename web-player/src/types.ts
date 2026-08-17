@@ -14,6 +14,7 @@ export type AuthTokens = {
 
 export type WebChannel = {
   contentId: string;
+  contentKey: string;
   type: 'channel';
   title: string;
   logo?: string;
@@ -22,6 +23,7 @@ export type WebChannel = {
 
 export type WebMovie = {
   contentId: string;
+  contentKey: string;
   type: 'movie';
   title: string;
   cover?: string;
@@ -33,6 +35,7 @@ export type WebMovie = {
 
 export type WebEpisode = {
   contentId: string;
+  contentKey: string;
   type: 'episode';
   number: number;
   title: string;
@@ -46,6 +49,7 @@ export type WebSeason = {
 
 export type WebSeries = {
   contentId: string;
+  contentKey: string;
   type: 'series';
   title: string;
   cover?: string;
@@ -65,14 +69,53 @@ export type Catalog = {
 
 export type PlayableContent = WebChannel | WebMovie | WebEpisode;
 
+export type PlaybackRecovery = {
+  classification: string;
+  backoffMs: number;
+  failover: boolean;
+};
+
 export type PlaybackAuthorization = {
   mode: 'direct-safe' | 'gateway';
   playbackUrl: string;
   mediaKind: 'hls' | 'file' | 'unknown';
   contentType: 'channel' | 'movie' | 'episode';
+  contentKey: string;
   playlistRole: 'primary' | 'backup';
   alternativesAvailable: number;
+  recoveryToken: string;
   expiresAt: string;
+  recovery?: PlaybackRecovery;
+};
+
+export type CanonicalFavorite = {
+  contentKey: string;
+  contentType: 'channel' | 'movie' | 'series';
+  version: number;
+  updatedAt: string;
+};
+
+export type CanonicalProgress = {
+  contentKey: string;
+  contentType: 'movie' | 'episode';
+  positionMs: number;
+  durationMs: number;
+  version: number;
+  updatedAt: string;
+};
+
+export type CanonicalPreferences = {
+  aspectMode: 'contain' | 'cover' | 'fill' | null;
+  language: string | null;
+  subtitleLanguage: string | null;
+  version: number;
+  updatedAt: string;
+};
+
+export type LibrarySnapshot = {
+  favorites: CanonicalFavorite[];
+  progress: CanonicalProgress[];
+  preferences: CanonicalPreferences | null;
 };
 
 export type EpgProgram = {
