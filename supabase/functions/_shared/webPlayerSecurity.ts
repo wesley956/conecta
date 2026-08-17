@@ -42,10 +42,20 @@ function allowedOrigins() {
   ]);
 }
 
+function isAllowedWebOrigin(origin: string) {
+  if (!origin) return false;
+  if (allowedOrigins().has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    return url.protocol === 'https:' && url.hostname.endsWith('.vercel.app');
+  } catch {
+    return false;
+  }
+}
+
 export function webCorsHeaders(request: Request) {
   const origin = request.headers.get('origin') || '';
-  const allowed = allowedOrigins();
-  const reflected = allowed.has(origin) ? origin : '';
+  const reflected = isAllowedWebOrigin(origin) ? origin : '';
   return {
     ...(reflected ? { 'Access-Control-Allow-Origin': reflected, Vary: 'Origin' } : {}),
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -59,7 +69,7 @@ export function webCorsHeaders(request: Request) {
 export function assertWebOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (!origin) return;
-  if (!allowedOrigins().has(origin)) throw new Error('WEB_ORIGIN_NOT_ALLOWED');
+  if (!isAllowedWebOrigin(origin)) throw new Error('WEB_ORIGIN_NOT_ALLOWED');
 }
 
 export function webJson(request: Request, body: unknown, status = 200) {
