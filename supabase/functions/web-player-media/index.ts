@@ -27,7 +27,7 @@ type MediaToken = {
   sessionId: string;
   deviceId: string;
   contentType?: string;
-  playlistId?: string;
+  playlistId: string;
   playlistRole?: string;
   url: string;
   exp: number;
@@ -40,11 +40,14 @@ function serviceClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function validateSession(sessionId: string, deviceId: string) {
+async function validateSession(sessionId: string, deviceId: string, playlistId: string) {
   const supabase = serviceClient();
   const { data: session, error } = await supabase.from('web_player_sessions').select(`
     id, device_id, idle_expires_at, absolute_expires_at, revoked_at,
-    device:panel_devices(id, status, subscription_expires_at, web_access_enabled)
+    device:panel_devices(
+      id, status, subscription_expires_at, web_access_enabled, playlist_id,
+      device_playlists:panel_device_playlists(playlist_id, active)
+    )
   `).eq('id', sessionId).eq('device_id', deviceId).maybeSingle();
   if (error || !session || session.revoked_at) throw new Error('WEB_MEDIA_SESSION_INVALID');
   const device = Array.isArray(session.device) ? session.device[0] : session.device;
@@ -57,6 +60,12 @@ async function validateSession(sessionId: string, deviceId: string) {
     new Date(session.absolute_expires_at).getTime() <= now ||
     (device.subscription_expires_at && new Date(device.subscription_expires_at).getTime() <= now)
   ) throw new Error('WEB_MEDIA_SESSION_INVALID');
+
+  const assigned = String(device.playlist_id || '') === playlistId ||
+    (device.device_playlists || []).some((entry: { playlist_id?: string; active?: boolean }) =>
+      entry.active !== false && String(entry.playlist_id || '') === playlistId
+    );
+  if (!assigned) throw new Error('WEB_MEDIA_PLAYLIST_CHANGED');
 
   const absoluteAt = new Date(session.absolute_expires_at).getTime();
   await supabase.from('web_player_sessions').update({
@@ -194,11 +203,12 @@ serve(async request => {
       !String(payload.kind || '').startsWith('media') ||
       typeof payload.sessionId !== 'string' ||
       typeof payload.deviceId !== 'string' ||
+      typeof payload.playlistId !== 'string' ||
       typeof payload.url !== 'string' ||
       Number(payload.exp || 0) <= Date.now()
     ) throw new Error('WEB_MEDIA_TOKEN_INVALID');
 
-    await validateSession(payload.sessionId, payload.deviceId);
+    await validateSession(payload.sessionId, payload.deviceId, payload.playlistId);
     const upstream = await fetchUpstream(payload.url, request);
     if (!upstream.ok && upstream.status !== 206) {
       return new Response(null, { status: upstream.status, headers: mediaHeaders(request, upstream) });
@@ -225,7 +235,7 @@ serve(async request => {
   } catch (error) {
     const code = error instanceof Error ? error.message : 'WEB_MEDIA_ERROR';
     if (code === 'WEB_ORIGIN_NOT_ALLOWED') return webJson(request, { ok: false, code }, 403);
-    if (/TOKEN|SESSION/.test(code)) return webJson(request, { ok: false, code: 'WEB_MEDIA_UNAUTHORIZED' }, 401);
+    if (/TOKEN|SESSION|PLAYLIST_CHANGED/.test(code)) return webJson(request, { ok: false, code: 'WEB_MEDIA_UNAUTHORIZED' }, 401);
     console.error('web-player-media error', { code });
     return webJson(request, {
       ok: false,
