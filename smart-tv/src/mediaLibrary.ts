@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { PlaybackItem } from "./player/types";
+import { syncFavorite, syncProgress } from "./librarySync";
 
 export type LibraryKind = "channel" | "movie" | "series" | "episode";
 
@@ -30,16 +31,12 @@ function read(key: string): LibraryItem[] {
       typeof (item as LibraryItem).id === "string" &&
       typeof (item as LibraryItem).name === "string"
     ));
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
-
 function write(key: string, items: LibraryItem[]) {
   try { window.localStorage.setItem(key, JSON.stringify(items)); }
-  catch { /* a biblioteca continua disponível durante a sessão */ }
+  catch { /* cache local degradável; fonte canônica é server-side quando autenticado */ }
 }
-
 function fromPlayback(item: PlaybackItem): LibraryItem {
   return {
     id: item.id,
@@ -51,17 +48,14 @@ function fromPlayback(item: PlaybackItem): LibraryItem {
     updatedAt: Date.now()
   };
 }
-
 export function libraryIdentity(item: Pick<LibraryItem, "id" | "kind" | "contentKey">) {
   return item.contentKey || `${item.kind}:${item.id}`;
 }
-
 export function progressFraction(item?: Pick<LibraryItem, "currentTime" | "duration"> | null) {
   const currentTime = Number(item?.currentTime || 0);
   const duration = Number(item?.duration || 0);
   return duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0;
 }
-
 export function resumableProgress(item?: Pick<LibraryItem, "currentTime" | "duration"> | null) {
   const currentTime = Number(item?.currentTime || 0);
   const duration = Number(item?.duration || 0);
@@ -84,6 +78,13 @@ export function useMediaLibrary() {
           )
         : [{ ...item, updatedAt: Date.now() }, ...current].slice(0, 100);
       write(FAVORITES_KEY, next);
+      if (item.contentKey && ["channel", "movie", "series"].includes(item.kind)) {
+        queueMicrotask(() => void syncFavorite(
+          item.contentKey!,
+          item.kind as "channel" | "movie" | "series",
+          !exists
+        ).catch(() => undefined));
+      }
       return next;
     });
   }, []);
@@ -100,6 +101,14 @@ export function useMediaLibrary() {
         : Math.max(0, currentTime);
 
       if (safeDuration <= 0 || safePosition < MIN_PROGRESS_SECONDS) return current;
+      if (item.contentKey && ["movie", "episode"].includes(base.kind)) {
+        queueMicrotask(() => void syncProgress(
+          item.contentKey!,
+          base.kind as "movie" | "episode",
+          safePosition,
+          safeDuration
+        ).catch(() => undefined));
+      }
 
       if (safeDuration - safePosition <= COMPLETION_THRESHOLD_SECONDS) {
         if (withoutCurrent.length === current.length) return current;
@@ -159,11 +168,7 @@ export function useMediaLibrary() {
     write(HISTORY_KEY, []);
   }, []);
 
-  const favoriteKeys = useMemo(
-    () => new Set(favorites.map(libraryIdentity)),
-    [favorites]
-  );
-
+  const favoriteKeys = useMemo(() => new Set(favorites.map(libraryIdentity)), [favorites]);
   return {
     favorites,
     history,
