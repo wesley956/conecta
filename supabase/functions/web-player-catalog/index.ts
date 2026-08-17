@@ -1,5 +1,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { safeFetchPlaylistText } from '../_shared/outboundFetch.ts';
+import { buildXtreamApiUrl, parseXtreamSource } from '../_shared/xtreamSource.ts';
 import {
   assertWebOrigin,
   readWebJson,
@@ -107,6 +109,87 @@ async function seriesDetails(request: Request, body: Record<string, unknown>) {
   });
 }
 
+function decoded(value: unknown) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  try {
+    const bytes = Uint8Array.from(atob(raw), character => character.charCodeAt(0));
+    return new TextDecoder().decode(bytes).trim() || raw;
+  } catch {
+    return raw;
+  }
+}
+
+function instant(value: unknown, fallback: unknown) {
+  const timestamp = Number(value);
+  if (Number.isFinite(timestamp) && timestamp > 0) {
+    return new Date(timestamp * (timestamp < 10_000_000_000 ? 1000 : 1));
+  }
+  const parsed = new Date(String(fallback ?? '').replace(' ', 'T'));
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function projectPrograms(value: unknown) {
+  const listings = Array.isArray((value as { epg_listings?: unknown })?.epg_listings)
+    ? (value as { epg_listings: unknown[] }).epg_listings
+    : Array.isArray(value) ? value : [];
+  const now = Date.now();
+  return listings.flatMap((raw: any) => {
+    const start = instant(raw?.start_timestamp, raw?.start);
+    const end = instant(raw?.stop_timestamp ?? raw?.end_timestamp, raw?.end ?? raw?.stop);
+    const title = decoded(raw?.title).slice(0, 300);
+    if (!start || !end || !title || end.getTime() <= now - 60_000) return [];
+    return [{
+      title,
+      description: decoded(raw?.description).slice(0, 900) || undefined,
+      start: start.toISOString(),
+      end: end.toISOString(),
+    }];
+  }).sort((left, right) => left.start.localeCompare(right.start)).slice(0, 4);
+}
+
+async function channelEpg(request: Request, body: Record<string, unknown>) {
+  const supabase = serviceClient();
+  const session = await requireWebSession(request, supabase);
+  const contentId = text(body.contentId, 4096);
+  if (!contentId) throw new Error('WEB_CONTENT_ID_REQUIRED');
+  const token = await parseContentToken(contentId, session);
+  if (token.type !== 'channel') throw new Error('WEB_CONTENT_TYPE_INVALID');
+  const resolved = await resolveContentFromCache(supabase, session, token);
+  const channel = resolved.item;
+  const explicit = text(channel.streamId || channel.stream_id, 32);
+  const fromId = String(channel.id || '').match(/(?:-ch-|channel[-_:]?)(\d{1,20})$/i)?.[1]
+    || String(channel.id || '').match(/(\d{1,20})$/)?.[1];
+  const streamId = explicit || fromId;
+  if (!streamId || !/^\d{1,20}$/.test(streamId)) {
+    return webJson(request, { ok: true, available: false, programs: [] });
+  }
+
+  const source = parseXtreamSource(resolved.assignment.playlistUrl);
+  if (!source) return webJson(request, { ok: true, available: false, programs: [] });
+  try {
+    const target = buildXtreamApiUrl(source, 'get_short_epg', { stream_id: streamId, limit: '4' });
+    const raw = await safeFetchPlaylistText(target, {
+      label: 'Programação Web',
+      timeoutMs: 15_000,
+      maxBytes: 2 * 1024 * 1024,
+      allowedOrigins: [source.origin],
+      headers: {
+        Accept: 'application/json, text/plain, */*',
+        'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
+      },
+    });
+    const programs = projectPrograms(JSON.parse(raw));
+    return webJson(request, { ok: true, available: programs.length > 0, programs });
+  } catch (error) {
+    console.error('web-player epg provider failed', {
+      code: error instanceof Error ? error.message : 'unknown',
+      playlistRole: resolved.assignment.role,
+    });
+    return webJson(request, { ok: true, available: false, programs: [] });
+  }
+}
+
 serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: webCorsHeaders(request) });
   if (request.method !== 'POST') return webJson(request, { ok: false, code: 'WEB_METHOD_NOT_ALLOWED' }, 405);
@@ -116,6 +199,7 @@ serve(async request => {
     const action = text(body.action, 32) || 'catalog';
     if (action === 'catalog') return await catalog(request);
     if (action === 'series') return await seriesDetails(request, body);
+    if (action === 'epg') return await channelEpg(request, body);
     return webJson(request, { ok: false, code: 'WEB_ACTION_INVALID' }, 400);
   } catch (error) {
     const code = error instanceof Error ? error.message : 'WEB_CATALOG_ERROR';
