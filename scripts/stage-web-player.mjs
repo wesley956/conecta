@@ -23,6 +23,7 @@ if (fs.existsSync(builtBrand)) {
 
 const cssMarker = 'data-web-access-management="style"';
 const jsMarker = 'data-web-access-management="script"';
+const playerLinkMarker = 'data-web-player-link="script"';
 for (const htmlName of ['dashboard.html', 'seller.html']) {
   const file = path.join(output, htmlName);
   if (!fs.existsSync(file)) throw new Error(`Painel esperado não encontrado: ${htmlName}`);
@@ -32,6 +33,9 @@ for (const htmlName of ['dashboard.html', 'seller.html']) {
   }
   if (!html.includes(jsMarker)) {
     html = html.replace('</body>', `  <script src="/web-access-management.js" defer ${jsMarker}></script>\n</body>`);
+  }
+  if (!html.includes(playerLinkMarker)) {
+    html = html.replace('</body>', `  <script src="/web-player-link.js" defer ${playerLinkMarker}></script>\n</body>`);
   }
   fs.writeFileSync(file, html);
 }
@@ -43,6 +47,7 @@ const required = [
   'web/offline.html',
   'web-access-management.js',
   'web-access-management.css',
+  'web-player-link.js',
 ];
 for (const relative of required) {
   if (!fs.existsSync(path.join(output, relative))) throw new Error(`Staging Web incompleto: ${relative}`);
