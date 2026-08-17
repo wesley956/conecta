@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import {
   assertAllowedPlaylistUrl,
   assertPublicPlaylistTarget,
+  isPrivateIpAddress,
 } from './outboundFetch.ts';
 
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -25,13 +26,35 @@ function copyNodeHeaders(raw: Record<string, string | string[] | undefined>) {
   return headers;
 }
 
+function isIpLiteral(hostname: string) {
+  const normalized = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (normalized.includes(':')) return true;
+  const parts = normalized.split('.');
+  return parts.length === 4 && parts.every(part => {
+    if (!/^\d{1,3}$/.test(part)) return false;
+    const value = Number(part);
+    return Number.isInteger(value) && value >= 0 && value <= 255;
+  });
+}
+
+async function validateMediaTarget(target: URL) {
+  // assertAllowedPlaylistUrl já bloqueia localhost, redes privadas e faixas
+  // reservadas. Para um IP público literal não há DNS a resolver: tentar
+  // Deno.resolveDns(IP) gera falso negativo e quebrava redirects de mídia.
+  if (isIpLiteral(target.hostname)) {
+    if (isPrivateIpAddress(target.hostname)) throw new Error('WEB_MEDIA_PRIVATE_TARGET');
+    return;
+  }
+  await assertPublicPlaylistTarget(target);
+}
+
 export async function fetchWebMediaUpstream(
   rawUrl: string,
   browserRequest: Request,
   redirectsLeft = DEFAULT_REDIRECTS,
 ): Promise<Response> {
   const target = assertAllowedPlaylistUrl(rawUrl);
-  await assertPublicPlaylistTarget(target);
+  await validateMediaTarget(target);
 
   return await new Promise<Response>((resolve, reject) => {
     const isHttps = target.protocol === 'https:';
