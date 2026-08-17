@@ -169,6 +169,7 @@ export async function authorizePlayback(accessToken: string, contentId: string) 
   return {
     mode: result.mode,
     playbackUrl: result.playbackUrl,
+    mediaKind: result.mediaKind,
     contentType: result.contentType,
     playlistRole: result.playlistRole,
     alternativesAvailable: result.alternativesAvailable,
