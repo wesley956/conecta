@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { WebPlayer as WebPlayerCore } from './WebPlayerCore';
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 import type { ComponentProps } from 'react';
 import type { WebChannel } from '../types';
 
-type Props = ComponentProps<typeof WebPlayerCore>;
+type Props = ComponentProps<typeof import('./WebPlayerCore').WebPlayer>;
+
+const LazyWebPlayerCore = lazy(async () => {
+  const module = await import('./WebPlayerCore');
+  return { default: module.WebPlayer };
+});
 
 export function WebPlayer(props: Props) {
   const progressRef = useRef(props.onProgress);
@@ -25,11 +29,17 @@ export function WebPlayer(props: Props) {
   }, []);
 
   return (
-    <WebPlayerCore
-      {...props}
-      onProgress={props.onProgress ? onProgress : undefined}
-      onSwitchChannel={props.onSwitchChannel ? onSwitchChannel : undefined}
-      onClose={onClose}
-    />
+    <Suspense fallback={(
+      <div className="player-overlay" role="status" aria-live="polite">
+        <div className="player-status">Preparando reprodução…</div>
+      </div>
+    )}>
+      <LazyWebPlayerCore
+        {...props}
+        onProgress={props.onProgress ? onProgress : undefined}
+        onSwitchChannel={props.onSwitchChannel ? onSwitchChannel : undefined}
+        onClose={onClose}
+      />
+    </Suspense>
   );
 }
