@@ -27,7 +27,10 @@ type Props = {
 const ASPECT_KEY = 'roneca.web.aspect.v1';
 const STABLE_WINDOW_MS = 10_000;
 const WATCHDOG_TICK_MS = 5_000;
-const WATCHDOG_STALL_TICKS = 3;
+const WATCHDOG_STALL_TICKS = 4;
+const HLS_LOCAL_MEDIA_RECOVERIES = 2;
+const HLS_LOCAL_NETWORK_RECOVERIES = 3;
+const HLS_LOCAL_STALL_RECOVERIES = 2;
 
 function initialAspect(): AspectMode {
   try {
@@ -68,6 +71,9 @@ export function WebPlayer({
   const renewalTimerRef = useRef<number | null>(null);
   const watchdogLastTimeRef = useRef(0);
   const watchdogStallsRef = useRef(0);
+  const watchdogSoftRecoveriesRef = useRef(0);
+  const hlsMediaRecoveriesRef = useRef(0);
+  const hlsNetworkRecoveriesRef = useRef(0);
   const recoveryCorrelationRef = useRef<string | null>(null);
   const offlinePendingRef = useRef(false);
   const generationRef = useRef(0);
@@ -87,6 +93,9 @@ export function WebPlayer({
     recoveryBusyRef.current = false;
     offlinePendingRef.current = false;
     resumePositionRef.current = initialPosition;
+    watchdogSoftRecoveriesRef.current = 0;
+    hlsMediaRecoveriesRef.current = 0;
+    hlsNetworkRecoveriesRef.current = 0;
     setActiveAuthorization(authorization);
     setError(null);
     setRecoveryStatus(null);
@@ -203,7 +212,8 @@ export function WebPlayer({
     const video = videoRef.current;
     if (!video) return;
     setError(null); setReady(false); setAudioTracks([]); setSubtitleTracks([]); lastCheckpointRef.current = 0;
-    watchdogLastTimeRef.current = 0; watchdogStallsRef.current = 0;
+    watchdogLastTimeRef.current = 0; watchdogStallsRef.current = 0; watchdogSoftRecoveriesRef.current = 0;
+    hlsMediaRecoveriesRef.current = 0; hlsNetworkRecoveriesRef.current = 0;
     const generation = ++generationRef.current;
     let disposed = false;
 
@@ -213,6 +223,8 @@ export function WebPlayer({
       stableTimerRef.current = window.setTimeout(() => {
         if (disposed || generationRef.current !== generation) return;
         setRecoveryStatus(null);
+        hlsMediaRecoveriesRef.current = 0;
+        watchdogSoftRecoveriesRef.current = 0;
         const token = getActiveAccessToken();
         const correlationId = recoveryCorrelationRef.current;
         if (token && correlationId) void reportWebDiagnostic(token, {
@@ -230,7 +242,23 @@ export function WebPlayer({
       }
       setReady(true); markStable();
     };
-    const onPlaying = () => { setReady(true); markStable(); };
+    const onPlaying = () => {
+      if (disposed) return;
+      setReady(true);
+      setRecoveryStatus(null);
+      watchdogStallsRef.current = 0;
+      hlsNetworkRecoveriesRef.current = 0;
+      markStable();
+    };
+    const onCanPlay = () => {
+      if (disposed) return;
+      setReady(true);
+      if (!recoveryBusyRef.current) setRecoveryStatus(null);
+    };
+    const onWaiting = () => {
+      if (disposed || recoveryBusyRef.current) return;
+      setRecoveryStatus('Carregando buffer…');
+    };
     const onNativeError = () => { if (!disposed) void requestRecovery(nativeMediaErrorCode(video)); };
     const onPause = () => checkpoint();
     const onTimeUpdate = () => {
@@ -241,6 +269,8 @@ export function WebPlayer({
     };
     video.addEventListener('loadedmetadata', markReady);
     video.addEventListener('playing', onPlaying);
+    video.addEventListener('canplay', onCanPlay);
+    video.addEventListener('waiting', onWaiting);
     video.addEventListener('error', onNativeError);
     video.addEventListener('pause', onPause);
     video.addEventListener('timeupdate', onTimeUpdate);
@@ -252,14 +282,41 @@ export function WebPlayer({
       const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL');
       if (nativeHls) attachNative();
       else if (Hls.isSupported()) {
-        const hls = new Hls({ enableWorker: true, lowLatencyMode: live, backBufferLength: live ? 30 : 90, maxBufferLength: live ? 30 : 60 });
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          capLevelToPlayerSize: true,
+          backBufferLength: live ? 60 : 120,
+          maxBufferLength: live ? 60 : 120,
+          maxMaxBufferLength: live ? 120 : 180,
+          maxBufferSize: 64 * 1024 * 1024,
+          liveSyncDurationCount: live ? 6 : undefined,
+          liveMaxLatencyDurationCount: live ? 18 : undefined,
+          maxBufferHole: 0.8,
+          fragLoadingTimeOut: 30_000,
+          manifestLoadingTimeOut: 20_000,
+          levelLoadingTimeOut: 20_000,
+        });
         hlsRef.current = hls;
         hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!disposed) { syncTracks(hls); setReady(true); markStable(); } });
         hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => syncTracks(hls));
         hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => syncTracks(hls));
+        hls.on(Hls.Events.FRAG_LOADED, () => { hlsNetworkRecoveriesRef.current = 0; });
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal || disposed) return;
           const httpCode = Number((data as any).response?.code || 0);
+          if (!httpCode && data.type === Hls.ErrorTypes.MEDIA_ERROR && hlsMediaRecoveriesRef.current < HLS_LOCAL_MEDIA_RECOVERIES) {
+            hlsMediaRecoveriesRef.current += 1;
+            setRecoveryStatus('Ajustando vídeo…');
+            hls.recoverMediaError();
+            return;
+          }
+          if (!httpCode && data.type === Hls.ErrorTypes.NETWORK_ERROR && hlsNetworkRecoveriesRef.current < HLS_LOCAL_NETWORK_RECOVERIES) {
+            hlsNetworkRecoveriesRef.current += 1;
+            setRecoveryStatus('Reforçando buffer…');
+            hls.startLoad(-1);
+            return;
+          }
           const code = httpCode ? `WEB_HLS_HTTP_${httpCode}`
             : data.type === Hls.ErrorTypes.MEDIA_ERROR ? 'WEB_HLS_DECODER_ERROR'
               : String(data.details || '').toLowerCase().includes('manifest') ? 'WEB_HLS_MANIFEST_ERROR'
@@ -274,12 +331,25 @@ export function WebPlayer({
       if (disposed || recoveryBusyRef.current || video.paused || video.seeking || video.ended || document.hidden) return;
       const current = Number(video.currentTime || 0);
       if (current > watchdogLastTimeRef.current + 0.35) {
-        watchdogLastTimeRef.current = current; watchdogStallsRef.current = 0; return;
+        watchdogLastTimeRef.current = current;
+        watchdogStallsRef.current = 0;
+        watchdogSoftRecoveriesRef.current = 0;
+        return;
       }
-      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      // HAVE_CURRENT_DATA é buffering normal. Só tratamos como stall quando há
+      // dados futuros disponíveis e, mesmo assim, o relógio do vídeo não anda.
+      if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA || video.networkState === HTMLMediaElement.NETWORK_LOADING) return;
       watchdogStallsRef.current += 1;
       if (watchdogStallsRef.current >= WATCHDOG_STALL_TICKS) {
         watchdogStallsRef.current = 0;
+        const hls = hlsRef.current;
+        if (hls && watchdogSoftRecoveriesRef.current < HLS_LOCAL_STALL_RECOVERIES) {
+          watchdogSoftRecoveriesRef.current += 1;
+          setRecoveryStatus('Reforçando buffer…');
+          hls.startLoad(-1);
+          void video.play().catch(() => undefined);
+          return;
+        }
         void requestRecovery('WEB_WATCHDOG_STALL');
       }
     }, WATCHDOG_TICK_MS);
@@ -295,6 +365,7 @@ export function WebPlayer({
       if (renewalTimerRef.current) window.clearTimeout(renewalTimerRef.current);
       watchdogRef.current = null; renewalTimerRef.current = null;
       video.removeEventListener('loadedmetadata', markReady); video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('canplay', onCanPlay); video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('error', onNativeError); video.removeEventListener('pause', onPause); video.removeEventListener('timeupdate', onTimeUpdate);
       destroyHls(); video.pause(); video.removeAttribute('src'); video.load(); setAudioTracks([]); setSubtitleTracks([]);
     };
@@ -347,7 +418,7 @@ export function WebPlayer({
   return (
     <div className="player-overlay" role="dialog" aria-modal="true" aria-label={`Reproduzindo ${title}`}>
       <div className="player-frame" ref={frameRef}>
-        <video ref={videoRef} className={`player-video aspect-${aspect}`} controls playsInline autoPlay preload="metadata" crossOrigin="anonymous" />
+        <video ref={videoRef} className={`player-video aspect-${aspect}`} controls playsInline autoPlay preload="auto" crossOrigin="anonymous" />
         <div className="player-topbar">
           <div>
             <span className="player-kicker">{live ? 'AO VIVO' : 'RONECAPLAYTV'}</span>
