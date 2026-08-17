@@ -22,7 +22,17 @@ const MAX_HISTORY = 60;
 export const MIN_PROGRESS_SECONDS = 8;
 export const COMPLETION_THRESHOLD_SECONDS = 45;
 
-type CatalogLibraryItem = Pick<LibraryItem, "id" | "kind" | "contentKey" | "name" | "image" | "meta">;
+type CatalogLibraryItem = Pick<LibraryItem, "id" | "kind" | "contentKey"> & Partial<Pick<LibraryItem, "name" | "image" | "meta">>;
+
+function titleFromContentKey(contentKey: string, kind: LibraryKind) {
+  const parts = contentKey.split(":");
+  if (kind === "episode") {
+    const episode = parts.find(part => /^e\d+$/i.test(part));
+    return episode ? `Episódio ${episode.slice(1)}` : "Episódio";
+  }
+  const raw = parts[1] || kind;
+  return raw.split("-").filter(Boolean).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") || "Conteúdo";
+}
 
 function read(key: string): LibraryItem[] {
   try {
@@ -195,7 +205,11 @@ export function useMediaLibrary() {
           const catalogItem = catalogByKey.get(remote.contentKey);
           if (!catalogItem || !["channel", "movie", "series"].includes(catalogItem.kind)) return [];
           return [{
-            ...catalogItem,
+            id: catalogItem.id,
+            kind: catalogItem.kind,
+            name: catalogItem.name || titleFromContentKey(remote.contentKey, catalogItem.kind),
+            image: catalogItem.image,
+            meta: catalogItem.meta,
             contentKey: remote.contentKey,
             updatedAt: new Date(remote.updatedAt).getTime() || Date.now()
           } satisfies LibraryItem];
@@ -213,7 +227,11 @@ export function useMediaLibrary() {
           const duration = remote.durationMs / 1000;
           if (currentTime < MIN_PROGRESS_SECONDS || duration - currentTime <= COMPLETION_THRESHOLD_SECONDS) return [];
           return [{
-            ...catalogItem,
+            id: catalogItem.id,
+            kind: catalogItem.kind,
+            name: catalogItem.name || titleFromContentKey(remote.contentKey, catalogItem.kind),
+            image: catalogItem.image,
+            meta: catalogItem.meta,
             contentKey: remote.contentKey,
             updatedAt: new Date(remote.updatedAt).getTime() || Date.now(),
             currentTime,
