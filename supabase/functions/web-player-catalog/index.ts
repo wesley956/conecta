@@ -79,7 +79,8 @@ async function seriesDetails(request: Request, body: Record<string, unknown>) {
   if (token.type !== 'series') throw new Error('WEB_CONTENT_TYPE_INVALID');
   const resolved = await resolveContentFromCache(supabase, session, token);
   const item = resolved.item;
-  let seasons = await projectEpisodes(session, token.playlistId, token.sourceId, item.seasons);
+  const seriesName = String(item.name || token.seriesName || 'Série').slice(0, 300);
+  let seasons = await projectEpisodes(session, token.playlistId, token.sourceId, item.seasons, seriesName);
 
   if (!seasons.length) {
     const xtreamSeriesId = text(item.xtreamSeriesId || item.xtream_series_id, 64);
@@ -89,7 +90,7 @@ async function seriesDetails(request: Request, body: Record<string, unknown>) {
           .download(`${token.playlistId}/series-details/${xtreamSeriesId}.json`);
         if (!result.error && result.data) {
           const cached = JSON.parse(await result.data.text());
-          seasons = await projectEpisodes(session, token.playlistId, token.sourceId, cached?.seasons);
+          seasons = await projectEpisodes(session, token.playlistId, token.sourceId, cached?.seasons, seriesName);
         }
       } catch {
         // O detalhe pode ainda não ter sido materializado pelo backend.
@@ -100,7 +101,8 @@ async function seriesDetails(request: Request, body: Record<string, unknown>) {
   return webJson(request, {
     ok: true,
     contentId,
-    title: String(item.name || 'Série').slice(0, 300),
+    contentKey: token.contentKey,
+    title: seriesName,
     seasons,
     detailsReady: seasons.length > 0,
     message: seasons.length
