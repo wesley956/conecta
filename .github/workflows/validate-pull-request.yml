@@ -87,6 +87,50 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  web-player:
+    name: Web Player — security, typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate Web Player security boundary
+        run: node scripts/check-web-player-foundation.mjs
+
+      - name: Install Web Player dependencies
+        run: npm install --prefix web-player --ignore-scripts --no-audit --no-fund
+
+      - name: Type-check and build Web Player
+        run: |
+          npm run typecheck --prefix web-player
+          npm run build --prefix web-player
+
+      - name: Scan production bundle for forbidden secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'deviceCredential|device_credential|playlist_url|SUPABASE_SERVICE_ROLE_KEY|service_role' web-player/dist; then
+            echo '::error::O bundle Web contém um identificador/segredo proibido.'
+            exit 1
+          fi
+          echo 'Bundle Web sem credenciais técnicas conhecidas.'
+
+      - name: Upload Web Player preview bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-player-preview
+          path: web-player/dist
+          if-no-files-found: warn
+          retention-days: 7
+
   smart-tv:
     name: LG webOS and Samsung Tizen
     runs-on: ubuntu-latest
