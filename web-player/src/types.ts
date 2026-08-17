@@ -68,6 +68,7 @@ export type PlayableContent = WebChannel | WebMovie | WebEpisode;
 export type PlaybackAuthorization = {
   mode: 'direct-safe' | 'gateway';
   playbackUrl: string;
+  mediaKind: 'hls' | 'file' | 'unknown';
   contentType: 'channel' | 'movie' | 'episode';
   playlistRole: 'primary' | 'backup';
   alternativesAvailable: number;
