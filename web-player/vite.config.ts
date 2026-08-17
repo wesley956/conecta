@@ -8,6 +8,14 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: false,
     assetsInlineLimit: 4096,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/hls.js/')) return 'media-engine';
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port: 5173,
