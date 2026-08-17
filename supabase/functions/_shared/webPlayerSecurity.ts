@@ -9,7 +9,9 @@ export type WebSessionContext = {
   deviceId: string;
   deviceCode: string;
   clientName: string | null;
+  customerId: string | null;
   sellerId: string | null;
+  libraryScopeKey: string;
   expiresAt: string | null;
   absoluteExpiresAt: string;
 };
@@ -55,6 +57,8 @@ export function webJson(request: Request, body: unknown, status = 200) {
       ...webCorsHeaders(request),
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store, private',
+      'Pragma': 'no-cache',
+      'X-Frame-Options': 'DENY',
     },
   });
 }
@@ -199,6 +203,10 @@ export async function deviceCodeHash(code: string) {
   return await sha256Hex(`${secretMaterial()}:device-code:${code.toUpperCase()}`);
 }
 
+export async function webRateSubject(value: string) {
+  return await sha256Hex(`${secretMaterial()}:rate:${value}`);
+}
+
 export function userAgentFamily(request: Request) {
   const ua = String(request.headers.get('user-agent') || '').toLowerCase();
   if (ua.includes('edg/')) return 'Edge';
@@ -226,7 +234,7 @@ export async function requireWebSession(
     .from('web_player_sessions')
     .select(`
       id, device_id, last_used_at, idle_expires_at, absolute_expires_at, revoked_at,
-      device:panel_devices(id, device_code, client_name, seller_id, status, subscription_expires_at, web_access_enabled)
+      device:panel_devices(id, device_code, client_name, customer_id, seller_id, status, subscription_expires_at, web_access_enabled)
     `)
     .eq('access_token_hash', tokenHash)
     .maybeSingle();
@@ -263,12 +271,15 @@ export async function requireWebSession(
     }).eq('id', session.id).is('revoked_at', null);
   }
 
+  const customerId = device.customer_id ? String(device.customer_id) : null;
   return {
     id: session.id,
-    deviceId: device.id,
-    deviceCode: device.device_code,
+    deviceId: String(device.id),
+    deviceCode: String(device.device_code),
     clientName: device.client_name || null,
+    customerId,
     sellerId: device.seller_id || null,
+    libraryScopeKey: customerId ? `customer:${customerId}` : `device:${device.id}`,
     expiresAt: device.subscription_expires_at || null,
     absoluteExpiresAt: session.absolute_expires_at,
   };
