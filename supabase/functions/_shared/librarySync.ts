@@ -19,15 +19,13 @@ export async function librarySnapshot(supabase: SupabaseClient, scopeKey: string
     supabase.from('web_player_library_favorites')
       .select('content_key, content_type, active, version, updated_at')
       .eq('scope_key', scopeKey)
-      .eq('active', true)
       .order('updated_at', { ascending: false })
       .limit(500),
     supabase.from('web_player_library_progress')
       .select('content_key, content_type, position_ms, duration_ms, completed, version, updated_at')
       .eq('scope_key', scopeKey)
-      .eq('completed', false)
       .order('updated_at', { ascending: false })
-      .limit(200),
+      .limit(300),
     supabase.from('web_player_library_preferences')
       .select('aspect_mode, language, subtitle_language, version, updated_at')
       .eq('scope_key', scopeKey)
@@ -42,6 +40,7 @@ export async function librarySnapshot(supabase: SupabaseClient, scopeKey: string
     favorites: (favoritesResult.data || []).map(row => ({
       contentKey: row.content_key,
       contentType: row.content_type,
+      active: Boolean(row.active),
       version: Number(row.version || 1),
       updatedAt: row.updated_at,
     })),
@@ -50,6 +49,7 @@ export async function librarySnapshot(supabase: SupabaseClient, scopeKey: string
       contentType: row.content_type,
       positionMs: Number(row.position_ms || 0),
       durationMs: Number(row.duration_ms || 0),
+      completed: Boolean(row.completed),
       version: Number(row.version || 1),
       updatedAt: row.updated_at,
     })),
