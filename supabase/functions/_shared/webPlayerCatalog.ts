@@ -1,5 +1,11 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { openWebPayload, sealWebPayload, type WebSessionContext } from './webPlayerSecurity.ts';
+import {
+  channelContentKey,
+  movieContentKey,
+  seriesContentKey,
+  episodeContentKey,
+} from './contentIdentity.ts';
 
 export type WebContentType = 'channel' | 'movie' | 'series' | 'episode';
 export type WebContentToken = {
@@ -8,7 +14,9 @@ export type WebContentToken = {
   playlistId: string;
   type: WebContentType;
   sourceId: string;
+  contentKey: string;
   seriesSourceId?: string;
+  seriesName?: string;
   exp: number;
 };
 
@@ -124,7 +132,9 @@ async function contentId(
   playlistId: string,
   type: WebContentType,
   sourceId: string,
+  stableKey: string,
   seriesSourceId?: string,
+  seriesName?: string,
 ) {
   return await sealWebPayload({
     v: 1,
@@ -132,7 +142,9 @@ async function contentId(
     playlistId,
     type,
     sourceId,
+    contentKey: stableKey,
     ...(seriesSourceId ? { seriesSourceId } : {}),
+    ...(seriesName ? { seriesName } : {}),
     exp: Date.now() + 60 * 60 * 1000,
   });
 }
@@ -141,8 +153,10 @@ export async function projectChannels(session: WebSessionContext, playlistId: st
   return await Promise.all(items.flatMap(item => {
     const sourceId = safeText(item.id, 256);
     if (!sourceId) return [];
-    return [contentId(session, playlistId, 'channel', sourceId).then(id => ({
+    const stableKey = channelContentKey(item.name, item.groupTitle);
+    return [contentId(session, playlistId, 'channel', sourceId, stableKey).then(id => ({
       contentId: id,
+      contentKey: stableKey,
       type: 'channel' as const,
       title: safeText(item.name, 300) || 'Canal',
       logo: safePublicImage(item.logo),
@@ -155,8 +169,10 @@ export async function projectMovies(session: WebSessionContext, playlistId: stri
   return await Promise.all(items.flatMap(item => {
     const sourceId = safeText(item.id, 256);
     if (!sourceId) return [];
-    return [contentId(session, playlistId, 'movie', sourceId).then(id => ({
+    const stableKey = movieContentKey(item.name, item.year);
+    return [contentId(session, playlistId, 'movie', sourceId, stableKey).then(id => ({
       contentId: id,
+      contentKey: stableKey,
       type: 'movie' as const,
       title: safeText(item.name, 300) || 'Filme',
       cover: safePublicImage(item.cover),
@@ -173,29 +189,31 @@ export async function projectEpisodes(
   playlistId: string,
   seriesSourceId: string,
   rawSeasons: unknown,
+  seriesName = 'Série',
 ) {
   if (!Array.isArray(rawSeasons)) return [];
   const seasons = [] as Array<{ number: number; episodes: unknown[] }>;
   for (const [seasonIndex, seasonValue] of rawSeasons.entries()) {
     const season = plainObject(seasonValue);
     if (!season || !Array.isArray(season.episodes)) continue;
+    const seasonNumber = safeNumber(season.number) || seasonIndex + 1;
     const episodes = [] as unknown[];
     for (const [episodeIndex, episodeValue] of season.episodes.entries()) {
       const episode = plainObject(episodeValue);
       const sourceId = safeText(episode?.id, 256);
       if (!episode || !sourceId) continue;
+      const episodeNumber = safeNumber(episode.number) || episodeIndex + 1;
+      const stableKey = episodeContentKey(seriesName, seasonNumber, episodeNumber);
       episodes.push({
-        contentId: await contentId(session, playlistId, 'episode', sourceId, seriesSourceId),
+        contentId: await contentId(session, playlistId, 'episode', sourceId, stableKey, seriesSourceId, seriesName),
+        contentKey: stableKey,
         type: 'episode',
-        number: safeNumber(episode.number) || episodeIndex + 1,
-        title: safeText(episode.name, 300) || `Episódio ${episodeIndex + 1}`,
+        number: episodeNumber,
+        title: safeText(episode.name, 300) || `Episódio ${episodeNumber}`,
         duration: safeText(episode.duration, 80),
       });
     }
-    if (episodes.length) seasons.push({
-      number: safeNumber(season.number) || seasonIndex + 1,
-      episodes,
-    });
+    if (episodes.length) seasons.push({ number: seasonNumber, episodes });
   }
   return seasons;
 }
@@ -204,8 +222,10 @@ export async function projectSeries(session: WebSessionContext, playlistId: stri
   return await Promise.all(items.flatMap(item => {
     const sourceId = safeText(item.id, 256);
     if (!sourceId) return [];
-    return [contentId(session, playlistId, 'series', sourceId).then(async id => ({
+    const stableKey = seriesContentKey(item.name);
+    return [contentId(session, playlistId, 'series', sourceId, stableKey, undefined, safeText(item.name, 300)).then(id => ({
       contentId: id,
+      contentKey: stableKey,
       type: 'series' as const,
       title: safeText(item.name, 300) || 'Série',
       cover: safePublicImage(item.cover),
@@ -224,9 +244,17 @@ export async function parseContentToken(token: string, session: WebSessionContex
     typeof payload.playlistId !== 'string' ||
     !['channel', 'movie', 'series', 'episode'].includes(String(payload.type)) ||
     typeof payload.sourceId !== 'string' ||
+    typeof payload.contentKey !== 'string' ||
+    payload.contentKey.length > 500 ||
     Number(payload.exp || 0) <= Date.now()
   ) throw new Error('WEB_CONTENT_ID_INVALID');
   return payload as WebContentToken;
+}
+
+function partFor(assignment: PlaylistAssignment, type: WebContentType) {
+  if (type === 'channel') return { path: assignment.channelsPath, key: 'channels' };
+  if (type === 'movie') return { path: assignment.moviesPath, key: 'movies' };
+  return { path: assignment.seriesPath, key: 'series' };
 }
 
 export async function resolveContentFromCache(
@@ -237,13 +265,8 @@ export async function resolveContentFromCache(
   const assignments = await devicePlaylistAssignments(supabase, session);
   const assignment = assignments.find(item => item.playlistId === token.playlistId);
   if (!assignment) throw new Error('WEB_CONTENT_NOT_AUTHORIZED');
-  const key = token.type === 'channel' ? 'channels' : token.type === 'movie' ? 'movies' : 'series';
-  const path = token.type === 'channel'
-    ? assignment.channelsPath
-    : token.type === 'movie'
-      ? assignment.moviesPath
-      : assignment.seriesPath;
-  const items = await downloadCachePart(supabase, path, key);
+  const part = partFor(assignment, token.type);
+  const items = await downloadCachePart(supabase, part.path, part.key);
 
   if (token.type === 'episode') {
     const series = items.find(item => String(item.id || '') === String(token.seriesSourceId || ''));
@@ -263,4 +286,64 @@ export async function resolveContentFromCache(
   const item = items.find(candidate => String(candidate.id || '') === token.sourceId);
   if (!item) throw new Error('WEB_CONTENT_NOT_FOUND');
   return { assignment, item };
+}
+
+function rawKey(type: Exclude<WebContentType, 'episode'>, item: Record<string, unknown>) {
+  if (type === 'channel') return channelContentKey(item.name, item.groupTitle);
+  if (type === 'movie') return movieContentKey(item.name, item.year);
+  return seriesContentKey(item.name);
+}
+
+async function findEpisodeByKey(
+  supabase: SupabaseClient,
+  assignment: PlaylistAssignment,
+  targetKey: string,
+) {
+  const seriesItems = await downloadCachePart(supabase, assignment.seriesPath, 'series');
+  for (const series of seriesItems) {
+    const seriesName = String(series.name || 'Série');
+    const embedded = Array.isArray(series.seasons) ? series.seasons : [];
+    for (const [seasonIndex, seasonValue] of embedded.entries()) {
+      const season = plainObject(seasonValue);
+      if (!season || !Array.isArray(season.episodes)) continue;
+      const seasonNumber = safeNumber(season.number) || seasonIndex + 1;
+      for (const [episodeIndex, episodeValue] of season.episodes.entries()) {
+        const episode = plainObject(episodeValue);
+        if (!episode) continue;
+        const episodeNumber = safeNumber(episode.number) || episodeIndex + 1;
+        if (episodeContentKey(seriesName, seasonNumber, episodeNumber) === targetKey) {
+          return { assignment, item: episode, series };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export async function resolveLogicalContent(
+  supabase: SupabaseClient,
+  session: WebSessionContext,
+  type: WebContentType,
+  contentKey: string,
+  options: { afterPriority?: number } = {},
+) {
+  const assignments = await devicePlaylistAssignments(supabase, session);
+  const candidates = assignments.filter(item => item.priority > Number(options.afterPriority || 0));
+  for (const assignment of candidates) {
+    try {
+      if (type === 'episode') {
+        const episode = await findEpisodeByKey(supabase, assignment, contentKey);
+        if (episode) return episode;
+        continue;
+      }
+      if (type === 'series') continue;
+      const part = partFor(assignment, type);
+      const items = await downloadCachePart(supabase, part.path, part.key);
+      const item = items.find(candidate => rawKey(type, candidate) === contentKey);
+      if (item) return { assignment, item };
+    } catch {
+      // Falha de um cache/lista não impede tentar a próxima atribuição autorizada.
+    }
+  }
+  throw new Error('WEB_LOGICAL_CONTENT_NOT_FOUND');
 }
