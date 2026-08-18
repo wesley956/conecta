@@ -1,0 +1,200 @@
+/* WEB-24 — camada de responsividade, foco e input sem alterar o desenho-base. */
+
+.hero-indicators button,
+.season-tabs button,
+.hover-preview-actions button,
+.experience-detail-surface .detail-close {
+  touch-action: manipulation;
+}
+
+.hero-indicators button:focus-visible,
+.season-tabs button:focus-visible,
+.hover-preview-actions button:focus-visible,
+.experience-detail-surface .detail-close:focus-visible {
+  outline: 3px solid rgba(255,255,255,.96);
+  outline-offset: 3px;
+}
+
+.experience-detail-surface {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.season-tabs {
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+}
+
+.season-tabs button {
+  scroll-snap-align: start;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .hover-preview {
+    display: none !important;
+  }
+
+  .hero-indicators button,
+  .season-tabs button,
+  .hover-preview-actions button,
+  .detail-actions button,
+  .experience-detail-surface .detail-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .poster-card:hover,
+  .poster-card:focus-visible,
+  .channel-card:hover,
+  .channel-card:focus-visible {
+    transform: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .experience-hero-copy {
+    max-width: 680px;
+  }
+
+  .experience-detail-surface {
+    min-height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .experience-detail-header {
+    padding-left: clamp(1rem, 3vw, 2rem);
+    padding-right: clamp(1rem, 3vw, 2rem);
+  }
+
+  .series-seasons-area {
+    padding-left: clamp(1rem, 3vw, 2rem);
+    padding-right: clamp(1rem, 3vw, 2rem);
+  }
+}
+
+@media (max-width: 768px) {
+  .experience-login-page {
+    min-height: 100dvh;
+  }
+
+  .experience-login-card {
+    width: min(100%, 520px);
+    margin-inline: auto;
+  }
+
+  .experience-hero {
+    min-height: min(62dvh, 610px);
+  }
+
+  .experience-hero-copy {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  .experience-detail-overlay {
+    padding-bottom: max(.45rem, env(safe-area-inset-bottom));
+  }
+
+  .experience-detail-surface {
+    min-height: min(94dvh, 920px);
+    max-height: 94dvh;
+  }
+
+  .detail-recommendations .horizontal-list {
+    scroll-padding-inline: .85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .experience-login-page {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .experience-login-card {
+    padding: 1.15rem;
+  }
+
+  .experience-login-brand .login-wordmark {
+    max-width: 78vw;
+  }
+
+  .experience-hero h1,
+  .experience-detail-copy h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .experience-detail-header {
+    padding-left: max(.85rem, env(safe-area-inset-left));
+    padding-right: max(.85rem, env(safe-area-inset-right));
+  }
+
+  .season-selector-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: .25rem;
+  }
+
+  .season-tabs {
+    margin-inline: -.15rem;
+    padding-bottom: .8rem;
+  }
+
+  .experience-episode-list button {
+    min-height: 60px;
+  }
+}
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .experience-hero {
+    min-height: 92dvh;
+  }
+
+  .experience-hero-copy {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .experience-hero p {
+    -webkit-line-clamp: 2;
+  }
+
+  .experience-detail-surface {
+    min-height: calc(100dvh - .7rem);
+    max-height: calc(100dvh - .7rem);
+  }
+
+  .experience-detail-header {
+    min-height: 100dvh;
+    padding-top: 3.5rem;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .hero-indicators button,
+  .season-tabs button,
+  .hover-preview,
+  .experience-detail-surface {
+    border-color: rgba(255,255,255,.42);
+  }
+
+  .muted,
+  .card-copy small,
+  .channel-copy small {
+    color: #c0c3c9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  .poster-card,
+  .channel-card,
+  .launch-splash,
+  .hero-indicators button,
+  .season-tabs button {
+    transition: none !important;
+  }
+}
