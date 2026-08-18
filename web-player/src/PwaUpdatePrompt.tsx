@@ -10,13 +10,18 @@ import {
 
 export function PwaUpdatePrompt() {
   const [snapshot, setSnapshot] = useState<PwaUpdateSnapshot>(() => getPwaUpdateSnapshot());
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribePwaUpdates(setSnapshot);
     return () => { unsubscribe(); };
   }, []);
 
-  if (snapshot.status === 'idle' || snapshot.status === 'checking' || snapshot.status === 'deferred_playback') return null;
+  useEffect(() => {
+    if (snapshot.status !== 'available' && snapshot.status !== 'failed') setDismissed(false);
+  }, [snapshot.status]);
+
+  if (dismissed || snapshot.status === 'idle' || snapshot.status === 'checking' || snapshot.status === 'deferred_playback') return null;
 
   if (snapshot.status === 'applying') {
     return (
@@ -31,7 +36,7 @@ export function PwaUpdatePrompt() {
       <div className="pwa-update controlled error" role="status" aria-live="polite">
         <span>{snapshot.error || 'Não foi possível atualizar agora.'}</span>
         <button type="button" onClick={() => void checkForPwaUpdate()}>Tentar novamente</button>
-        <button type="button" className="quiet" onClick={deferPwaUpdate}>Depois</button>
+        <button type="button" className="quiet" onClick={() => { deferPwaUpdate(); setDismissed(true); }}>Depois</button>
       </div>
     );
   }
@@ -39,7 +44,7 @@ export function PwaUpdatePrompt() {
   return (
     <div className="pwa-update controlled" role="status" aria-live="polite">
       <span>Nova versão do RonecaPlayTV disponível.</span>
-      <button type="button" className="quiet" onClick={deferPwaUpdate}>Depois</button>
+      <button type="button" className="quiet" onClick={() => setDismissed(true)}>Depois</button>
       <button type="button" onClick={() => void applyPwaUpdate()}>Atualizar agora</button>
     </div>
   );
