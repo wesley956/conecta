@@ -94,11 +94,23 @@ test('Configurações ficam acessíveis no menu e persistem preferência canôni
   await expect(dialog.getByText('Ativa')).toBeVisible();
 });
 
-test('mobile mantém navegação principal e configurações sem sidebar desktop', async ({ page }) => {
+test('mobile usa sheet de categorias e mantém configurações sem sidebar desktop', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await expect(page.locator('.side-nav')).toBeHidden();
   await expect(page.locator('.bottom-nav')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Filmes' }).click();
+  const categoryToggle = page.locator('.category-mobile-toggle');
+  await expect(categoryToggle).toBeVisible();
+  await categoryToggle.click();
+  const categoryDialog = page.getByRole('dialog', { name: 'Categorias' });
+  await expect(categoryDialog).toBeVisible();
+  await categoryDialog.getByPlaceholder('Buscar categoria…').fill('Categoria 30');
+  await categoryDialog.getByRole('button', { name: 'Categoria 30' }).click();
+  await expect(categoryDialog).toBeHidden();
+  await expect(page.locator('.poster-card').filter({ hasText: 'Filme 30' })).toBeVisible();
+
   await page.getByRole('button', { name: 'Abrir configurações' }).click();
   await expect(page.getByRole('dialog', { name: 'Configurações do RonecaPlayTV' })).toBeVisible();
   const metrics = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
