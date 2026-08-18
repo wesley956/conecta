@@ -14,10 +14,12 @@ const requiredFiles = [
   'web-player/src/experience-a11y.css',
   'web-player/src/experienceAccessibility.tsx',
   'web-player/e2e/discovery.spec.ts',
+  'web-player/e2e/experience.unit.spec.ts',
   'web-player/e2e/viewport.spec.ts',
   'web-player/playwright.config.ts',
   'scripts/check-web-player-budget.mjs',
   'web-player/UX_HOMOLOGATION.md',
+  'web-player/VISUAL_BASELINE.md',
   'web-player/public/brand/roneca_launch_video.mp4',
   'native-android/app/src/main/res/raw/roneca_launch_video.mp4',
 ];
@@ -31,8 +33,10 @@ if (!failures.length) {
   const accessibility = read('web-player/src/experienceAccessibility.tsx');
   const css = `${read('web-player/src/experience.css')}\n${read('web-player/src/experience-a11y.css')}`;
   const e2e = read('web-player/e2e/discovery.spec.ts');
+  const unit = read('web-player/e2e/experience.unit.spec.ts');
   const viewport = read('web-player/e2e/viewport.spec.ts');
   const playwright = read('web-player/playwright.config.ts');
+  const visualBaseline = read('web-player/VISUAL_BASELINE.md');
   const playerWrapper = read('web-player/src/player/WebPlayer.tsx');
   const vite = read('web-player/vite.config.ts');
 
@@ -48,6 +52,7 @@ if (!failures.length) {
     [app.includes('Séries semelhantes'), 'recomendações de série ausentes'],
     [app.includes('role="tablist"') && app.includes('role="tabpanel"'), 'temporadas não usam semântica de tabs/panel'],
     [discovery.includes('stableHash') && discovery.includes('recommendMovies') && discovery.includes('recommendSeries'), 'seleção determinística de descoberta ausente'],
+    [unit.includes('hero é determinístico') && unit.includes('prioriza categoria') && unit.includes('remove duplicados'), 'testes unitários determinísticos de descoberta estão incompletos'],
     [accessibility.includes("event.key === 'Escape'"), 'Escape não fecha overlays'],
     [accessibility.includes("event.key === 'ArrowRight'") && accessibility.includes("event.key === 'ArrowLeft'"), 'setas não controlam temporadas'],
     [accessibility.includes('target?.isConnected') && accessibility.includes('target.focus()'), 'retorno de foco não está protegido'],
@@ -61,6 +66,8 @@ if (!failures.length) {
     [viewport.includes("devices['Pixel 5']") && viewport.includes('.tap()') && viewport.includes("serviceWorkers: 'block'"), 'fluxo touch/coarse pointer não está coberto em contexto realista'],
     [playwright.includes("serviceWorkers: 'block'"), 'Playwright pode deixar Service Worker contornar fixtures e atingir o backend real'],
     [playwright.includes("snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{arg}'"), 'caminho de baseline visual não está estável/versionável'],
+    [visualBaseline.includes('artifact: `web-player-preview-and-tests` ID') && visualBaseline.includes('até 2%') && visualBaseline.includes('8 px'), 'baseline visual não está identificada com tolerância explícita'],
+    [visualBaseline.includes('ux-viewport-360x800-chromium.png') && visualBaseline.includes('ux-viewport-2560x1080-chromium.png'), 'baseline visual não referencia toda a matriz principal'],
     [playerWrapper.includes("lazy(async () =>") && playerWrapper.includes("import('./WebPlayerCore')"), 'engine do player deixou de ser lazy'],
     [vite.includes("return 'media-engine'"), 'HLS não está isolado em chunk de mídia'],
   ];
