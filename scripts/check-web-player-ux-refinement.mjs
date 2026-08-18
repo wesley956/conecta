@@ -14,6 +14,7 @@ const requiredFiles = [
   'web-player/src/experience-a11y.css',
   'web-player/src/experienceAccessibility.tsx',
   'web-player/e2e/discovery.spec.ts',
+  'web-player/playwright.config.ts',
   'scripts/check-web-player-budget.mjs',
   'web-player/UX_HOMOLOGATION.md',
   'web-player/public/brand/roneca_launch_video.mp4',
@@ -29,6 +30,7 @@ if (!failures.length) {
   const accessibility = read('web-player/src/experienceAccessibility.tsx');
   const css = `${read('web-player/src/experience.css')}\n${read('web-player/src/experience-a11y.css')}`;
   const e2e = read('web-player/e2e/discovery.spec.ts');
+  const playwright = read('web-player/playwright.config.ts');
   const playerWrapper = read('web-player/src/player/WebPlayer.tsx');
   const vite = read('web-player/vite.config.ts');
 
@@ -52,6 +54,7 @@ if (!failures.length) {
     [css.includes('@media (prefers-reduced-motion: reduce)'), 'reduced motion ausente na experiência'],
     [e2e.includes('login → splash → Home') && e2e.includes('temporadas suportam setas') && e2e.includes('mobile 390 px'), 'E2E dos novos fluxos está incompleto'],
     [e2e.includes('if (reducedMotion)') && e2e.includes("toBeHidden({ timeout: 3_000 })"), 'E2E reduced-motion voltou a depender de capturar o splash transitório'],
+    [playwright.includes("serviceWorkers: 'block'"), 'Playwright pode deixar Service Worker contornar fixtures e atingir o backend real'],
     [playerWrapper.includes("lazy(async () =>") && playerWrapper.includes("import('./WebPlayerCore')"), 'engine do player deixou de ser lazy'],
     [vite.includes("return 'media-engine'"), 'HLS não está isolado em chunk de mídia'],
   ];
