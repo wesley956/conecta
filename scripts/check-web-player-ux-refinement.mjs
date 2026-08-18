@@ -14,6 +14,7 @@ const requiredFiles = [
   'web-player/src/experience-a11y.css',
   'web-player/src/experienceAccessibility.tsx',
   'web-player/e2e/discovery.spec.ts',
+  'web-player/e2e/viewport.spec.ts',
   'web-player/playwright.config.ts',
   'scripts/check-web-player-budget.mjs',
   'web-player/UX_HOMOLOGATION.md',
@@ -30,6 +31,7 @@ if (!failures.length) {
   const accessibility = read('web-player/src/experienceAccessibility.tsx');
   const css = `${read('web-player/src/experience.css')}\n${read('web-player/src/experience-a11y.css')}`;
   const e2e = read('web-player/e2e/discovery.spec.ts');
+  const viewport = read('web-player/e2e/viewport.spec.ts');
   const playwright = read('web-player/playwright.config.ts');
   const playerWrapper = read('web-player/src/player/WebPlayer.tsx');
   const vite = read('web-player/vite.config.ts');
@@ -54,7 +56,11 @@ if (!failures.length) {
     [css.includes('@media (prefers-reduced-motion: reduce)'), 'reduced motion ausente na experiência'],
     [e2e.includes('login → splash → Home') && e2e.includes('temporadas suportam setas') && e2e.includes('mobile 390 px'), 'E2E dos novos fluxos está incompleto'],
     [e2e.includes('if (reducedMotion)') && e2e.includes("toBeHidden({ timeout: 3_000 })"), 'E2E reduced-motion voltou a depender de capturar o splash transitório'],
+    [viewport.includes('360, height: 800') && viewport.includes('1920, height: 1080') && viewport.includes('2560, height: 1080'), 'matriz de viewport 360–2560 não está protegida'],
+    [viewport.includes('somente por teclado') && viewport.includes("page.keyboard.press('Enter')") && viewport.includes("page.keyboard.press('Escape')"), 'fluxo somente por teclado não está coberto'],
+    [viewport.includes("devices['Pixel 5']") && viewport.includes('.tap()') && viewport.includes("serviceWorkers: 'block'"), 'fluxo touch/coarse pointer não está coberto em contexto realista'],
     [playwright.includes("serviceWorkers: 'block'"), 'Playwright pode deixar Service Worker contornar fixtures e atingir o backend real'],
+    [playwright.includes("snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{arg}'"), 'caminho de baseline visual não está estável/versionável'],
     [playerWrapper.includes("lazy(async () =>") && playerWrapper.includes("import('./WebPlayerCore')"), 'engine do player deixou de ser lazy'],
     [vite.includes("return 'media-engine'"), 'HLS não está isolado em chunk de mídia'],
   ];
