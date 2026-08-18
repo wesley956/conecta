@@ -92,7 +92,7 @@ async function login(page: Page, reducedMotion = true) {
       return { src: target.currentSrc || target.src, networkState: target.networkState, error: target.error?.code || 0 };
     });
     expect(media.src).toContain('/web/brand/roneca_launch_video.mp4');
-    expect(media.networkState).not.toBe(HTMLMediaElement.NETWORK_NO_SOURCE);
+    expect(media.networkState).not.toBe(3);
     expect(media.error).toBe(0);
     await video.evaluate(element => element.dispatchEvent(new Event('ended')));
   }
