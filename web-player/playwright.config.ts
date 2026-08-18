@@ -11,7 +11,11 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    serviceWorkers: 'allow',
+    // Os testes de descoberta interceptam as Edge Functions com fixtures locais.
+    // Service Workers podem assumir uma requisição antes do page.route em alguns
+    // engines (especialmente WebKit), o que faria o CI tocar o backend real.
+    // O contrato do PWA/SW continua coberto pelos gates estáticos e smoke de assets.
+    serviceWorkers: 'block',
   },
   webServer: {
     command: 'npm run preview -- --host 127.0.0.1',
