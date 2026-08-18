@@ -60,15 +60,34 @@ async function mockApi(page: Page) {
   });
 }
 
-async function login(page: Page) {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+async function login(page: Page, reducedMotion = true) {
+  await page.emulateMedia({ reducedMotion: reducedMotion ? 'reduce' : 'no-preference' });
   await page.goto('/web/');
   await page.getByLabel('Código do dispositivo').fill('VIEW-1234');
   await page.getByLabel('PIN Web').fill('123456');
   await page.getByRole('button', { name: 'Entrar no RonecaPlayTV' }).click();
   await expect(page.locator('.experience-hero')).toBeVisible({ timeout: 8_000 });
+  if (!reducedMotion) {
+    const splash = page.locator('.launch-splash');
+    await expect(splash).toBeVisible();
+    const video = splash.locator('video');
+    if (await video.count()) await video.evaluate(element => element.dispatchEvent(new Event('ended')));
+  }
   await expect(page.locator('.launch-splash')).toBeHidden({ timeout: 3_000 });
 }
+
+test('login possui evidência visual desktop e mobile sem overflow', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Composição do login é registrada uma vez no Chromium.');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const viewport of [{ width: 360, height: 800 }, { width: 1366, height: 768 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/web/');
+    await expect(page.getByRole('heading', { name: 'Entrar com seu aparelho' })).toBeVisible();
+    const metrics = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+    await page.screenshot({ path: `test-results/ux-login-${viewport.width}x${viewport.height}-chromium.png`, fullPage: true, animations: 'disabled' });
+  }
+});
 
 test('matriz 360–2560 não produz overflow horizontal e registra evidência', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'Matriz de composição é registrada uma vez no Chromium; cross-browser fica no discovery.spec.');
@@ -106,6 +125,46 @@ test('matriz 360–2560 não produz overflow horizontal e registra evidência', 
       fullPage: true,
       animations: 'disabled',
     });
+  }
+});
+
+test('hero rotaciona em ~7 s e pausa durante interação', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Temporização real do hero é exercitada uma vez no Chromium.');
+  await mockApi(page);
+  await login(page, false);
+  const activeButton = () => page.locator('.hero-indicators button.active');
+  const initial = await activeButton().getAttribute('aria-label');
+  await page.waitForTimeout(7_400);
+  const rotated = await activeButton().getAttribute('aria-label');
+  expect(rotated).not.toBe(initial);
+  await page.locator('.experience-hero').hover();
+  const paused = await activeButton().getAttribute('aria-label');
+  await page.waitForTimeout(7_400);
+  expect(await activeButton().getAttribute('aria-label')).toBe(paused);
+});
+
+test('hover preview não desloca cards vizinhos', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Geometria do hover é exercitada uma vez no Chromium.');
+  await mockApi(page);
+  await login(page);
+  await page.getByRole('button', { name: 'Filmes' }).first().click();
+  const cards = page.locator('.poster-card');
+  const first = cards.nth(0);
+  const second = cards.nth(1);
+  const beforeFirst = await first.boundingBox();
+  const beforeSecond = await second.boundingBox();
+  expect(beforeFirst).not.toBeNull();
+  expect(beforeSecond).not.toBeNull();
+  await first.hover();
+  await page.waitForTimeout(680);
+  await expect(page.locator('.hover-preview')).toBeVisible();
+  const afterFirst = await first.boundingBox();
+  const afterSecond = await second.boundingBox();
+  expect(afterFirst).not.toBeNull();
+  expect(afterSecond).not.toBeNull();
+  for (const key of ['x', 'y', 'width', 'height'] as const) {
+    expect(afterFirst?.[key]).toBeCloseTo(beforeFirst?.[key] || 0, 0);
+    expect(afterSecond?.[key]).toBeCloseTo(beforeSecond?.[key] || 0, 0);
   }
 });
 
