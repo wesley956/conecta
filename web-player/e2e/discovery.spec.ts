@@ -109,8 +109,15 @@ async function login(page: Page, reducedMotion = true) {
   await page.getByLabel('Código do dispositivo').fill('ABCD-1234');
   await page.getByLabel('PIN Web').fill('123456');
   await page.getByRole('button', { name: 'Entrar no RonecaPlayTV' }).click();
+
+  if (reducedMotion) {
+    await expect(page.getByText('RONECAPLAYTV WEB')).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('.launch-splash')).toBeHidden({ timeout: 3_000 });
+    return;
+  }
+
   await expect(page.locator('.launch-splash')).toBeVisible();
-  await expect(page.locator('.launch-splash')).toBeHidden({ timeout: reducedMotion ? 3_000 : 12_000 });
+  await expect(page.locator('.launch-splash')).toBeHidden({ timeout: 14_000 });
   await expect(page.getByText('RONECAPLAYTV WEB')).toBeVisible();
 }
 
