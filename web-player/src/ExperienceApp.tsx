@@ -19,6 +19,7 @@ import {
 import { recommendMovies, recommendSeries, selectHeroItems, type DiscoveryItem } from './experience';
 import { clearLocalLibrary, useSessionLibrary } from './library';
 import { WebPlayer } from './player/WebPlayer';
+import type { PlayerEpisodeItem } from './player/premiumModel';
 import { useWebAuth } from './session';
 import type {
   Catalog,
@@ -29,15 +30,32 @@ import type {
   WebMovie,
   WebSeries,
 } from './types';
+import { VirtualCatalogGrid } from './VirtualCatalogGrid';
 
 type Section = 'home' | 'search' | 'live' | 'movies' | 'series' | 'library';
+type CatalogSection = 'live' | 'movies' | 'series';
 type Detail = { kind: 'movie'; item: WebMovie } | { kind: 'series'; item: WebSeries } | null;
 type PlayItem = WebChannel | WebMovie | WebEpisode;
+type SeriesSeason = { number: number; episodes: WebEpisode[] };
+type PositionRecord = { position: number; duration: number; updatedAt: string };
 type PlayerState = {
   contentId: string;
   title: string;
+  item: PlayItem;
   authorization: PlaybackAuthorization;
   epg: EpgProgram[];
+  seriesContentId?: string;
+  seasonNumber?: number;
+};
+type EpisodeContext = {
+  series: WebSeries;
+  seasonNumber: number;
+};
+type ContinueEpisode = {
+  episode: WebEpisode;
+  series: WebSeries;
+  seasonNumber: number;
+  position: PositionRecord;
 };
 
 const emptyCatalog: Catalog = {
@@ -68,6 +86,11 @@ function useReducedMotion() {
     return () => media.removeEventListener?.('change', update);
   }, []);
   return reduced;
+}
+
+function seriesKeyFromEpisodeKey(contentKey: string) {
+  const match = /^episode:(.+):s\d+:e\d+$/.exec(contentKey);
+  return match?.[1] ? `series:${match[1]}` : null;
 }
 
 function ParticleField() {
@@ -377,6 +400,41 @@ function HoverPosterCard({
   );
 }
 
+function ContinueEpisodeCard({
+  item,
+  onPlay,
+  onOpenSeries,
+}: {
+  item: ContinueEpisode;
+  onPlay: () => void;
+  onOpenSeries: () => void;
+}) {
+  const progress = item.position.duration > 0 ? Math.min(100, item.position.position / item.position.duration * 100) : 0;
+  return (
+    <article
+      className="continue-episode-card poster-card"
+      tabIndex={0}
+      role="button"
+      aria-label={`Continuar ${item.series.title}, temporada ${item.seasonNumber}, episódio ${item.episode.number}`}
+      onClick={onPlay}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') onPlay();
+      }}
+    >
+      <div className="poster-art">
+        <MediaImage src={item.series.cover} alt={`Capa de ${item.series.title}`} kind="poster" />
+        <div className="episode-badge">T{item.seasonNumber} · E{item.episode.number}</div>
+        <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
+      </div>
+      <div className="card-copy">
+        <strong>{item.series.title}</strong>
+        <small>{item.episode.title}</small>
+        <button type="button" className="continue-details-link" onClick={event => { event.stopPropagation(); onOpenSeries(); }}>Detalhes</button>
+      </div>
+    </article>
+  );
+}
+
 function ChannelCard({
   item,
   favorite,
@@ -575,6 +633,9 @@ function SeriesDetail({
   recommendations,
   favorite,
   playbackLoading,
+  activeEpisodeId,
+  positionForEpisode,
+  isEpisodeCompleted,
   onClose,
   onFavorite,
   onPlayEpisode,
@@ -583,23 +644,40 @@ function SeriesDetail({
   onToggleFavorite,
 }: {
   item: WebSeries;
-  seasons: Array<{ number: number; episodes: WebEpisode[] }>;
+  seasons: SeriesSeason[];
   status: 'idle' | 'loading' | 'ready' | 'error';
   recommendations: WebSeries[];
   favorite: boolean;
   playbackLoading: string | null;
+  activeEpisodeId?: string;
+  positionForEpisode: (episode: WebEpisode) => PositionRecord | undefined;
+  isEpisodeCompleted: (episode: WebEpisode) => boolean;
   onClose: () => void;
   onFavorite: () => void;
-  onPlayEpisode: (episode: WebEpisode) => void;
+  onPlayEpisode: (episode: WebEpisode, seasonNumber: number) => void;
   onOpenSeries: (series: WebSeries) => void;
   isFavorite: (series: WebSeries) => boolean;
   onToggleFavorite: (series: WebSeries) => void;
 }) {
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
 
+  const flatEpisodes = useMemo(() => seasons.flatMap(season => season.episodes.map(episode => ({ episode, seasonNumber: season.number }))), [seasons]);
+  const primaryEpisode = useMemo(() => {
+    const partial = flatEpisodes
+      .map(entry => ({ ...entry, progress: positionForEpisode(entry.episode) }))
+      .filter((entry): entry is typeof entry & { progress: PositionRecord } => Boolean(entry.progress))
+      .sort((left, right) => new Date(right.progress.updatedAt).getTime() - new Date(left.progress.updatedAt).getTime());
+    if (partial[0]) return { episode: partial[0].episode, seasonNumber: partial[0].seasonNumber, mode: 'continue' as const };
+    let lastCompleted = -1;
+    flatEpisodes.forEach((entry, index) => { if (isEpisodeCompleted(entry.episode)) lastCompleted = index; });
+    const next = flatEpisodes[lastCompleted >= 0 ? lastCompleted + 1 : 0];
+    if (next) return { episode: next.episode, seasonNumber: next.seasonNumber, mode: lastCompleted >= 0 ? 'next' as const : 'start' as const };
+    return null;
+  }, [flatEpisodes, isEpisodeCompleted, positionForEpisode]);
+
   useEffect(() => {
-    setSelectedSeason(seasons[0]?.number ?? null);
-  }, [item.contentId, seasons]);
+    setSelectedSeason(primaryEpisode?.seasonNumber ?? seasons[0]?.number ?? null);
+  }, [item.contentId, primaryEpisode?.episode.contentId, primaryEpisode?.seasonNumber, seasons]);
 
   const activeSeason = seasons.find(season => season.number === selectedSeason) || seasons[0] || null;
 
@@ -615,7 +693,14 @@ function SeriesDetail({
             <span className="eyebrow">SÉRIE</span>
             <h2>{item.title}</h2>
             <p>{item.synopsis || 'Sinopse não informada.'}</p>
-            <div className="detail-actions"><button type="button" onClick={onFavorite}>{favorite ? '★ Na Minha Lista' : '☆ Minha Lista'}</button></div>
+            <div className="detail-actions">
+              {primaryEpisode ? (
+                <button className="primary-button" type="button" disabled={playbackLoading === primaryEpisode.episode.contentId} onClick={() => onPlayEpisode(primaryEpisode.episode, primaryEpisode.seasonNumber)}>
+                  {primaryEpisode.mode === 'continue' ? `▶ Continuar T${primaryEpisode.seasonNumber}:E${primaryEpisode.episode.number}` : primaryEpisode.mode === 'next' ? `▶ Próximo T${primaryEpisode.seasonNumber}:E${primaryEpisode.episode.number}` : '▶ Iniciar série'}
+                </button>
+              ) : null}
+              <button type="button" onClick={onFavorite}>{favorite ? '★ Na Minha Lista' : '☆ Minha Lista'}</button>
+            </div>
           </div>
         </section>
 
@@ -642,13 +727,25 @@ function SeriesDetail({
               </div>
               {activeSeason ? (
                 <div className="episode-list experience-episode-list" role="tabpanel" aria-label={`Temporada ${activeSeason.number}`}>
-                  {activeSeason.episodes.length ? activeSeason.episodes.map(episode => (
-                    <button type="button" key={episode.contentId} onClick={() => onPlayEpisode(episode)} disabled={playbackLoading === episode.contentId}>
-                      <span className="episode-number">E{episode.number}</span>
-                      <span><strong>{episode.title}</strong><small>{episode.duration || 'Duração não informada'}</small></span>
-                      <span className="play-glyph">▶</span>
-                    </button>
-                  )) : <p className="muted">Nenhum episódio disponível nesta temporada.</p>}
+                  {activeSeason.episodes.length ? activeSeason.episodes.map(episode => {
+                    const progress = positionForEpisode(episode);
+                    const completed = isEpisodeCompleted(episode);
+                    const active = activeEpisodeId === episode.contentId;
+                    const ratio = progress && progress.duration > 0 ? Math.min(1, progress.position / progress.duration) : 0;
+                    return (
+                      <button
+                        type="button"
+                        key={episode.contentId}
+                        className={`${completed ? 'completed' : progress ? 'in-progress' : ''} ${active ? 'active-episode' : ''}`.trim()}
+                        onClick={() => onPlayEpisode(episode, activeSeason.number)}
+                        disabled={playbackLoading === episode.contentId}
+                      >
+                        <span className="episode-number">E{episode.number}</span>
+                        <span className="episode-copy"><strong>{episode.title}</strong><small>{episode.duration || 'Duração não informada'}</small>{progress ? <span className="episode-mini-progress" aria-hidden="true"><span style={{ width: `${ratio * 100}%` }} /></span> : null}</span>
+                        <span className="episode-state" aria-label={completed ? 'Concluído' : undefined}>{completed ? '✓' : '▶'}</span>
+                      </button>
+                    );
+                  }) : <p className="muted">Nenhum episódio disponível nesta temporada.</p>}
                 </div>
               ) : null}
             </>
@@ -680,9 +777,10 @@ export default function ExperienceApp() {
   const [catalogStatus, setCatalogStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('Todos');
+  const [categoryBySection, setCategoryBySection] = useState<Record<CatalogSection, string>>({ live: 'Todos', movies: 'Todos', series: 'Todos' });
   const [detail, setDetail] = useState<Detail>(null);
-  const [seriesSeasons, setSeriesSeasons] = useState<Array<{ number: number; episodes: WebEpisode[] }>>([]);
+  const [seriesSeasons, setSeriesSeasons] = useState<SeriesSeason[]>([]);
+  const [seriesCache, setSeriesCache] = useState<Record<string, SeriesSeason[]>>({});
   const [seriesStatus, setSeriesStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [player, setPlayer] = useState<PlayerState | null>(null);
   const [playbackLoading, setPlaybackLoading] = useState<string | null>(null);
@@ -691,6 +789,11 @@ export default function ExperienceApp() {
 
   const sessionId = auth.session?.id || 'anonymous';
   const library = useSessionLibrary(sessionId);
+  const category = section === 'live' || section === 'movies' || section === 'series' ? categoryBySection[section] : 'Todos';
+  const selectCategory = useCallback((value: string) => {
+    if (section !== 'live' && section !== 'movies' && section !== 'series') return;
+    setCategoryBySection(current => ({ ...current, [section]: value }));
+  }, [section]);
 
   const loadCatalog = useCallback(async () => {
     if (!auth.accessToken) return;
@@ -714,12 +817,12 @@ export default function ExperienceApp() {
       setCatalogStatus('idle');
       setPlayer(null);
       setDetail(null);
+      setSeriesCache({});
       setShowSplash(false);
     }
   }, [auth.accessToken, loadCatalog]);
 
   useEffect(() => {
-    setCategory('Todos');
     setDetail(null);
   }, [section]);
 
@@ -732,20 +835,41 @@ export default function ExperienceApp() {
   const openSeries = useCallback(async (item: WebSeries) => {
     if (!auth.accessToken) return;
     setDetail({ kind: 'series', item });
+    const cached = seriesCache[item.contentId];
+    if (cached) {
+      setSeriesSeasons(cached);
+      setSeriesStatus('ready');
+      return;
+    }
     setSeriesSeasons([]);
     setSeriesStatus('loading');
     try {
       const result = await fetchSeries(auth.accessToken, item.contentId);
       setSeriesSeasons(result.seasons);
+      setSeriesCache(current => ({ ...current, [item.contentId]: result.seasons }));
       setSeriesStatus('ready');
       if (!result.detailsReady && result.message) setToast(result.message);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) auth.invalidate();
       setSeriesStatus('error');
     }
-  }, [auth.accessToken, auth.invalidate]);
+  }, [auth.accessToken, auth.invalidate, seriesCache]);
 
-  const play = useCallback(async (item: PlayItem) => {
+  const episodeProgressKeys = useMemo(() => Object.keys(library.positions).filter(key => key.startsWith('episode:')), [library.positions]);
+  useEffect(() => {
+    if (!auth.accessToken || catalogStatus !== 'ready' || !episodeProgressKeys.length) return;
+    const seriesKeys = new Set(episodeProgressKeys.map(seriesKeyFromEpisodeKey).filter(Boolean) as string[]);
+    const missing = catalog.series.filter(item => seriesKeys.has(item.contentKey) && !seriesCache[item.contentId]).slice(0, 12);
+    if (!missing.length) return;
+    let cancelled = false;
+    void Promise.allSettled(missing.map(async item => {
+      const result = await fetchSeries(auth.accessToken!, item.contentId);
+      if (!cancelled) setSeriesCache(current => current[item.contentId] ? current : ({ ...current, [item.contentId]: result.seasons }));
+    }));
+    return () => { cancelled = true; };
+  }, [auth.accessToken, catalog.series, catalogStatus, episodeProgressKeys, seriesCache]);
+
+  const play = useCallback(async (item: PlayItem, context?: EpisodeContext) => {
     if (!auth.accessToken || playbackLoading) return;
     setPlaybackLoading(item.contentId);
     try {
@@ -753,7 +877,15 @@ export default function ExperienceApp() {
         authorizePlayback(auth.accessToken, item.contentId),
         item.type === 'channel' ? fetchEpg(auth.accessToken, item.contentId).catch(() => []) : Promise.resolve([]),
       ]);
-      setPlayer({ contentId: item.contentId, title: item.title, authorization, epg });
+      setPlayer({
+        contentId: item.contentId,
+        title: item.title,
+        item,
+        authorization,
+        epg,
+        seriesContentId: context?.series.contentId,
+        seasonNumber: context?.seasonNumber,
+      });
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) auth.invalidate();
       setToast(error instanceof Error ? error.message : 'Não foi possível iniciar a reprodução.');
@@ -802,6 +934,19 @@ export default function ExperienceApp() {
   const favoriteSeries = catalog.series.filter(item => library.favorites.has(item.contentId));
   const favoriteChannels = catalog.channels.filter(item => library.favorites.has(item.contentId));
   const continueMovies = catalog.movies.filter(item => library.positions[item.contentId]);
+  const continueEpisodes = useMemo<ContinueEpisode[]>(() => {
+    const results: ContinueEpisode[] = [];
+    for (const series of catalog.series) {
+      const seasons = seriesCache[series.contentId] || [];
+      for (const season of seasons) {
+        for (const episode of season.episodes) {
+          const position = library.positions[episode.contentId] || library.positions[episode.contentKey];
+          if (position) results.push({ episode, series, seasonNumber: season.number, position });
+        }
+      }
+    }
+    return results.sort((left, right) => new Date(right.position.updatedAt).getTime() - new Date(left.position.updatedAt).getTime());
+  }, [catalog.series, library.positions, seriesCache]);
   const heroItems = useMemo(
     () => selectHeroItems(catalog.movies, catalog.series, sessionId, 6),
     [catalog.movies, catalog.series, sessionId],
@@ -849,12 +994,20 @@ export default function ExperienceApp() {
   const progressPercent = (item: WebMovie) => library.positions[item.contentId]
     ? library.positions[item.contentId].position / library.positions[item.contentId].duration * 100
     : undefined;
+  const positionForEpisode = useCallback((episode: WebEpisode): PositionRecord | undefined => (
+    library.positions[episode.contentId] || library.positions[episode.contentKey]
+  ), [library.positions]);
+  const isEpisodeCompleted = useCallback((episode: WebEpisode) => (
+    library.completed.has(episode.contentId) || library.completed.has(episode.contentKey)
+  ), [library.completed]);
 
   const renderPosterGrid = (items: Array<WebMovie | WebSeries>) => (
-    <div className="poster-grid">
-      {items.map(item => (
+    <VirtualCatalogGrid
+      items={items}
+      getKey={item => item.contentId}
+      className="poster-grid-virtual"
+      renderItem={item => (
         <HoverPosterCard
-          key={item.contentId}
           item={item}
           favorite={library.favorites.has(item.contentId)}
           progress={item.type === 'movie' ? progressPercent(item) : undefined}
@@ -862,8 +1015,8 @@ export default function ExperienceApp() {
           onOpen={() => openDiscovery(item)}
           onPlay={item.type === 'movie' ? () => void play(item) : undefined}
         />
-      ))}
-    </div>
+      )}
+    />
   );
 
   const movieRecommendations = detail?.kind === 'movie'
@@ -872,6 +1025,46 @@ export default function ExperienceApp() {
   const seriesRecommendations = detail?.kind === 'series'
     ? recommendSeries(detail.item, catalog.series)
     : [];
+
+  const continueItems = useMemo(() => {
+    const movies = continueMovies.map(item => ({
+      kind: 'movie' as const,
+      item,
+      updatedAt: (library.positions[item.contentId] as PositionRecord | undefined)?.updatedAt || '',
+    }));
+    const episodes = continueEpisodes.map(item => ({ kind: 'episode' as const, item, updatedAt: item.position.updatedAt }));
+    return [...movies, ...episodes]
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .slice(0, 12);
+  }, [continueEpisodes, continueMovies, library.positions]);
+
+  const playerEpisodeItems = useMemo<PlayerEpisodeItem[]>(() => {
+    if (!player || player.item.type !== 'episode' || !player.seriesContentId) return [];
+    const seasons = seriesCache[player.seriesContentId] || [];
+    const season = seasons.find(candidate => candidate.number === player.seasonNumber)
+      || seasons.find(candidate => candidate.episodes.some(episode => episode.contentId === player.contentId));
+    if (!season) return [];
+    return season.episodes.map(episode => {
+      const progress = positionForEpisode(episode);
+      const completed = isEpisodeCompleted(episode);
+      return {
+        episode,
+        seasonNumber: season.number,
+        state: completed ? 'completed' : progress ? 'in_progress' : 'new',
+        progressRatio: progress && progress.duration > 0 ? Math.min(1, progress.position / progress.duration) : 0,
+        active: episode.contentId === player.contentId,
+      };
+    });
+  }, [isEpisodeCompleted, player, positionForEpisode, seriesCache]);
+
+  const switchPlayerEpisode = (episode: WebEpisode) => {
+    if (!player?.seriesContentId) return;
+    const series = catalog.series.find(item => item.contentId === player.seriesContentId);
+    if (!series) return;
+    const seasons = seriesCache[series.contentId] || [];
+    const season = seasons.find(candidate => candidate.episodes.some(item => item.contentId === episode.contentId));
+    void play(episode, { series, seasonNumber: season?.number || player.seasonNumber || 1 });
+  };
 
   return (
     <div className="app-shell">
@@ -915,17 +1108,24 @@ export default function ExperienceApp() {
               onFavorite={item => library.toggleFavorite(item.contentId)}
             />
 
-            {continueMovies.length ? (
-              <Shelf title="Continuar assistindo" action={<button type="button" className="text-button" onClick={() => setSection('movies')}>Ver filmes</button>}>
-                {continueMovies.slice(0, 12).map(item => (
+            {continueItems.length ? (
+              <Shelf title="Continuar assistindo">
+                {continueItems.map(entry => entry.kind === 'movie' ? (
                   <HoverPosterCard
-                    key={item.contentId}
-                    item={item}
-                    favorite={library.favorites.has(item.contentId)}
-                    progress={progressPercent(item)}
-                    onFavorite={() => library.toggleFavorite(item.contentId)}
-                    onOpen={() => setDetail({ kind: 'movie', item })}
-                    onPlay={() => void play(item)}
+                    key={`movie:${entry.item.contentId}`}
+                    item={entry.item}
+                    favorite={library.favorites.has(entry.item.contentId)}
+                    progress={progressPercent(entry.item)}
+                    onFavorite={() => library.toggleFavorite(entry.item.contentId)}
+                    onOpen={() => setDetail({ kind: 'movie', item: entry.item })}
+                    onPlay={() => void play(entry.item)}
+                  />
+                ) : (
+                  <ContinueEpisodeCard
+                    key={`episode:${entry.item.episode.contentId}`}
+                    item={entry.item}
+                    onPlay={() => void play(entry.item.episode, { series: entry.item.series, seasonNumber: entry.item.seasonNumber })}
+                    onOpenSeries={() => void openSeries(entry.item.series)}
                   />
                 ))}
               </Shelf>
@@ -970,11 +1170,18 @@ export default function ExperienceApp() {
           <section className="page-section">
             <div className="page-heading"><div><span className="eyebrow">TV AO VIVO</span><h1>Canais</h1></div><span className="count-badge">{filteredChannels.length}</span></div>
             <div className="filter-strip" role="list" aria-label="Categorias de canais">
-              {allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}
+              {allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => selectCategory(item)}>{item}</button>)}
             </div>
-            <div className="channel-grid">
-              {filteredChannels.map(item => <ChannelCard key={item.contentId} item={item} favorite={library.favorites.has(item.contentId)} onFavorite={() => library.toggleFavorite(item.contentId)} onPlay={() => void play(item)} />)}
-            </div>
+            <VirtualCatalogGrid
+              items={filteredChannels}
+              getKey={item => item.contentId}
+              className="channel-grid-virtual"
+              minCardWidth={250}
+              maxCardWidth={360}
+              cardAspectRatio={0}
+              cardFooterHeight={96}
+              renderItem={item => <ChannelCard item={item} favorite={library.favorites.has(item.contentId)} onFavorite={() => library.toggleFavorite(item.contentId)} onPlay={() => void play(item)} />}
+            />
             {!filteredChannels.length ? <EmptyState title="Nenhum canal nesta categoria" copy="Escolha outra categoria ou atualize o catálogo." /> : null}
           </section>
         ) : null}
@@ -982,7 +1189,7 @@ export default function ExperienceApp() {
         {catalogStatus === 'ready' && section === 'movies' ? (
           <section className="page-section">
             <div className="page-heading"><div><span className="eyebrow">VOD</span><h1>Filmes</h1></div><span className="count-badge">{filteredMovies.length}</span></div>
-            <div className="filter-strip">{allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>
+            <div className="filter-strip">{allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => selectCategory(item)}>{item}</button>)}</div>
             {renderPosterGrid(filteredMovies)}
           </section>
         ) : null}
@@ -990,7 +1197,7 @@ export default function ExperienceApp() {
         {catalogStatus === 'ready' && section === 'series' ? (
           <section className="page-section">
             <div className="page-heading"><div><span className="eyebrow">EPISÓDIOS</span><h1>Séries</h1></div><span className="count-badge">{filteredSeries.length}</span></div>
-            <div className="filter-strip">{allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>
+            <div className="filter-strip">{allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => selectCategory(item)}>{item}</button>)}</div>
             {renderPosterGrid(filteredSeries)}
           </section>
         ) : null}
@@ -1037,9 +1244,12 @@ export default function ExperienceApp() {
           recommendations={seriesRecommendations}
           favorite={library.favorites.has(detail.item.contentId)}
           playbackLoading={playbackLoading}
+          activeEpisodeId={player?.item.type === 'episode' && player.seriesContentId === detail.item.contentId ? player.contentId : undefined}
+          positionForEpisode={positionForEpisode}
+          isEpisodeCompleted={isEpisodeCompleted}
           onClose={() => setDetail(null)}
           onFavorite={() => library.toggleFavorite(detail.item.contentId)}
-          onPlayEpisode={episode => void play(episode)}
+          onPlayEpisode={(episode, seasonNumber) => void play(episode, { series: detail.item, seasonNumber })}
           onOpenSeries={series => void openSeries(series)}
           isFavorite={series => library.favorites.has(series.contentId)}
           onToggleFavorite={series => library.toggleFavorite(series.contentId)}
@@ -1051,12 +1261,15 @@ export default function ExperienceApp() {
           authorization={player.authorization}
           title={player.title}
           epg={player.epg}
-          initialPosition={library.positions[player.contentId]?.position || 0}
-          liveChannels={player.authorization.contentType === 'channel' ? filteredChannels : []}
+          initialPosition={library.positions[player.contentId]?.position || library.positions[player.authorization.contentKey]?.position || 0}
+          liveChannels={player.authorization.contentType === 'channel' ? catalog.channels : []}
+          favoriteChannelIds={favoriteChannels.map(item => item.contentId)}
           activeContentId={player.contentId}
+          episodeItems={playerEpisodeItems}
           onSwitchChannel={channel => void play(channel)}
+          onSwitchEpisode={switchPlayerEpisode}
           onProgress={(position, duration) => library.savePosition(player.contentId, position, duration)}
-          onClose={() => setPlayer(null)}
+          onClose={() => { library.flushPending(player.contentId); setPlayer(null); }}
         />
       ) : null}
 
