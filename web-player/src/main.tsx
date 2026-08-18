@@ -14,6 +14,7 @@ import './splash-polish.css';
 import './pwa.css';
 import './evolution-batch1.css';
 import './evolution-batch2.css';
+import './evolution-batch2-mobile.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
