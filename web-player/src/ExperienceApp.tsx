@@ -170,13 +170,26 @@ function LaunchSplash({ onDone }: { onDone: () => void }) {
   const [fading, setFading] = useState(false);
   const doneRef = useRef(false);
   const fadeTimerRef = useRef<number | null>(null);
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   const finish = useCallback((delay = 0) => {
     if (doneRef.current) return;
     doneRef.current = true;
-    if (delay > 0) fadeTimerRef.current = window.setTimeout(onDone, delay);
-    else onDone();
-  }, [onDone]);
+    const complete = () => {
+      fadeTimerRef.current = null;
+      onDoneRef.current();
+    };
+    if (delay > 0) fadeTimerRef.current = window.setTimeout(complete, delay);
+    else complete();
+  }, []);
+
+  useEffect(() => () => {
+    if (fadeTimerRef.current) window.clearTimeout(fadeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -188,10 +201,7 @@ function LaunchSplash({ onDone }: { onDone: () => void }) {
       setFading(true);
       finish(260);
     }, 10_500);
-    return () => {
-      window.clearTimeout(fallback);
-      if (fadeTimerRef.current) window.clearTimeout(fadeTimerRef.current);
-    };
+    return () => window.clearTimeout(fallback);
   }, [finish, reducedMotion]);
 
   if (reducedMotion) {
