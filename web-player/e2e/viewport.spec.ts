@@ -130,6 +130,7 @@ test('touch/coarse pointer abre navegação e conteúdo sem hover persistente', 
   test.skip(browserName !== 'chromium', 'Contrato de touch é exercitado em um contexto Pixel 5 no Chromium.');
   const context = await browser.newContext({
     ...devices['Pixel 5'],
+    baseURL: 'http://127.0.0.1:4173',
     serviceWorkers: 'block',
     reducedMotion: 'reduce',
   });
