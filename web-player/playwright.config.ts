@@ -7,6 +7,7 @@ export default defineConfig({
   retries: 1,
   workers: 1,
   reporter: [['list']],
+  snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{arg}',
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
