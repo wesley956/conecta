@@ -4,10 +4,12 @@ const AUDIO_CLASS = 'launch-splash-audio';
 const AUDIO_DATA_KEY = 'splashAudio';
 const REVEAL_AT_SECONDS = 5.9;
 const MAX_SYNC_DRIFT_SECONDS = 0.22;
+const PRIMED_VOLUME = 0.0001;
 
 let splashAudio: HTMLAudioElement | null = null;
 let activeSplash: HTMLElement | null = null;
 let detachActiveSplash: (() => void) | null = null;
+let audioUnlockedByGesture = false;
 
 function splashAssetUrl() {
   return new URL('brand/roneca_launch_video.mp4', document.baseURI).href;
@@ -39,8 +41,10 @@ function resetAudio(audio: HTMLAudioElement) {
   } catch {
     // Alguns engines lançam ao reposicionar antes de metadata; o próximo play sincroniza novamente.
   }
+  audio.loop = false;
   audio.volume = 1;
   audio.muted = false;
+  audioUnlockedByGesture = false;
 }
 
 function primeSplashAudioFromGesture(event: Event) {
@@ -49,18 +53,25 @@ function primeSplashAudioFromGesture(event: Event) {
 
   const audio = ensureSplashAudio();
   resetAudio(audio);
-  audio.volume = 0.0001;
+
+  // Mobile Safari/Chrome exigem que o play audível nasça diretamente do gesto.
+  // Mantemos ESTE MESMO playback vivo, em volume praticamente inaudível e em loop,
+  // durante a autenticação. Quando o splash monta, apenas sincronizamos e elevamos
+  // o volume — sem depender de um segundo play fora da ativação do usuário.
+  audio.loop = true;
+  audio.volume = PRIMED_VOLUME;
+  audio.muted = false;
 
   const started = audio.play();
   if (!started) {
-    resetAudio(audio);
+    audioUnlockedByGesture = true;
     setAudioState('primed');
     return;
   }
 
   void started.then(() => {
-    resetAudio(audio);
-    setAudioState('primed');
+    audioUnlockedByGesture = true;
+    if (!activeSplash) setAudioState('primed');
   }).catch(() => {
     resetAudio(audio);
     setAudioState('fallback');
@@ -94,8 +105,8 @@ function attachSplash(splash: HTMLElement) {
   document.body.classList.add('splash-polish-active');
   document.body.classList.remove('splash-polish-reveal');
 
-  // O vídeo permanece mudo para impedir áudio duplicado. O elemento de áudio é
-  // previamente liberado pelo gesto do login e usa exatamente o mesmo MP4.
+  // O vídeo permanece mudo para impedir áudio duplicado. O elemento de áudio usa
+  // exatamente o mesmo MP4 e, quando possível, já vem tocando desde o gesto do login.
   video.defaultMuted = true;
   video.muted = true;
 
@@ -122,16 +133,34 @@ function attachSplash(splash: HTMLElement) {
     }
   };
 
+  const promotePrimedAudio = () => {
+    if (!audioUnlockedByGesture || audio.paused || audio.ended) return false;
+    audio.loop = false;
+    syncAudioToVideo(audio, video, true);
+    audio.volume = 1;
+    audio.muted = false;
+    separateAudioPlaying = true;
+    setAudioState('playing');
+    return true;
+  };
+
   const startAudio = async () => {
-    if (disposed || video.ended) return;
+    if (disposed || video.ended || separateAudioPlaying) return;
     video.defaultMuted = true;
     video.muted = true;
+
+    // Caminho principal no mobile: não há um novo play; só promovemos o playback
+    // que já estava autorizado pelo toque em Entrar.
+    if (promotePrimedAudio()) return;
+
+    audio.loop = false;
     syncAudioToVideo(audio, video, true);
     audio.volume = 1;
     audio.muted = false;
     try {
       await audio.play();
       if (disposed) return;
+      audioUnlockedByGesture = true;
       separateAudioPlaying = true;
       setAudioState('playing');
     } catch {
