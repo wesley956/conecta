@@ -22,6 +22,21 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) });
 }
 
+async function expectImagesLoaded(page: Page, selector: string) {
+  const images = page.locator(selector);
+  const count = await images.count();
+  expect(count, `esperava imagens em ${selector}`).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const state = await images.nth(index).evaluate(image => {
+      const element = image as HTMLImageElement;
+      return { src: element.currentSrc || element.src, complete: element.complete, naturalWidth: element.naturalWidth };
+    });
+    expect(state.src, `asset fora da base /web/: ${state.src}`).toContain('/web/brand/');
+    expect(state.complete, `imagem ainda não concluiu: ${state.src}`).toBeTruthy();
+    expect(state.naturalWidth, `imagem quebrada: ${state.src}`).toBeGreaterThan(0);
+  }
+}
+
 async function mockApi(page: Page) {
   await page.route('**/functions/v1/**', async route => {
     const endpoint = new URL(route.request().url()).pathname.split('/').pop() || '';
@@ -71,7 +86,15 @@ async function login(page: Page, reducedMotion = true) {
     const splash = page.locator('.launch-splash');
     await expect(splash).toBeVisible();
     const video = splash.locator('video');
-    if (await video.count()) await video.evaluate(element => element.dispatchEvent(new Event('ended')));
+    await expect(video).toHaveCount(1);
+    const media = await video.evaluate(element => {
+      const target = element as HTMLVideoElement;
+      return { src: target.currentSrc || target.src, networkState: target.networkState, error: target.error?.code || 0 };
+    });
+    expect(media.src).toContain('/web/brand/roneca_launch_video.mp4');
+    expect(media.networkState).not.toBe(HTMLMediaElement.NETWORK_NO_SOURCE);
+    expect(media.error).toBe(0);
+    await video.evaluate(element => element.dispatchEvent(new Event('ended')));
   }
   await expect(page.locator('.launch-splash')).toBeHidden({ timeout: 3_000 });
 }
@@ -83,6 +106,7 @@ test('login possui evidência visual desktop e mobile sem overflow', async ({ pa
     await page.setViewportSize(viewport);
     await page.goto('/web/');
     await expect(page.getByRole('heading', { name: 'Entrar com seu aparelho' })).toBeVisible();
+    await expectImagesLoaded(page, '.experience-login-brand img');
     const metrics = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
     await page.screenshot({ path: `test-results/ux-login-${viewport.width}x${viewport.height}-chromium.png`, fullPage: true, animations: 'disabled' });
@@ -116,9 +140,11 @@ test('matriz 360–2560 não produz overflow horizontal e registra evidência', 
     if (viewport.width <= 640) {
       await expect(page.locator('.bottom-nav')).toBeVisible();
       await expect(page.locator('.side-nav')).toBeHidden();
+      await expectImagesLoaded(page, '.mobile-topbar img');
     } else {
       await expect(page.locator('.side-nav')).toBeVisible();
       await expect(page.locator('.bottom-nav')).toBeHidden();
+      await expectImagesLoaded(page, '.brand-button img');
     }
     await page.screenshot({
       path: `test-results/ux-viewport-${viewport.width}x${viewport.height}-chromium.png`,
@@ -197,6 +223,7 @@ test('touch/coarse pointer abre navegação e conteúdo sem hover persistente', 
   try {
     await mockApi(page);
     await login(page);
+    await expectImagesLoaded(page, '.mobile-topbar img');
     await page.getByRole('button', { name: 'Filmes' }).tap();
     await expect(page.getByRole('heading', { name: 'Filmes' })).toBeVisible();
     await page.locator('.poster-card').first().tap();
