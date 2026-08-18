@@ -4,16 +4,22 @@ Esta baseline registra a composição aprovada automaticamente antes da homologa
 
 ## Baseline canônica
 
-- commit visual: `7d3b93baa713e7b503dab93bc0f4820edbe8eb22`;
-- workflow: `Validate Pull Request` run **#805** (`32084698655`);
-- artifact: `web-player-preview-and-tests` ID **9306343473**;
-- digest do artifact: `sha256:eb4f0db6abf026f27ef46550a6335b1af6db90596713b460cc8ac8672de96a9f`;
+- commit visual: `25285f0a199832724709ee16e0cbf1e0702c746e`;
+- workflow: `Validate Pull Request` run **#809** (`32085032425`);
+- artifact: `web-player-preview-and-tests` ID **9306486363**;
+- digest do artifact: `sha256:b61b3c086a076430a3e54d0998125d702ad529a0f740dffeaa3864957e4b4bfe`;
 - Playwright: 1.60.0;
-- movimento reduzido usado nas capturas de composição para remover variação temporal.
+- movimento reduzido usado nas capturas estáticas para remover variação temporal;
+- a mesma execução também validou temporização real do hero, pausa por interação e geometria do hover sem deslocamento.
 
 Commits posteriores que alterem somente testes/documentação podem continuar apontando para esta baseline. Qualquer mudança de CSS, markup visual, assets de marca ou lógica de composição exige nova baseline identificada.
 
 ## Capturas preservadas no artifact
+
+### Login
+
+- `ux-login-360x800-chromium.png`
+- `ux-login-1366x768-chromium.png`
 
 ### Cross-browser mobile 390 px
 
@@ -32,6 +38,15 @@ Commits posteriores que alterem somente testes/documentação podem continuar ap
 - `ux-viewport-2560x1080-chromium.png`
 
 O teste que gera a matriz também falha se `scrollWidth` ultrapassar `clientWidth + 1 px` e confirma a troca correta entre navegação lateral e inferior.
+
+## Comportamentos validados junto da baseline
+
+- hero troca após aproximadamente 7 s quando movimento reduzido não está ativo;
+- hover/foco no hero pausa a rotação por outro ciclo completo;
+- preview de card abre somente após intenção e não altera `x`, `y`, `width` ou `height` dos dois primeiros cards da grade além da tolerância subpixel;
+- fluxo principal é completável somente por teclado e devolve foco ao card de origem ao fechar o detalhe;
+- contexto Pixel 5 usa toque real e confirma ausência de hover persistente;
+- Chromium, Firefox e WebKit passam o conjunto determinístico de descoberta.
 
 ## Tolerância de regressão
 
