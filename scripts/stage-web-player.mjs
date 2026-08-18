@@ -15,7 +15,10 @@ const builtBrand = path.join(source, 'brand');
 const rootBrand = path.join(output, 'brand');
 if (fs.existsSync(builtBrand)) {
   fs.mkdirSync(rootBrand, { recursive: true });
-  for (const name of ['ronecaplaytv-symbol.svg', 'ronecaplaytv-wordmark.svg']) {
+  // O Web Player usa /web/brand como caminho canônico. Mantemos a cópia raiz
+  // apenas como compatibilidade para superfícies antigas do painel e links já
+  // publicados que ainda referenciam /brand diretamente.
+  for (const name of ['ronecaplaytv-symbol.svg', 'ronecaplaytv-wordmark.svg', 'roneca_launch_video.mp4']) {
     const from = path.join(builtBrand, name);
     if (fs.existsSync(from)) fs.copyFileSync(from, path.join(rootBrand, name));
   }
@@ -45,6 +48,8 @@ const required = [
   'web/manifest.webmanifest',
   'web/sw.js',
   'web/offline.html',
+  'web/brand/roneca_launch_video.mp4',
+  'brand/roneca_launch_video.mp4',
   'web-access-management.js',
   'web-access-management.css',
   'web-player-link.js',
