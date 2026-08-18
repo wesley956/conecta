@@ -61,7 +61,9 @@ export function setPwaPlaybackActive(active: boolean) {
 }
 
 export function deferPwaUpdate() {
-  if (snapshot.status === 'failed') emit({ status: waitingWorkerRef ? 'available' : 'idle', error: null });
+  if (snapshot.status === 'failed') {
+    emit({ status: waitingWorkerRef ? (playerActive ? 'deferred_playback' : 'available') : 'idle', error: null });
+  }
 }
 
 export async function applyPwaUpdate() {
