@@ -2,7 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import ExperienceApp from './ExperienceApp';
 import { ExperienceAccessibilityController } from './experienceAccessibility';
+import { PwaUpdatePrompt } from './PwaUpdatePrompt';
 import { registerPwa } from './pwa';
+import { SectionNavigationEnhancer } from './SectionNavigationEnhancer';
+import { SettingsPortal } from './SettingsPortal';
 import { installSplashPolish } from './splashPolish';
 import './styles.css';
 import './experience.css';
@@ -10,6 +13,7 @@ import './experience-a11y.css';
 import './splash-polish.css';
 import './pwa.css';
 import './evolution-batch1.css';
+import './evolution-batch2.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
@@ -20,6 +24,9 @@ createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
     <ExperienceApp />
+    <SectionNavigationEnhancer />
+    <SettingsPortal />
+    <PwaUpdatePrompt />
   </StrictMode>,
 );
 
