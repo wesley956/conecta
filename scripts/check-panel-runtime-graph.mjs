@@ -23,9 +23,13 @@ for (const htmlFile of htmlFiles) {
 }
 for (const asset of collectLocalAssets(generator)) published.add(asset);
 
-// WEB-15 injeta estes dois recursos apenas no artefato staged para não duplicar
-// marcação nos HTMLs-fonte. O gate exige que o staging os referencie explicitamente.
-const buildInjected = new Set(['web-access-management.js', 'web-access-management.css']);
+// Recursos Web injetados apenas no artefato staged para evitar duplicação nos
+// HTMLs-fonte. O gate exige que o staging os referencie explicitamente.
+const buildInjected = new Set([
+  'web-access-management.js',
+  'web-access-management.css',
+  'web-player-link.js',
+]);
 for (const asset of buildInjected) {
   if (!webStage.includes(asset)) throw new Error('Asset Web declarado como build-injected sem referência no staging: ' + asset);
   published.add(asset);
