@@ -36,6 +36,8 @@ if (!failures.length) {
     [app.includes('Array.from({ length: 26 }'), 'partículas ambientais não estão limitadas/determinísticas'],
     [app.includes('function LaunchSplash'), 'splash pós-login ausente'],
     [app.includes('currentTime >= 6.5'), 'crossfade do splash não inicia no marco aprovado'],
+    [app.includes('const onDoneRef = useRef(onDone);') && app.includes('onDoneRef.current = onDone;') && app.includes('onDoneRef.current();'), 'fallback do splash voltou a depender de callback instável entre rerenders'],
+    [app.includes('10_500') && app.includes('finish(260)'), 'fallback temporal do splash não garante saída em falha de ended/autoplay'],
     [app.includes('selectHeroItems(catalog.movies, catalog.series, sessionId, 6)'), 'hero não usa até seis itens estáveis por sessão'],
     [app.includes('}, 600);'), 'delay intencional de hover (~600 ms) ausente'],
     [app.includes('Você também pode gostar'), 'recomendações de filme ausentes'],
@@ -49,6 +51,7 @@ if (!failures.length) {
     [css.includes('@media (max-width: 1024px)') && css.includes('@media (max-width: 480px)'), 'breakpoints de responsividade refinada ausentes'],
     [css.includes('@media (prefers-reduced-motion: reduce)'), 'reduced motion ausente na experiência'],
     [e2e.includes('login → splash → Home') && e2e.includes('temporadas suportam setas') && e2e.includes('mobile 390 px'), 'E2E dos novos fluxos está incompleto'],
+    [e2e.includes('if (reducedMotion)') && e2e.includes("toBeHidden({ timeout: 3_000 })"), 'E2E reduced-motion voltou a depender de capturar o splash transitório'],
     [playerWrapper.includes("lazy(async () =>") && playerWrapper.includes("import('./WebPlayerCore')"), 'engine do player deixou de ser lazy'],
     [vite.includes("return 'media-engine'"), 'HLS não está isolado em chunk de mídia'],
   ];
