@@ -10,6 +10,7 @@ import './experience-a11y.css';
 import './splash-polish.css';
 import './pwa.css';
 import './evolution-batch1.css';
+import './evolution-batch1-integration.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
