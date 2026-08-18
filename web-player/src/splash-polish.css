@@ -1,0 +1,112 @@
+body.splash-polish-active .app-shell > .side-nav,
+body.splash-polish-active .app-shell > .mobile-topbar,
+body.splash-polish-active .app-shell > .main-content,
+body.splash-polish-active .app-shell > .bottom-nav {
+  opacity: .76;
+  filter: blur(7px) brightness(.8);
+  transform: scale(1.012);
+  transform-origin: center center;
+  transition:
+    opacity 1.2s cubic-bezier(.22,.61,.36,1),
+    filter 1.2s cubic-bezier(.22,.61,.36,1),
+    transform 1.2s cubic-bezier(.22,.61,.36,1);
+  will-change: opacity, filter, transform;
+}
+
+body.splash-polish-reveal .app-shell > .side-nav,
+body.splash-polish-reveal .app-shell > .mobile-topbar,
+body.splash-polish-reveal .app-shell > .main-content,
+body.splash-polish-reveal .app-shell > .bottom-nav {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.launch-splash {
+  isolation: isolate;
+}
+
+.launch-splash::before,
+.launch-splash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.05s cubic-bezier(.22,.61,.36,1);
+}
+
+.launch-splash::before {
+  background:
+    radial-gradient(circle at 50% 48%, transparent 38%, rgba(0,0,0,.22) 76%, rgba(0,0,0,.5) 100%),
+    linear-gradient(180deg, transparent 62%, rgba(10,11,13,.2) 82%, rgba(10,11,13,.42) 100%);
+}
+
+.launch-splash::after {
+  inset: auto 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, rgba(223,37,45,.035) 54%, rgba(225,173,67,.025));
+}
+
+.launch-splash-video {
+  position: relative;
+  z-index: 1;
+  transform: scale(1);
+  filter: brightness(1) saturate(1);
+  transition:
+    transform 1.35s cubic-bezier(.22,.61,.36,1),
+    filter 1.35s cubic-bezier(.22,.61,.36,1);
+  will-change: transform, filter;
+}
+
+.launch-splash.is-polish-revealing::before {
+  opacity: .42;
+}
+
+.launch-splash.is-polish-revealing::after {
+  opacity: .7;
+}
+
+.launch-splash.is-polish-revealing .launch-splash-video {
+  transform: scale(1.006);
+  filter: brightness(.95) saturate(.97);
+}
+
+.launch-splash.is-fading::before,
+.launch-splash.is-fading::after {
+  opacity: 0;
+}
+
+.launch-splash.is-fading .launch-splash-video {
+  transform: scale(1.014);
+  filter: brightness(.82) saturate(.9) blur(1px);
+}
+
+.launch-splash-audio[hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.splash-polish-active .app-shell > .side-nav,
+  body.splash-polish-active .app-shell > .mobile-topbar,
+  body.splash-polish-active .app-shell > .main-content,
+  body.splash-polish-active .app-shell > .bottom-nav,
+  body.splash-polish-reveal .app-shell > .side-nav,
+  body.splash-polish-reveal .app-shell > .mobile-topbar,
+  body.splash-polish-reveal .app-shell > .main-content,
+  body.splash-polish-reveal .app-shell > .bottom-nav {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
+  }
+
+  .launch-splash::before,
+  .launch-splash::after,
+  .launch-splash-video {
+    transition: none;
+    transform: none;
+    filter: none;
+  }
+}
