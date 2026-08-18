@@ -2,28 +2,28 @@
 
 Esta baseline registra a composição aprovada automaticamente antes da homologação física final. Ela é evidência de regressão visual, não autorização de publicação.
 
-## Estado atual
+## Baseline canônica atual
 
-A baseline abaixo foi **invalidada** após inspeção manual do artifact: as capturas mostravam símbolo/wordmark quebrados porque o bundle usava caminhos absolutos `/brand/...` enquanto o Web Player é servido sob `/web/`. O MP4 do splash também podia cair no fallback de erro sem comprovar carga real.
+- commit visual: `96abbb738ad2a9f1d09a88686d289fc285cb021f`;
+- workflow: `Validate Pull Request` run **#816** (`32086892050`);
+- artifact: `web-player-preview-and-tests` ID **9307080286**;
+- digest do artifact: `sha256:5e123641c95a68925b1b8b6353a84c1cbffb6c00fe23c1e699ad4ca4101738f1`;
+- Playwright: 1.60.0;
+- movimento reduzido usado nas capturas estáticas para remover variação temporal;
+- Chromium/Firefox/WebKit passaram o conjunto determinístico;
+- o CI valida `naturalWidth > 0` dos assets de marca e exige URL canônica `/web/brand/`;
+- o teste do splash exige `/web/brand/roneca_launch_video.mp4`, ausência de `NETWORK_NO_SOURCE` e `MediaError`;
+- inspeção manual das PNGs do artifact confirmou símbolo/wordmark íntegros em 360, 390, 1366 e 1920 px.
 
-Correções de caminho e testes de carga real (`naturalWidth`, URL `/web/brand/`, estado de mídia e ausência de erro) já foram adicionados na branch `codex/web-ux-refinement-batch-2`. Uma nova baseline só será declarada canônica depois de:
+Commits posteriores que alterem somente documentação podem continuar apontando para esta baseline. Qualquer mudança de CSS, markup visual, assets de marca ou lógica de composição exige nova baseline identificada.
 
-1. CI completo verde com Chromium/Firefox/WebKit;
-2. novo artifact baixado;
-3. inspeção manual das capturas desktop/mobile confirmando marca íntegra;
-4. atualização deste documento com commit/run/artifact/digest novos.
+## Baselines anteriores invalidadas
 
-## Baseline anterior — INVALIDADA
+A baseline do commit `25285f0a199832724709ee16e0cbf1e0702c746e`, run **#809** (`32085032425`), artifact **9306486363**, digest `sha256:b61b3c086a076430a3e54d0998125d702ad529a0f740dffeaa3864957e4b4bfe`, foi **invalidada** após inspeção manual: símbolo/wordmark apareciam quebrados porque o bundle usava caminhos absolutos `/brand/...` enquanto o Web Player é servido sob `/web/`. O artifact posterior **9306577666** reproduziu a mesma divergência e também não deve ser usado como baseline.
 
-- commit visual: `25285f0a199832724709ee16e0cbf1e0702c746e`;
-- workflow: `Validate Pull Request` run **#809** (`32085032425`);
-- artifact: `web-player-preview-and-tests` ID **9306486363**;
-- digest do artifact: `sha256:b61b3c086a076430a3e54d0998125d702ad529a0f740dffeaa3864957e4b4bfe`;
-- motivo da invalidação: assets de marca não resolvidos corretamente sob `/web/`; portanto as PNGs não representam uma experiência visual aprovada.
+A correção passou a normalizar assets para `/web/brand/`, preservando a cópia raiz apenas como compatibilidade no staging do painel. O E2E agora falha antes de produzir baseline caso símbolo/wordmark estejam quebrados ou o MP4 não resolva corretamente.
 
-O artifact posterior #9306577666 reproduziu a mesma divergência e também não deve ser usado como baseline.
-
-## Capturas que a nova baseline deverá preservar
+## Capturas preservadas no artifact atual
 
 ### Login
 
@@ -46,9 +46,9 @@ O artifact posterior #9306577666 reproduziu a mesma divergência e também não 
 - `ux-viewport-1920x1080-chromium.png`
 - `ux-viewport-2560x1080-chromium.png`
 
-O teste que gera a matriz falha se `scrollWidth` ultrapassar `clientWidth + 1 px`, confirma a troca correta entre navegação lateral e inferior e agora também falha se símbolo/wordmark não tiverem `naturalWidth > 0` ou escaparem da base `/web/brand/`.
+O teste que gera a matriz falha se `scrollWidth` ultrapassar `clientWidth + 1 px`, confirma a troca correta entre navegação lateral e inferior e também falha se símbolo/wordmark não tiverem dimensões naturais válidas ou escaparem da base `/web/brand/`.
 
-## Comportamentos exigidos junto da nova baseline
+## Comportamentos validados junto da baseline
 
 - hero troca após aproximadamente 7 s quando movimento reduzido não está ativo;
 - hover/foco no hero pausa a rotação por outro ciclo completo;
@@ -58,6 +58,16 @@ O teste que gera a matriz falha se `scrollWidth` ultrapassar `clientWidth + 1 px
 - Chromium, Firefox e WebKit passam o conjunto determinístico de descoberta;
 - símbolo e wordmark carregam de `/web/brand/` com dimensões naturais válidas;
 - MP4 resolve em `/web/brand/roneca_launch_video.mp4`, sem `NETWORK_NO_SOURCE` nem `MediaError`.
+
+## Inspeção manual do artifact #9307080286
+
+A revisão manual abriu diretamente as capturas geradas pelo CI e confirmou:
+
+- **1366×768 login:** símbolo dourado/vermelho e wordmark `RonecaPlayerTV` carregados corretamente, sem ícone de imagem quebrada;
+- **360×800 login:** marca íntegra e composição compacta sem overflow horizontal;
+- **1366×768 Home:** marca lateral íntegra, navegação e shelves sem quebra visual;
+- **390×844 Home:** wordmark superior íntegro, navegação inferior ativa e conteúdo sem overflow crítico;
+- **1920×1080 Home:** marca lateral íntegra e composição estável em desktop amplo.
 
 ## Tolerância de regressão
 
