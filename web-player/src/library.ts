@@ -14,6 +14,7 @@ type LibraryState = {
   favorites: string[];
   positions: Record<string, PositionRecord>;
   completed: string[];
+  completedAt: Record<string, string>;
   preferences: CanonicalPreferences | null;
 };
 type Identity = { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' };
@@ -21,8 +22,8 @@ type FavoriteType = 'channel' | 'movie' | 'series';
 type ProgressType = 'movie' | 'episode';
 type PendingProgress = { contentKey: string; contentType: ProgressType; position: number; duration: number };
 
-const CACHE_KEY = 'roneca.web.library-cache.v3';
-const emptyState = (): LibraryState => ({ favorites: [], positions: {}, completed: [], preferences: null });
+const CACHE_KEY = 'roneca.web.library-cache.v4';
+const emptyState = (): LibraryState => ({ favorites: [], positions: {}, completed: [], completedAt: {}, preferences: null });
 
 function readCache(): LibraryState {
   try {
@@ -33,6 +34,7 @@ function readCache(): LibraryState {
       favorites: Array.isArray(parsed.favorites) ? parsed.favorites.filter(value => typeof value === 'string') : [],
       positions: parsed.positions && typeof parsed.positions === 'object' ? parsed.positions : {},
       completed: Array.isArray(parsed.completed) ? parsed.completed.filter(value => typeof value === 'string') : [],
+      completedAt: parsed.completedAt && typeof parsed.completedAt === 'object' ? parsed.completedAt : {},
       preferences: parsed.preferences || null,
     };
   } catch { return emptyState(); }
@@ -41,6 +43,7 @@ function writeCache(value: LibraryState) { try { window.sessionStorage.setItem(C
 export function clearLocalLibrary(_legacySessionId?: string) {
   try {
     window.sessionStorage.removeItem(CACHE_KEY);
+    window.sessionStorage.removeItem('roneca.web.library-cache.v3');
     window.sessionStorage.removeItem('roneca.web.library-cache.v2');
   } catch { /* noop */ }
 }
@@ -70,9 +73,11 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
       const snapshot = await fetchLibrary(accessToken);
       const positions: Record<string, PositionRecord> = {};
       const completed: string[] = [];
+      const completedAt: Record<string, string> = {};
       for (const progress of snapshot.progress) {
         if (progress.completed) {
           completed.push(progress.contentKey);
+          completedAt[progress.contentKey] = progress.updatedAt;
           continue;
         }
         positions[progress.contentKey] = {
@@ -85,6 +90,7 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
         favorites: snapshot.favorites.filter(item => item.active).map(item => item.contentKey),
         positions,
         completed,
+        completedAt,
         preferences: snapshot.preferences,
       };
       setState(next);
@@ -119,6 +125,14 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
     for (const item of identities) if (canonicalCompleted.has(item.contentKey)) result.add(item.contentId);
     return result;
   }, [canonicalCompleted, identities, state.completed]);
+  const completedAt: any = useMemo(() => {
+    const result: Record<string, string | undefined> = { ...state.completedAt };
+    for (const item of identities) {
+      const value = state.completedAt[item.contentKey];
+      if (value) result[item.contentId] = value;
+    }
+    return result;
+  }, [identities, state.completedAt]);
 
   const toggleFavorite = useCallback((identifier: string) => {
     if (!accessToken || !identifier) return;
@@ -167,18 +181,21 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
       setState(current => {
         const positions = { ...current.positions };
         const completedSet = new Set(current.completed);
+        const nextCompletedAt = { ...current.completedAt };
         if (result.progress.completed) {
           delete positions[pending.contentKey];
           completedSet.add(pending.contentKey);
+          nextCompletedAt[pending.contentKey] = result.progress.updatedAt;
         } else {
           completedSet.delete(pending.contentKey);
+          delete nextCompletedAt[pending.contentKey];
           positions[pending.contentKey] = {
             position: result.progress.positionMs / 1000,
             duration: result.progress.durationMs / 1000,
             updatedAt: result.progress.updatedAt,
           };
         }
-        return { ...current, positions, completed: [...completedSet] };
+        return { ...current, positions, completed: [...completedSet], completedAt: nextCompletedAt };
       });
       setSyncError(null);
     }).catch(error => setSyncError(error instanceof Error ? error.message : 'Falha ao sincronizar progresso.'));
@@ -260,6 +277,7 @@ export function useCanonicalLibrary(accessToken: string | null, identities: Iden
     favorites,
     positions,
     completed,
+    completedAt,
     preferences: state.preferences,
     syncing,
     syncError,
