@@ -6,7 +6,13 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 
-for (const file of ['web-player/public/manifest.webmanifest','web-player/public/sw.js','web-player/public/offline.html','web-player/src/pwa.ts']) {
+for (const file of [
+  'web-player/public/manifest.webmanifest',
+  'web-player/public/sw.js',
+  'web-player/public/offline.html',
+  'web-player/src/pwa.ts',
+  'web-player/src/PwaUpdatePrompt.tsx',
+]) {
   expect(fs.existsSync(path.join(root, file)), `PWA file ausente: ${file}`);
 }
 if (!failures.length) {
@@ -30,8 +36,13 @@ if (!failures.length) {
   expect(!/cache\.put\([^\n]*(authorization|token|playback|m3u8)/i.test(sw), 'service worker pode estar cacheando resposta privada');
 
   const pwa = read('web-player/src/pwa.ts');
+  const pwaPrompt = read('web-player/src/PwaUpdatePrompt.tsx');
   expect(pwa.includes('registration.waiting'), 'update flow precisa detectar worker waiting');
-  expect(pwa.includes('Atualizar agora'), 'update flow precisa de confirmação explícita');
+  expect(pwaPrompt.includes('Atualizar agora'), 'update flow precisa de confirmação explícita na UI');
+  expect(pwaPrompt.includes('applyPwaUpdate'), 'prompt precisa delegar aplicação ao controlador explícito');
+  expect(pwa.includes("postMessage({ type: 'SKIP_WAITING' })"), 'controlador precisa ativar worker somente após ação explícita');
+  expect(pwa.includes('deferred_playback'), 'update flow precisa suportar adiamento durante reprodução');
+  expect(pwa.includes('playerActive'), 'update flow precisa bloquear aplicação com player ativo');
   expect(!pwa.includes('skipWaiting()'), 'cliente não deve forçar atualização automática');
 
   const offline = read('web-player/public/offline.html');
@@ -44,4 +55,4 @@ if (failures.length) {
   failures.forEach(item => console.error(` - ${item}`));
   process.exit(1);
 }
-console.log('PWA Web: manifest, update control e allowlist de cache validados.');
+console.log('PWA Web: manifest, update control explícito e allowlist de cache validados.');
