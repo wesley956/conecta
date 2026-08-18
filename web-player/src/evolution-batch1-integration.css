@@ -1,0 +1,105 @@
+.continue-episode-card {
+  flex: 0 0 clamp(132px, 14vw, 184px);
+  min-width: 0;
+}
+
+.continue-episode-card .poster-art {
+  cursor: pointer;
+}
+
+.episode-badge {
+  position: absolute;
+  left: .5rem;
+  top: .55rem;
+  z-index: 2;
+  padding: .28rem .42rem;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 7px;
+  background: rgba(8,9,11,.8);
+  color: #fff;
+  font-size: .66rem;
+  font-weight: 850;
+  backdrop-filter: blur(8px);
+}
+
+.continue-details-link {
+  justify-self: start;
+  margin-top: .2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #9fa4ad;
+  font-size: .68rem;
+  font-weight: 760;
+}
+
+.continue-details-link:hover,
+.continue-details-link:focus-visible {
+  color: #fff;
+}
+
+.experience-episode-list button {
+  position: relative;
+  overflow: hidden;
+}
+
+.experience-episode-list button.active-episode {
+  border-color: rgba(241,50,59,.62);
+  box-shadow: 0 0 0 1px rgba(241,50,59,.14), 0 10px 28px rgba(182,20,27,.12);
+}
+
+.experience-episode-list .episode-copy {
+  display: grid;
+  gap: .18rem;
+  min-width: 0;
+}
+
+.episode-state {
+  color: #e7b449;
+  font-weight: 900;
+  text-align: center;
+}
+
+.experience-episode-list button.completed .episode-state {
+  color: #f1323b;
+}
+
+.episode-mini-progress {
+  display: block;
+  width: min(180px, 100%);
+  height: 2px;
+  margin-top: .25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+}
+
+.episode-mini-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #f1323b;
+}
+
+.poster-grid-virtual,
+.channel-grid-virtual {
+  margin-top: .3rem;
+}
+
+.channel-grid-virtual .virtual-catalog-cell .channel-card {
+  width: 100%;
+}
+
+.virtual-catalog-cell img {
+  content-visibility: auto;
+}
+
+@media (max-width: 640px) {
+  .continue-episode-card {
+    flex-basis: 132px;
+  }
+
+  .episode-mini-progress {
+    width: 100%;
+  }
+}
