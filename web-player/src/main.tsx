@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ContextualHomeEnhancer } from './ContextualHomeEnhancer';
 import ExperienceApp from './ExperienceApp';
 import { ExperienceAccessibilityController } from './experienceAccessibility';
 import { PwaUpdatePrompt } from './PwaUpdatePrompt';
@@ -16,6 +17,7 @@ import './evolution-batch1.css';
 import './evolution-batch1-integration.css';
 import './evolution-batch2.css';
 import './evolution-batch2-mobile.css';
+import './contextual-home.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
@@ -29,6 +31,7 @@ createRoot(root).render(
     <SectionNavigationEnhancer />
     <SettingsPortal />
     <PwaUpdatePrompt />
+    <ContextualHomeEnhancer />
   </StrictMode>,
 );
 
