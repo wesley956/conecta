@@ -18,15 +18,13 @@ import './evolution-batch1-integration.css';
 import './evolution-batch2.css';
 import './evolution-batch2-mobile.css';
 import './autonext.css';
-import './player-cinematic.css';
-import './player-reference.css';
+import './player-hud.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
 
 const disposeSplashPolish = installSplashPolish();
 
-// Final stacked validation keeps ExperienceApp hook-safe after the latest batch1 synchronization.
 createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
