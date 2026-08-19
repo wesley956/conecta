@@ -24,9 +24,6 @@ export function WebPlayer(props: Props) {
   const autoplayTimerRef = useRef<number | null>(null);
   const [nextEpisode, setNextEpisode] = useState<NextEpisodeState>(null);
 
-  // `initialPosition` é um snapshot do instante em que o conteúdo é aberto.
-  // A biblioteca atualiza a posição enquanto o vídeo toca; repassar esses updates
-  // para a engine faria o Core reinterpretá-los como uma nova inicialização.
   if (playbackIdentityRef.current !== props.authorization.recoveryToken) {
     playbackIdentityRef.current = props.authorization.recoveryToken;
     initialPositionRef.current = props.initialPosition || 0;
@@ -56,28 +53,17 @@ export function WebPlayer(props: Props) {
   }, []);
 
   useEffect(() => {
+    clearAutoNextTimers();
+    setNextEpisode(null);
     let last = -1;
     const timer = window.setInterval(() => {
       const video = document.querySelector<HTMLVideoElement>('.player-video');
-      if (!video) return;
+      if (!video || video.paused || video.seeking || document.hidden) return;
       const now = video.currentTime;
-      if (video.paused || video.seeking || video.ended || document.hidden) {
-        last = -1;
-        return;
-      }
-      if (last >= 0 && now <= last + .35) {
-        video.dispatchEvent(new Event('error'));
-        last = -1;
-        return;
-      }
+      if (last >= 0 && now <= last + .35) video.dispatchEvent(new Event('error'));
       last = now;
     }, 8_000);
     return () => window.clearInterval(timer);
-  }, [props.activeContentId]);
-
-  useEffect(() => {
-    clearAutoNextTimers();
-    setNextEpisode(null);
   }, [clearAutoNextTimers, props.activeContentId]);
 
   useEffect(() => {
