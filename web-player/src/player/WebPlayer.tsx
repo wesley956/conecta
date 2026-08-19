@@ -56,21 +56,21 @@ export function WebPlayer(props: Props) {
   }, []);
 
   useEffect(() => {
-    let previous = -1;
+    let last = -1;
     const timer = window.setInterval(() => {
       const video = document.querySelector<HTMLVideoElement>('.player-video');
       if (!video) return;
-      const current = video.currentTime;
+      const now = video.currentTime;
       if (video.paused || video.seeking || video.ended || document.hidden) {
-        previous = current;
+        last = -1;
         return;
       }
-      if (previous >= 0 && current <= previous + 0.35) {
+      if (last >= 0 && now <= last + .35) {
         video.dispatchEvent(new Event('error'));
-        previous = -1;
+        last = -1;
         return;
       }
-      previous = current;
+      last = now;
     }, 8_000);
     return () => window.clearInterval(timer);
   }, [props.activeContentId]);
