@@ -18,9 +18,19 @@ export function WebPlayer(props: Props) {
   const switchRef = useRef(props.onSwitchChannel);
   const episodeSwitchRef = useRef(props.onSwitchEpisode);
   const closeRef = useRef(props.onClose);
+  const playbackIdentityRef = useRef(props.authorization.recoveryToken);
+  const initialPositionRef = useRef(props.initialPosition || 0);
   const countdownIntervalRef = useRef<number | null>(null);
   const autoplayTimerRef = useRef<number | null>(null);
   const [nextEpisode, setNextEpisode] = useState<NextEpisodeState>(null);
+
+  // `initialPosition` é um snapshot do instante em que o conteúdo é aberto.
+  // A biblioteca atualiza a posição enquanto o vídeo toca; repassar esses updates
+  // para a engine faria o Core reinterpretá-los como uma nova inicialização.
+  if (playbackIdentityRef.current !== props.authorization.recoveryToken) {
+    playbackIdentityRef.current = props.authorization.recoveryToken;
+    initialPositionRef.current = props.initialPosition || 0;
+  }
 
   useEffect(() => { progressRef.current = props.onProgress; }, [props.onProgress]);
   useEffect(() => { switchRef.current = props.onSwitchChannel; }, [props.onSwitchChannel]);
@@ -113,6 +123,7 @@ export function WebPlayer(props: Props) {
       )}>
         <LazyWebPlayerCore
           {...props}
+          initialPosition={initialPositionRef.current}
           onProgress={props.onProgress ? onProgress : undefined}
           onSwitchChannel={props.onSwitchChannel ? onSwitchChannel : undefined}
           onSwitchEpisode={props.onSwitchEpisode ? onSwitchEpisode : undefined}
