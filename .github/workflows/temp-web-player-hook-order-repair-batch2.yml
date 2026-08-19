@@ -1,0 +1,75 @@
+name: Temporary Web Player Batch2 Hook Order Repair
+
+on:
+  push:
+    branches:
+      - codex/web-evolution-batch-2
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/web-evolution-batch-2
+          fetch-depth: 0
+
+      - name: Move auth gates below all ExperienceApp hooks
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('web-player/src/ExperienceApp.tsx')
+          source = path.read_text(encoding='utf-8')
+
+          pattern = re.compile(
+              r"\n  if \(auth\.booting\) \{\n.*?\n  \}\n\n"
+              r"  if \(!auth\.accessToken \|\| !auth\.session\) \{\n.*?\n  \}\n",
+              re.S,
+          )
+          match = pattern.search(source)
+          if not match:
+              raise SystemExit('Auth gate block not found; refusing to modify the file.')
+
+          auth_gates = match.group(0)
+          source = source[:match.start()] + '\n' + source[match.end():]
+
+          anchor = '\n  return (\n    <div className="app-shell">'
+          if source.count(anchor) != 1:
+              raise SystemExit(f'Expected exactly one final app-shell return, found {source.count(anchor)}.')
+
+          source = source.replace(anchor, auth_gates + anchor, 1)
+          path.write_text(source, encoding='utf-8')
+
+          moved_gate = source.index('  if (auth.booting) {')
+          late_hook_markers = [
+              'const positionForEpisode = useCallback',
+              'const isEpisodeCompleted = useCallback',
+              'const continueItems = useMemo',
+              'const interestSignals = useMemo',
+              'const contextualShelves = useMemo',
+              'const playerEpisodeItems = useMemo',
+          ]
+          for marker in late_hook_markers:
+              marker_index = source.index(marker)
+              if marker_index > moved_gate:
+                  raise SystemExit(f'Hook marker still appears after auth gate: {marker}')
+
+          print('Batch2 ExperienceApp auth gates moved after all hooks successfully.')
+
+      - name: Remove temporary workflow and commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/temp-web-player-hook-order-repair-batch2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web-player/src/ExperienceApp.tsx .github/workflows/temp-web-player-hook-order-repair-batch2.yml
+          git diff --cached --check
+          git commit -m "fix(web): keep batch2 ExperienceApp hooks unconditional"
+          git push origin HEAD:codex/web-evolution-batch-2
