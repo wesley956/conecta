@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 import { setPwaPlaybackActive } from '../pwa';
 import { readLocalWebSettings } from '../settingsModel';
 import type { WebChannel, WebEpisode } from '../types';
+import { PlayerHud } from './PlayerHud';
 
 type Props = ComponentProps<typeof import('./WebPlayerCore').WebPlayer>;
 type NextEpisodeState = { episode: WebEpisode; countdown: number | null } | null;
@@ -118,6 +119,17 @@ export function WebPlayer(props: Props) {
           onClose={onClose}
         />
       </Suspense>
+
+      <PlayerHud
+        live={props.authorization.contentType === 'channel'}
+        epg={props.epg}
+        activeContentId={props.activeContentId}
+        episodeItems={props.episodeItems}
+        liveChannels={props.liveChannels}
+        onSwitchChannel={props.onSwitchChannel ? onSwitchChannel : undefined}
+        onSwitchEpisode={props.onSwitchEpisode ? onSwitchEpisode : undefined}
+        onClose={onClose}
+      />
 
       {nextEpisode ? (
         <div className="autonext-overlay" role="status" aria-live="polite">
