@@ -24,7 +24,7 @@ if (!root) throw new Error('Root element not found.');
 
 const disposeSplashPolish = installSplashPolish();
 
-// ExperienceApp keeps authentication gates after every hook, including batch2 recommendation hooks.
+// Batch2 stays hook-safe after synchronization with the latest batch1 base.
 createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
