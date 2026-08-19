@@ -43,7 +43,20 @@ async function mockApi(page: Page) {
     }
 
     if (endpoint === 'web-player-library') {
-      if (body.action === 'get') return json(route, { ok: true, favorites: [], progress: [], preferences: { aspectMode: 'contain', language: null, subtitleLanguage: null, version: 1, updatedAt: new Date().toISOString() } });
+      if (body.action === 'get') return json(route, {
+        ok: true,
+        favorites: [],
+        progress: [{
+          contentKey: 'movie:1',
+          contentType: 'movie',
+          positionMs: 3_600_000,
+          durationMs: 7_200_000,
+          completed: false,
+          version: 1,
+          updatedAt: '2099-01-01T12:00:00.000Z',
+        }],
+        preferences: { aspectMode: 'contain', language: null, subtitleLanguage: null, version: 1, updatedAt: new Date().toISOString() },
+      });
       if (body.action === 'preferences') return json(route, { ok: true, preferences: { aspectMode: body.aspectMode ?? 'contain', language: body.language ?? null, subtitleLanguage: body.subtitleLanguage ?? null, version: 2, updatedAt: new Date().toISOString() } });
     }
 
@@ -115,4 +128,14 @@ test('mobile usa sheet de categorias e mantém configurações sem sidebar deskt
   await expect(page.getByRole('dialog', { name: 'Configurações do RonecaPlayTV' })).toBeVisible();
   const metrics = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.width + 1);
+});
+
+test('Home mostra no máximo dois trilhos contextuais baseados em consumo significativo', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page);
+  const contextual = page.locator('.contextual-shelf');
+  await expect(contextual).toHaveCount(1, { timeout: 5_000 });
+  await expect(page.getByRole('button', { name: /Porque você assistiu “Filme 1”/ })).toBeVisible();
+  await expect(contextual.first().locator('.contextual-poster-card')).toHaveCount(12);
+  await expect(contextual.first()).not.toContainText('Filme 1Categoria 01');
 });
