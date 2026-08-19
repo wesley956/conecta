@@ -58,7 +58,7 @@ export function WebPlayer(props: Props) {
     let last = -1;
     const timer = window.setInterval(() => {
       const video = document.querySelector<HTMLVideoElement>('.player-video');
-      if (!video || video.paused || video.seeking || document.hidden) return;
+      if (!video || video.paused || document.hidden) return;
       const now = video.currentTime;
       if (last >= 0 && now <= last + .35) video.dispatchEvent(new Event('error'));
       last = now;
