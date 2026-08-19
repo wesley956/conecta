@@ -24,7 +24,7 @@ if (!root) throw new Error('Root element not found.');
 
 const disposeSplashPolish = installSplashPolish();
 
-// Batch2 stays hook-safe after synchronization with the latest batch1 base.
+// Final stacked validation keeps ExperienceApp hook-safe after the latest batch1 synchronization.
 createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
