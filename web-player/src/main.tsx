@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 import ExperienceApp from './ExperienceApp';
 import { ExperienceAccessibilityController } from './experienceAccessibility';
 import { NavigationStateRestorer } from './NavigationStateRestorer';
+import { PwaUpdatePrompt } from './PwaUpdatePrompt';
 import { registerPwa } from './pwa';
+import { SectionNavigationEnhancer } from './SectionNavigationEnhancer';
+import { SettingsPortal } from './SettingsPortal';
 import { installSplashPolish } from './splashPolish';
 import './styles.css';
 import './experience.css';
@@ -12,18 +15,24 @@ import './splash-polish.css';
 import './pwa.css';
 import './evolution-batch1.css';
 import './evolution-batch1-integration.css';
+import './evolution-batch2.css';
+import './evolution-batch2-mobile.css';
+import './autonext.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
 
 const disposeSplashPolish = installSplashPolish();
 
-// ExperienceApp keeps its authentication gates after all hooks so login/session transitions remain hook-safe.
+// Final stacked validation keeps ExperienceApp hook-safe after the latest batch1 synchronization.
 createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
     <NavigationStateRestorer />
     <ExperienceApp />
+    <SectionNavigationEnhancer />
+    <SettingsPortal />
+    <PwaUpdatePrompt />
   </StrictMode>,
 );
 

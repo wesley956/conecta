@@ -1,0 +1,66 @@
+.autonext-overlay {
+  position: fixed;
+  z-index: 132;
+  left: 0;
+  right: 0;
+  bottom: clamp(1rem, 4vw, 3rem);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  pointer-events: none;
+}
+
+.autonext-card {
+  width: min(520px, calc(100vw - 2rem));
+  display: grid;
+  gap: .45rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 16px;
+  background: rgba(13,15,18,.94);
+  box-shadow: 0 22px 64px rgba(0,0,0,.62);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.autonext-card > strong {
+  font-size: 1.08rem;
+}
+
+.autonext-card > small {
+  color: #9ba0a8;
+}
+
+.autonext-actions {
+  display: flex;
+  gap: .55rem;
+  flex-wrap: wrap;
+  margin-top: .35rem;
+}
+
+.autonext-actions button {
+  min-height: 40px;
+  padding: .55rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #202328;
+  font-weight: 780;
+}
+
+.autonext-actions .primary-button {
+  background: linear-gradient(135deg, var(--red-strong), #9e111a);
+}
+
+@media (max-width: 640px) {
+  .autonext-overlay {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    padding: .7rem;
+  }
+  .autonext-card {
+    width: 100%;
+  }
+  .autonext-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}

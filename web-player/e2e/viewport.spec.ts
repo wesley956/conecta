@@ -174,6 +174,8 @@ test('hover preview não desloca cards vizinhos', async ({ page, browserName }) 
   await mockApi(page);
   await login(page);
   await page.getByRole('button', { name: 'Filmes' }).first().click();
+  await expect(page.locator('.app-shell')).toHaveClass(/category-mode/);
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   const cards = page.locator('.poster-card');
   const first = cards.nth(0);
   const second = cards.nth(1);

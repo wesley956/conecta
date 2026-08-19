@@ -16,6 +16,7 @@ import {
   fetchEpg,
   fetchSeries,
 } from './api';
+import { buildContextualShelves, type InterestSignal } from './contextualDiscovery';
 import { recommendMovies, recommendSeries, selectHeroItems, type DiscoveryItem } from './experience';
 import { clearLocalLibrary, useSessionLibrary } from './library';
 import { WebPlayer } from './player/WebPlayer';
@@ -855,10 +856,15 @@ export default function ExperienceApp() {
     }
   }, [auth.accessToken, auth.invalidate, seriesCache]);
 
-  const episodeProgressKeys = useMemo(() => Object.keys(library.positions).filter(key => key.startsWith('episode:')), [library.positions]);
+  const episodeHistoryKeys = useMemo(() => {
+    const keys = new Set<string>();
+    Object.keys(library.positions).forEach(key => { if (key.startsWith('episode:')) keys.add(key); });
+    Object.keys(library.completedAt).forEach(key => { if (key.startsWith('episode:')) keys.add(key); });
+    return [...keys];
+  }, [library.completedAt, library.positions]);
   useEffect(() => {
-    if (!auth.accessToken || catalogStatus !== 'ready' || !episodeProgressKeys.length) return;
-    const seriesKeys = new Set(episodeProgressKeys.map(seriesKeyFromEpisodeKey).filter(Boolean) as string[]);
+    if (!auth.accessToken || catalogStatus !== 'ready' || !episodeHistoryKeys.length) return;
+    const seriesKeys = new Set(episodeHistoryKeys.map(seriesKeyFromEpisodeKey).filter(Boolean) as string[]);
     const missing = catalog.series.filter(item => seriesKeys.has(item.contentKey) && !seriesCache[item.contentId]).slice(0, 12);
     if (!missing.length) return;
     let cancelled = false;
@@ -867,7 +873,7 @@ export default function ExperienceApp() {
       if (!cancelled) setSeriesCache(current => current[item.contentId] ? current : ({ ...current, [item.contentId]: result.seasons }));
     }));
     return () => { cancelled = true; };
-  }, [auth.accessToken, catalog.series, catalogStatus, episodeProgressKeys, seriesCache]);
+  }, [auth.accessToken, catalog.series, catalogStatus, episodeHistoryKeys, seriesCache]);
 
   const play = useCallback(async (item: PlayItem, context?: EpisodeContext) => {
     if (!auth.accessToken || playbackLoading) return;
@@ -1023,6 +1029,86 @@ export default function ExperienceApp() {
       .slice(0, 12);
   }, [continueEpisodes, continueMovies, library.positions]);
 
+  const interestSignals = useMemo<InterestSignal[]>(() => {
+    const signals: InterestSignal[] = [];
+    for (const movie of catalog.movies) {
+      const position = library.positions[movie.contentId] || library.positions[movie.contentKey];
+      const completed = library.completed.has(movie.contentId) || library.completed.has(movie.contentKey);
+      if (position) {
+        signals.push({
+          origin: movie,
+          progressRatio: position.duration > 0 ? position.position / position.duration : 0,
+          completed: false,
+          updatedAt: position.updatedAt,
+        });
+      } else if (completed) {
+        signals.push({
+          origin: movie,
+          progressRatio: 1,
+          completed: true,
+          updatedAt: library.completedAt[movie.contentId] || library.completedAt[movie.contentKey] || '1970-01-01T00:00:00.000Z',
+        });
+      }
+    }
+    for (const series of catalog.series) {
+      const seasons = seriesCache[series.contentId] || [];
+      for (const season of seasons) {
+        for (const episode of season.episodes) {
+          const position = library.positions[episode.contentId] || library.positions[episode.contentKey];
+          const completed = library.completed.has(episode.contentId) || library.completed.has(episode.contentKey);
+          if (position) {
+            signals.push({
+              origin: series,
+              progressRatio: position.duration > 0 ? position.position / position.duration : 0,
+              completed: false,
+              updatedAt: position.updatedAt,
+            });
+          } else if (completed) {
+            signals.push({
+              origin: series,
+              progressRatio: 1,
+              completed: true,
+              updatedAt: library.completedAt[episode.contentId] || library.completedAt[episode.contentKey] || '1970-01-01T00:00:00.000Z',
+            });
+          }
+        }
+      }
+    }
+    return signals;
+  }, [catalog.movies, catalog.series, library.completed, library.completedAt, library.positions, seriesCache]);
+  const contextualShelves = useMemo(() => buildContextualShelves(interestSignals, catalog.movies, catalog.series, 2).map(shelf => ({
+    ...shelf,
+    items: [...shelf.items].sort((left, right) => {
+      const leftDone = library.completed.has(left.contentId) || library.completed.has(left.contentKey);
+      const rightDone = library.completed.has(right.contentId) || library.completed.has(right.contentKey);
+      return Number(leftDone) - Number(rightDone);
+    }),
+  })), [catalog.movies, catalog.series, interestSignals, library.completed]);
+
+  const renderContextualShelf = (index: number) => {
+    const shelf = contextualShelves[index];
+    if (!shelf) return null;
+    return (
+      <Shelf
+        title={shelf.title}
+        className="contextual-shelf"
+        action={<button type="button" className="text-button" onClick={() => openDiscovery(shelf.origin)}>Ver origem</button>}
+      >
+        {shelf.items.map(item => (
+          <HoverPosterCard
+            key={`${shelf.key}:${item.contentId}`}
+            item={item}
+            favorite={library.favorites.has(item.contentId)}
+            progress={item.type === 'movie' ? progressPercent(item) : undefined}
+            onFavorite={() => library.toggleFavorite(item.contentId)}
+            onOpen={() => openDiscovery(item)}
+            onPlay={item.type === 'movie' ? () => void play(item) : undefined}
+          />
+        ))}
+      </Shelf>
+    );
+  };
+
   const playerEpisodeItems = useMemo<PlayerEpisodeItem[]>(() => {
     if (!player || player.item.type !== 'episode' || !player.seriesContentId) return [];
     const seasons = seriesCache[player.seriesContentId] || [];
@@ -1132,6 +1218,8 @@ export default function ExperienceApp() {
               </Shelf>
             ) : null}
 
+            {renderContextualShelf(0)}
+
             <Shelf title="TV ao vivo" action={<button type="button" className="text-button" onClick={() => setSection('live')}>Ver todos</button>}>
               {catalog.channels.slice(0, 12).map(item => (
                 <ChannelCard key={item.contentId} item={item} favorite={library.favorites.has(item.contentId)} onFavorite={() => library.toggleFavorite(item.contentId)} onPlay={() => void play(item)} />
@@ -1143,6 +1231,8 @@ export default function ExperienceApp() {
                 <HoverPosterCard key={item.contentId} item={item} favorite={library.favorites.has(item.contentId)} onFavorite={() => library.toggleFavorite(item.contentId)} onOpen={() => setDetail({ kind: 'movie', item })} onPlay={() => void play(item)} />
               ))}
             </Shelf>
+
+            {renderContextualShelf(1)}
 
             <Shelf title="Séries" action={<button type="button" className="text-button" onClick={() => setSection('series')}>Ver todas</button>}>
               {catalog.series.slice(0, 14).map(item => (

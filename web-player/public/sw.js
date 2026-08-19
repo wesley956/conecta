@@ -1,4 +1,4 @@
-const VERSION = 'roneca-web-shell-v3';
+const VERSION = 'roneca-web-shell-v4';
 const SHELL_CACHE = `${VERSION}:shell`;
 const SAFE_PATHS = new Set([
   '/web/',
@@ -37,7 +37,7 @@ self.addEventListener('install', event => {
       '/web/brand/ronecaplaytv-symbol.svg',
       '/web/brand/ronecaplaytv-wordmark.svg',
     ]);
-    await self.skipWaiting();
+    // Atualizações permanecem em waiting até autorização explícita da UI.
   })());
 });
 
