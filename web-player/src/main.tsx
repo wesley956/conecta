@@ -18,6 +18,7 @@ if (!root) throw new Error('Root element not found.');
 
 const disposeSplashPolish = installSplashPolish();
 
+// ExperienceApp keeps its authentication gates after all hooks so login/session transitions remain hook-safe.
 createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
