@@ -135,7 +135,8 @@ test('Home mostra no máximo dois trilhos contextuais baseados em consumo signif
   await login(page);
   const contextual = page.locator('.contextual-shelf');
   await expect(contextual).toHaveCount(1, { timeout: 5_000 });
-  await expect(page.getByRole('button', { name: /Porque você assistiu “Filme 1”/ })).toBeVisible();
-  await expect(contextual.first().locator('.contextual-poster-card')).toHaveCount(12);
-  await expect(contextual.first()).not.toContainText('Filme 1Categoria 01');
+  await expect(contextual.first().getByRole('heading', { name: 'Porque você assistiu “Filme 1”' })).toBeVisible();
+  await expect(contextual.first().locator('.poster-card-shell')).toHaveCount(12);
+  await expect(contextual.first().getByRole('button', { name: /^Filme 1\./ })).toHaveCount(0);
+  await expect(contextual).toHaveCount(1);
 });
