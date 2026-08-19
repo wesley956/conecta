@@ -81,10 +81,7 @@ function findNavigationButton(label: 'Filmes' | 'Séries') {
 
 function findPosterByTitle(title: string) {
   const cards = [...document.querySelectorAll<HTMLElement>('.poster-card')];
-  return cards.find(card => {
-    const strong = card.querySelector('strong')?.textContent?.trim();
-    return strong === title;
-  }) || null;
+  return cards.find(card => card.querySelector('strong')?.textContent?.trim() === title) || null;
 }
 
 async function openCatalogItem(item: ContextualOrigin) {
@@ -113,30 +110,36 @@ async function openCatalogItem(item: ContextualOrigin) {
 
 function ContextualCard({ item }: { item: ContextualOrigin }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const meta = item.type === 'movie'
+    ? [item.year ? String(item.year) : null, item.duration || null, item.category || 'Filme'].filter(Boolean).join(' • ')
+    : ['Série', item.category || null].filter(Boolean).join(' • ');
+
   return (
-    <article
-      className="poster-card contextual-poster-card"
-      tabIndex={0}
-      role="button"
-      aria-label={`Abrir detalhes de ${item.title}`}
-      onClick={() => void openCatalogItem(item)}
-      onKeyDown={event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          void openCatalogItem(item);
-        }
-      }}
-    >
-      <div className="poster-art">
-        {item.cover && !imageFailed
-          ? <img src={item.cover} alt={`Capa de ${item.title}`} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
-          : <div className="media-placeholder poster" aria-hidden="true"><img src="/brand/ronecaplaytv-symbol.svg" alt="" /></div>}
-      </div>
-      <div className="card-copy">
-        <strong>{item.title}</strong>
-        <small>{item.category || (item.type === 'movie' ? 'Filme' : 'Série')}</small>
-      </div>
-    </article>
+    <div className="poster-card-shell contextual-card-shell">
+      <article
+        className="poster-card contextual-poster-card"
+        tabIndex={0}
+        role="button"
+        aria-label={`${item.title}. ${meta}`}
+        onClick={() => void openCatalogItem(item)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            void openCatalogItem(item);
+          }
+        }}
+      >
+        <div className="poster-art">
+          {item.cover && !imageFailed
+            ? <img src={item.cover} alt={`Capa de ${item.title}`} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
+            : <div className="media-placeholder poster" aria-hidden="true"><img src="/brand/ronecaplaytv-symbol.svg" alt="" /></div>}
+        </div>
+        <div className="card-copy">
+          <strong>{item.title}</strong>
+          <small>{item.category || (item.type === 'movie' ? 'Filme' : 'Série')}</small>
+        </div>
+      </article>
+    </div>
   );
 }
 
@@ -203,17 +206,21 @@ export function ContextualHomeEnhancer() {
         void refresh(force || playbackJustEnded);
       }, 180);
     };
+    const onFocus = () => schedule(false);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') schedule(false);
+    };
 
     schedule(true);
     const observer = new MutationObserver(() => schedule(false));
     observer.observe(document.body, { childList: true, subtree: true });
-    window.addEventListener('focus', () => schedule(false));
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') schedule(false);
-    });
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       observer.disconnect();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
       refreshTimer.current = null;
     };
