@@ -18,7 +18,7 @@ type IconName = 'play' | 'pause' | 'back10' | 'forward10' | 'volume' | 'muted' |
 type HudStyle = CSSProperties & Record<'--hud-played' | '--hud-buffered' | '--hud-volume', string>;
 
 function Icon({ name }: { name: IconName }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true" className="hud-icon"><use href={`/player-icons.svg#${name}`} /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true" className="hud-icon"><use href={`${import.meta.env.BASE_URL}player-icons.svg#${name}`} /></svg>;
 }
 function setting(frame: HTMLDivElement, label: string) {
   return [...frame.querySelectorAll<HTMLElement>('.player-setting')].find(node => node.textContent?.includes(label)) || null;
@@ -36,6 +36,7 @@ export function PlayerHud({ live, epg = [], activeContentId, episodeItems = [], 
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
+  const interactingRef = useRef(false);
   const activeEpisode = episodeItems.find(item => item.active) || episodeItems[0];
   const quickChannels = useMemo(() => selectQuickChannels(liveChannels, activeContentId, 9), [activeContentId, liveChannels]);
   const liveEpg = useMemo(() => resolveLiveEpg(epg), [epg]);
@@ -46,7 +47,7 @@ export function PlayerHud({ live, epg = [], activeContentId, episodeItems = [], 
   }, []);
   const scheduleHide = useCallback(() => {
     clearHideTimer();
-    if (playing) hideTimerRef.current = window.setTimeout(() => setVisible(false), 3400);
+    if (playing && !interactingRef.current) hideTimerRef.current = window.setTimeout(() => setVisible(false), 3400);
   }, [clearHideTimer, playing]);
   const reveal = useCallback(() => { setVisible(true); scheduleHide(); }, [scheduleHide]);
 
@@ -143,7 +144,15 @@ export function PlayerHud({ live, epg = [], activeContentId, episodeItems = [], 
   const style = { '--hud-played': `${played}%`, '--hud-buffered': `${Math.max(played, buffered)}%`, '--hud-volume': `${volume * 100}%` } as HudStyle;
 
   return createPortal(
-    <div className={`reference-hud ${visible ? 'is-visible' : 'is-hidden'} ${expanded ? 'is-expanded' : 'is-collapsed'}`} style={style} onPointerDown={event => event.stopPropagation()}>
+    <div
+      className={`reference-hud ${visible ? 'is-visible' : 'is-hidden'} ${expanded ? 'is-expanded' : 'is-collapsed'}`}
+      style={style}
+      onPointerDown={event => { event.stopPropagation(); reveal(); }}
+      onPointerEnter={() => { interactingRef.current = true; clearHideTimer(); setVisible(true); }}
+      onPointerLeave={() => { interactingRef.current = false; scheduleHide(); }}
+      onFocusCapture={() => { interactingRef.current = true; clearHideTimer(); setVisible(true); }}
+      onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { interactingRef.current = false; scheduleHide(); } }}
+    >
       <button className="hud-close" type="button" onClick={onClose} aria-label="Fechar player"><Icon name="close" /></button>
 
       {expanded && episodeItems.length ? <div className="hud-context hud-episodes">
