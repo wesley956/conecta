@@ -958,21 +958,6 @@ export default function ExperienceApp() {
     [catalog.movies, catalog.series, sessionId],
   );
 
-  if (auth.booting) {
-    return <main className="boot-screen"><img src="/brand/ronecaplaytv-symbol.svg" alt="" /><span>Carregando acesso seguro…</span></main>;
-  }
-
-  if (!auth.accessToken || !auth.session) {
-    return (
-      <LoginScreen
-        error={auth.error}
-        onLogin={async (code, pin) => {
-          await auth.login(code, pin);
-          setShowSplash(true);
-        }}
-      />
-    );
-  }
 
   const doLogout = async () => {
     const activeSessionId = auth.session?.id;
@@ -1151,6 +1136,22 @@ export default function ExperienceApp() {
     const season = seasons.find(candidate => candidate.episodes.some(item => item.contentId === episode.contentId));
     void play(episode, { series, seasonNumber: season?.number || player.seasonNumber || 1 });
   };
+
+  if (auth.booting) {
+    return <main className="boot-screen"><img src="/brand/ronecaplaytv-symbol.svg" alt="" /><span>Carregando acesso seguro…</span></main>;
+  }
+
+  if (!auth.accessToken || !auth.session) {
+    return (
+      <LoginScreen
+        error={auth.error}
+        onLogin={async (code, pin) => {
+          await auth.login(code, pin);
+          setShowSplash(true);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app-shell">
