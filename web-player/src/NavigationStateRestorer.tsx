@@ -97,13 +97,14 @@ export function NavigationStateRestorer() {
       const label = focusLabelFrom(event.target);
       if (label) save(label);
     };
+    const onPageHide = () => save();
 
     const observer = new MutationObserver(detectSection);
     observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
     window.addEventListener('scroll', scheduleScrollSave, { passive: true });
     window.addEventListener('focusin', onFocusOrClick, true);
     window.addEventListener('click', onFocusOrClick, true);
-    window.addEventListener('pagehide', () => save());
+    window.addEventListener('pagehide', onPageHide);
 
     if (section) restore(section);
 
@@ -112,6 +113,7 @@ export function NavigationStateRestorer() {
       window.removeEventListener('scroll', scheduleScrollSave);
       window.removeEventListener('focusin', onFocusOrClick, true);
       window.removeEventListener('click', onFocusOrClick, true);
+      window.removeEventListener('pagehide', onPageHide);
       if (raf) window.cancelAnimationFrame(raf);
       if (restoreTimer) window.clearTimeout(restoreTimer);
       save();
