@@ -103,8 +103,8 @@ test('Configurações ficam acessíveis no menu e persistem preferência canôni
   await expect(dialog.getByRole('heading', { name: 'Reprodução', exact: true })).toBeVisible();
   await dialog.getByLabel('Aspecto padrão').selectOption('cover');
   await expect(dialog.getByText('Preferência salva.')).toBeVisible();
-  await expect(dialog.getByText('Sessão Web')).toBeVisible();
-  await expect(dialog.getByText('Ativa')).toBeVisible();
+  await expect(dialog.getByText('Sessão Web', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Ativa', { exact: true })).toBeVisible();
 });
 
 test('mobile usa sheet de categorias e mantém configurações sem sidebar desktop', async ({ page }) => {
