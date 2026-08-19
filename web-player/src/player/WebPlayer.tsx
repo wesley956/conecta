@@ -24,15 +24,15 @@ export function WebPlayer(props: Props) {
   const autoplayTimerRef = useRef<number | null>(null);
   const [nextEpisode, setNextEpisode] = useState<NextEpisodeState>(null);
 
+  progressRef.current = props.onProgress;
+  switchRef.current = props.onSwitchChannel;
+  episodeSwitchRef.current = props.onSwitchEpisode;
+  closeRef.current = props.onClose;
+
   if (playbackIdentityRef.current !== props.authorization.recoveryToken) {
     playbackIdentityRef.current = props.authorization.recoveryToken;
     initialPositionRef.current = props.initialPosition || 0;
   }
-
-  useEffect(() => { progressRef.current = props.onProgress; }, [props.onProgress]);
-  useEffect(() => { switchRef.current = props.onSwitchChannel; }, [props.onSwitchChannel]);
-  useEffect(() => { episodeSwitchRef.current = props.onSwitchEpisode; }, [props.onSwitchEpisode]);
-  useEffect(() => { closeRef.current = props.onClose; }, [props.onClose]);
 
   const clearAutoNextTimers = useCallback(() => {
     if (countdownIntervalRef.current) window.clearInterval(countdownIntervalRef.current);
