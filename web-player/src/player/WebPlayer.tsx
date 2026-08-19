@@ -8,6 +8,9 @@ import { PlayerHud } from './PlayerHud';
 type Props = ComponentProps<typeof import('./WebPlayerCore').WebPlayer>;
 type NextEpisodeState = { episode: WebEpisode; countdown: number | null } | null;
 
+const STALL_GUARD_TICK_MS = 5_000;
+const STALL_GUARD_TICKS = 3;
+
 const LazyWebPlayerCore = lazy(async () => {
   const module = await import('./WebPlayerCore');
   return { default: module.WebPlayer };
@@ -54,6 +57,44 @@ export function WebPlayer(props: Props) {
     setPwaPlaybackActive(true);
     return () => setPwaPlaybackActive(false);
   }, []);
+
+  useEffect(() => {
+    let lastTime = -1;
+    let stalledTicks = 0;
+    const timer = window.setInterval(() => {
+      const video = document.querySelector<HTMLVideoElement>('.player-overlay .player-video');
+      if (!video) {
+        lastTime = -1;
+        stalledTicks = 0;
+        return;
+      }
+
+      const current = Number(video.currentTime || 0);
+      if (video.paused || video.seeking || video.ended || document.hidden) {
+        lastTime = current;
+        stalledTicks = 0;
+        return;
+      }
+
+      if (lastTime < 0 || current > lastTime + 0.35) {
+        lastTime = current;
+        stalledTicks = 0;
+        return;
+      }
+
+      stalledTicks += 1;
+      if (stalledTicks < STALL_GUARD_TICKS) return;
+
+      // O Core já possui o fluxo seguro de recovery/failover e preserva a posição VOD.
+      // Disparamos o mesmo caminho quando o navegador fica eternamente em `waiting`/
+      // `NETWORK_LOADING`, cenário em que o watchdog interno antigo retornava cedo demais.
+      stalledTicks = 0;
+      lastTime = current;
+      video.dispatchEvent(new Event('error'));
+    }, STALL_GUARD_TICK_MS);
+
+    return () => window.clearInterval(timer);
+  }, [props.activeContentId]);
 
   useEffect(() => {
     clearAutoNextTimers();
