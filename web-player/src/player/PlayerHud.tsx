@@ -17,29 +17,10 @@ type Props = {
 
 type TrackOption = { value: string; label: string };
 type IconName = 'play' | 'pause' | 'back10' | 'forward10' | 'volume' | 'muted' | 'aspect' | 'audio' | 'captions' | 'pip' | 'fullscreen' | 'chevron' | 'close' | 'channels';
-
 type HudStyle = CSSProperties & Record<'--hud-played' | '--hud-buffered' | '--hud-volume', string>;
 
 function Icon({ name }: { name: IconName }) {
-  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="hud-icon">
-      {name === 'play' ? <path d="M8 5.5 18 12 8 18.5Z" {...common} /> : null}
-      {name === 'pause' ? <><path d="M9 6v12M15 6v12" {...common} /></> : null}
-      {name === 'back10' ? <><path d="M8 7H4V3M4.5 7.2A8 8 0 1 1 5.3 17" {...common} /><text x="12" y="15" textAnchor="middle" fontSize="7.2" fill="currentColor" stroke="none">10</text></> : null}
-      {name === 'forward10' ? <><path d="M16 7h4V3M19.5 7.2A8 8 0 1 0 18.7 17" {...common} /><text x="12" y="15" textAnchor="middle" fontSize="7.2" fill="currentColor" stroke="none">10</text></> : null}
-      {name === 'volume' ? <><path d="M5 10v4h3l4 3V7L8 10H5Z" {...common} /><path d="M15 9.2a4 4 0 0 1 0 5.6M17.5 7a7 7 0 0 1 0 10" {...common} /></> : null}
-      {name === 'muted' ? <><path d="M5 10v4h3l4 3V7L8 10H5Z" {...common} /><path d="m16 10 4 4m0-4-4 4" {...common} /></> : null}
-      {name === 'aspect' ? <><rect x="4" y="6" width="16" height="12" rx="2" {...common} /><path d="M7 9h3M7 9v3M17 15h-3m3 0v-3" {...common} /></> : null}
-      {name === 'audio' ? <><path d="M5 12h2m2-4v8m3-11v14m3-11v8m3-5v2" {...common} /></> : null}
-      {name === 'captions' ? <><rect x="3.5" y="6" width="17" height="12" rx="2" {...common} /><path d="M10.5 10a2 2 0 1 0 0 4M17 10a2 2 0 1 0 0 4" {...common} /></> : null}
-      {name === 'pip' ? <><rect x="3.5" y="5" width="17" height="14" rx="2" {...common} /><rect x="11.5" y="11" width="6" height="5" rx="1" {...common} /></> : null}
-      {name === 'fullscreen' ? <><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" {...common} /></> : null}
-      {name === 'chevron' ? <path d="m8 10 4 4 4-4" {...common} /> : null}
-      {name === 'close' ? <path d="m7 7 10 10M17 7 7 17" {...common} /> : null}
-      {name === 'channels' ? <><rect x="4" y="5" width="16" height="14" rx="2" {...common} /><path d="M8 9h8M8 12h8M8 15h5" {...common} /></> : null}
-    </svg>
-  );
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="hud-icon"><use href={`/player-icons.svg#${name}`} /></svg>;
 }
 
 function findLegacySetting(frame: HTMLDivElement, label: string) {
