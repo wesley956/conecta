@@ -1,0 +1,64 @@
+.contextual-home-anchor {
+  display: block;
+  min-width: 0;
+}
+
+.contextual-home-shelves {
+  display: grid;
+  gap: 1.4rem;
+  min-width: 0;
+}
+
+.contextual-shelf {
+  margin-top: 0;
+}
+
+.contextual-shelf-title {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contextual-shelf-title h2 {
+  margin: 0;
+}
+
+.contextual-shelf-title:hover h2,
+.contextual-shelf-title:focus-visible h2 {
+  color: #fff;
+  text-decoration: underline;
+  text-decoration-color: rgba(223, 37, 45, .8);
+  text-underline-offset: .24em;
+}
+
+.contextual-poster-card {
+  flex: 0 0 clamp(142px, 12vw, 190px);
+  width: clamp(142px, 12vw, 190px);
+}
+
+.contextual-poster-card .poster-art {
+  aspect-ratio: 2 / 3;
+}
+
+.contextual-poster-card .poster-art > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 640px) {
+  .contextual-home-shelves {
+    gap: 1rem;
+  }
+
+  .contextual-poster-card {
+    flex-basis: 42vw;
+    width: 42vw;
+    max-width: 168px;
+  }
+}
