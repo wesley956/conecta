@@ -19,6 +19,7 @@ import './evolution-batch2.css';
 import './evolution-batch2-mobile.css';
 import './autonext.css';
 import './player-hud.css';
+import './player-exit.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
