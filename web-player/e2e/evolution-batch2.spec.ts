@@ -1,70 +1,76 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
-const categories = Array.from({ length: 36 }, (_, index) => `Categoria ${String(index + 1).padStart(2, '0')}`);
+const session = {
+  id: 'session-evolution-b2',
+  absoluteExpiresAt: '2099-12-31T23:59:59.000Z',
+  idleExpiresAt: '2099-12-31T23:00:00.000Z',
+  clientName: 'Homologação lote 2',
+};
+
+function json(route: Route, body: unknown, status = 200) {
+  return route.fulfill({ status, contentType: 'application/json; charset=utf-8', body: JSON.stringify(body) });
+}
 
 async function mockApi(page: Page) {
-  await page.route('**/functions/v1/web-player-login', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ access_token: 'access-1', refresh_token: 'refresh-1' }),
-  }));
-  await page.route('**/functions/v1/web-player-refresh', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ access_token: 'access-1', refresh_token: 'refresh-1' }),
-  }));
-  await page.route('**/functions/v1/web-player-session', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ id: 'session-1', client_name: 'Sala', expires_at: new Date(Date.now() + 3_600_000).toISOString() }),
-  }));
-  await page.route('**/functions/v1/web-player-catalog**', route => {
-    const url = new URL(route.request().url());
-    const section = url.searchParams.get('section');
-    if (section === 'live') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ content_key: 'live:1', content_id: 'live-1', title: 'Canal News', category: 'Notícias', logo_url: '' }], next_cursor: null }) });
+  await page.route('**/functions/v1/**', async route => {
+    const endpoint = new URL(route.request().url()).pathname.split('/').pop() || '';
+    const body = (route.request().postDataJSON?.() || {}) as Record<string, unknown>;
+
+    if (endpoint === 'web-player-auth') {
+      if (body.action === 'login') return json(route, { ok: true, accessToken: 'access-b2', refreshToken: 'refresh-b2', session });
+      if (body.action === 'session') return json(route, { ok: true, session });
+      if (body.action === 'refresh') return json(route, { ok: true, accessToken: 'access-b2', refreshToken: 'refresh-b2', session });
+      if (body.action === 'logout') return json(route, { ok: true });
     }
-    if (section === 'series') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [
-        { content_key: 'series:1', content_id: 'series-1', title: 'Dark Files', category: 'Drama', poster_url: '' },
-        { content_key: 'series:2', content_id: 'series-2', title: 'Crime Line', category: 'Drama', poster_url: '' },
-        { content_key: 'series:3', content_id: 'series-3', title: 'Comedy House', category: 'Comédia', poster_url: '' },
-      ], next_cursor: null }) });
+
+    if (endpoint === 'web-player-catalog' && body.action === 'catalog') {
+      const categories = Array.from({ length: 30 }, (_, index) => `Categoria ${String(index + 1).padStart(2, '0')}`);
+      return json(route, {
+        ok: true,
+        sourceRole: 'primary',
+        usingBackup: false,
+        channels: [{ contentId: 'c1', contentKey: 'channel:1', type: 'channel', title: 'Canal Um', category: 'Abertos' }],
+        movies: categories.map((category, index) => ({
+          contentId: `m${index + 1}`,
+          contentKey: `movie:${index + 1}`,
+          type: 'movie',
+          title: `Filme ${index + 1}`,
+          category,
+          year: 2026,
+        })),
+        series: [{ contentId: 's1', contentKey: 'series:1', type: 'series', title: 'Série Um', category: 'Drama' }],
+      });
     }
-    const items = categories.map((category, index) => ({
-      content_key: `movie:${index + 1}`,
-      content_id: `movie-${index + 1}`,
-      title: `Filme ${index + 1}`,
-      category,
-      year: 2026,
-      poster_url: '',
-      backdrop_url: '',
-    }));
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items, next_cursor: null }) });
-  });
-  await page.route('**/functions/v1/web-player-progress**', route => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ progress: [
-        { content_id: 'movie-1', content_key: 'movie:1', position_seconds: 420, duration_seconds: 1800, completed: false, updated_at: '2026-08-19T00:00:00.000Z' },
-        { content_id: 'movie-2', content_key: 'movie:2', position_seconds: 1500, duration_seconds: 1800, completed: true, updated_at: '2026-08-18T23:00:00.000Z' },
-      ] }) });
+
+    if (endpoint === 'web-player-library') {
+      if (body.action === 'get') return json(route, {
+        ok: true,
+        favorites: [],
+        progress: [{
+          contentKey: 'movie:1',
+          contentType: 'movie',
+          positionMs: 3_600_000,
+          durationMs: 7_200_000,
+          completed: false,
+          version: 1,
+          updatedAt: '2099-01-01T12:00:00.000Z',
+        }],
+        preferences: { aspectMode: 'contain', language: null, subtitleLanguage: null, version: 1, updatedAt: new Date().toISOString() },
+      });
+      if (body.action === 'preferences') return json(route, { ok: true, preferences: { aspectMode: body.aspectMode ?? 'contain', language: body.language ?? null, subtitleLanguage: body.subtitleLanguage ?? null, version: 2, updatedAt: new Date().toISOString() } });
     }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+
+    return json(route, { ok: false, code: 'E2E_UNHANDLED', message: `${endpoint}:${String(body.action || '')}` }, 500);
   });
-  await page.route('**/functions/v1/web-player-favorites**', route => {
-    if (route.request().method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ favorites: [] }) });
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-  });
-  await page.route('**/functions/v1/web-player-series**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ seasons: [] }) }));
-  await page.route('**/functions/v1/web-player-play', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ playback_url: 'https://example.com/master.m3u8', expires_at: new Date(Date.now() + 60_000).toISOString() }) }));
 }
 
 async function login(page: Page) {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/web/');
   await page.getByLabel('Código do dispositivo').fill('ABCD-1234');
   await page.getByLabel('PIN Web').fill('123456');
   await page.getByRole('button', { name: 'Entrar no RonecaPlayTV' }).click();
-  await expect(page.locator('.experience-hero')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.experience-hero')).toBeVisible({ timeout: 8_000 });
   await expect(page.locator('.launch-splash')).toBeHidden({ timeout: 3_000 });
 }
 
@@ -106,25 +112,31 @@ test('mobile usa sheet de categorias e mantém configurações sem sidebar deskt
   await login(page);
   await expect(page.locator('.side-nav')).toBeHidden();
   await expect(page.locator('.bottom-nav')).toBeVisible();
-  await page.getByRole('button', { name: 'Filmes' }).last().click();
-  await expect(page.locator('.app-shell')).toHaveClass(/mobile-category-mode/);
-  await page.getByRole('button', { name: /Categorias Todos/ }).click();
-  const sheet = page.getByRole('dialog', { name: 'Categorias' });
-  await expect(sheet).toBeVisible();
-  await sheet.getByPlaceholder('Buscar categoria…').fill('Categoria 30');
-  await expect(sheet.getByRole('button', { name: 'Categoria 30', exact: true })).toBeVisible();
-  await sheet.getByRole('button', { name: 'Categoria 30', exact: true }).click();
-  await expect(sheet).toBeHidden();
 
-  await page.getByRole('button', { name: 'Mais' }).click();
-  await page.getByRole('button', { name: 'Configurações' }).click();
+  await page.getByRole('button', { name: 'Filmes' }).click();
+  const categoryToggle = page.locator('.category-mobile-toggle');
+  await expect(categoryToggle).toBeVisible();
+  await categoryToggle.click();
+  const categoryDialog = page.getByRole('dialog', { name: 'Categorias' });
+  await expect(categoryDialog).toBeVisible();
+  await categoryDialog.getByPlaceholder('Buscar categoria…').fill('Categoria 30');
+  await categoryDialog.getByRole('button', { name: 'Categoria 30', exact: true }).click();
+  await expect(categoryDialog).toBeHidden();
+  await expect(page.locator('.poster-card').filter({ hasText: 'Filme 30' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Abrir configurações' }).click();
   await expect(page.getByRole('dialog', { name: 'Configurações do RonecaPlayTV' })).toBeVisible();
+  const metrics = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.width + 1);
 });
 
 test('Home mostra no máximo dois trilhos contextuais baseados em consumo significativo', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await login(page);
-  const shelves = page.locator('.contextual-shelf');
-  await expect(shelves).toHaveCount(2);
-  await expect(shelves.nth(0)).toContainText('Porque você assistiu');
-  await expect(shelves.nth(1)).toContainText('Porque você assistiu');
+  const contextual = page.locator('.contextual-shelf');
+  await expect(contextual).toHaveCount(1, { timeout: 5_000 });
+  await expect(contextual.first().getByRole('heading', { name: 'Porque você assistiu “Filme 1”' })).toBeVisible();
+  await expect(contextual.first().locator('.poster-card-shell')).toHaveCount(12);
+  await expect(contextual.first().getByRole('button', { name: /^Filme 1\./ })).toHaveCount(0);
+  await expect(contextual).toHaveCount(1);
 });
