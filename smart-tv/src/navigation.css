@@ -94,6 +94,19 @@ input[data-tv-focusable="true"]:focus {
   gap: 7px;
 }
 
+.category-side-mode > .rail {
+  position: fixed;
+  z-index: 80;
+  inset: 0 auto 0 0;
+  transform: translateX(-105%);
+  box-shadow: 24px 0 70px rgba(0, 0, 0, .72);
+  transition: transform .18s ease;
+}
+
+.category-side-mode.main-menu-open > .rail { transform: translateX(0); }
+.category-side-mode.main-menu-open::after { content: ""; position: fixed; z-index: 79; inset: 0; background: rgba(0, 0, 0, .58); }
+.category-side-mode > .content { width: 100%; }
+
 @media (max-width: 1050px) {
   .content {
     padding-left: 24px;

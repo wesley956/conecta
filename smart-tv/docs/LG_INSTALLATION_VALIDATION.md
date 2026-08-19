@@ -5,7 +5,7 @@ Este documento é o runbook obrigatório para fechar a issue #239. O build/CI co
 ## Baseline
 
 - App ID: `com.ronecaplaytv.app`
-- Baseline Android de paridade: `2.9.5`
+- Baseline Android de paridade: `2.9.8` (`versionCode 49`, tag `v2.9.8`, commit `48de0c8`)
 - webOS mínimo oficial: `4.x`
 - Frontend mínimo planejado: Chromium 53
 - Artefato oficial: packaged IPK (não hosted)
@@ -36,7 +36,7 @@ Nunca testar um IPK recompilado localmente e depois promover outro arquivo. O SH
 ```bash
 DEVICE=myTV
 APP_ID=com.ronecaplaytv.app
-IPK=./com.ronecaplaytv.app_1.0.0_all.ipk
+IPK=./com.ronecaplaytv.app_1.1.0_all.ipk
 ```
 
 ## 1. Conferir dispositivo e estado anterior

@@ -2,6 +2,7 @@ import "./legacyCompat";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { LaunchVideoOverlay } from "./LaunchVideoOverlay";
 import { PlayerAspectControl } from "./player/PlayerAspectControl";
 import "./styles.css";
 import "./experience.css";
@@ -16,5 +17,6 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
     <PlayerAspectControl />
+    <LaunchVideoOverlay />
   </StrictMode>
 );
