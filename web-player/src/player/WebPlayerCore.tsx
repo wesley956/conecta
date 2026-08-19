@@ -6,7 +6,6 @@ import {
   getActiveAccessToken,
   recoverPlayback,
   reportWebDiagnostic,
-  writePreferences,
 } from '../api';
 import type { EpgProgram, PlaybackAuthorization, WebChannel, WebEpisode } from '../types';
 import { playerClock, resolveLiveEpg, selectQuickChannels, type PlayerEpisodeItem } from './premiumModel';
@@ -28,7 +27,6 @@ type Props = {
   onClose: () => void;
 };
 
-const ASPECT_KEY = 'roneca.web.aspect.v1';
 const STABLE_WINDOW_MS = 10_000;
 const WATCHDOG_TICK_MS = 5_000;
 const WATCHDOG_STALL_TICKS = 4;
@@ -37,13 +35,6 @@ const HLS_LOCAL_NETWORK_RECOVERIES = 3;
 const HLS_LOCAL_STALL_RECOVERIES = 2;
 const CHROME_HIDE_MS = 2_900;
 
-function initialAspect(): AspectMode {
-  try {
-    const stored = window.localStorage.getItem(ASPECT_KEY);
-    if (stored === 'contain' || stored === 'cover' || stored === 'fill') return stored;
-  } catch { /* optional preference */ }
-  return 'contain';
-}
 function aspectLabel(mode: AspectMode) { return mode === 'cover' ? 'Preencher' : mode === 'fill' ? 'Estender' : 'Original'; }
 function nativeMediaErrorCode(video: HTMLVideoElement) {
   const code = video.error?.code || 0;
@@ -88,7 +79,7 @@ export function WebPlayer({
   const generationRef = useRef(0);
 
   const [activeAuthorization, setActiveAuthorization] = useState(authorization);
-  const [aspect, setAspect] = useState<AspectMode>(initialAspect);
+  const [aspect, setAspect] = useState<AspectMode>('contain');
   const [error, setError] = useState<string | null>(null);
   const [recoveryStatus, setRecoveryStatus] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -504,9 +495,6 @@ export function WebPlayer({
     const video = videoRef.current;
     if (!video) return;
     video.style.objectFit = aspect;
-    try { window.localStorage.setItem(ASPECT_KEY, aspect); } catch { /* optional */ }
-    const token = getActiveAccessToken();
-    if (token) void writePreferences(token, { aspectMode: aspect }).catch(() => undefined);
   }, [aspect]);
 
   useEffect(() => {
