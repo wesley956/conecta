@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import ExperienceApp from './ExperienceApp';
 import { ExperienceAccessibilityController } from './experienceAccessibility';
+import { NavigationStateRestorer } from './NavigationStateRestorer';
 import { registerPwa } from './pwa';
 import { installSplashPolish } from './splashPolish';
 import './styles.css';
@@ -20,6 +21,7 @@ const disposeSplashPolish = installSplashPolish();
 createRoot(root).render(
   <StrictMode>
     <ExperienceAccessibilityController />
+    <NavigationStateRestorer />
     <ExperienceApp />
   </StrictMode>,
 );
