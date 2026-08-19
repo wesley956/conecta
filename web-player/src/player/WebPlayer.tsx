@@ -24,18 +24,15 @@ export function WebPlayer(props: Props) {
   const autoplayTimerRef = useRef<number | null>(null);
   const [nextEpisode, setNextEpisode] = useState<NextEpisodeState>(null);
 
-  // `initialPosition` é um snapshot do instante em que o conteúdo é aberto.
-  // A biblioteca atualiza a posição enquanto o vídeo toca; repassar esses updates
-  // para a engine faria o Core reinterpretá-los como uma nova inicialização.
+  progressRef.current = props.onProgress;
+  switchRef.current = props.onSwitchChannel;
+  episodeSwitchRef.current = props.onSwitchEpisode;
+  closeRef.current = props.onClose;
+
   if (playbackIdentityRef.current !== props.authorization.recoveryToken) {
     playbackIdentityRef.current = props.authorization.recoveryToken;
     initialPositionRef.current = props.initialPosition || 0;
   }
-
-  useEffect(() => { progressRef.current = props.onProgress; }, [props.onProgress]);
-  useEffect(() => { switchRef.current = props.onSwitchChannel; }, [props.onSwitchChannel]);
-  useEffect(() => { episodeSwitchRef.current = props.onSwitchEpisode; }, [props.onSwitchEpisode]);
-  useEffect(() => { closeRef.current = props.onClose; }, [props.onClose]);
 
   const clearAutoNextTimers = useCallback(() => {
     if (countdownIntervalRef.current) window.clearInterval(countdownIntervalRef.current);
@@ -58,6 +55,15 @@ export function WebPlayer(props: Props) {
   useEffect(() => {
     clearAutoNextTimers();
     setNextEpisode(null);
+    let last = -1;
+    const timer = window.setInterval(() => {
+      const video = document.querySelector<HTMLVideoElement>('.player-video');
+      if (!video || video.paused || document.hidden) return;
+      const now = video.currentTime;
+      if (last >= 0 && now <= last + .35) video.dispatchEvent(new Event('error'));
+      last = now;
+    }, 8_000);
+    return () => window.clearInterval(timer);
   }, [clearAutoNextTimers, props.activeContentId]);
 
   useEffect(() => {
