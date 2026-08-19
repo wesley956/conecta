@@ -1,0 +1,298 @@
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* WEB-33 — desktop category navigation mirrors the compact APK hierarchy. */
+.app-shell.category-mode {
+  --category-nav: clamp(176px, 17vw, 264px);
+}
+.app-shell.category-mode .side-nav {
+  width: var(--category-nav);
+}
+.app-shell.category-mode .side-nav nav,
+.app-shell.category-mode .nav-account {
+  display: none;
+}
+.app-shell.category-mode .brand-button {
+  min-height: 70px;
+}
+.app-shell.category-mode .main-content {
+  margin-left: var(--category-nav);
+}
+.app-shell.category-mode .main-content > .page-section {
+  padding-left: clamp(1.1rem, 2.4vw, 2.8rem);
+  padding-right: clamp(1.1rem, 2.4vw, 2.8rem);
+}
+.app-shell.category-mode .main-content > .page-section > .filter-strip {
+  position: fixed;
+  z-index: 34;
+  left: 0;
+  top: 76px;
+  bottom: 0;
+  width: var(--category-nav);
+  margin: 0;
+  padding: .55rem .7rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .3rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(18,20,24,.99), rgba(11,12,14,.99));
+  scrollbar-width: thin;
+}
+.app-shell.category-mode .filter-strip > button:not(.category-runtime-control) {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 39px;
+  padding: .52rem .65rem .52rem .82rem;
+  border-radius: 9px;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-shell.category-mode .filter-strip > button:not(.category-runtime-control):hover,
+.app-shell.category-mode .filter-strip > button:not(.category-runtime-control):focus-visible {
+  background: rgba(255,255,255,.045);
+  color: #fff;
+}
+.app-shell.category-mode .filter-strip > button:not(.category-runtime-control).active {
+  color: #fff;
+  border-color: rgba(239,49,57,.14);
+  background: linear-gradient(90deg, rgba(222,37,45,.14), rgba(222,37,45,.025));
+}
+.app-shell.category-mode .filter-strip > button:not(.category-runtime-control).active::before {
+  content: '';
+  position: absolute;
+  left: .18rem;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--red-strong);
+}
+.category-runtime-control {
+  flex: 0 0 auto;
+}
+.category-menu-button,
+.category-collapse-button {
+  border: 1px solid var(--line) !important;
+  background: #181b1f !important;
+  color: #d9dce0 !important;
+  border-radius: 9px !important;
+  min-height: 38px;
+  padding: .5rem .65rem !important;
+  font-weight: 780;
+}
+.category-menu-button {
+  order: -40;
+  text-align: left;
+  margin-bottom: .25rem;
+}
+.category-collapse-button {
+  order: -39;
+  font-size: 1.05rem;
+}
+.category-search {
+  order: -38;
+  display: block;
+  margin: .15rem 0 .35rem;
+}
+.category-search input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 .68rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #0f1114;
+  color: #fff;
+}
+.category-search input::placeholder { color: #747982; }
+
+.app-shell.category-mode.category-sidebar-collapsed {
+  --category-nav: 58px;
+}
+.app-shell.category-mode.category-sidebar-collapsed .brand-button {
+  display: grid;
+  grid-template-columns: 1fr;
+  padding-inline: .2rem;
+}
+.app-shell.category-mode.category-sidebar-collapsed .brand-button img:first-child {
+  width: 38px;
+  margin: auto;
+}
+.app-shell.category-mode.category-sidebar-collapsed .brand-button img:last-child,
+.app-shell.category-mode.category-sidebar-collapsed .filter-strip > button:not(.category-collapse-button),
+.app-shell.category-mode.category-sidebar-collapsed .category-search {
+  display: none !important;
+}
+.app-shell.category-mode.category-sidebar-collapsed .main-content > .page-section > .filter-strip {
+  padding-inline: .45rem;
+}
+
+/* WEB-34 — settings stay compact and user-facing, never exposing streaming secrets. */
+.settings-launcher {
+  width: 100%;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: .4rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #181b1f;
+  color: #cbd0d7;
+  padding: .55rem .65rem;
+}
+.settings-launcher:hover,
+.settings-launcher:focus-visible { color: #fff; border-color: rgba(239,49,57,.34); }
+.settings-launcher.mobile {
+  width: 40px;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
+  background: #1b1e22;
+}
+.settings-overlay {
+  position: fixed;
+  z-index: 230;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: clamp(.6rem, 3vw, 2rem);
+  background: rgba(3,4,6,.82);
+  backdrop-filter: blur(14px);
+}
+.settings-panel {
+  width: min(820px, 100%);
+  max-height: min(880px, calc(100vh - 1.2rem));
+  overflow: auto;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 22px;
+  background: linear-gradient(155deg, #191c20, #0f1114 72%);
+  box-shadow: 0 34px 92px rgba(0,0,0,.66);
+  padding: clamp(1rem, 3vw, 1.7rem);
+}
+.settings-header {
+  position: sticky;
+  z-index: 4;
+  top: -1px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .2rem 0 .85rem;
+  background: linear-gradient(180deg, #181b1f 72%, rgba(24,27,31,0));
+}
+.settings-header h2 { margin: .3rem 0 0; font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -.035em; }
+.settings-message {
+  margin: .2rem 0 .8rem;
+  padding: .65rem .75rem;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  background: rgba(255,255,255,.045);
+  color: #cfd3d9;
+  font-size: .8rem;
+}
+.settings-group {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(17,19,22,.78);
+}
+.settings-group h3 {
+  margin: 0;
+  padding: .85rem 1rem .65rem;
+  color: #ff666d;
+  font-size: .76rem;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.settings-row {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(130px, 210px);
+  align-items: center;
+  gap: 1rem;
+  padding: .75rem 1rem;
+  border-top: 1px solid rgba(255,255,255,.065);
+}
+.settings-row > span:first-child { min-width: 0; display: grid; gap: .18rem; }
+.settings-row strong { font-size: .9rem; }
+.settings-row small { color: #858b94; line-height: 1.4; }
+.settings-row select,
+.settings-row > button {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 9px;
+  background: #171a1e;
+  color: #fff;
+  padding: 0 .65rem;
+}
+.settings-row > button { font-weight: 800; }
+.settings-row.toggle input {
+  justify-self: end;
+  width: 44px;
+  height: 24px;
+  accent-color: var(--red-strong);
+}
+.settings-state {
+  justify-self: end;
+  color: #9ba1aa;
+  font-size: .78rem;
+  font-weight: 750;
+}
+.settings-state.ok { color: #c9d7ca; }
+.settings-row.danger > button { color: #ff9b9f; border-color: rgba(239,49,57,.25); }
+
+/* WEB-35 — controlled update prompt. */
+.pwa-update.controlled { z-index: 240; }
+.pwa-update.controlled button.quiet { background: #23262b; }
+.pwa-update.controlled.error { border-color: rgba(239,49,57,.28); }
+
+@media (max-width: 900px) and (min-width: 641px) {
+  .app-shell.category-mode { --category-nav: 176px; }
+  .app-shell.category-mode .brand-button img:last-child { display: none; }
+  .app-shell.category-mode .brand-button { display: block; }
+  .app-shell.category-mode .brand-button img:first-child { margin: auto; }
+}
+
+@media (max-width: 640px) {
+  .app-shell.category-mode .main-content { margin-left: 0; }
+  .category-menu-button,
+  .category-collapse-button { display: none !important; }
+  .category-search { min-width: 180px; margin: 0; }
+  .settings-launcher:not(.mobile) { display: none; }
+  .settings-panel { border-radius: 20px 20px 12px 12px; max-height: 94vh; align-self: end; }
+  .settings-overlay { place-items: end center; padding: .45rem; }
+  .settings-row { grid-template-columns: minmax(0,1fr); gap: .55rem; }
+  .settings-row select,
+  .settings-row > button { width: 100%; }
+  .settings-state,
+  .settings-row.toggle input { justify-self: start; }
+  .pwa-update.controlled { flex-wrap: wrap; }
+  .pwa-update.controlled span { flex-basis: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-overlay,
+  .settings-panel { scroll-behavior: auto; }
+}
