@@ -112,7 +112,10 @@ requireCheck(androidColors.includes("val TextMuted = Color(0xFF81818A)"), "O And
 requireCheck(androidColors.includes("val TextDisabled = Color(0xFF5F5F68)"), "Texto auxiliar e desabilitado precisam continuar separados.");
 requireCheck(contrast("#9c9ca5", "#131315") >= 4.5, "O texto secundário Android não alcança contraste AA sobre a superfície.");
 requireCheck(contrast("#81818a", "#080809") >= 4.5, "O texto auxiliar Android não alcança contraste AA sobre o fundo.");
-requireCheck(androidColors.includes("val Focus = RedStrong"), "O Android perdeu o token único de foco.");
+requireCheck(
+  androidColors.includes("val Focus = Color(0xFFFFFFFF)"),
+  "O Android perdeu o token branco de Focus, necessário para contrastar com os elementos vermelhos da marca.",
+);
 requireCheck(androidNavigation.includes("fontSize = if (isTelevision) 11.sp else 10.sp"), "O rótulo focado da navegação ficou pequeno demais.");
 requireCheck(androidNavigation.includes("fontSize = 10.sp"), "Os rótulos da navegação inferior ficaram pequenos demais.");
 
