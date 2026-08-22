@@ -494,14 +494,13 @@ private fun HeroButton(
             }
             .clip(RoundedCornerShape(999.dp))
             .background(
-                if (primary) RonecaColors.PrimaryStrong
-                else if (focused) RonecaColors.SurfaceRaised else RonecaColors.SurfaceOverlay,
+                if (focused) RonecaColors.SurfaceRaised else RonecaColors.SurfaceOverlay,
             )
             .border(
                 width = if (focused) 2.dp else 1.dp,
                 color = when {
                     focused -> RonecaColors.Focus
-                    primary -> RonecaColors.PrimaryStrong
+                    primary -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
                 shape = RoundedCornerShape(999.dp),
@@ -512,7 +511,7 @@ private fun HeroButton(
     ) {
         Text(
             text = label,
-            color = RonecaColors.TextPrimary,
+            color = if (primary && !focused) RonecaColors.PrimaryStrong else RonecaColors.TextPrimary,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
         )

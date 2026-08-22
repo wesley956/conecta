@@ -1022,6 +1022,7 @@ fun RonecaPlayTVApp(
                                             it.playlistId == catalogState.activePlaylistId
                                     }
                                     ?.error,
+                                progress = savedProgress,
                                 onBack = {
                                     pendingSeriesResume = null
                                     destination = detailReturnDestination
@@ -1039,19 +1040,14 @@ fun RonecaPlayTVApp(
                                         refreshCatalog()
                                     }
                                 },
-                                onPlayEpisode = { episode, _ ->
+                                onPlayEpisode = { season, episode, _ ->
                                     pendingSeriesResume = null
-                                    val season = resolvedSeries.seasons.firstOrNull { candidate ->
-                                        candidate.episodes.any { it.id == episode.id }
-                                    }
-                                    if (season != null) {
-                                        openSeriesEpisode(
-                                            series = resolvedSeries,
-                                            seasons = resolvedSeries.seasons,
-                                            season = season,
-                                            episode = episode,
-                                        )
-                                    }
+                                    openSeriesEpisode(
+                                        series = resolvedSeries,
+                                        seasons = resolvedSeries.seasons,
+                                        season = season,
+                                        episode = episode,
+                                    )
                                 },
                                 onOpenRecommendation = { recommendation ->
                                     selectedSeries = recommendation

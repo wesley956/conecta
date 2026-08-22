@@ -52,8 +52,8 @@ const [
   read('admin-panel/roneca-panel-premium.js'),
 ]);
 
-assert.match(build, /versionCode = 49/);
-assert.match(build, /versionName = "2\.9\.8"/);
+assert.match(build, /versionCode = 50/);
+assert.match(build, /versionName = "2\.9\.9"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
@@ -76,7 +76,7 @@ assert.doesNotMatch(playbackDiagnosticsApi, /playlistUrl|streamUrl|sourceUrl/);
 assert.match(workflow, /:app:testDebugUnitTest :app:assembleDebug/);
 assert.match(colors, /Background = Color\(0xFF080809\)/);
 assert.match(colors, /Primary = Color\(0xFFE3262E\)/);
-assert.match(colors, /Focus = RedStrong/);
+assert.match(colors, /Focus = Color\(0xFFFFFFFF\)/);
 assert.match(activation, /RonecaBrandLockup\(/);
 assert.doesNotMatch(activation, /text = "Player TV"/);
 assert.match(brandLockup, /BrandGold = Color\(0xFFFFD45A\)/);
@@ -125,4 +125,4 @@ assert.match(app, /PendingPlaybackValidation/);
 assert.match(app, /playlistWidePlaybackFailures/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 
-console.log('Android 2.9.8: crossfade nativo, cache de abertura e VOD estável validados.');
+console.log('Android 2.9.9: crossfade nativo, foco acessível, continuidade de séries e VOD validados.');

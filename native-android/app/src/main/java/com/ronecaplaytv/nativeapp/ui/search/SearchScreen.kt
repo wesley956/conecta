@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -51,6 +54,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
+import kotlinx.coroutines.delay
 
 @Composable
 fun SearchScreen(
@@ -65,6 +69,15 @@ fun SearchScreen(
 ) {
     BackHandler(onBack = onBack)
     var query by rememberSaveable { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isTelevision) {
+        if (isTelevision) {
+            delay(160)
+            runCatching { searchFocusRequester.requestFocus() }
+        }
+    }
 
     val channelResults = remember(channels, query) {
         if (query.isBlank()) emptyList() else channels
@@ -131,8 +144,12 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(RonecaColors.Surface)
-                    .border(1.dp, RonecaColors.Primary, RoundedCornerShape(8.dp))
+                    .background(if (searchFocused) RonecaColors.SurfaceRaised else RonecaColors.Surface)
+                    .border(
+                        if (searchFocused) 2.dp else 1.dp,
+                        if (searchFocused) RonecaColors.Focus else RonecaColors.Primary,
+                        RoundedCornerShape(8.dp),
+                    )
                     .padding(horizontal = 15.dp, vertical = if (isTelevision) 13.dp else 11.dp),
             ) {
                 if (query.isBlank()) {
@@ -151,7 +168,10 @@ fun SearchScreen(
                         fontSize = if (isTelevision) 16.sp else 14.sp,
                     ),
                     cursorBrush = SolidColor(RonecaColors.Primary),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(searchFocusRequester)
+                        .onFocusChanged { searchFocused = it.isFocused },
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))

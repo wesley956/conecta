@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -47,6 +50,7 @@ import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
+import kotlinx.coroutines.delay
 
 @Composable
 fun MovieDetailScreen(
@@ -60,6 +64,14 @@ fun MovieDetailScreen(
     onOpenRecommendation: (NativeMovie) -> Unit,
 ) {
     BackHandler(onBack = onBack)
+    val playFocusRequester = remember(movie.id) { FocusRequester() }
+
+    LaunchedEffect(movie.id, isTelevision) {
+        if (isTelevision) {
+            delay(160)
+            runCatching { playFocusRequester.requestFocus() }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -94,6 +106,7 @@ fun MovieDetailScreen(
                     isFavorite = isFavorite,
                     isTelevision = true,
                     modifier = Modifier.weight(1f),
+                    playFocusRequester = playFocusRequester,
                     onPlay = { onPlay(movie) },
                     onToggleFavorite = onToggleFavorite,
                 )
@@ -111,6 +124,7 @@ fun MovieDetailScreen(
                 isFavorite = isFavorite,
                 isTelevision = false,
                 modifier = Modifier.fillMaxWidth(),
+                playFocusRequester = playFocusRequester,
                 onPlay = { onPlay(movie) },
                 onToggleFavorite = onToggleFavorite,
             )
@@ -221,9 +235,11 @@ private fun MovieInfo(
     isFavorite: Boolean,
     isTelevision: Boolean,
     modifier: Modifier,
+    playFocusRequester: FocusRequester,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
+    val canPlay = movie.playbackUrls.isNotEmpty() || movie.primaryUrl.isNotBlank()
     Column(modifier = modifier) {
         Text(
             text = movie.category.ifBlank { "Filme" }.uppercase(),
@@ -258,8 +274,9 @@ private fun MovieInfo(
             DetailActionButton(
                 label = "▶  Assistir agora",
                 primary = true,
-                enabled = movie.playbackUrls.isNotEmpty() || movie.primaryUrl.isNotBlank(),
+                enabled = canPlay,
                 isTelevision = isTelevision,
+                focusRequester = if (canPlay) playFocusRequester else null,
                 onClick = onPlay,
             )
             DetailActionButton(
@@ -267,6 +284,7 @@ private fun MovieInfo(
                 primary = false,
                 enabled = true,
                 isTelevision = isTelevision,
+                focusRequester = if (canPlay) null else playFocusRequester,
                 onClick = onToggleFavorite,
             )
         }
@@ -279,20 +297,23 @@ private fun DetailActionButton(
     primary: Boolean,
     enabled: Boolean,
     isTelevision: Boolean,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
-    val background = when {
-        !enabled -> RonecaColors.Surface
-        primary -> RonecaColors.Primary
-        focused -> RonecaColors.SurfaceRaised
-        else -> RonecaColors.Surface
+    val requestModifier = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
+    val background = if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface
+    val foreground = when {
+        !enabled -> RonecaColors.TextMuted
+        primary && !focused -> RonecaColors.PrimaryStrong
+        else -> RonecaColors.TextPrimary
     }
-    val foreground = RonecaColors.TextPrimary
 
     Box(
         modifier = Modifier
+            .then(requestModifier)
+            .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(999.dp))
             .background(background)
             .border(
@@ -300,7 +321,7 @@ private fun DetailActionButton(
                 color = when {
                     !enabled -> RonecaColors.Border
                     focused -> RonecaColors.Focus
-                    primary -> RonecaColors.PrimaryStrong
+                    primary -> RonecaColors.Primary
                     else -> RonecaColors.Border
                 },
                 shape = RoundedCornerShape(999.dp),
