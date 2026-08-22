@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -51,6 +54,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.persistence.SavedProgress
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
+import kotlinx.coroutines.delay
 
 private data class PlaybackCardItem(
     val key: String,
@@ -165,6 +169,23 @@ fun PlaybackScreen(
     }
     val empty = favoriteChannels.isEmpty() && favoriteMovieCards.isEmpty() &&
         favoriteSeriesCards.isEmpty() && startedMovieCards.isEmpty() && startedSeriesCards.isEmpty()
+    val firstContentFocusRequester = remember { FocusRequester() }
+    val hasContinueContent = startedMovieCards.isNotEmpty() || startedSeriesCards.isNotEmpty()
+
+    LaunchedEffect(
+        isTelevision,
+        empty,
+        startedMovieCards.size,
+        startedSeriesCards.size,
+        favoriteChannels.size,
+        favoriteMovieCards.size,
+        favoriteSeriesCards.size,
+    ) {
+        if (isTelevision && !empty) {
+            delay(160)
+            runCatching { firstContentFocusRequester.requestFocus() }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -213,6 +234,7 @@ fun PlaybackScreen(
                     movies = startedMovieCards,
                     series = startedSeriesCards,
                     isTelevision = isTelevision,
+                    firstFocusRequester = firstContentFocusRequester,
                 )
             }
         }
@@ -222,6 +244,7 @@ fun PlaybackScreen(
                 ChannelSection(
                     channels = favoriteChannels,
                     isTelevision = isTelevision,
+                    firstFocusRequester = if (!hasContinueContent) firstContentFocusRequester else null,
                     onPlay = onPlayChannel,
                 )
             }
@@ -234,6 +257,9 @@ fun PlaybackScreen(
                     subtitle = "Sua seleção de filmes",
                     items = favoriteMovieCards,
                     isTelevision = isTelevision,
+                    firstFocusRequester = if (!hasContinueContent && favoriteChannels.isEmpty()) {
+                        firstContentFocusRequester
+                    } else null,
                 )
             }
         }
@@ -245,6 +271,11 @@ fun PlaybackScreen(
                     subtitle = "Séries adicionadas à Minha Lista",
                     items = favoriteSeriesCards,
                     isTelevision = isTelevision,
+                    firstFocusRequester = if (
+                        !hasContinueContent &&
+                        favoriteChannels.isEmpty() &&
+                        favoriteMovieCards.isEmpty()
+                    ) firstContentFocusRequester else null,
                 )
             }
         }
@@ -256,6 +287,7 @@ private fun ContinueSection(
     movies: List<PlaybackCardItem>,
     series: List<PlaybackCardItem>,
     isTelevision: Boolean,
+    firstFocusRequester: FocusRequester,
 ) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -283,6 +315,7 @@ private fun ContinueSection(
                     progress = item.progress,
                     badge = item.badge,
                     isTelevision = isTelevision,
+                    focusRequester = if (item.key == (movies + series).first().key) firstFocusRequester else null,
                     onClick = item.onClick,
                 )
             }
@@ -296,6 +329,7 @@ private fun MediaSection(
     subtitle: String,
     items: List<PlaybackCardItem>,
     isTelevision: Boolean,
+    firstFocusRequester: FocusRequester? = null,
 ) {
     Column {
         Text(
@@ -314,6 +348,7 @@ private fun MediaSection(
                     progress = item.progress,
                     badge = item.badge,
                     isTelevision = isTelevision,
+                    focusRequester = if (item.key == items.first().key) firstFocusRequester else null,
                     onClick = item.onClick,
                 )
             }
@@ -325,6 +360,7 @@ private fun MediaSection(
 private fun ChannelSection(
     channels: List<NativeChannel>,
     isTelevision: Boolean,
+    firstFocusRequester: FocusRequester? = null,
     onPlay: (NativeChannel) -> Unit,
 ) {
     Column {
@@ -341,6 +377,7 @@ private fun ChannelSection(
                 CompactChannelCard(
                     channel = channel,
                     isTelevision = isTelevision,
+                    focusRequester = if (channel.id == channels.first().id) firstFocusRequester else null,
                     onClick = { onPlay(channel) },
                 )
             }
@@ -355,14 +392,17 @@ private fun MediaCard(
     progress: Float,
     badge: String?,
     isTelevision: Boolean,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val width = if (isTelevision) 150.dp else 126.dp
+    val requestModifier = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
 
     Column(
         modifier = Modifier
+            .then(requestModifier)
             .width(width)
             .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(13.dp))
@@ -447,12 +487,15 @@ private fun MediaCard(
 private fun CompactChannelCard(
     channel: NativeChannel,
     isTelevision: Boolean,
+    focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
+    val requestModifier = if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
     Row(
         modifier = Modifier
+            .then(requestModifier)
             .width(if (isTelevision) 190.dp else 160.dp)
             .ronecaFocusScale(focused = focused, enabled = isTelevision)
             .clip(RoundedCornerShape(12.dp))

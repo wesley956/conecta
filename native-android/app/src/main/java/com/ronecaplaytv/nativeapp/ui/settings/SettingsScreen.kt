@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -46,6 +49,7 @@ import com.ronecaplaytv.nativeapp.ui.support.SupportDialog
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.delay
 
 data class PlayerSettingsState(
     val decoderMode: String = "Hardware",
@@ -82,6 +86,14 @@ fun SettingsScreen(
     onCheckForAppUpdate: () -> Unit,
 ) {
     var showSupportDialog by remember { mutableStateOf(false) }
+    val refreshFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isTelevision, refreshInProgress) {
+        if (isTelevision && !refreshInProgress) {
+            delay(160)
+            runCatching { refreshFocusRequester.requestFocus() }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -101,6 +113,7 @@ fun SettingsScreen(
                 isTelevision = isTelevision,
                 refreshing = refreshInProgress,
                 message = refreshMessage,
+                focusRequester = refreshFocusRequester,
                 onRefresh = onRefreshContent,
             )
         }
@@ -392,6 +405,7 @@ private fun RefreshCard(
     isTelevision: Boolean,
     refreshing: Boolean,
     message: String?,
+    focusRequester: FocusRequester,
     onRefresh: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -399,6 +413,7 @@ private fun RefreshCard(
 
     Row(
         modifier = Modifier
+            .focusRequester(focusRequester)
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(if (focused) RonecaColors.SurfaceRaised else RonecaColors.Surface)

@@ -51,7 +51,8 @@ object RonecaColors {
     val Red = Primary
     val RedStrong = PrimaryStrong
     val RedSoft = PrimarySoft
-    val Focus = RedStrong
+    // Focus must remain unmistakable even when the control already uses the brand red.
+    val Focus = Color(0xFFFFFFFF)
     val Purple = Color(0xFFB95A83)
     val Orange = Color(0xFFD27A3D)
     val Green = Color(0xFF4DBF82)

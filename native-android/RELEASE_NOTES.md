@@ -1,3 +1,11 @@
+# RonecaPlayTV 2.9.9
+
+- Remove o preenchimento totalmente vermelho dos botões e mantém o vermelho apenas como assinatura visual da marca.
+- Usa contorno branco, fundo grafite elevado e escala para tornar o Focus imediatamente identificável na TV.
+- Define foco inicial previsível em detalhes de filmes e séries, Busca, Minha Lista e Configurações.
+- Mostra nos detalhes da série a temporada, o episódio e o tempo onde a reprodução parou.
+- Abre automaticamente a temporada correta, destaca o episódio em andamento e retoma do checkpoint salvo.
+
 # RonecaPlayTV 2.9.8 — homologação
 
 - Move o crossfade final do ciclo de recomposição do Compose para uma única animação nativa preparada pela GPU, eliminando o engasgo do vídeo quando a marca aparece.

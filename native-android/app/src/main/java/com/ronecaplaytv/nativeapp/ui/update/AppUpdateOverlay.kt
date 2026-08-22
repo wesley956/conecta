@@ -374,8 +374,8 @@ private fun UpdateButton(
             .clip(RoundedCornerShape(12.dp))
             .background(
                 when {
-                    focused -> RonecaColors.Focus
-                    primary -> RonecaColors.Primary
+                    focused -> RonecaColors.SurfaceRaised
+                    primary -> RonecaColors.Surface
                     else -> RonecaColors.BackgroundSoft
                 },
             )
@@ -407,7 +407,7 @@ private fun UpdateButton(
     ) {
         Text(
             text = label,
-            color = RonecaColors.TextPrimary,
+            color = if (primary && !focused) RonecaColors.PrimaryStrong else RonecaColors.TextPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,

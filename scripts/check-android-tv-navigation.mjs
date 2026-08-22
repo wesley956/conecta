@@ -9,6 +9,7 @@ const [
   movies,
   series,
   focus,
+  actionCard,
   playerRouter,
   tests,
   categoryMode,
@@ -17,6 +18,13 @@ const [
   preferences,
   app,
   mainNavigation,
+  movieDetail,
+  seriesDetail,
+  seriesProgress,
+  search,
+  playback,
+  updateOverlay,
+  home,
   docs,
 ] = await Promise.all([
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/navigation/TvNavigationPolicy.kt'),
@@ -25,6 +33,7 @@ const [
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/movies/MoviesScreen.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/series/SeriesScreen.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/components/RonecaFocusVisual.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/components/FocusableActionCard.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/player/NativePlaybackKeyRouter.kt'),
   read('native-android/app/src/test/java/com/ronecaplaytv/nativeapp/ui/navigation/TvNavigationPolicyTest.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/settings/CategoryDisplayMode.kt'),
@@ -33,6 +42,13 @@ const [
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/persistence/PlayerSettingsPreferences.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/RonecaPlayTVApp.kt'),
   read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/navigation/MainNavigationBar.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/movies/MovieDetailScreen.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/series/SeriesDetailScreen.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/series/SeriesProgressResolver.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/search/SearchScreen.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/playback/PlaybackScreen.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/update/AppUpdateOverlay.kt'),
+  read('native-android/app/src/main/java/com/ronecaplaytv/nativeapp/ui/home/HomeScreen.kt'),
   read('native-android/TV_NAVIGATION_POLICY.md'),
 ]);
 
@@ -90,6 +106,23 @@ assert.match(app, /categoryPanelFocusRequestKey \+= 1/);
 assert.match(app, /openMainNavigationOverlay/);
 assert.match(mainNavigation, /selectedTabRequester\.requestFocus\(\)/);
 assert.match(mainNavigation, /focused -> 3\.dp/);
+
+assert.match(actionCard, /val Focus = Color\(0xFFFFFFFF\)/);
+assert.match(movieDetail, /playFocusRequester\.requestFocus\(\)/);
+assert.match(movieDetail, /focusRequester = if \(canPlay\) playFocusRequester else null/);
+assert.match(movieDetail, /val background = if \(focused\) RonecaColors\.SurfaceRaised else RonecaColors\.Surface/);
+assert.match(seriesDetail, /resolveSeriesResumeTarget\(series, progress\)/);
+assert.match(seriesDetail, /Continuar T\$\{target\.season\.number\}/);
+assert.match(seriesDetail, /primaryFocusRequester\.requestFocus\(\)/);
+assert.match(seriesDetail, /fillMaxWidth\(progress\.fraction\)/);
+assert.match(seriesProgress, /ContentIdentity\.episode\(series, season, episode\)/);
+assert.match(seriesProgress, /maxByOrNull \{ it\.progress\.updatedAt \}/);
+assert.match(search, /searchFocusRequester\.requestFocus\(\)/);
+assert.match(playback, /firstContentFocusRequester\.requestFocus\(\)/);
+assert.match(settings, /refreshFocusRequester\.requestFocus\(\)/);
+assert.doesNotMatch(home, /if \(primary\) RonecaColors\.PrimaryStrong/);
+assert.match(updateOverlay, /focused -> RonecaColors\.SurfaceRaised/);
+assert.match(updateOverlay, /primary -> RonecaColors\.Surface/);
 
 assert.match(playerRouter, /object NativePlaybackKeyRouter/);
 assert.match(tests, /120/);
