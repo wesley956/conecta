@@ -56,9 +56,9 @@ const SHELL_LIMIT = 700_000;
 const MEDIA_ENGINE_LIMIT = 600_000;
 const PLAYER_CORE_LIMIT = 130_000;
 // WEB-29–WEB-36 acrescentam continuidade, categorias, Configurações e PWA controlada.
-// O engine HLS continua lazy e o limite crítico de entry permanece inalterado; apenas
-// o teto total recebe 15 kB de margem explícita para o novo ciclo funcional.
-const TOTAL_LIMIT = 825_000;
+// O cache sanitizado do catálogo adiciona menos de 1 kB ao bundle, mas evita downloads
+// completos e repetidos do catálogo; os limites críticos de entry/engine seguem iguais.
+const TOTAL_LIMIT = 826_000;
 
 console.log('Web Player JS budget:');
 for (const row of rows) console.log(` - ${row.relative}: ${row.bytes} bytes`);
