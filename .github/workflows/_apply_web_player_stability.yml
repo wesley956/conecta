@@ -1,0 +1,859 @@
+name: Apply Web Player stability patch
+
+on:
+  push:
+    branches:
+      - codex/web-player-stability-homologation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-player-stability-homologation
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply targeted patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'expected block not found in {path}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # 1) Sanitized catalog cache + single-flight + stale-while-revalidate.
+          replace_once(
+              'web-player/src/api.ts',
+              "const REFRESH_KEY = 'roneca.web.refresh.v1';\nlet activeAccessToken: string | null = null;\nconst identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();",
+              "const REFRESH_KEY = 'roneca.web.refresh.v1';\nconst CATALOG_CACHE_KEY = 'roneca.web.catalog.v2';\nconst CATALOG_FRESH_MS = 2 * 60_000;\nconst CATALOG_STALE_MS = 30 * 60_000;\nlet activeAccessToken: string | null = null;\nconst identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();\ntype CatalogCacheEntry = { scope: string; storedAt: number; catalog: Catalog };\nlet catalogMemory: CatalogCacheEntry | null = null;\nconst catalogInflight = new Map<string, Promise<Catalog>>();"
+          )
+
+          replace_once(
+              'web-player/src/api.ts',
+              "export function clearIdentityRegistry() { identities.clear(); }\n\nexport class ApiError extends Error {",
+              """export function clearIdentityRegistry() { identities.clear(); }
+
+function registerCatalogIdentities(catalog: Catalog) {
+  for (const item of [...(catalog.channels || []), ...(catalog.movies || []), ...(catalog.series || [])]) registerIdentity(item);
+}
+
+function isCatalog(value: unknown): value is Catalog {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<Catalog>;
+  return Array.isArray(candidate.channels) && Array.isArray(candidate.movies) && Array.isArray(candidate.series);
+}
+
+async function catalogScope(accessToken: string) {
+  const material = readStoredRefreshToken() || accessToken;
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material)));
+  return [...digest.slice(0, 16)].map(value => value.toString(16).padStart(2, '0')).join('');
+}
+
+function readCatalogCache(scope: string): CatalogCacheEntry | null {
+  const now = Date.now();
+  if (catalogMemory?.scope === scope && now - catalogMemory.storedAt <= CATALOG_STALE_MS) return catalogMemory;
+  try {
+    const raw = window.sessionStorage.getItem(CATALOG_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CatalogCacheEntry>;
+    if (parsed.scope !== scope || typeof parsed.storedAt !== 'number' || !isCatalog(parsed.catalog)) return null;
+    if (now - parsed.storedAt > CATALOG_STALE_MS) {
+      window.sessionStorage.removeItem(CATALOG_CACHE_KEY);
+      return null;
+    }
+    catalogMemory = parsed as CatalogCacheEntry;
+    return catalogMemory;
+  } catch {
+    return null;
+  }
+}
+
+function writeCatalogCache(scope: string, catalog: Catalog) {
+  const entry: CatalogCacheEntry = { scope, storedAt: Date.now(), catalog };
+  catalogMemory = entry;
+  try { window.sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(entry)); } catch { /* storage indisponível */ }
+}
+
+export function clearCatalogCache() {
+  catalogMemory = null;
+  catalogInflight.clear();
+  try { window.sessionStorage.removeItem(CATALOG_CACHE_KEY); } catch { /* storage indisponível */ }
+}
+
+async function requestCatalog(accessToken: string, scope: string) {
+  const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
+  const catalog = {
+    catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
+    channels: result.channels, movies: result.movies, series: result.series,
+  } satisfies Catalog;
+  registerCatalogIdentities(catalog);
+  writeCatalogCache(scope, catalog);
+  window.dispatchEvent(new CustomEvent<Catalog>('roneca:web-catalog-updated', { detail: catalog }));
+  return catalog;
+}
+
+function refreshCatalog(accessToken: string, scope: string) {
+  const existing = catalogInflight.get(scope);
+  if (existing) return existing;
+  const request = requestCatalog(accessToken, scope).finally(() => {
+    if (catalogInflight.get(scope) === request) catalogInflight.delete(scope);
+  });
+  catalogInflight.set(scope, request);
+  return request;
+}
+
+export class ApiError extends Error {"""
+          )
+
+          replace_once(
+              'web-player/src/api.ts',
+              "  finally { activeAccessToken = null; clearIdentityRegistry(); storeRefreshToken(null); }",
+              "  finally { activeAccessToken = null; clearIdentityRegistry(); clearCatalogCache(); storeRefreshToken(null); }"
+          )
+
+          replace_once(
+              'web-player/src/api.ts',
+              """export async function fetchCatalog(accessToken: string) {
+  activeAccessToken = accessToken;
+  const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
+  for (const item of [...(result.channels || []), ...(result.movies || []), ...(result.series || [])]) registerIdentity(item);
+  return {
+    catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
+    channels: result.channels, movies: result.movies, series: result.series,
+  } satisfies Catalog;
+}""",
+              """export async function fetchCatalog(accessToken: string) {
+  activeAccessToken = accessToken;
+  const scope = await catalogScope(accessToken);
+  const cached = readCatalogCache(scope);
+  if (cached) {
+    registerCatalogIdentities(cached.catalog);
+    if (Date.now() - cached.storedAt > CATALOG_FRESH_MS) {
+      void refreshCatalog(accessToken, scope).catch(() => undefined);
+    }
+    return cached.catalog;
+  }
+  return await refreshCatalog(accessToken, scope);
+}"""
+          )
+
+          # Keep the visible catalog updated when the background revalidation finishes.
+          replace_once(
+              'web-player/src/ExperienceApp.tsx',
+              """  }, [auth.accessToken, loadCatalog]);
+
+  useEffect(() => {
+    setDetail(null);
+  }, [section]);""",
+              """  }, [auth.accessToken, loadCatalog]);
+
+  useEffect(() => {
+    const onCatalogUpdated = (event: Event) => {
+      const next = (event as CustomEvent<Catalog>).detail;
+      if (!next || !Array.isArray(next.channels) || !Array.isArray(next.movies) || !Array.isArray(next.series)) return;
+      setCatalog(next);
+      setCatalogError(null);
+      setCatalogStatus('ready');
+    };
+    window.addEventListener('roneca:web-catalog-updated', onCatalogUpdated);
+    return () => window.removeEventListener('roneca:web-catalog-updated', onCatalogUpdated);
+  }, []);
+
+  useEffect(() => {
+    setDetail(null);
+  }, [section]);"""
+          )
+
+          # 2) Player: debounce transient waiting and classify sustained stalls using actual progress + buffered seconds.
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """const STABLE_WINDOW_MS = 10_000;
+const WATCHDOG_TICK_MS = 5_000;
+const WATCHDOG_STALL_TICKS = 4;
+const HLS_LOCAL_MEDIA_RECOVERIES = 2;
+const HLS_LOCAL_NETWORK_RECOVERIES = 3;
+const HLS_LOCAL_STALL_RECOVERIES = 2;
+const CHROME_HIDE_MS = 2_900;""",
+              """const STABLE_WINDOW_MS = 10_000;
+const WATCHDOG_TICK_MS = 5_000;
+const WATCHDOG_STALL_GRACE_MS = 15_000;
+const WATCHDOG_STALL_TICKS = 2;
+const WATCHDOG_MIN_BUFFER_SECONDS = 1.25;
+const WAITING_NOTICE_MS = 1_200;
+const HLS_LOCAL_MEDIA_RECOVERIES = 2;
+const HLS_LOCAL_NETWORK_RECOVERIES = 2;
+const HLS_LOCAL_STALL_RECOVERIES = 1;
+const CHROME_HIDE_MS = 2_900;"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """function nativeMediaErrorCode(video: HTMLVideoElement) {
+  const code = video.error?.code || 0;
+  if (code === MediaError.MEDIA_ERR_NETWORK) return 'WEB_MEDIA_NETWORK_ERROR';
+  if (code === MediaError.MEDIA_ERR_DECODE) return 'WEB_MEDIA_DECODER_ERROR';
+  if (code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return 'WEB_MEDIA_CODEC_ERROR';
+  return 'WEB_MEDIA_ERROR';
+}
+""",
+              """function nativeMediaErrorCode(video: HTMLVideoElement) {
+  const code = video.error?.code || 0;
+  if (code === MediaError.MEDIA_ERR_NETWORK) return 'WEB_MEDIA_NETWORK_ERROR';
+  if (code === MediaError.MEDIA_ERR_DECODE) return 'WEB_MEDIA_DECODER_ERROR';
+  if (code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) return 'WEB_MEDIA_CODEC_ERROR';
+  return 'WEB_MEDIA_ERROR';
+}
+
+function bufferedAhead(video: HTMLVideoElement) {
+  const current = Number(video.currentTime || 0);
+  for (let index = 0; index < video.buffered.length; index += 1) {
+    const start = video.buffered.start(index);
+    const end = video.buffered.end(index);
+    if (current >= start - 0.25 && current <= end + 0.25) return Math.max(0, end - current);
+  }
+  return 0;
+}
+"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """  const stableTimerRef = useRef<number | null>(null);
+  const watchdogRef = useRef<number | null>(null);""",
+              """  const stableTimerRef = useRef<number | null>(null);
+  const waitingTimerRef = useRef<number | null>(null);
+  const watchdogRef = useRef<number | null>(null);"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """  const watchdogLastTimeRef = useRef(0);
+  const watchdogStallsRef = useRef(0);""",
+              """  const watchdogLastTimeRef = useRef(0);
+  const watchdogLastProgressAtRef = useRef(Date.now());
+  const watchdogStallsRef = useRef(0);"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """    watchdogLastTimeRef.current = 0;
+    watchdogStallsRef.current = 0;""",
+              """    watchdogLastTimeRef.current = 0;
+    watchdogLastProgressAtRef.current = Date.now();
+    watchdogStallsRef.current = 0;"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """    const clearStable = () => {
+      if (stableTimerRef.current) window.clearTimeout(stableTimerRef.current);
+      stableTimerRef.current = null;
+    };""",
+              """    const clearStable = () => {
+      if (stableTimerRef.current) window.clearTimeout(stableTimerRef.current);
+      stableTimerRef.current = null;
+    };
+    const clearWaitingNotice = () => {
+      if (waitingTimerRef.current) window.clearTimeout(waitingTimerRef.current);
+      waitingTimerRef.current = null;
+    };"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """    const onPlaying = () => {
+      if (disposed) return;
+      setReady(true);
+      setPlaying(true);
+      setRecoveryStatus(null);
+      watchdogStallsRef.current = 0;
+      hlsNetworkRecoveriesRef.current = 0;
+      markStable();
+    };
+    const onCanPlay = () => {
+      if (disposed) return;
+      setReady(true);
+      if (!recoveryBusyRef.current) setRecoveryStatus(null);
+    };
+    const onWaiting = () => {
+      if (disposed || recoveryBusyRef.current) return;
+      setRecoveryStatus('Carregando buffer…');
+    };""",
+              """    const onPlaying = () => {
+      if (disposed) return;
+      clearWaitingNotice();
+      setReady(true);
+      setPlaying(true);
+      setRecoveryStatus(null);
+      watchdogLastProgressAtRef.current = Date.now();
+      watchdogStallsRef.current = 0;
+      hlsNetworkRecoveriesRef.current = 0;
+      markStable();
+    };
+    const onCanPlay = () => {
+      if (disposed) return;
+      clearWaitingNotice();
+      setReady(true);
+      if (!recoveryBusyRef.current) setRecoveryStatus(null);
+    };
+    const onWaiting = () => {
+      if (disposed || recoveryBusyRef.current || waitingTimerRef.current) return;
+      waitingTimerRef.current = window.setTimeout(() => {
+        waitingTimerRef.current = null;
+        if (!disposed && !recoveryBusyRef.current && !video.paused && bufferedAhead(video) < WATCHDOG_MIN_BUFFER_SECONDS) {
+          setRecoveryStatus('Carregando buffer…');
+        }
+      }, WAITING_NOTICE_MS);
+    };"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """    const onTimeUpdate = () => {
+      setCurrentTime(video.currentTime || 0);
+      if (Number.isFinite(video.duration)) setDuration(video.duration);""",
+              """    const onTimeUpdate = () => {
+      watchdogLastProgressAtRef.current = Date.now();
+      setCurrentTime(video.currentTime || 0);
+      if (Number.isFinite(video.duration)) setDuration(video.duration);"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """          if (!httpCode && data.type === Hls.ErrorTypes.NETWORK_ERROR && hlsNetworkRecoveriesRef.current < HLS_LOCAL_NETWORK_RECOVERIES) {
+            hlsNetworkRecoveriesRef.current += 1;
+            setRecoveryStatus('Reforçando buffer…');
+            hls.startLoad(-1);
+            return;
+          }""",
+              """          if (!httpCode && data.type === Hls.ErrorTypes.NETWORK_ERROR && hlsNetworkRecoveriesRef.current < HLS_LOCAL_NETWORK_RECOVERIES) {
+            hlsNetworkRecoveriesRef.current += 1;
+            if (bufferedAhead(video) < WATCHDOG_MIN_BUFFER_SECONDS) setRecoveryStatus('Reforçando buffer…');
+            hls.startLoad();
+            return;
+          }"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """    watchdogRef.current = window.setInterval(() => {
+      if (disposed || recoveryBusyRef.current || video.paused || video.seeking || video.ended || document.hidden) return;
+      const current = Number(video.currentTime || 0);
+      if (current > watchdogLastTimeRef.current + 0.35) {
+        watchdogLastTimeRef.current = current;
+        watchdogStallsRef.current = 0;
+        watchdogSoftRecoveriesRef.current = 0;
+        return;
+      }
+      if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA || video.networkState === HTMLMediaElement.NETWORK_LOADING) return;
+      watchdogStallsRef.current += 1;
+      if (watchdogStallsRef.current >= WATCHDOG_STALL_TICKS) {
+        watchdogStallsRef.current = 0;
+        const hls = hlsRef.current;
+        if (hls && watchdogSoftRecoveriesRef.current < HLS_LOCAL_STALL_RECOVERIES) {
+          watchdogSoftRecoveriesRef.current += 1;
+          setRecoveryStatus('Reforçando buffer…');
+          hls.startLoad(-1);
+          void video.play().catch(() => undefined);
+          return;
+        }
+        void requestRecovery('WEB_WATCHDOG_STALL');
+      }
+    }, WATCHDOG_TICK_MS);""",
+              """    watchdogRef.current = window.setInterval(() => {
+      if (disposed || recoveryBusyRef.current || video.paused || video.seeking || video.ended || document.hidden) return;
+      const now = Date.now();
+      const current = Number(video.currentTime || 0);
+      if (current > watchdogLastTimeRef.current + 0.2) {
+        watchdogLastTimeRef.current = current;
+        watchdogLastProgressAtRef.current = now;
+        watchdogStallsRef.current = 0;
+        watchdogSoftRecoveriesRef.current = 0;
+        return;
+      }
+      const stalledFor = now - watchdogLastProgressAtRef.current;
+      const ahead = bufferedAhead(video);
+      if (stalledFor < WATCHDOG_STALL_GRACE_MS) return;
+      if (ahead >= WATCHDOG_MIN_BUFFER_SECONDS && stalledFor < WATCHDOG_STALL_GRACE_MS * 2) return;
+      watchdogStallsRef.current += 1;
+      if (watchdogStallsRef.current >= WATCHDOG_STALL_TICKS) {
+        watchdogStallsRef.current = 0;
+        const hls = hlsRef.current;
+        if (hls && watchdogSoftRecoveriesRef.current < HLS_LOCAL_STALL_RECOVERIES) {
+          watchdogSoftRecoveriesRef.current += 1;
+          if (ahead < WATCHDOG_MIN_BUFFER_SECONDS) setRecoveryStatus('Reforçando buffer…');
+          hls.startLoad();
+          void video.play().catch(() => undefined);
+          return;
+        }
+        void requestRecovery('WEB_WATCHDOG_STALL');
+      }
+    }, WATCHDOG_TICK_MS);"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """      checkpoint();
+      clearStable();
+      if (watchdogRef.current) window.clearInterval(watchdogRef.current);""",
+              """      checkpoint();
+      clearStable();
+      clearWaitingNotice();
+      if (watchdogRef.current) window.clearInterval(watchdogRef.current);"""
+          )
+
+          replace_once(
+              'web-player/src/player/WebPlayerCore.tsx',
+              """    if (stableTimerRef.current) window.clearTimeout(stableTimerRef.current);
+    if (watchdogRef.current) window.clearInterval(watchdogRef.current);""",
+              """    if (stableTimerRef.current) window.clearTimeout(stableTimerRef.current);
+    if (waitingTimerRef.current) window.clearTimeout(waitingTimerRef.current);
+    if (watchdogRef.current) window.clearInterval(watchdogRef.current);"""
+          )
+
+          # 3) Edge resolver returns a short-lived relay key only to the verified Vercel project.
+          replace_once(
+              'supabase/functions/_shared/webPlayerSecurity.ts',
+              """export async function clientIpHash(request: Request) {""",
+              """export async function deriveWebRelayKey(parentToken: string) {
+  if (!parentToken || parentToken.length > 4096) throw new Error('WEB_MEDIA_TOKEN_INVALID');
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secretMaterial()),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(`roneca:web:relay:v1:${parentToken}`),
+  ));
+  return base64UrlEncode(signature);
+}
+
+export async function clientIpHash(request: Request) {"""
+          )
+
+          replace_once(
+              'supabase/functions/web-player-media-resolve/index.ts',
+              """import {
+  openWebPayload,
+  sealWebPayload,
+} from '../_shared/webPlayerSecurity.ts';""",
+              """import {
+  deriveWebRelayKey,
+  openWebPayload,
+  sealWebPayload,
+} from '../_shared/webPlayerSecurity.ts';"""
+          )
+
+          replace_once(
+              'supabase/functions/web-player-media-resolve/index.ts',
+              """async function resolveMedia(body: Record<string, unknown>) {
+  const { payload } = await openMediaToken(body.token);
+  // Tokens filhos só são emitidos depois de uma validação completa do token pai
+  // e expiram em no máximo 2 minutos. Evitamos uma consulta ao banco por segmento
+  // HLS, mantendo a revogação estrita na autorização inicial e em cada manifesto.
+  if (payload.kind !== 'media-child') await validateSession(payload);
+  return json({
+    ok: true,
+    url: payload.url,
+    contentType: payload.contentType || null,
+    playlistRole: payload.playlistRole || null,
+    expiresAt: new Date(Number(payload.exp)).toISOString(),
+  });
+}""",
+              """async function resolveMedia(body: Record<string, unknown>) {
+  const { token, payload } = await openMediaToken(body.token);
+  // Tokens legados de segmento continuam compatíveis. Para tokens-pai, validamos
+  // a sessão e entregamos ao relay Vercel uma chave derivada de curta duração.
+  // Essa chave nunca vai ao navegador e permite ao relay proteger os filhos localmente.
+  let relayKey: string | null = null;
+  if (payload.kind !== 'media-child') {
+    await validateSession(payload);
+    relayKey = await deriveWebRelayKey(token);
+  }
+  return json({
+    ok: true,
+    url: payload.url,
+    contentType: payload.contentType || null,
+    playlistRole: payload.playlistRole || null,
+    expiresAt: new Date(Number(payload.exp)).toISOString(),
+    relayKey,
+  });
+}"""
+          )
+
+          # 4) Relay v4: one Supabase validation per warm relay/session window, then AES-GCM child tokens locally.
+          replace_once(
+              'api/web-media-relay-v3.js',
+              "import net from 'node:net';",
+              "import net from 'node:net';\nimport crypto from 'node:crypto';"
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """const CHILD_BATCH = 100;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);""",
+              """const CHILD_BATCH = 100;
+const RELAY_SESSION_CACHE_MS = 60_000;
+const LOCAL_CHILD_TTL_MS = 75_000;
+const MAX_RELAY_TOKEN_LENGTH = 16_384;
+const RELAY_CACHE_MAX = 512;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """const LEGACY_HTTPS_AGENT = new https.Agent({ keepAlive: true, maxSockets: 32, maxFreeSockets: 8, timeout: 30_000, rejectUnauthorized: false });
+""",
+              """const LEGACY_HTTPS_AGENT = new https.Agent({ keepAlive: true, maxSockets: 32, maxFreeSockets: 8, timeout: 30_000, rejectUnauthorized: false });
+const relaySessionCache = new Map();
+const relaySessionInflight = new Map();
+"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """  return body;
+}
+
+function boundedRange(raw, forceFileRange) {""",
+              """  return body;
+}
+
+function pruneRelaySessions() {
+  const now = Date.now();
+  for (const [key, value] of relaySessionCache) {
+    if (value.cachedUntil <= now) relaySessionCache.delete(key);
+  }
+  while (relaySessionCache.size > RELAY_CACHE_MAX) {
+    const first = relaySessionCache.keys().next().value;
+    if (!first) break;
+    relaySessionCache.delete(first);
+  }
+}
+
+function cacheRelaySession(parentToken, resolved) {
+  const relayKey = String(resolved?.relayKey || '');
+  const absoluteExpiry = new Date(String(resolved?.expiresAt || '')).getTime();
+  if (!relayKey || !Number.isFinite(absoluteExpiry) || absoluteExpiry <= Date.now()) return null;
+  const cached = {
+    relayKey,
+    url: String(resolved.url || ''),
+    contentType: resolved.contentType || null,
+    playlistRole: resolved.playlistRole || null,
+    expiresAt: new Date(absoluteExpiry).toISOString(),
+    cachedUntil: Math.min(absoluteExpiry, Date.now() + RELAY_SESSION_CACHE_MS),
+  };
+  relaySessionCache.set(parentToken, cached);
+  pruneRelaySessions();
+  return cached;
+}
+
+function cachedRelaySession(parentToken) {
+  const cached = relaySessionCache.get(parentToken);
+  if (!cached || cached.cachedUntil <= Date.now()) {
+    relaySessionCache.delete(parentToken);
+    return null;
+  }
+  return cached;
+}
+
+async function parentRelaySession(parentToken, oidc) {
+  const cached = cachedRelaySession(parentToken);
+  if (cached) return { ...cached, resolverMode: 'local' };
+  const pending = relaySessionInflight.get(parentToken);
+  if (pending) return await pending;
+  const request = (async () => {
+    const resolved = await resolver('resolve', { token: parentToken }, oidc);
+    const stored = cacheRelaySession(parentToken, resolved);
+    if (!stored) throw new Error('RELAY_KEY_UNAVAILABLE');
+    return { ...stored, resolverMode: 'remote' };
+  })().finally(() => relaySessionInflight.delete(parentToken));
+  relaySessionInflight.set(parentToken, request);
+  return await request;
+}
+
+function relayKeyBytes(value) {
+  const key = Buffer.from(String(value || ''), 'base64url');
+  if (key.length !== 32) throw new Error('RELAY_KEY_INVALID');
+  return key;
+}
+
+function sealLocalChild(parentToken, rawUrl, resolved, relayKey, expiresAt) {
+  const url = validateUrlShape(rawUrl).toString();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', relayKeyBytes(relayKey), iv);
+  cipher.setAAD(Buffer.from(`roneca-relay-v1:${parentToken}`));
+  const plaintext = Buffer.from(JSON.stringify({
+    v: 1,
+    url,
+    contentType: resolved.contentType || null,
+    playlistRole: resolved.playlistRole || null,
+    exp: expiresAt,
+  }));
+  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const body = Buffer.concat([iv, tag, encrypted]).toString('base64url');
+  return `r1.${parentToken}.${body}`;
+}
+
+function localChildEnvelope(token) {
+  if (!token.startsWith('r1.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3 || !parts[1] || !parts[2]) throw new Error('RELAY_CHILD_TOKEN_INVALID');
+  return { parentToken: parts[1], body: parts[2] };
+}
+
+async function openLocalChild(token, oidc) {
+  const envelope = localChildEnvelope(token);
+  if (!envelope) return null;
+  const session = await parentRelaySession(envelope.parentToken, oidc);
+  const combined = Buffer.from(envelope.body, 'base64url');
+  if (combined.length < 29) throw new Error('RELAY_CHILD_TOKEN_INVALID');
+  const iv = combined.subarray(0, 12);
+  const tag = combined.subarray(12, 28);
+  const encrypted = combined.subarray(28);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', relayKeyBytes(session.relayKey), iv);
+  decipher.setAAD(Buffer.from(`roneca-relay-v1:${envelope.parentToken}`));
+  decipher.setAuthTag(tag);
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8'));
+  } catch {
+    throw new Error('RELAY_CHILD_TOKEN_INVALID');
+  }
+  if (payload?.v !== 1 || typeof payload.url !== 'string' || Number(payload.exp || 0) <= Date.now()) {
+    throw new Error('RELAY_CHILD_TOKEN_INVALID');
+  }
+  return {
+    resolved: {
+      url: validateUrlShape(payload.url).toString(),
+      contentType: payload.contentType || session.contentType || null,
+      playlistRole: payload.playlistRole || session.playlistRole || null,
+      expiresAt: new Date(Number(payload.exp)).toISOString(),
+    },
+    parentToken: envelope.parentToken,
+    relayKey: session.relayKey,
+    resolverMode: session.resolverMode,
+  };
+}
+
+async function resolveRelayToken(token, oidc) {
+  const started = Date.now();
+  const local = await openLocalChild(token, oidc);
+  if (local) return { ...local, resolverMs: Date.now() - started };
+
+  const cached = cachedRelaySession(token);
+  if (cached) {
+    return {
+      resolved: cached,
+      parentToken: token,
+      relayKey: cached.relayKey,
+      resolverMode: 'local',
+      resolverMs: Date.now() - started,
+    };
+  }
+
+  const resolved = await resolver('resolve', { token }, oidc);
+  const stored = cacheRelaySession(token, resolved);
+  return {
+    resolved,
+    parentToken: stored ? token : null,
+    relayKey: stored?.relayKey || null,
+    resolverMode: 'remote',
+    resolverMs: Date.now() - started,
+  };
+}
+
+function boundedRange(raw, forceFileRange) {"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """async function sealUrlMap(parentToken, urls, oidc) {
+  const map = new Map();
+  for (let offset = 0; offset < urls.length; offset += CHILD_BATCH) {
+    const batch = urls.slice(offset, offset + CHILD_BATCH);
+    const result = await resolver('sealChildren', { parentToken, urls: batch }, oidc);
+    if (!Array.isArray(result.tokens) || result.tokens.length !== batch.length) throw new Error('RELAY_CHILD_TOKEN_MISMATCH');
+    batch.forEach((url, index) => map.set(url, result.tokens[index]));
+  }
+  return map;
+}
+""",
+              """async function sealUrlMap(parentToken, urls, oidc) {
+  const map = new Map();
+  for (let offset = 0; offset < urls.length; offset += CHILD_BATCH) {
+    const batch = urls.slice(offset, offset + CHILD_BATCH);
+    const result = await resolver('sealChildren', { parentToken, urls: batch }, oidc);
+    if (!Array.isArray(result.tokens) || result.tokens.length !== batch.length) throw new Error('RELAY_CHILD_TOKEN_MISMATCH');
+    batch.forEach((url, index) => map.set(url, result.tokens[index]));
+  }
+  return map;
+}
+
+function sealLocalUrlMap(parentToken, urls, resolved, relayKey) {
+  const map = new Map();
+  const absoluteExpiry = new Date(String(resolved.expiresAt || '')).getTime();
+  const expiresAt = Math.min(
+    Number.isFinite(absoluteExpiry) ? absoluteExpiry : Date.now() + LOCAL_CHILD_TTL_MS,
+    Date.now() + LOCAL_CHILD_TTL_MS,
+  );
+  for (const url of urls) map.set(url, sealLocalChild(parentToken, url, resolved, relayKey, expiresAt));
+  return map;
+}
+"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              "res.setHeader('X-Roneca-Relay', 'v3');",
+              "res.setHeader('X-Roneca-Relay', 'v4');"
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """    const token = String(requestUrl.searchParams.get('token') || '');
+    if (!token || token.length > 8192) return json(res, 400, { ok: false, code: 'WEB_MEDIA_TOKEN_INVALID' });
+    const oidc = runtimeOidc(req);
+    if (!oidc) return json(res, 503, { ok: false, code: 'WEB_MEDIA_RELAY_OIDC_UNAVAILABLE' });
+
+    const resolved = await resolver('resolve', { token }, oidc);
+    const target = validateUrlShape(resolved.url);""",
+              """    const token = String(requestUrl.searchParams.get('token') || '');
+    if (!token || token.length > MAX_RELAY_TOKEN_LENGTH) return json(res, 400, { ok: false, code: 'WEB_MEDIA_TOKEN_INVALID' });
+    const oidc = runtimeOidc(req);
+    if (!oidc) return json(res, 503, { ok: false, code: 'WEB_MEDIA_RELAY_OIDC_UNAVAILABLE' });
+
+    const relayResolution = await resolveRelayToken(token, oidc);
+    const resolved = relayResolution.resolved;
+    const target = validateUrlShape(resolved.url);"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """    const { response, url: finalUrl } = await requestUpstream(target.toString(), { method: req.method, range });
+    const status = Number(response.statusCode || 502);""",
+              """    const upstreamStarted = Date.now();
+    const { response, url: finalUrl } = await requestUpstream(target.toString(), { method: req.method, range });
+    const upstreamMs = Date.now() - upstreamStarted;
+    const status = Number(response.statusCode || 502);"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """      const urls = manifestUrls(body, finalUrl);
+      const tokenMap = await sealUrlMap(token, urls, oidc);
+      const rewritten = rewriteManifest(body, finalUrl, tokenMap);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store, private');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Roneca-Relay', 'v3');
+      return res.end(rewritten);""",
+              """      const rewriteStarted = Date.now();
+      const urls = manifestUrls(body, finalUrl);
+      const tokenMap = relayResolution.parentToken && relayResolution.relayKey
+        ? sealLocalUrlMap(relayResolution.parentToken, urls, resolved, relayResolution.relayKey)
+        : await sealUrlMap(token, urls, oidc);
+      const rewritten = rewriteManifest(body, finalUrl, tokenMap);
+      const rewriteMs = Date.now() - rewriteStarted;
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store, private');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Roneca-Relay', 'v4');
+      res.setHeader('X-Roneca-Relay-Resolver', relayResolution.resolverMode);
+      res.setHeader('Server-Timing', `resolver;dur=${relayResolution.resolverMs}, upstream;dur=${upstreamMs}, rewrite;dur=${rewriteMs}`);
+      return res.end(rewritten);"""
+          )
+
+          replace_once(
+              'api/web-media-relay-v3.js',
+              """    copyHeaders(response, res);
+    res.statusCode = status;""",
+              """    copyHeaders(response, res);
+    res.setHeader('X-Roneca-Relay-Resolver', relayResolution.resolverMode);
+    res.setHeader('Server-Timing', `resolver;dur=${relayResolution.resolverMs}, upstream;dur=${upstreamMs}`);
+    res.statusCode = status;"""
+          )
+
+          # Static regression contract.
+          Path('scripts/check-web-player-stability.mjs').write_text(r'''import fs from 'node:fs';
+
+const read = path => fs.readFileSync(path, 'utf8');
+const expect = (condition, message) => { if (!condition) throw new Error(message); };
+
+const api = read('web-player/src/api.ts');
+expect(api.includes('roneca.web.catalog.v2'), 'catalog cache key missing');
+expect(api.includes('catalogInflight'), 'catalog single-flight missing');
+expect(api.includes("roneca:web-catalog-updated"), 'catalog background refresh event missing');
+
+const experience = read('web-player/src/ExperienceApp.tsx');
+expect(experience.includes("addEventListener('roneca:web-catalog-updated'"), 'catalog refresh listener missing');
+
+const player = read('web-player/src/player/WebPlayerCore.tsx');
+expect(player.includes('WAITING_NOTICE_MS = 1_200'), 'waiting debounce missing');
+expect(player.includes('WATCHDOG_STALL_GRACE_MS = 15_000'), 'watchdog grace missing');
+expect(player.includes('bufferedAhead(video)'), 'buffer-aware watchdog missing');
+expect(!player.includes("setRecoveryStatus('Carregando buffer…');\n    };\n    const onNativeError"), 'waiting status still immediate');
+
+const relay = read('api/web-media-relay-v3.js');
+expect(relay.includes("X-Roneca-Relay', 'v4"), 'relay v4 marker missing');
+expect(relay.includes("createCipheriv('aes-256-gcm'"), 'local encrypted child tokens missing');
+expect(relay.includes('RELAY_SESSION_CACHE_MS = 60_000'), 'relay session cache window missing');
+expect(relay.includes('X-Roneca-Relay-Resolver'), 'relay resolver telemetry missing');
+
+const resolver = read('supabase/functions/web-player-media-resolve/index.ts');
+expect(resolver.includes('deriveWebRelayKey'), 'resolver relay key derivation missing');
+expect(resolver.includes('relayKey,'), 'resolver relay key response missing');
+
+const security = read('supabase/functions/_shared/webPlayerSecurity.ts');
+expect(security.includes('export async function deriveWebRelayKey'), 'shared relay key helper missing');
+
+console.log('web player stability contract: ok');
+''')
+
+          replace_once(
+              'package.json',
+              'node scripts/check-web-player-pwa.mjs"',
+              'node scripts/check-web-player-pwa.mjs && node scripts/check-web-player-stability.mjs"'
+          )
+          PY
+
+      - name: Verify relay syntax and stability contract
+        run: |
+          node --check api/web-media-relay-v3.js
+          node scripts/check-web-player-stability.mjs
+
+      - name: Build Web Player
+        run: |
+          npm ci --prefix web-player --no-audit --no-fund
+          npm run build --prefix web-player
+
+      - name: Commit verified patch
+        shell: bash
+        run: |
+          git rm .github/workflows/_apply_web_player_stability.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(web): stabilize catalog, relay and recovery"
+          git push origin HEAD:codex/web-player-stability-homologation
