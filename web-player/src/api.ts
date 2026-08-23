@@ -14,10 +14,14 @@ const FUNCTIONS_URL = String(
   'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1',
 ).replace(/\/$/, '');
 
-export const WEB_PLAYER_VERSION = '0.2.2';
+export const WEB_PLAYER_VERSION = '0.2.3';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
+const CATALOG_CACHE_PREFIX = 'roneca.web.catalog.v2.';
+const CATALOG_CACHE_TTL_MS = 5 * 60_000;
 let activeAccessToken: string | null = null;
+let activeCatalogCacheKey: string | null = null;
 const identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();
+const catalogInflight = new Map<string, Promise<Catalog>>();
 
 function registerIdentity(item: { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }) {
   if (!item.contentId || !item.contentKey) return;
@@ -31,6 +35,31 @@ export function getRegisteredIdentities() {
   return [...unique.values()];
 }
 export function clearIdentityRegistry() { identities.clear(); }
+
+function catalogCacheKey(accessToken: string) {
+  const material = readStoredRefreshToken() || accessToken;
+  let hash = 2166136261;
+  for (let index = 0; index < material.length; index += 1) hash = Math.imul(hash ^ material.charCodeAt(index), 16777619);
+  return `${CATALOG_CACHE_PREFIX}${(hash >>> 0).toString(36)}`;
+}
+
+function readCatalogCache(key: string) {
+  try {
+    const entry = JSON.parse(window.sessionStorage.getItem(key) || 'null') as { storedAt?: number; catalog?: Catalog } | null;
+    if (!entry?.catalog || Date.now() - Number(entry.storedAt || 0) > CATALOG_CACHE_TTL_MS) return null;
+    return entry.catalog;
+  } catch { return null; }
+}
+
+function writeCatalogCache(key: string, catalog: Catalog) {
+  try { window.sessionStorage.setItem(key, JSON.stringify({ storedAt: Date.now(), catalog })); } catch { /* storage indisponível */ }
+}
+
+export function clearCatalogCache() {
+  catalogInflight.clear();
+  try { if (activeCatalogCacheKey) window.sessionStorage.removeItem(activeCatalogCacheKey); } catch { /* storage indisponível */ }
+  activeCatalogCacheKey = null;
+}
 
 export class ApiError extends Error {
   code: string;
@@ -92,17 +121,34 @@ export async function fetchSession(accessToken: string) {
 }
 export async function logout(accessToken: string | null) {
   try { if (accessToken) await post('web-player-auth', { action: 'logout' }, accessToken); }
-  finally { activeAccessToken = null; clearIdentityRegistry(); storeRefreshToken(null); }
+  finally { activeAccessToken = null; clearIdentityRegistry(); clearCatalogCache(); storeRefreshToken(null); }
+}
+
+async function requestCatalog(accessToken: string, key: string) {
+  const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
+  const catalog = {
+    catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
+    channels: result.channels, movies: result.movies, series: result.series,
+  } satisfies Catalog;
+  for (const item of [...catalog.channels, ...catalog.movies, ...catalog.series]) registerIdentity(item);
+  writeCatalogCache(key, catalog);
+  return catalog;
 }
 
 export async function fetchCatalog(accessToken: string) {
   activeAccessToken = accessToken;
-  const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
-  for (const item of [...(result.channels || []), ...(result.movies || []), ...(result.series || [])]) registerIdentity(item);
-  return {
-    catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
-    channels: result.channels, movies: result.movies, series: result.series,
-  } satisfies Catalog;
+  const key = catalogCacheKey(accessToken);
+  activeCatalogCacheKey = key;
+  const cached = readCatalogCache(key);
+  if (cached) {
+    for (const item of [...cached.channels, ...cached.movies, ...cached.series]) registerIdentity(item);
+    return cached;
+  }
+  const running = catalogInflight.get(key);
+  if (running) return running;
+  const request = requestCatalog(accessToken, key).finally(() => catalogInflight.delete(key));
+  catalogInflight.set(key, request);
+  return request;
 }
 export async function fetchSeries(accessToken: string, contentId: string) {
   const result = await post<{

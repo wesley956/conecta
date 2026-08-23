@@ -57,7 +57,7 @@
     "check:android-tv-navigation": "node scripts/check-android-tv-navigation.mjs",
     "check:android-support-experience": "node scripts/check-android-support-experience.mjs",
     "check:android-subtitles": "node scripts/check-android-subtitles.mjs",
-    "check:web-player-batch2": "node --check admin-panel/web-access-management.js && node scripts/check-web-player-batch2.mjs && node scripts/check-web-player-pwa.mjs"
+    "check:web-player-batch2": "node --check admin-panel/web-access-management.js && node --check api/web-media-relay-v4.js && node scripts/check-web-player-batch2.mjs && node scripts/check-web-player-pwa.mjs"
   },
   "devDependencies": {
     "esbuild": "0.28.1",
