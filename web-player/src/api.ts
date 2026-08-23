@@ -14,10 +14,15 @@ const FUNCTIONS_URL = String(
   'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1',
 ).replace(/\/$/, '');
 
-export const WEB_PLAYER_VERSION = '0.2.2';
+export const WEB_PLAYER_VERSION = '0.2.3';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
+const CATALOG_CACHE_KEY = 'roneca.web.catalog.v2';
+const CATALOG_CACHE_TTL_MS = 5 * 60_000;
 let activeAccessToken: string | null = null;
 const identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();
+type CatalogCacheEntry = { scope: string; storedAt: number; catalog: Catalog };
+let catalogMemory: CatalogCacheEntry | null = null;
+const catalogInflight = new Map<string, Promise<Catalog>>();
 
 function registerIdentity(item: { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }) {
   if (!item.contentId || !item.contentKey) return;
@@ -31,6 +36,53 @@ export function getRegisteredIdentities() {
   return [...unique.values()];
 }
 export function clearIdentityRegistry() { identities.clear(); }
+
+function registerCatalogIdentities(catalog: Catalog) {
+  for (const item of [...(catalog.channels || []), ...(catalog.movies || []), ...(catalog.series || [])]) registerIdentity(item);
+}
+
+function isCatalog(value: unknown): value is Catalog {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<Catalog>;
+  return Array.isArray(candidate.channels) && Array.isArray(candidate.movies) && Array.isArray(candidate.series);
+}
+
+async function catalogScope(accessToken: string) {
+  const material = readStoredRefreshToken() || accessToken;
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material)));
+  return [...digest.slice(0, 16)].map(value => value.toString(16).padStart(2, '0')).join('');
+}
+
+function readCatalogCache(scope: string) {
+  const now = Date.now();
+  if (catalogMemory?.scope === scope && now - catalogMemory.storedAt <= CATALOG_CACHE_TTL_MS) return catalogMemory.catalog;
+  try {
+    const raw = window.sessionStorage.getItem(CATALOG_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CatalogCacheEntry>;
+    if (parsed.scope !== scope || typeof parsed.storedAt !== 'number' || !isCatalog(parsed.catalog)) return null;
+    if (now - parsed.storedAt > CATALOG_CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(CATALOG_CACHE_KEY);
+      return null;
+    }
+    catalogMemory = parsed as CatalogCacheEntry;
+    return catalogMemory.catalog;
+  } catch {
+    return null;
+  }
+}
+
+function writeCatalogCache(scope: string, catalog: Catalog) {
+  const entry: CatalogCacheEntry = { scope, storedAt: Date.now(), catalog };
+  catalogMemory = entry;
+  try { window.sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(entry)); } catch { /* storage indisponível */ }
+}
+
+export function clearCatalogCache() {
+  catalogMemory = null;
+  catalogInflight.clear();
+  try { window.sessionStorage.removeItem(CATALOG_CACHE_KEY); } catch { /* storage indisponível */ }
+}
 
 export class ApiError extends Error {
   code: string;
@@ -92,17 +144,39 @@ export async function fetchSession(accessToken: string) {
 }
 export async function logout(accessToken: string | null) {
   try { if (accessToken) await post('web-player-auth', { action: 'logout' }, accessToken); }
-  finally { activeAccessToken = null; clearIdentityRegistry(); storeRefreshToken(null); }
+  finally { activeAccessToken = null; clearIdentityRegistry(); clearCatalogCache(); storeRefreshToken(null); }
+}
+
+async function requestCatalog(accessToken: string, scope: string) {
+  const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
+  const catalog = {
+    catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
+    channels: result.channels, movies: result.movies, series: result.series,
+  } satisfies Catalog;
+  registerCatalogIdentities(catalog);
+  writeCatalogCache(scope, catalog);
+  return catalog;
+}
+
+function refreshCatalog(accessToken: string, scope: string) {
+  const existing = catalogInflight.get(scope);
+  if (existing) return existing;
+  const request = requestCatalog(accessToken, scope).finally(() => {
+    if (catalogInflight.get(scope) === request) catalogInflight.delete(scope);
+  });
+  catalogInflight.set(scope, request);
+  return request;
 }
 
 export async function fetchCatalog(accessToken: string) {
   activeAccessToken = accessToken;
-  const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
-  for (const item of [...(result.channels || []), ...(result.movies || []), ...(result.series || [])]) registerIdentity(item);
-  return {
-    catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
-    channels: result.channels, movies: result.movies, series: result.series,
-  } satisfies Catalog;
+  const scope = await catalogScope(accessToken);
+  const cached = readCatalogCache(scope);
+  if (cached) {
+    registerCatalogIdentities(cached);
+    return cached;
+  }
+  return await refreshCatalog(accessToken, scope);
 }
 export async function fetchSeries(accessToken: string, contentId: string) {
   const result = await post<{
