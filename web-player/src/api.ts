@@ -16,12 +16,11 @@ const FUNCTIONS_URL = String(
 
 export const WEB_PLAYER_VERSION = '0.2.3';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
-const CATALOG_CACHE_KEY = 'roneca.web.catalog.v2';
+const CATALOG_CACHE_PREFIX = 'roneca.web.catalog.v2.';
 const CATALOG_CACHE_TTL_MS = 5 * 60_000;
 let activeAccessToken: string | null = null;
+let activeCatalogCacheKey: string | null = null;
 const identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();
-type CatalogCacheEntry = { scope: string; storedAt: number; catalog: Catalog };
-let catalogMemory: CatalogCacheEntry | null = null;
 const catalogInflight = new Map<string, Promise<Catalog>>();
 
 function registerIdentity(item: { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }) {
@@ -37,51 +36,29 @@ export function getRegisteredIdentities() {
 }
 export function clearIdentityRegistry() { identities.clear(); }
 
-function registerCatalogIdentities(catalog: Catalog) {
-  for (const item of [...(catalog.channels || []), ...(catalog.movies || []), ...(catalog.series || [])]) registerIdentity(item);
-}
-
-function isCatalog(value: unknown): value is Catalog {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const candidate = value as Partial<Catalog>;
-  return Array.isArray(candidate.channels) && Array.isArray(candidate.movies) && Array.isArray(candidate.series);
-}
-
-async function catalogScope(accessToken: string) {
+function catalogCacheKey(accessToken: string) {
   const material = readStoredRefreshToken() || accessToken;
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material)));
-  return [...digest.slice(0, 16)].map(value => value.toString(16).padStart(2, '0')).join('');
+  let hash = 2166136261;
+  for (let index = 0; index < material.length; index += 1) hash = Math.imul(hash ^ material.charCodeAt(index), 16777619);
+  return `${CATALOG_CACHE_PREFIX}${(hash >>> 0).toString(36)}`;
 }
 
-function readCatalogCache(scope: string) {
-  const now = Date.now();
-  if (catalogMemory?.scope === scope && now - catalogMemory.storedAt <= CATALOG_CACHE_TTL_MS) return catalogMemory.catalog;
+function readCatalogCache(key: string) {
   try {
-    const raw = window.sessionStorage.getItem(CATALOG_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<CatalogCacheEntry>;
-    if (parsed.scope !== scope || typeof parsed.storedAt !== 'number' || !isCatalog(parsed.catalog)) return null;
-    if (now - parsed.storedAt > CATALOG_CACHE_TTL_MS) {
-      window.sessionStorage.removeItem(CATALOG_CACHE_KEY);
-      return null;
-    }
-    catalogMemory = parsed as CatalogCacheEntry;
-    return catalogMemory.catalog;
-  } catch {
-    return null;
-  }
+    const entry = JSON.parse(window.sessionStorage.getItem(key) || 'null') as { storedAt?: number; catalog?: Catalog } | null;
+    if (!entry?.catalog || Date.now() - Number(entry.storedAt || 0) > CATALOG_CACHE_TTL_MS) return null;
+    return entry.catalog;
+  } catch { return null; }
 }
 
-function writeCatalogCache(scope: string, catalog: Catalog) {
-  const entry: CatalogCacheEntry = { scope, storedAt: Date.now(), catalog };
-  catalogMemory = entry;
-  try { window.sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify(entry)); } catch { /* storage indisponível */ }
+function writeCatalogCache(key: string, catalog: Catalog) {
+  try { window.sessionStorage.setItem(key, JSON.stringify({ storedAt: Date.now(), catalog })); } catch { /* storage indisponível */ }
 }
 
 export function clearCatalogCache() {
-  catalogMemory = null;
   catalogInflight.clear();
-  try { window.sessionStorage.removeItem(CATALOG_CACHE_KEY); } catch { /* storage indisponível */ }
+  try { if (activeCatalogCacheKey) window.sessionStorage.removeItem(activeCatalogCacheKey); } catch { /* storage indisponível */ }
+  activeCatalogCacheKey = null;
 }
 
 export class ApiError extends Error {
@@ -147,36 +124,31 @@ export async function logout(accessToken: string | null) {
   finally { activeAccessToken = null; clearIdentityRegistry(); clearCatalogCache(); storeRefreshToken(null); }
 }
 
-async function requestCatalog(accessToken: string, scope: string) {
+async function requestCatalog(accessToken: string, key: string) {
   const result = await post<{ ok: true } & Catalog>('web-player-catalog', { action: 'catalog' }, accessToken);
   const catalog = {
     catalogVersion: result.catalogVersion, sourceRole: result.sourceRole, usingBackup: result.usingBackup,
     channels: result.channels, movies: result.movies, series: result.series,
   } satisfies Catalog;
-  registerCatalogIdentities(catalog);
-  writeCatalogCache(scope, catalog);
+  for (const item of [...catalog.channels, ...catalog.movies, ...catalog.series]) registerIdentity(item);
+  writeCatalogCache(key, catalog);
   return catalog;
-}
-
-function refreshCatalog(accessToken: string, scope: string) {
-  const existing = catalogInflight.get(scope);
-  if (existing) return existing;
-  const request = requestCatalog(accessToken, scope).finally(() => {
-    if (catalogInflight.get(scope) === request) catalogInflight.delete(scope);
-  });
-  catalogInflight.set(scope, request);
-  return request;
 }
 
 export async function fetchCatalog(accessToken: string) {
   activeAccessToken = accessToken;
-  const scope = await catalogScope(accessToken);
-  const cached = readCatalogCache(scope);
+  const key = catalogCacheKey(accessToken);
+  activeCatalogCacheKey = key;
+  const cached = readCatalogCache(key);
   if (cached) {
-    registerCatalogIdentities(cached);
+    for (const item of [...cached.channels, ...cached.movies, ...cached.series]) registerIdentity(item);
     return cached;
   }
-  return await refreshCatalog(accessToken, scope);
+  const running = catalogInflight.get(key);
+  if (running) return running;
+  const request = requestCatalog(accessToken, key).finally(() => catalogInflight.delete(key));
+  catalogInflight.set(key, request);
+  return request;
 }
 export async function fetchSeries(accessToken: string, contentId: string) {
   const result = await post<{
