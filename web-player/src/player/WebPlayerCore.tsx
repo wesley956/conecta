@@ -183,7 +183,7 @@ export function WebPlayer({
     setSubtitleTracks(hls.subtitleTracks.map((track, index) => ({ id: index, name: track.name || track.lang || `Legenda ${index + 1}` })));
   }, []);
 
-  const requestRecovery = useCallback(async (errorCode: string) => {
+  const requestRecovery = useCallback(async (errorCode: string, quiet = false) => {
     if (recoveryBusyRef.current) return;
     const token = getActiveAccessToken();
     if (!token) {
@@ -195,27 +195,43 @@ export function WebPlayer({
     const video = videoRef.current;
     if (!live && video && Number.isFinite(video.currentTime)) resumePositionRef.current = video.currentTime;
     if (!navigator.onLine) {
-      offlinePendingRef.current = true;
-      setRecoveryStatus('Sem conexão. A reprodução será retomada quando a internet voltar.');
+      if (!quiet) {
+        offlinePendingRef.current = true;
+        setRecoveryStatus('Sem conexão. A reprodução será retomada quando a internet voltar.');
+      }
       return;
     }
 
     recoveryBusyRef.current = true;
-    setError(null);
-    setRecoveryStatus('Verificando uma alternativa segura…');
-    const correlationId = crypto.randomUUID();
-    recoveryCorrelationRef.current = correlationId;
-    void reportWebDiagnostic(token, {
-      correlationId,
-      stage: 'recovery',
-      errorCode,
-      contentType: currentAuthorization.contentType,
-      playlistRole: currentAuthorization.playlistRole,
-      recovered: false,
-    }).catch(() => undefined);
+    if (!quiet) {
+      setError(null);
+      setRecoveryStatus('Verificando uma alternativa segura…');
+      const correlationId = crypto.randomUUID();
+      recoveryCorrelationRef.current = correlationId;
+      void reportWebDiagnostic(token, {
+        correlationId,
+        stage: 'recovery',
+        errorCode,
+        contentType: currentAuthorization.contentType,
+        playlistRole: currentAuthorization.playlistRole,
+        recovered: false,
+      }).catch(() => undefined);
+    }
 
     try {
       const next = await recoverPlayback(token, currentAuthorization.recoveryToken, errorCode);
+      if (quiet) {
+        authorizationRef.current = next;
+        const position = Number(video?.currentTime || 0);
+        const hls = hlsRef.current;
+        if (hls && currentAuthorization.mediaKind === 'hls' && next.mediaKind === 'hls') {
+          hls.loadSource(next.playbackUrl);
+          hls.startLoad(live ? -1 : Math.max(0, position - 0.5));
+          setActiveAuthorization(current => ({ ...next, playbackUrl: current.playbackUrl }));
+        } else setActiveAuthorization(next);
+        recoveryBusyRef.current = false;
+        return;
+      }
       const generation = generationRef.current;
       const apply = () => {
         if (generationRef.current !== generation) return;
@@ -234,6 +250,7 @@ export function WebPlayer({
     } catch (caught) {
       recoveryBusyRef.current = false;
       const apiError = caught instanceof ApiError ? caught : null;
+      if (quiet && apiError?.status !== 401 && !apiError?.code.startsWith('WEB_SESSION_')) return;
       if (apiError?.code === 'WEB_OFFLINE') {
         offlinePendingRef.current = true;
         setRecoveryStatus('Sem conexão. Aguardando internet…');
@@ -252,45 +269,15 @@ export function WebPlayer({
     }
   }, [live]);
 
-  const renewGatewayAuthorization = useCallback(async () => {
-    const currentAuthorization = authorizationRef.current;
-    if (currentAuthorization.mode !== 'gateway' || recoveryBusyRef.current || !navigator.onLine) return;
-    const token = getActiveAccessToken();
-    if (!token) return;
-    const generation = generationRef.current;
-    const video = videoRef.current;
-    try {
-      const next = await recoverPlayback(token, currentAuthorization.recoveryToken, 'WEB_PLAYBACK_TOKEN_EXPIRED');
-      if (generationRef.current !== generation) return;
-      authorizationRef.current = next;
-      const position = Number(video?.currentTime || 0);
-      if (!live && video && Number.isFinite(position)) resumePositionRef.current = position;
-      const hls = hlsRef.current;
-      if (hls && currentAuthorization.mediaKind === 'hls' && next.mediaKind === 'hls') {
-        hls.loadSource(next.playbackUrl);
-        hls.startLoad(live ? -1 : Math.max(0, position - 0.5));
-        setActiveAuthorization(current => ({ ...next, playbackUrl: current.playbackUrl }));
-      } else {
-        setActiveAuthorization(next);
-      }
-    } catch (caught) {
-      const apiError = caught instanceof ApiError ? caught : null;
-      if (apiError?.status === 401 || apiError?.code.startsWith('WEB_SESSION_')) {
-        setError('Sua sessão foi encerrada ou o aparelho não está mais autorizado.');
-        window.dispatchEvent(new CustomEvent('roneca:web-session-invalid'));
-      }
-    }
-  }, [live]);
-
   useEffect(() => {
     if (activeAuthorization.mode !== 'gateway') return;
     const renewIn = Math.max(5_000, new Date(activeAuthorization.expiresAt).getTime() - Date.now() - 90_000);
-    renewalTimerRef.current = window.setTimeout(() => void renewGatewayAuthorization(), renewIn);
+    renewalTimerRef.current = window.setTimeout(() => void requestRecovery('WEB_PLAYBACK_TOKEN_EXPIRED', true), renewIn);
     return () => {
       if (renewalTimerRef.current) window.clearTimeout(renewalTimerRef.current);
       renewalTimerRef.current = null;
     };
-  }, [activeAuthorization.expiresAt, activeAuthorization.mode, renewGatewayAuthorization]);
+  }, [activeAuthorization.expiresAt, activeAuthorization.mode, requestRecovery]);
 
   useEffect(() => {
     const onOnline = () => {
