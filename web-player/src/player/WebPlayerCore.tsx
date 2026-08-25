@@ -11,6 +11,19 @@ import type { EpgProgram, PlaybackAuthorization, WebChannel, WebEpisode } from '
 import { playerClock, resolveLiveEpg, selectQuickChannels, type PlayerEpisodeItem } from './premiumModel';
 
 type AspectMode = 'contain' | 'cover' | 'fill';
+type PlayerTrack = { id: number; name: string };
+type NativeAudioTrack = {
+  enabled: boolean;
+  id?: string;
+  kind?: string;
+  label?: string;
+  language?: string;
+};
+type NativeAudioTrackList = EventTarget & {
+  readonly length: number;
+  [index: number]: NativeAudioTrack;
+};
+type VideoWithNativeAudioTracks = HTMLVideoElement & { readonly audioTracks?: NativeAudioTrackList };
 
 type Props = {
   authorization: PlaybackAuthorization;
@@ -95,8 +108,10 @@ export function WebPlayer({
   const [currentTime, setCurrentTime] = useState(initialPosition);
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [audioTracks, setAudioTracks] = useState<Array<{ id: number; name: string }>>([]);
-  const [subtitleTracks, setSubtitleTracks] = useState<Array<{ id: number; name: string }>>([]);
+  const [audioTracks, setAudioTracks] = useState<PlayerTrack[]>([]);
+  const [subtitleTracks, setSubtitleTracks] = useState<PlayerTrack[]>([]);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState(-1);
+  const [selectedSubtitleTrack, setSelectedSubtitleTrack] = useState(-1);
   const live = activeAuthorization.contentType === 'channel';
 
   const favoriteChannels = useMemo(() => new Set(favoriteChannelIds), [favoriteChannelIds]);
@@ -181,6 +196,8 @@ export function WebPlayer({
   const syncTracks = useCallback((hls: Hls) => {
     setAudioTracks(hls.audioTracks.map((track, index) => ({ id: index, name: track.name || track.lang || `Áudio ${index + 1}` })));
     setSubtitleTracks(hls.subtitleTracks.map((track, index) => ({ id: index, name: track.name || track.lang || `Legenda ${index + 1}` })));
+    setSelectedAudioTrack(hls.audioTrack);
+    setSelectedSubtitleTrack(hls.subtitleTrack);
   }, []);
 
   const requestRecovery = useCallback(async (errorCode: string, quiet = false) => {
@@ -306,6 +323,8 @@ export function WebPlayer({
     setReady(false);
     setAudioTracks([]);
     setSubtitleTracks([]);
+    setSelectedAudioTrack(-1);
+    setSelectedSubtitleTrack(-1);
     lastCheckpointRef.current = 0;
     watchdogLastTimeRef.current = 0;
     watchdogStallsRef.current = 0;
@@ -533,6 +552,8 @@ export function WebPlayer({
       video.load();
       setAudioTracks([]);
       setSubtitleTracks([]);
+      setSelectedAudioTrack(-1);
+      setSelectedSubtitleTrack(-1);
     };
   }, [
     activeAuthorization.contentType,
@@ -545,6 +566,72 @@ export function WebPlayer({
     requestRecovery,
     syncTracks,
   ]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const textTracks = video.textTracks;
+    const audioTracksList = (video as VideoWithNativeAudioTracks).audioTracks;
+
+    const syncNativeTracks = () => {
+      if (hlsRef.current) return;
+
+      const nextAudioTracks: PlayerTrack[] = [];
+      let nextSelectedAudio = -1;
+      const currentAudioTracks = (video as VideoWithNativeAudioTracks).audioTracks;
+      if (currentAudioTracks) {
+        for (let index = 0; index < currentAudioTracks.length; index += 1) {
+          const track = currentAudioTracks[index];
+          if (!track) continue;
+          nextAudioTracks.push({
+            id: index,
+            name: track.label || track.language || `Áudio ${index + 1}`,
+          });
+          if (track.enabled) nextSelectedAudio = index;
+        }
+      }
+
+      const nextSubtitleTracks: PlayerTrack[] = [];
+      let nextSelectedSubtitle = -1;
+      for (let index = 0; index < textTracks.length; index += 1) {
+        const track = textTracks[index];
+        if (!track || (track.kind !== 'subtitles' && track.kind !== 'captions')) continue;
+        nextSubtitleTracks.push({
+          id: index,
+          name: track.label || track.language || `Legenda ${nextSubtitleTracks.length + 1}`,
+        });
+        if (track.mode === 'showing') nextSelectedSubtitle = index;
+      }
+
+      setAudioTracks(nextAudioTracks);
+      setSubtitleTracks(nextSubtitleTracks);
+      setSelectedAudioTrack(nextSelectedAudio >= 0 ? nextSelectedAudio : (nextAudioTracks[0]?.id ?? -1));
+      setSelectedSubtitleTrack(nextSelectedSubtitle);
+    };
+
+    const onNativeTrackChange = () => syncNativeTracks();
+    video.addEventListener('loadedmetadata', onNativeTrackChange);
+    video.addEventListener('canplay', onNativeTrackChange);
+    textTracks.addEventListener('addtrack', onNativeTrackChange);
+    textTracks.addEventListener('removetrack', onNativeTrackChange);
+    textTracks.addEventListener('change', onNativeTrackChange);
+    audioTracksList?.addEventListener('addtrack', onNativeTrackChange);
+    audioTracksList?.addEventListener('removetrack', onNativeTrackChange);
+    audioTracksList?.addEventListener('change', onNativeTrackChange);
+    const initialSync = window.setTimeout(syncNativeTracks, 0);
+
+    return () => {
+      window.clearTimeout(initialSync);
+      video.removeEventListener('loadedmetadata', onNativeTrackChange);
+      video.removeEventListener('canplay', onNativeTrackChange);
+      textTracks.removeEventListener('addtrack', onNativeTrackChange);
+      textTracks.removeEventListener('removetrack', onNativeTrackChange);
+      textTracks.removeEventListener('change', onNativeTrackChange);
+      audioTracksList?.removeEventListener('addtrack', onNativeTrackChange);
+      audioTracksList?.removeEventListener('removetrack', onNativeTrackChange);
+      audioTracksList?.removeEventListener('change', onNativeTrackChange);
+    };
+  }, [activeAuthorization.mediaKind, activeAuthorization.playbackUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -618,6 +705,39 @@ export function WebPlayer({
     if (!video) return;
     video.muted = !video.muted;
     setMuted(video.muted);
+  };
+  const selectAudioTrack = (id: number) => {
+    const hls = hlsRef.current;
+    if (hls) {
+      hls.audioTrack = id;
+      setSelectedAudioTrack(id);
+      return;
+    }
+    const video = videoRef.current;
+    const nativeTracks = video ? (video as VideoWithNativeAudioTracks).audioTracks : undefined;
+    if (!nativeTracks || id < 0 || id >= nativeTracks.length) return;
+    for (let index = 0; index < nativeTracks.length; index += 1) {
+      const track = nativeTracks[index];
+      if (track) track.enabled = index === id;
+    }
+    setSelectedAudioTrack(id);
+  };
+  const selectSubtitleTrack = (id: number) => {
+    const hls = hlsRef.current;
+    if (hls) {
+      hls.subtitleTrack = id;
+      setSelectedSubtitleTrack(id);
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) return;
+    const nativeTracks = video.textTracks;
+    for (let index = 0; index < nativeTracks.length; index += 1) {
+      const track = nativeTracks[index];
+      if (!track || (track.kind !== 'subtitles' && track.kind !== 'captions')) continue;
+      track.mode = index === id ? 'showing' : 'disabled';
+    }
+    setSelectedSubtitleTrack(id);
   };
   const seekTo = (value: number) => {
     const video = videoRef.current;
@@ -754,10 +874,10 @@ export function WebPlayer({
               <div className="player-expanded-settings" aria-label="Opções do player">
                 <div className="player-setting"><span>Aspecto</span><button type="button" onClick={cycleAspect}>{aspectLabel(aspect)}</button></div>
                 {audioTracks.length > 1 ? (
-                  <div className="player-setting"><label htmlFor="player-audio-track">Áudio</label><select id="player-audio-track" defaultValue={hlsRef.current?.audioTrack ?? -1} onChange={event => { if (hlsRef.current) hlsRef.current.audioTrack = Number(event.target.value); }}>{audioTracks.map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></div>
-                ) : <div className="player-setting"><span>Áudio</span><button type="button" disabled>Original</button></div>}
+                  <div className="player-setting"><label htmlFor="player-audio-track">Áudio</label><select id="player-audio-track" value={selectedAudioTrack} onChange={event => selectAudioTrack(Number(event.target.value))}>{selectedAudioTrack < 0 ? <option value="-1">Automático</option> : null}{audioTracks.map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></div>
+                ) : <div className="player-setting"><span>Áudio</span><button type="button" disabled>{audioTracks[0]?.name || 'Original'}</button></div>}
                 {subtitleTracks.length ? (
-                  <div className="player-setting"><label htmlFor="player-subtitle-track">Legenda</label><select id="player-subtitle-track" defaultValue="-1" onChange={event => { if (hlsRef.current) hlsRef.current.subtitleTrack = Number(event.target.value); }}><option value="-1">Desativada</option>{subtitleTracks.map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></div>
+                  <div className="player-setting"><label htmlFor="player-subtitle-track">Legenda</label><select id="player-subtitle-track" value={selectedSubtitleTrack} onChange={event => selectSubtitleTrack(Number(event.target.value))}><option value="-1">Desativada</option>{subtitleTracks.map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></div>
                 ) : <div className="player-setting"><span>Legenda</span><button type="button" disabled>Desativada</button></div>}
                 {document.pictureInPictureEnabled ? <div className="player-setting"><span>PiP</span><button type="button" onClick={() => void togglePip()}>Abrir</button></div> : null}
                 <div className="player-setting"><span>Tela cheia</span><button type="button" onClick={() => void toggleFullscreen()}>Alternar</button></div>
