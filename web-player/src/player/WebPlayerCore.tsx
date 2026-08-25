@@ -191,7 +191,7 @@ export function WebPlayer({
     if (recoveryBusyRef.current) return;
     const token = getActiveAccessToken();
     if (!token) {
-      setError('Sessão encerrada. Entre novamente.');
+      setError('Sessão encerrada.');
       window.dispatchEvent(new CustomEvent('roneca:web-session-invalid'));
       return;
     }
@@ -201,7 +201,7 @@ export function WebPlayer({
     if (!navigator.onLine) {
       if (!quiet) {
         offlinePendingRef.current = true;
-        setRecoveryStatus('Sem conexão. Aguardando internet…');
+        setRecoveryStatus('Sem conexão…');
       }
       return;
     }
@@ -209,7 +209,7 @@ export function WebPlayer({
     recoveryBusyRef.current = true;
     if (!quiet) {
       setError(null);
-      setRecoveryStatus('Verificando alternativa…');
+      setRecoveryStatus('Recuperando…');
       const correlationId = crypto.randomUUID();
       recoveryCorrelationRef.current = correlationId;
       void reportWebDiagnostic(token, {
@@ -240,7 +240,7 @@ export function WebPlayer({
       const apply = () => {
         if (generationRef.current !== generation) return;
         authorizationRef.current = next;
-        setRecoveryStatus(next.recovery?.failover ? 'Usando lista reserva.' : 'Retomando…');
+        setRecoveryStatus(next.recovery?.failover ? 'Lista reserva.' : 'Retomando…');
         setActiveAuthorization(next);
         recoveryBusyRef.current = false;
       };
@@ -259,14 +259,14 @@ export function WebPlayer({
         return;
       }
       if (apiError?.status === 401 || apiError?.code.startsWith('WEB_SESSION_')) {
-        setError('Sessão ou aparelho não autorizado.');
+        setError('Acesso não autorizado.');
         setRecoveryStatus(null);
         window.dispatchEvent(new CustomEvent('roneca:web-session-invalid'));
         return;
       }
       setError(apiError?.code === 'WEB_RECOVERY_EXHAUSTED'
-        ? 'Todas as origens foram testadas.'
-        : 'Falha ao recuperar reprodução.');
+        ? 'Origens esgotadas.'
+        : 'Falha na reprodução.');
       setRecoveryStatus(null);
     }
   }, [live]);
@@ -327,7 +327,7 @@ export function WebPlayer({
     };
     const clearBufferingStatus = () => {
       clearBuffering();
-      if (!recoveryBusyRef.current) setRecoveryStatus(current => current === 'Carregando buffer…' ? null : current);
+      if (!recoveryBusyRef.current) setRecoveryStatus(current => current === 'Buffer…' ? null : current);
     };
     const markStable = () => {
       clearStable();
@@ -392,7 +392,6 @@ export function WebPlayer({
       if (disposed) return;
       syncNativeTracks();
       clearBufferingStatus();
-      setReady(true);
       if (!recoveryBusyRef.current) setRecoveryStatus(null);
     };
     const onWaiting = () => {
@@ -400,7 +399,7 @@ export function WebPlayer({
       clearBuffering();
       bufferingTimerRef.current = window.setTimeout(() => {
         if (disposed || recoveryBusyRef.current) return;
-        setRecoveryStatus('Carregando buffer…');
+        setRecoveryStatus('Buffer…');
         bufferingTimerRef.current = null;
       }, BUFFERING_UI_DELAY_MS);
     };
@@ -486,7 +485,7 @@ export function WebPlayer({
           const httpCode = Number((data as any).response?.code || 0);
           if (!httpCode && data.type === Hls.ErrorTypes.MEDIA_ERROR && hlsMediaRecoveriesRef.current < HLS_LOCAL_MEDIA_RECOVERIES) {
             hlsMediaRecoveriesRef.current += 1;
-            setRecoveryStatus('Ajustando vídeo…');
+            setRecoveryStatus('Ajustando…');
             hls.recoverMediaError();
             return;
           }
@@ -551,8 +550,6 @@ export function WebPlayer({
       video.pause();
       video.removeAttribute('src');
       video.load();
-      setAudioTracks([]);
-      setSubtitleTracks([]);
     };
   }, [
     activeAuthorization.contentType,
@@ -665,9 +662,10 @@ export function WebPlayer({
     setExpanded(true);
     setChromeVisible(true);
   };
+  const levels = hlsRef.current?.levels || [];
 
   return (
-    <div className="player-overlay" role="dialog" aria-modal="true" aria-label={`Player ${title}`}>
+    <div className="player-overlay" role="dialog" aria-modal="true" aria-label={title}>
       <div
         className="player-frame premium-player"
         ref={frameRef}
@@ -724,7 +722,7 @@ export function WebPlayer({
                 {live && quickChannels.length ? (
                   <>
                     <div className="player-context-title"><span>Canais</span><button type="button" className="text-button" onClick={openChannelDrawer}>Todos</button></div>
-                    <div className="player-quick-channels" aria-label="Canais rápidos">
+                    <div className="player-quick-channels" aria-label="Canais">
                       {quickChannels.map(channel => (
                         <button
                           type="button"
@@ -741,7 +739,7 @@ export function WebPlayer({
                 ) : null}
 
                 {live && liveEpg.now ? (
-                  <div className="player-live-epg" aria-label="Programação">
+                  <div className="player-live-epg" aria-label="EPG">
                     <small>AGORA</small>
                     <strong>{liveEpg.now.title}</strong>
                     <small>{new Date(liveEpg.now.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - {new Date(liveEpg.now.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>
@@ -771,22 +769,25 @@ export function WebPlayer({
                   <div className="premium-time"><span>{playerClock(currentTime)}</span><span>{playerClock(duration)}</span></div>
                 </div>
               )}
-              <button className="premium-icon-button" type="button" onClick={toggleMute} aria-label={muted ? 'Ativar som' : 'Silenciar'}>{muted ? '🔇' : '🔊'}</button>
+              <button className="premium-icon-button" type="button" onClick={toggleMute} aria-label={muted ? 'Som' : 'Mudo'}>{muted ? '🔇' : '🔊'}</button>
             </div>
 
             <button
               className="player-expand-toggle"
               type="button"
               aria-expanded={expanded}
-              aria-label={expanded ? 'Fechar opções' : 'Abrir opções'}
+              aria-label={expanded ? 'Fechar' : 'Abrir'}
               onClick={() => setExpanded(value => !value)}
             >
               {expanded ? '⌃' : '⌄'}
             </button>
 
             {expanded ? (
-              <div className="player-expanded-settings" aria-label="Opções">
+              <div className="player-expanded-settings">
                 <div className="player-setting"><span>Aspecto</span><button type="button" onClick={cycleAspect}>{aspectLabel(aspect)}</button></div>
+                {levels.length > 1 ? (
+                  <div className="player-setting"><label htmlFor="player-quality">Qualidade</label><select id="player-quality" defaultValue="-1" onChange={event => { if (hlsRef.current) hlsRef.current.currentLevel = Number(event.target.value); }}><option value="-1">Auto</option>{levels.map((level, index) => <option key={index} value={index}>{level.height ? `${level.height}p` : `Nível ${index + 1}`}</option>)}</select></div>
+                ) : <div className="player-setting"><span>Qualidade</span><button type="button" disabled>{levels[0]?.height ? `${levels[0].height}p` : 'Original'}</button></div>}
                 {audioTracks.length > 1 ? (
                   <div className="player-setting"><label htmlFor="player-audio-track">Áudio</label><select id="player-audio-track" defaultValue={hlsRef.current?.audioTrack ?? -1} onChange={event => selectAudioTrack(Number(event.target.value))}>{audioTracks.map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></div>
                 ) : <div className="player-setting"><span>Áudio</span><button type="button" disabled>{audioTracks[0]?.name || 'Original'}</button></div>}
