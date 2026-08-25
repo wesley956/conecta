@@ -645,7 +645,10 @@ export function WebPlayer({
     if (hlsRef.current) hlsRef.current.audioTrack = id;
     else {
       const tracks = videoRef.current ? (videoRef.current as VideoWithNativeAudioTracks).audioTracks : undefined;
-      if (tracks) for (let index = 0; index < tracks.length; index += 1) if (tracks[index]) tracks[index].enabled = index === id;
+      if (tracks) for (let index = 0; index < tracks.length; index += 1) {
+        const track = tracks[index];
+        if (track) track.enabled = index === id;
+      }
     }
   };
   const selectSubtitleTrack = (id: number) => {
