@@ -23,7 +23,7 @@ export type RecoveryDecision = {
   backoffMs: number;
 };
 
-const TRANSIENT = new Set<RecoveryClass>(['offline','timeout','rate_limited','upstream','gateway','stall','token_expired']);
+const TRANSIENT = new Set<RecoveryClass>(['timeout','rate_limited','upstream','gateway','stall']);
 
 export function classifyRecoveryError(value: unknown, attempt = 0): RecoveryDecision {
   const code = String(value || '').toUpperCase().replace(/[^A-Z0-9_:-]/g, '').slice(0, 80);
@@ -46,14 +46,14 @@ export function classifyRecoveryError(value: unknown, attempt = 0): RecoveryDeci
   else if (/GATEWAY/.test(code)) classification = 'gateway';
   else if (/5\d\d|UPSTREAM/.test(code)) classification = 'upstream';
 
-  const retrySameOrigin = TRANSIENT.has(classification) && attempt < 3 && classification !== 'offline';
+  const tokenRefresh = classification === 'token_expired';
+  const retrySameOrigin = tokenRefresh || (TRANSIENT.has(classification) && attempt < 1);
   const advanceOrigin = !['cancelled','session','offline','token_expired'].includes(classification);
-  const schedule = [2_000, 4_000, 8_000];
   return {
     classification,
     retrySameOrigin,
     advanceOrigin,
-    backoffMs: classification === 'token_expired' ? 0 : retrySameOrigin ? schedule[Math.min(attempt, schedule.length - 1)] : 0,
+    backoffMs: tokenRefresh ? 0 : retrySameOrigin ? 1_000 : 0,
   };
 }
 

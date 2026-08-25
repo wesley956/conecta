@@ -28,11 +28,12 @@ type Props = {
 };
 
 const STABLE_WINDOW_MS = 10_000;
-const WATCHDOG_TICK_MS = 5_000;
-const WATCHDOG_STALL_TICKS = 4;
-const HLS_LOCAL_MEDIA_RECOVERIES = 2;
-const HLS_LOCAL_NETWORK_RECOVERIES = 3;
-const HLS_LOCAL_STALL_RECOVERIES = 2;
+const WATCHDOG_TICK_MS = 2_500;
+const WATCHDOG_STALL_TICKS = 3;
+const HLS_LOCAL_MEDIA_RECOVERIES = 1;
+const HLS_LOCAL_NETWORK_RECOVERIES = 1;
+const HLS_LOCAL_STALL_RECOVERIES = 1;
+const BUFFERING_UI_DELAY_MS = 1_500;
 const CHROME_HIDE_MS = 2_900;
 
 function aspectLabel(mode: AspectMode) { return mode === 'cover' ? 'Preencher' : mode === 'fill' ? 'Estender' : 'Original'; }
@@ -61,6 +62,7 @@ export function WebPlayer({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const authorizationRef = useRef(authorization);
   const lastCheckpointRef = useRef(0);
   const resumePositionRef = useRef(initialPosition);
   const recoveryBusyRef = useRef(false);
@@ -68,6 +70,7 @@ export function WebPlayer({
   const stableTimerRef = useRef<number | null>(null);
   const watchdogRef = useRef<number | null>(null);
   const renewalTimerRef = useRef<number | null>(null);
+  const bufferingTimerRef = useRef<number | null>(null);
   const chromeTimerRef = useRef<number | null>(null);
   const watchdogLastTimeRef = useRef(0);
   const watchdogStallsRef = useRef(0);
@@ -153,6 +156,7 @@ export function WebPlayer({
     watchdogSoftRecoveriesRef.current = 0;
     hlsMediaRecoveriesRef.current = 0;
     hlsNetworkRecoveriesRef.current = 0;
+    authorizationRef.current = authorization;
     setActiveAuthorization(authorization);
     setError(null);
     setRecoveryStatus(null);
@@ -179,7 +183,7 @@ export function WebPlayer({
     setSubtitleTracks(hls.subtitleTracks.map((track, index) => ({ id: index, name: track.name || track.lang || `Legenda ${index + 1}` })));
   }, []);
 
-  const requestRecovery = useCallback(async (errorCode: string) => {
+  const requestRecovery = useCallback(async (errorCode: string, quiet = false) => {
     if (recoveryBusyRef.current) return;
     const token = getActiveAccessToken();
     if (!token) {
@@ -187,33 +191,51 @@ export function WebPlayer({
       window.dispatchEvent(new CustomEvent('roneca:web-session-invalid'));
       return;
     }
+    const currentAuthorization = authorizationRef.current;
     const video = videoRef.current;
     if (!live && video && Number.isFinite(video.currentTime)) resumePositionRef.current = video.currentTime;
     if (!navigator.onLine) {
-      offlinePendingRef.current = true;
-      setRecoveryStatus('Sem conexão. A reprodução será retomada quando a internet voltar.');
+      if (!quiet) {
+        offlinePendingRef.current = true;
+        setRecoveryStatus('Sem conexão. A reprodução será retomada quando a internet voltar.');
+      }
       return;
     }
 
     recoveryBusyRef.current = true;
-    setError(null);
-    setRecoveryStatus('Verificando uma alternativa segura…');
-    const correlationId = crypto.randomUUID();
-    recoveryCorrelationRef.current = correlationId;
-    void reportWebDiagnostic(token, {
-      correlationId,
-      stage: 'recovery',
-      errorCode,
-      contentType: activeAuthorization.contentType,
-      playlistRole: activeAuthorization.playlistRole,
-      recovered: false,
-    }).catch(() => undefined);
+    if (!quiet) {
+      setError(null);
+      setRecoveryStatus('Verificando uma alternativa segura…');
+      const correlationId = crypto.randomUUID();
+      recoveryCorrelationRef.current = correlationId;
+      void reportWebDiagnostic(token, {
+        correlationId,
+        stage: 'recovery',
+        errorCode,
+        contentType: currentAuthorization.contentType,
+        playlistRole: currentAuthorization.playlistRole,
+        recovered: false,
+      }).catch(() => undefined);
+    }
 
     try {
-      const next = await recoverPlayback(token, activeAuthorization.recoveryToken, errorCode);
+      const next = await recoverPlayback(token, currentAuthorization.recoveryToken, errorCode);
+      if (quiet) {
+        authorizationRef.current = next;
+        const position = Number(video?.currentTime || 0);
+        const hls = hlsRef.current;
+        if (hls && currentAuthorization.mediaKind === 'hls' && next.mediaKind === 'hls') {
+          hls.loadSource(next.playbackUrl);
+          hls.startLoad(live ? -1 : Math.max(0, position - 0.5));
+          setActiveAuthorization(current => ({ ...next, playbackUrl: current.playbackUrl }));
+        } else setActiveAuthorization(next);
+        recoveryBusyRef.current = false;
+        return;
+      }
       const generation = generationRef.current;
       const apply = () => {
         if (generationRef.current !== generation) return;
+        authorizationRef.current = next;
         setRecoveryStatus(next.recovery?.failover
           ? 'Origem principal indisponível. Usando a lista reserva.'
           : 'Retomando reprodução…');
@@ -228,6 +250,7 @@ export function WebPlayer({
     } catch (caught) {
       recoveryBusyRef.current = false;
       const apiError = caught instanceof ApiError ? caught : null;
+      if (quiet && apiError?.status !== 401 && !apiError?.code.startsWith('WEB_SESSION_')) return;
       if (apiError?.code === 'WEB_OFFLINE') {
         offlinePendingRef.current = true;
         setRecoveryStatus('Sem conexão. Aguardando internet…');
@@ -244,7 +267,17 @@ export function WebPlayer({
         : 'Não foi possível recuperar esta reprodução.');
       setRecoveryStatus(null);
     }
-  }, [activeAuthorization.contentType, activeAuthorization.playlistRole, activeAuthorization.recoveryToken, live]);
+  }, [live]);
+
+  useEffect(() => {
+    if (activeAuthorization.mode !== 'gateway') return;
+    const renewIn = Math.max(5_000, new Date(activeAuthorization.expiresAt).getTime() - Date.now() - 90_000);
+    renewalTimerRef.current = window.setTimeout(() => void requestRecovery('WEB_PLAYBACK_TOKEN_EXPIRED', true), renewIn);
+    return () => {
+      if (renewalTimerRef.current) window.clearTimeout(renewalTimerRef.current);
+      renewalTimerRef.current = null;
+    };
+  }, [activeAuthorization.expiresAt, activeAuthorization.mode, requestRecovery]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -286,12 +319,21 @@ export function WebPlayer({
       if (stableTimerRef.current) window.clearTimeout(stableTimerRef.current);
       stableTimerRef.current = null;
     };
+    const clearBuffering = () => {
+      if (bufferingTimerRef.current) window.clearTimeout(bufferingTimerRef.current);
+      bufferingTimerRef.current = null;
+    };
+    const clearBufferingStatus = () => {
+      clearBuffering();
+      if (!recoveryBusyRef.current) setRecoveryStatus(current => current === 'Carregando buffer…' ? null : current);
+    };
     const markStable = () => {
       clearStable();
       stableTimerRef.current = window.setTimeout(() => {
         if (disposed || generationRef.current !== generation) return;
         setRecoveryStatus(null);
         hlsMediaRecoveriesRef.current = 0;
+        hlsNetworkRecoveriesRef.current = 0;
         watchdogSoftRecoveriesRef.current = 0;
         const token = getActiveAccessToken();
         const correlationId = recoveryCorrelationRef.current;
@@ -319,6 +361,7 @@ export function WebPlayer({
     };
     const onPlaying = () => {
       if (disposed) return;
+      clearBufferingStatus();
       setReady(true);
       setPlaying(true);
       setRecoveryStatus(null);
@@ -328,25 +371,34 @@ export function WebPlayer({
     };
     const onCanPlay = () => {
       if (disposed) return;
+      clearBufferingStatus();
       setReady(true);
       if (!recoveryBusyRef.current) setRecoveryStatus(null);
     };
     const onWaiting = () => {
       if (disposed || recoveryBusyRef.current) return;
-      setRecoveryStatus('Carregando buffer…');
+      clearBuffering();
+      bufferingTimerRef.current = window.setTimeout(() => {
+        if (disposed || recoveryBusyRef.current) return;
+        setRecoveryStatus('Carregando buffer…');
+        bufferingTimerRef.current = null;
+      }, BUFFERING_UI_DELAY_MS);
     };
     const onNativeError = () => { if (!disposed) void requestRecovery(nativeMediaErrorCode(video)); };
     const onPause = () => {
+      clearBuffering();
       setPlaying(false);
       checkpoint();
     };
     const onEnded = () => {
+      clearBuffering();
       setPlaying(false);
       checkpoint();
       setChromeVisible(true);
     };
     const onVolumeChange = () => setMuted(video.muted || video.volume <= 0);
     const onTimeUpdate = () => {
+      clearBufferingStatus();
       setCurrentTime(video.currentTime || 0);
       if (Number.isFinite(video.duration)) setDuration(video.duration);
       if (!live && onProgress) {
@@ -387,16 +439,16 @@ export function WebPlayer({
           enableWorker: true,
           lowLatencyMode: false,
           capLevelToPlayerSize: true,
-          backBufferLength: live ? 60 : 120,
-          maxBufferLength: live ? 60 : 120,
-          maxMaxBufferLength: live ? 120 : 180,
-          maxBufferSize: 64 * 1024 * 1024,
-          liveSyncDurationCount: live ? 6 : undefined,
-          liveMaxLatencyDurationCount: live ? 18 : undefined,
-          maxBufferHole: 0.8,
-          fragLoadingTimeOut: 30_000,
-          manifestLoadingTimeOut: 20_000,
-          levelLoadingTimeOut: 20_000,
+          backBufferLength: live ? 30 : 60,
+          maxBufferLength: live ? 30 : 60,
+          maxMaxBufferLength: live ? 60 : 90,
+          maxBufferSize: 32 * 1024 * 1024,
+          liveSyncDurationCount: live ? 4 : undefined,
+          liveMaxLatencyDurationCount: live ? 12 : undefined,
+          maxBufferHole: 0.5,
+          fragLoadingTimeOut: 12_000,
+          manifestLoadingTimeOut: 10_000,
+          levelLoadingTimeOut: 10_000,
         });
         hlsRef.current = hls;
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -420,7 +472,7 @@ export function WebPlayer({
           }
           if (!httpCode && data.type === Hls.ErrorTypes.NETWORK_ERROR && hlsNetworkRecoveriesRef.current < HLS_LOCAL_NETWORK_RECOVERIES) {
             hlsNetworkRecoveriesRef.current += 1;
-            setRecoveryStatus('Reforçando buffer…');
+            setRecoveryStatus('Recuperando conexão…');
             hls.startLoad(-1);
             return;
           }
@@ -444,14 +496,13 @@ export function WebPlayer({
         watchdogSoftRecoveriesRef.current = 0;
         return;
       }
-      if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA || video.networkState === HTMLMediaElement.NETWORK_LOADING) return;
       watchdogStallsRef.current += 1;
       if (watchdogStallsRef.current >= WATCHDOG_STALL_TICKS) {
         watchdogStallsRef.current = 0;
         const hls = hlsRef.current;
         if (hls && watchdogSoftRecoveriesRef.current < HLS_LOCAL_STALL_RECOVERIES) {
           watchdogSoftRecoveriesRef.current += 1;
-          setRecoveryStatus('Reforçando buffer…');
+          setRecoveryStatus('Conexão instável. Recuperando…');
           hls.startLoad(-1);
           void video.play().catch(() => undefined);
           return;
@@ -460,19 +511,13 @@ export function WebPlayer({
       }
     }, WATCHDOG_TICK_MS);
 
-    if (activeAuthorization.mode === 'gateway') {
-      const renewIn = Math.max(5_000, new Date(activeAuthorization.expiresAt).getTime() - Date.now() - 60_000);
-      renewalTimerRef.current = window.setTimeout(() => void requestRecovery('WEB_PLAYBACK_TOKEN_EXPIRED'), renewIn);
-    }
-
     return () => {
       disposed = true;
       checkpoint();
       clearStable();
+      clearBuffering();
       if (watchdogRef.current) window.clearInterval(watchdogRef.current);
-      if (renewalTimerRef.current) window.clearTimeout(renewalTimerRef.current);
       watchdogRef.current = null;
-      renewalTimerRef.current = null;
       video.removeEventListener('loadedmetadata', markReady);
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('canplay', onCanPlay);
@@ -489,7 +534,17 @@ export function WebPlayer({
       setAudioTracks([]);
       setSubtitleTracks([]);
     };
-  }, [activeAuthorization, checkpoint, live, onProgress, requestRecovery, syncTracks]);
+  }, [
+    activeAuthorization.contentType,
+    activeAuthorization.mediaKind,
+    activeAuthorization.playbackUrl,
+    activeAuthorization.playlistRole,
+    checkpoint,
+    live,
+    onProgress,
+    requestRecovery,
+    syncTracks,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -526,6 +581,7 @@ export function WebPlayer({
     if (stableTimerRef.current) window.clearTimeout(stableTimerRef.current);
     if (watchdogRef.current) window.clearInterval(watchdogRef.current);
     if (renewalTimerRef.current) window.clearTimeout(renewalTimerRef.current);
+    if (bufferingTimerRef.current) window.clearTimeout(bufferingTimerRef.current);
     clearChromeTimer();
     recoveryBusyRef.current = false;
   }, [clearChromeTimer]);
