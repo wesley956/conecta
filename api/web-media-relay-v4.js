@@ -7,8 +7,10 @@ import crypto from 'node:crypto';
 const RESOLVER_URL = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/web-player-media-resolve-v4';
 const MAX_REDIRECTS = 4;
 const HEADER_TIMEOUT_MS = 20_000;
+const UPSTREAM_IDLE_TIMEOUT_MS = 10_000;
 const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
-const MAX_RANGE_BYTES = 64 * 1024 * 1024;
+const MAX_RANGE_BYTES = 8 * 1024 * 1024;
+const FILE_RESUME_ATTEMPTS = 2;
 const CHILD_BATCH = 100;
 const RELAY_SESSION_CACHE_MS = 60_000;
 const LOCAL_CHILD_TTL_MS = 75_000;
@@ -32,6 +34,10 @@ const relaySessionCache = new Map();
 const relaySessionInflight = new Map();
 
 function json(res, status, body) {
+  if (res.headersSent) {
+    try { res.destroy(); } catch { /* noop */ }
+    return;
+  }
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, private');
@@ -293,6 +299,16 @@ function boundedRange(raw, forceFileRange) {
   return forceFileRange ? `bytes=0-${MAX_RANGE_BYTES - 1}` : '';
 }
 
+function parseContentRange(value) {
+  const match = String(value || '').match(/^bytes\s+(\d+)-(\d+)\/(\d+|\*)$/i);
+  if (!match) return null;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const total = match[3] === '*' ? null : Number(match[3]);
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) return null;
+  return { start, end, total: Number.isSafeInteger(total) ? total : null };
+}
+
 function isManifestUrl(url) {
   return /\.m3u8(?:$|\?)/i.test(url.toString());
 }
@@ -336,6 +352,99 @@ async function requestUpstream(rawUrl, options = {}, redirectsLeft = MAX_REDIREC
     request.on('error', reject);
     request.end();
   });
+}
+
+function waitForDrain(res) {
+  if (!res.writableNeedDrain) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      res.off('drain', onDrain);
+      res.off('close', onClose);
+    };
+    const onDrain = () => { done(); resolve(); };
+    const onClose = () => { done(); reject(new Error('RELAY_CLIENT_ABORT')); };
+    res.once('drain', onDrain);
+    res.once('close', onClose);
+  });
+}
+
+async function pumpUpstream(upstream, req, res) {
+  let bytes = 0;
+  const iterator = upstream[Symbol.asyncIterator]();
+  const abort = () => {
+    if (!upstream.destroyed) upstream.destroy(new Error('RELAY_CLIENT_ABORT'));
+  };
+  req.once('aborted', abort);
+  const onClose = () => {
+    if (!res.writableEnded) abort();
+  };
+  res.once('close', onClose);
+  try {
+    while (true) {
+      const next = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          const error = new Error('RELAY_UPSTREAM_IDLE');
+          if (!upstream.destroyed) upstream.destroy(error);
+          reject(error);
+        }, UPSTREAM_IDLE_TIMEOUT_MS);
+        Promise.resolve(iterator.next()).then(
+          value => { clearTimeout(timer); resolve(value); },
+          error => { clearTimeout(timer); reject(error); },
+        );
+      });
+      if (next.done) return { bytes, complete: true };
+      const chunk = Buffer.isBuffer(next.value) ? next.value : Buffer.from(next.value);
+      bytes += chunk.length;
+      if (!res.write(chunk)) await waitForDrain(res);
+    }
+  } catch (error) {
+    return { bytes, complete: false, error };
+  } finally {
+    req.off('aborted', abort);
+    res.off('close', onClose);
+  }
+}
+
+async function relayResumableRange(initialResponse, initialUrl, initialContentRange, req, res) {
+  const expectedBytes = initialContentRange.end - initialContentRange.start + 1;
+  let delivered = 0;
+  let attempts = 0;
+  let upstream = initialResponse;
+  let currentUrl = initialUrl.toString();
+  let lastError = null;
+
+  while (delivered < expectedBytes) {
+    const result = await pumpUpstream(upstream, req, res);
+    delivered += result.bytes;
+    lastError = result.error || null;
+
+    if (req.aborted || res.destroyed || res.writableEnded) return;
+    if (delivered >= expectedBytes) break;
+    if (attempts >= FILE_RESUME_ATTEMPTS) {
+      throw lastError || new Error('RELAY_UPSTREAM_TRUNCATED');
+    }
+
+    attempts += 1;
+    const nextStart = initialContentRange.start + delivered;
+    const nextRange = `bytes=${nextStart}-${initialContentRange.end}`;
+    console.warn('web-media-relay-v5-resume', {
+      attempt: attempts,
+      remainingBytes: Math.max(0, expectedBytes - delivered),
+      reason: String(lastError?.message || 'RELAY_UPSTREAM_TRUNCATED').slice(0, 80),
+    });
+
+    const next = await requestUpstream(currentUrl, { method: 'GET', range: nextRange });
+    const nextStatus = Number(next.response.statusCode || 502);
+    const nextContentRange = parseContentRange(next.response.headers['content-range']);
+    if (nextStatus !== 206 || !nextContentRange || nextContentRange.start !== nextStart) {
+      next.response.resume();
+      throw new Error('RELAY_RANGE_RESUME_UNSUPPORTED');
+    }
+    upstream = next.response;
+    currentUrl = next.url.toString();
+  }
+
+  if (!res.writableEnded && !res.destroyed) res.end();
 }
 
 async function readLimited(stream, maxBytes) {
@@ -424,7 +533,34 @@ function copyHeaders(upstream, res) {
   res.setHeader('Cache-Control', 'private, max-age=15');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-  res.setHeader('X-Roneca-Relay', 'v4');
+  res.setHeader('X-Roneca-Relay', 'v5');
+}
+
+function guardSimpleStream(upstream, req, res) {
+  let timer = null;
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  const arm = () => {
+    clear();
+    timer = setTimeout(() => {
+      if (!upstream.destroyed) upstream.destroy(new Error('RELAY_UPSTREAM_IDLE'));
+    }, UPSTREAM_IDLE_TIMEOUT_MS);
+  };
+  const abort = () => {
+    clear();
+    if (!upstream.destroyed) upstream.destroy(new Error('RELAY_CLIENT_ABORT'));
+  };
+  upstream.on('data', arm);
+  upstream.once('end', clear);
+  upstream.once('close', clear);
+  upstream.once('error', clear);
+  req.once('aborted', abort);
+  res.once('close', () => {
+    if (!res.writableEnded) abort();
+  });
+  arm();
 }
 
 export default async function handler(req, res) {
@@ -467,7 +603,7 @@ export default async function handler(req, res) {
       res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store, private');
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.setHeader('X-Roneca-Relay', 'v4');
+      res.setHeader('X-Roneca-Relay', 'v5');
       res.setHeader('X-Roneca-Relay-Resolver', relayResolution.resolverMode);
       res.setHeader('Server-Timing', `resolver;dur=${relayResolution.resolverMs}, upstream;dur=${upstreamMs}, rewrite;dur=${rewriteMs}`);
       return res.end(rewritten);
@@ -475,6 +611,7 @@ export default async function handler(req, res) {
 
     copyHeaders(response, res);
     res.setHeader('X-Roneca-Relay-Resolver', relayResolution.resolverMode);
+    res.setHeader('X-Roneca-Relay-Range-Cap', String(MAX_RANGE_BYTES));
     res.setHeader('Server-Timing', `resolver;dur=${relayResolution.resolverMs}, upstream;dur=${upstreamMs}`);
     res.statusCode = status;
     if (req.method === 'HEAD') {
@@ -490,12 +627,28 @@ export default async function handler(req, res) {
       }
     }
 
-    response.on('error', () => { try { res.destroy(); } catch { /* noop */ } });
+    const contentRange = fileMedia && status === 206
+      ? parseContentRange(response.headers['content-range'])
+      : null;
+    if (contentRange) {
+      res.flushHeaders?.();
+      await relayResumableRange(response, finalUrl, contentRange, req, res);
+      return;
+    }
+
+    guardSimpleStream(response, req, res);
+    response.on('error', error => {
+      if (!res.headersSent) return json(res, 502, { ok: false, code: 'WEB_MEDIA_UPSTREAM_STREAM' });
+      console.warn('web-media-relay-v5-stream', {
+        code: String(error?.message || 'RELAY_STREAM_ERROR').slice(0, 80),
+      });
+      try { res.destroy(); } catch { /* noop */ }
+    });
     response.pipe(res);
   } catch (error) {
     const status = Number(error?.status || 0);
     if (status === 401) return json(res, 401, { ok: false, code: 'WEB_MEDIA_UNAUTHORIZED' });
-    console.error('web-media-relay-v4', {
+    console.error('web-media-relay-v5', {
       code: String(error?.message || 'RELAY_ERROR').replace(/https?:\/\/\S+/g, '[url]').slice(0, 160),
     });
     return json(res, 502, { ok: false, code: 'WEB_MEDIA_RELAY_ERROR' });
