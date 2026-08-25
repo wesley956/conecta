@@ -34,7 +34,6 @@ const HLS_LOCAL_MEDIA_RECOVERIES = 1;
 const HLS_LOCAL_NETWORK_RECOVERIES = 1;
 const HLS_LOCAL_STALL_RECOVERIES = 1;
 const BUFFERING_UI_DELAY_MS = 1_500;
-const TOKEN_RENEW_MARGIN_MS = 90_000;
 const CHROME_HIDE_MS = 2_900;
 
 function aspectLabel(mode: AspectMode) { return mode === 'cover' ? 'Preencher' : mode === 'fill' ? 'Estender' : 'Original'; }
@@ -83,7 +82,6 @@ export function WebPlayer({
   const generationRef = useRef(0);
 
   const [activeAuthorization, setActiveAuthorization] = useState(authorization);
-  const [renewalExpiresAt, setRenewalExpiresAt] = useState(authorization.expiresAt);
   const [aspect, setAspect] = useState<AspectMode>('contain');
   const [error, setError] = useState<string | null>(null);
   const [recoveryStatus, setRecoveryStatus] = useState<string | null>(null);
@@ -160,7 +158,6 @@ export function WebPlayer({
     hlsNetworkRecoveriesRef.current = 0;
     authorizationRef.current = authorization;
     setActiveAuthorization(authorization);
-    setRenewalExpiresAt(authorization.expiresAt);
     setError(null);
     setRecoveryStatus(null);
     setCurrentTime(initialPosition);
@@ -223,7 +220,6 @@ export function WebPlayer({
       const apply = () => {
         if (generationRef.current !== generation) return;
         authorizationRef.current = next;
-        setRenewalExpiresAt(next.expiresAt);
         setRecoveryStatus(next.recovery?.failover
           ? 'Origem principal indisponível. Usando a lista reserva.'
           : 'Retomando reprodução…');
@@ -267,32 +263,16 @@ export function WebPlayer({
       const next = await recoverPlayback(token, currentAuthorization.recoveryToken, 'WEB_PLAYBACK_TOKEN_EXPIRED');
       if (generationRef.current !== generation) return;
       authorizationRef.current = next;
-      setRenewalExpiresAt(next.expiresAt);
-
-      if (currentAuthorization.mediaKind !== 'hls' || next.mediaKind !== 'hls' || !video) return;
-      const position = Number(video.currentTime || 0);
-      if (!live && Number.isFinite(position)) resumePositionRef.current = position;
+      const position = Number(video?.currentTime || 0);
+      if (!live && video && Number.isFinite(position)) resumePositionRef.current = position;
       const hls = hlsRef.current;
-      if (hls) {
-        const startPosition = live ? -1 : Math.max(0, position - 0.5);
-        hls.stopLoad();
+      if (hls && currentAuthorization.mediaKind === 'hls' && next.mediaKind === 'hls') {
         hls.loadSource(next.playbackUrl);
-        hls.startLoad(startPosition);
-        if (!video.paused) void video.play().catch(() => undefined);
-        return;
+        hls.startLoad(live ? -1 : Math.max(0, position - 0.5));
+        setActiveAuthorization(current => ({ ...next, playbackUrl: current.playbackUrl }));
+      } else {
+        setActiveAuthorization(next);
       }
-
-      const wasPlaying = !video.paused;
-      video.src = next.playbackUrl;
-      video.load();
-      const resumeNative = () => {
-        video.removeEventListener('loadedmetadata', resumeNative);
-        if (!live && Number.isFinite(video.duration) && position > 0) {
-          video.currentTime = Math.min(position, Math.max(0, video.duration - 1));
-        }
-        if (wasPlaying) void video.play().catch(() => undefined);
-      };
-      video.addEventListener('loadedmetadata', resumeNative);
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null;
       if (apiError?.status === 401 || apiError?.code.startsWith('WEB_SESSION_')) {
@@ -303,15 +283,14 @@ export function WebPlayer({
   }, [live]);
 
   useEffect(() => {
-    const currentAuthorization = authorizationRef.current;
-    if (currentAuthorization.mode !== 'gateway') return;
-    const renewIn = Math.max(5_000, new Date(renewalExpiresAt).getTime() - Date.now() - TOKEN_RENEW_MARGIN_MS);
+    if (activeAuthorization.mode !== 'gateway') return;
+    const renewIn = Math.max(5_000, new Date(activeAuthorization.expiresAt).getTime() - Date.now() - 90_000);
     renewalTimerRef.current = window.setTimeout(() => void renewGatewayAuthorization(), renewIn);
     return () => {
       if (renewalTimerRef.current) window.clearTimeout(renewalTimerRef.current);
       renewalTimerRef.current = null;
     };
-  }, [renewalExpiresAt, renewGatewayAuthorization]);
+  }, [activeAuthorization.expiresAt, activeAuthorization.mode, renewGatewayAuthorization]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -359,9 +338,7 @@ export function WebPlayer({
     };
     const clearBufferingStatus = () => {
       clearBuffering();
-      if (!recoveryBusyRef.current) {
-        setRecoveryStatus(current => current === 'Carregando buffer…' ? null : current);
-      }
+      if (!recoveryBusyRef.current) setRecoveryStatus(current => current === 'Carregando buffer…' ? null : current);
     };
     const markStable = () => {
       clearStable();
@@ -570,7 +547,17 @@ export function WebPlayer({
       setAudioTracks([]);
       setSubtitleTracks([]);
     };
-  }, [activeAuthorization, checkpoint, live, onProgress, requestRecovery, syncTracks]);
+  }, [
+    activeAuthorization.contentType,
+    activeAuthorization.mediaKind,
+    activeAuthorization.playbackUrl,
+    activeAuthorization.playlistRole,
+    checkpoint,
+    live,
+    onProgress,
+    requestRecovery,
+    syncTracks,
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;
