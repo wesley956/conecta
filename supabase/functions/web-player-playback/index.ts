@@ -249,6 +249,9 @@ async function recover(request: Request, body: Record<string, unknown>) {
   };
   let current: Resolved | null = null;
   try { current = await resolveInitial(supabase, session, contentToken); } catch { current = null; }
+  if (decision.classification === 'token_expired' && current) return await authorize(request, session, state, current, state.urlIndex, attempt, {
+    classification: decision.classification, backoffMs: 0, failover: false,
+  });
   if (decision.retrySameOrigin && current) return await authorize(request, session, state, current, state.urlIndex, attempt + 1, {
     classification: decision.classification, backoffMs: decision.backoffMs, failover: false,
   });
