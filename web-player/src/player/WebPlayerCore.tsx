@@ -191,7 +191,7 @@ export function WebPlayer({
     if (recoveryBusyRef.current) return;
     const token = getActiveAccessToken();
     if (!token) {
-      setError('Sua sessão Web terminou. Entre novamente para continuar.');
+      setError('Sessão encerrada. Entre novamente.');
       window.dispatchEvent(new CustomEvent('roneca:web-session-invalid'));
       return;
     }
@@ -201,7 +201,7 @@ export function WebPlayer({
     if (!navigator.onLine) {
       if (!quiet) {
         offlinePendingRef.current = true;
-        setRecoveryStatus('Sem conexão. A reprodução será retomada quando a internet voltar.');
+        setRecoveryStatus('Sem conexão. Aguardando internet…');
       }
       return;
     }
@@ -209,7 +209,7 @@ export function WebPlayer({
     recoveryBusyRef.current = true;
     if (!quiet) {
       setError(null);
-      setRecoveryStatus('Verificando uma alternativa segura…');
+      setRecoveryStatus('Verificando alternativa…');
       const correlationId = crypto.randomUUID();
       recoveryCorrelationRef.current = correlationId;
       void reportWebDiagnostic(token, {
@@ -240,15 +240,13 @@ export function WebPlayer({
       const apply = () => {
         if (generationRef.current !== generation) return;
         authorizationRef.current = next;
-        setRecoveryStatus(next.recovery?.failover
-          ? 'Origem principal indisponível. Usando a lista reserva.'
-          : 'Retomando reprodução…');
+        setRecoveryStatus(next.recovery?.failover ? 'Usando lista reserva.' : 'Retomando…');
         setActiveAuthorization(next);
         recoveryBusyRef.current = false;
       };
       const delay = Math.max(0, Number(next.recovery?.backoffMs || 0));
       if (delay > 0) {
-        setRecoveryStatus(`Reconectando em ${Math.ceil(delay / 1000)}s…`);
+        setRecoveryStatus(`Reconectando ${Math.ceil(delay / 1000)}s…`);
         recoveryTimerRef.current = window.setTimeout(apply, delay);
       } else apply();
     } catch (caught) {
@@ -257,18 +255,18 @@ export function WebPlayer({
       if (quiet && apiError?.status !== 401 && !apiError?.code.startsWith('WEB_SESSION_')) return;
       if (apiError?.code === 'WEB_OFFLINE') {
         offlinePendingRef.current = true;
-        setRecoveryStatus('Sem conexão. Aguardando internet…');
+        setRecoveryStatus('Sem conexão…');
         return;
       }
       if (apiError?.status === 401 || apiError?.code.startsWith('WEB_SESSION_')) {
-        setError('Sua sessão foi encerrada ou o aparelho não está mais autorizado.');
+        setError('Sessão ou aparelho não autorizado.');
         setRecoveryStatus(null);
         window.dispatchEvent(new CustomEvent('roneca:web-session-invalid'));
         return;
       }
       setError(apiError?.code === 'WEB_RECOVERY_EXHAUSTED'
-        ? 'Todas as origens autorizadas para este conteúdo foram testadas.'
-        : 'Não foi possível recuperar esta reprodução.');
+        ? 'Todas as origens foram testadas.'
+        : 'Falha ao recuperar reprodução.');
       setRecoveryStatus(null);
     }
   }, [live]);
@@ -293,7 +291,7 @@ export function WebPlayer({
       offlinePendingRef.current = true;
       if (recoveryTimerRef.current) window.clearTimeout(recoveryTimerRef.current);
       recoveryBusyRef.current = false;
-      setRecoveryStatus('Sem conexão. Aguardando internet…');
+      setRecoveryStatus('Sem conexão…');
     };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
@@ -494,7 +492,7 @@ export function WebPlayer({
           }
           if (!httpCode && data.type === Hls.ErrorTypes.NETWORK_ERROR && hlsNetworkRecoveriesRef.current < HLS_LOCAL_NETWORK_RECOVERIES) {
             hlsNetworkRecoveriesRef.current += 1;
-            setRecoveryStatus('Recuperando conexão…');
+            setRecoveryStatus('Reconectando…');
             hls.startLoad(-1);
             return;
           }
@@ -524,7 +522,7 @@ export function WebPlayer({
         const hls = hlsRef.current;
         if (hls && watchdogSoftRecoveriesRef.current < HLS_LOCAL_STALL_RECOVERIES) {
           watchdogSoftRecoveriesRef.current += 1;
-          setRecoveryStatus('Conexão instável. Recuperando…');
+          setRecoveryStatus('Reconectando…');
           hls.startLoad(-1);
           void video.play().catch(() => undefined);
           return;
@@ -616,7 +614,7 @@ export function WebPlayer({
       if (document.fullscreenElement) await document.exitFullscreen();
       else await frame.requestFullscreen();
     } catch {
-      setError('O navegador não permitiu abrir em tela cheia.');
+      setError('Tela cheia indisponível.');
     }
   };
   const togglePip = async () => {
@@ -626,7 +624,7 @@ export function WebPlayer({
       if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
     } catch {
-      setError('O modo picture-in-picture não está disponível neste momento.');
+      setError('PiP indisponível.');
     }
   };
   const togglePlayback = () => {
@@ -637,9 +635,7 @@ export function WebPlayer({
   };
   const toggleMute = () => {
     const video = videoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setMuted(video.muted);
+    if (video) video.muted = !video.muted;
   };
   const selectAudioTrack = (id: number) => {
     if (hlsRef.current) hlsRef.current.audioTrack = id;
@@ -662,7 +658,6 @@ export function WebPlayer({
     const video = videoRef.current;
     if (!video || live || !Number.isFinite(video.duration)) return;
     video.currentTime = Math.max(0, Math.min(video.duration, value));
-    setCurrentTime(video.currentTime);
   };
 
   const openChannelDrawer = () => {
@@ -672,7 +667,7 @@ export function WebPlayer({
   };
 
   return (
-    <div className="player-overlay" role="dialog" aria-modal="true" aria-label={`Reproduzindo ${title}`}>
+    <div className="player-overlay" role="dialog" aria-modal="true" aria-label={`Player ${title}`}>
       <div
         className="player-frame premium-player"
         ref={frameRef}
@@ -696,9 +691,9 @@ export function WebPlayer({
               <span className="player-kicker">{live ? 'AO VIVO' : 'RONECAPLAYTV'}</span>
               <strong>{title}</strong>
               {live && liveEpg.now ? <small>{liveEpg.now.title}</small> : null}
-              {activeAuthorization.playlistRole === 'backup' ? <small>Lista reserva em uso</small> : null}
+              {activeAuthorization.playlistRole === 'backup' ? <small>Lista reserva</small> : null}
             </div>
-            <button className="icon-button" type="button" onClick={onClose} aria-label="Fechar player">✕</button>
+            <button className="icon-button" type="button" onClick={onClose} aria-label="Fechar">✕</button>
           </div>
 
           <div className="premium-controls" onPointerDown={event => event.stopPropagation()}>
@@ -707,7 +702,7 @@ export function WebPlayer({
                 {episodeItems.length ? (
                   <>
                     <div className="player-context-title"><span>Episódios</span></div>
-                    <div className="player-episode-strip" aria-label="Episódios da temporada atual">
+                    <div className="player-episode-strip" aria-label="Episódios">
                       {episodeItems.map(item => (
                         <button
                           type="button"
@@ -728,8 +723,8 @@ export function WebPlayer({
 
                 {live && quickChannels.length ? (
                   <>
-                    <div className="player-context-title"><span>Canais</span><button type="button" className="text-button" onClick={openChannelDrawer}>Ver todos</button></div>
-                    <div className="player-quick-channels" aria-label="Troca rápida de canais">
+                    <div className="player-context-title"><span>Canais</span><button type="button" className="text-button" onClick={openChannelDrawer}>Todos</button></div>
+                    <div className="player-quick-channels" aria-label="Canais rápidos">
                       {quickChannels.map(channel => (
                         <button
                           type="button"
@@ -746,7 +741,7 @@ export function WebPlayer({
                 ) : null}
 
                 {live && liveEpg.now ? (
-                  <div className="player-live-epg" aria-label="Programação atual">
+                  <div className="player-live-epg" aria-label="Programação">
                     <small>AGORA</small>
                     <strong>{liveEpg.now.title}</strong>
                     <small>{new Date(liveEpg.now.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} - {new Date(liveEpg.now.end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>
@@ -771,7 +766,7 @@ export function WebPlayer({
                     step="1"
                     value={Math.min(currentTime, Math.max(0, duration))}
                     onChange={event => seekTo(Number(event.target.value))}
-                    aria-label="Progresso da reprodução"
+                    aria-label="Progresso"
                   />
                   <div className="premium-time"><span>{playerClock(currentTime)}</span><span>{playerClock(duration)}</span></div>
                 </div>
@@ -783,14 +778,14 @@ export function WebPlayer({
               className="player-expand-toggle"
               type="button"
               aria-expanded={expanded}
-              aria-label={expanded ? 'Fechar opções do player' : 'Abrir opções do player'}
+              aria-label={expanded ? 'Fechar opções' : 'Abrir opções'}
               onClick={() => setExpanded(value => !value)}
             >
               {expanded ? '⌃' : '⌄'}
             </button>
 
             {expanded ? (
-              <div className="player-expanded-settings" aria-label="Opções do player">
+              <div className="player-expanded-settings" aria-label="Opções">
                 <div className="player-setting"><span>Aspecto</span><button type="button" onClick={cycleAspect}>{aspectLabel(aspect)}</button></div>
                 {audioTracks.length > 1 ? (
                   <div className="player-setting"><label htmlFor="player-audio-track">Áudio</label><select id="player-audio-track" defaultValue={hlsRef.current?.audioTrack ?? -1} onChange={event => selectAudioTrack(Number(event.target.value))}>{audioTracks.map(track => <option key={track.id} value={track.id}>{track.name}</option>)}</select></div>
@@ -800,22 +795,22 @@ export function WebPlayer({
                 ) : <div className="player-setting"><span>Legenda</span><button type="button" disabled>Desativada</button></div>}
                 {document.pictureInPictureEnabled ? <div className="player-setting"><span>PiP</span><button type="button" onClick={() => void togglePip()}>Abrir</button></div> : null}
                 <div className="player-setting"><span>Tela cheia</span><button type="button" onClick={() => void toggleFullscreen()}>Alternar</button></div>
-                {live && liveChannels.length ? <div className="player-setting"><span>Canais</span><button type="button" onClick={openChannelDrawer}>Abrir lista</button></div> : null}
+                {live && liveChannels.length ? <div className="player-setting"><span>Canais</span><button type="button" onClick={openChannelDrawer}>Abrir</button></div> : null}
               </div>
             ) : null}
           </div>
         </div>
 
-        {!ready && !error ? <div className="player-status">{recoveryStatus || 'Preparando reprodução…'}</div> : null}
+        {!ready && !error ? <div className="player-status">{recoveryStatus || 'Preparando…'}</div> : null}
         {ready && recoveryStatus ? <div className="player-status">{recoveryStatus}</div> : null}
         {error ? <div className="player-error" role="alert">{error}</div> : null}
 
         {live && channelDrawer ? (
-          <aside className="player-channel-drawer premium-drawer" aria-label="Trocar canal">
+          <aside className="player-channel-drawer premium-drawer" aria-label="Canais">
             <div className="drawer-heading"><strong>Canais</strong><button type="button" onClick={() => setChannelDrawer(false)}>Fechar</button></div>
             <div className="player-drawer-tools">
-              <input className="player-drawer-search" value={channelQuery} onChange={event => setChannelQuery(event.target.value)} placeholder="Buscar canal…" aria-label="Buscar canal" />
-              <div className="player-drawer-categories" aria-label="Categorias de canais">
+              <input className="player-drawer-search" value={channelQuery} onChange={event => setChannelQuery(event.target.value)} placeholder="Buscar…" aria-label="Buscar" />
+              <div className="player-drawer-categories" aria-label="Categorias">
                 {channelCategories.map(item => <button type="button" key={item} className={channelCategory === item ? 'active' : ''} onClick={() => setChannelCategory(item)}>{item === 'Favoritos' ? '★ Favoritos' : item}</button>)}
               </div>
             </div>
@@ -831,7 +826,7 @@ export function WebPlayer({
                   <span>{channel.title}</span>
                 </button>
               ))}
-              {!drawerChannels.length ? <div className="muted">Nenhum canal encontrado.</div> : null}
+              {!drawerChannels.length ? <div className="muted">Nenhum canal.</div> : null}
             </div>
           </aside>
         ) : null}
