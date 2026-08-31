@@ -6,7 +6,7 @@ import { APP_VERSION } from "../deviceSession";
 import type { LibraryItem } from "../mediaLibrary";
 import { SMART_TV_PERFORMANCE_PROFILE } from "../performanceProfile";
 import type { SmartTvPlayerSettings } from "../playerSettings";
-import { platform } from "../platform";
+import { isBackKey, platform } from "../platform";
 import type { TvAppUpdate } from "../appUpdate";
 import type { MediaCard } from "./cards";
 import { channelCard, libraryCards, movieCard, normalized, seriesCard } from "./cards";
@@ -25,6 +25,8 @@ export type MainShellCatalog = {
   lastFailure: string | null;
   lastFailoverAttemptId: string | null;
   lastFailoverOutcome: CatalogFailoverResult["outcome"] | "switching" | null;
+  restoredFromSnapshot: boolean;
+  snapshotSavedAt: string | null;
   retry: () => void;
 };
 
@@ -70,6 +72,7 @@ type MainShellProps = {
   dialog: AppDialog;
   openDialog: (value: Exclude<AppDialog, null>) => void;
   closeDialog: () => void;
+  maintenanceMessage: string | null;
   onClearCache: () => Promise<void> | void;
   onUnlinkDevice: () => Promise<void> | void;
   onOpenCard: (item: MediaCard) => void;
@@ -356,6 +359,35 @@ function Filters({ selected, categories, category, setCategory, favoritesOnly, s
   return <section className="content-filter-row">{categories.map(value => <FilterChip key={value} label={value} selected={category === value} focusKey={`filter:${selected}:${value}`} onClick={() => { setCategory(value); resetPage(); }} />)}</section>;
 }
 
+function CategorySidePanel({ selected, categories, active, counts, onSelect, onExitToMenu }: {
+  selected: MainSection;
+  categories: string[];
+  active: string;
+  counts: Map<string, number>;
+  onSelect: (value: string) => void;
+  onExitToMenu: () => void;
+}) {
+  const moveToCatalog = () => {
+    document.querySelector<HTMLElement>(".side-panel-catalog [data-tv-focusable='true']")?.focus();
+  };
+  return <aside className="category-side-panel">
+    <header><p className="eyebrow">{selected.toUpperCase()}</p><h2>Categorias</h2><small>{categories.length} opções</small></header>
+    <section>{categories.map((value, index) => <FocusableButton
+      key={value}
+      data-autofocus={value === active ? "true" : undefined}
+      data-focus-key={`category-side:${selected}:${value}`}
+      className={value === active ? "selected" : ""}
+      onKeyDown={event => {
+        if (event.key === "ArrowLeft") { event.preventDefault(); event.stopPropagation(); onExitToMenu(); }
+        if (event.key === "ArrowRight") { event.preventDefault(); event.stopPropagation(); moveToCatalog(); }
+        if (event.key === "ArrowUp" && index === 0) event.preventDefault();
+        if (event.key === "ArrowDown" && index === categories.length - 1) event.preventDefault();
+      }}
+      onClick={() => onSelect(value)}
+    ><span>{value}</span><b>{counts.get(value)?.toLocaleString("pt-BR") || ""}{value === active ? "  ✓" : ""}</b></FocusableButton>)}</section>
+  </aside>;
+}
+
 function failoverLabel(outcome: MainShellCatalog["lastFailoverOutcome"]) {
   if (!outcome) return "Nenhum failover nesta sessão";
   return {
@@ -374,7 +406,7 @@ function formatDate(value: string | null | undefined) {
   return Number.isFinite(date.getTime()) ? date.toLocaleString("pt-BR") : null;
 }
 
-function Settings({ catalog, session, settings, updateSettings, appUpdate, online, openDialog }: {
+function Settings({ catalog, session, settings, updateSettings, appUpdate, online, openDialog, maintenanceMessage }: {
   catalog: MainShellCatalog;
   session: DeviceSession;
   settings: SmartTvPlayerSettings;
@@ -382,6 +414,7 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
   appUpdate: MainShellAppUpdate;
   online: boolean;
   openDialog: (value: Exclude<AppDialog, null>) => void;
+  maintenanceMessage: string | null;
 }) {
   const counts = { channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length };
   const activePlaylistId = catalog.activePlaylistId || session.selectedPlaylistId;
@@ -399,18 +432,25 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
   return <section className="settings-list content-settings-scroll" data-scroll-key="settings" onScroll={event => scrollMemory.set("settings", event.currentTarget.scrollTop)}>
     <div className="settings-heading"><p className="eyebrow">AJUSTES DO APP</p><h2>Configurações</h2><small>Preferências, operação, diagnóstico e informações seguras desta TV</small></div>
     <section className="settings-card"><span><strong>Atualizar conteúdo</strong><small>Sincroniza novamente catálogo/listas. Não verifica nem instala uma nova versão do aplicativo.</small></span><FocusableButton data-autofocus="true" data-focus-key="settings:refresh-content" onClick={catalog.retry}>ATUALIZAR</FocusableButton></section>
+    {maintenanceMessage && <section className="settings-card info"><span><strong>Manutenção local</strong><small>{maintenanceMessage}</small></span><b>CONCLUÍDA</b></section>}
+    <section className="settings-card info"><span><strong>Perfil atual</strong><small>{session.clientName || "Aparelho ativo"} • {catalog.activePlaylistName || session.playlistName || "Lista ativa"} • {catalog.usingBackupPlaylist ? "reserva" : "principal"}</small></span><b>{session.expiresAt ? `ATÉ ${new Date(session.expiresAt).toLocaleDateString("pt-BR")}` : "ATIVO"}</b></section>
 
     <p className="settings-section-title">PLAYER</p>
     <section className="settings-card info"><span><strong>Tecnologia de reprodução</strong><small>{platform === "tizen" ? "Samsung AVPlay nativo com seleção automática de formato." : "Player HTML5 otimizado para o webOS da televisão."}</small></span><b>{platform === "tizen" ? "AVPLAY" : "HTML5"}</b></section>
+    <section className="settings-card info"><span><strong>Decodificação</strong><small>O Android permite Hardware/Software. No webOS, firmware e player da TV selecionam o decoder compatível automaticamente.</small></span><b>AUTOMÁTICA</b></section>
     <section className="settings-card"><span><strong>Aspecto da imagem</strong><small>Original preserva a proporção; Preencher ocupa a tela; Estender força a imagem ao quadro.</small></span><div className="settings-options">{(["Original", "Preencher", "Estender"] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:aspect:${value}`} className={settings.aspectMode === value ? "selected" : ""} onClick={() => updateSettings({ aspectMode: value })}>{value}</FocusableButton>)}</div></section>
     <section className="settings-card"><span><strong>Buffer inicial</strong><small>Um buffer maior ajuda conexões instáveis, mas demora um pouco mais para iniciar.</small></span><div className="settings-options">{([2, 5, 10] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:buffer:${value}`} className={settings.bufferSeconds === value ? "selected" : ""} onClick={() => updateSettings({ bufferSeconds: value })}>{value}s</FocusableButton>)}</div></section>
     <section className="settings-card"><span><strong>Reconexão automática</strong><small>Tentar novamente, alternar origens e usar a lista reserva sem fechar o player.</small></span><FocusableButton data-focus-key="settings:reconnect" className={settings.automaticReconnect ? "selected" : ""} onClick={() => updateSettings({ automaticReconnect: !settings.automaticReconnect })}>{settings.automaticReconnect ? "ATIVA" : "DESATIVADA"}</FocusableButton></section>
     <section className="settings-card"><span><strong>Som de abertura</strong><small>Reproduzir a assinatura sonora ao iniciar o aplicativo.</small></span><FocusableButton data-focus-key="settings:launch-sound" className={settings.launchSoundEnabled ? "selected" : ""} onClick={() => updateSettings({ launchSoundEnabled: !settings.launchSoundEnabled })}>{settings.launchSoundEnabled ? "ATIVO" : "DESATIVADO"}</FocusableButton></section>
 
+    <p className="settings-section-title">INTERFACE</p>
+    <section className="settings-card"><span><strong>Exibição das categorias</strong><small>Clássica mantém a faixa horizontal; Painel lateral fixa categorias e recolhe o menu principal.</small></span><div className="settings-options">{(["Clássica", "Painel lateral"] as const).map(value => <FocusableButton key={value} data-focus-key={`settings:categories:${value}`} className={settings.categoryDisplayMode === value ? "selected" : ""} onClick={() => updateSettings({ categoryDisplayMode: value })}>{value}</FocusableButton>)}</div></section>
+
     <p className="settings-section-title">DIAGNÓSTICO</p>
     <section className="settings-card info"><span><strong>{catalog.usingBackupPlaylist ? "Lista reserva em uso" : "Lista principal em uso"}</strong><small>{catalog.activePlaylistName || session.playlistName || "Lista ativa"} • {counts.channels} canais • {counts.movies} filmes • {counts.series} séries</small></span><b>{online ? "CONECTADO" : "SEM INTERNET"}</b></section>
     <section className="settings-card info"><span><strong>Saúde da lista ativa</strong><small>Cache {activePlaylist?.cacheStatus || "não informado"} • falhas consecutivas {activePlaylist?.consecutiveFailures || 0}{formatDate(activePlaylist?.lastSuccessAt) ? ` • último sucesso ${formatDate(activePlaylist?.lastSuccessAt)}` : ""}</small></span><b>{activePlaylist?.role === "backup" || catalog.usingBackupPlaylist ? "RESERVA" : "PRINCIPAL"}</b></section>
     <section className="settings-card info"><span><strong>Última sincronização</strong><small>{formatDate(catalog.lastSuccessfulSync) || "Ainda não concluída"}{lastFailure ? ` • Última falha: ${lastFailure}` : ""}</small></span><b>{lastFailure ? "ATENÇÃO" : "OK"}</b></section>
+    <section className="settings-card info"><span><strong>Inicialização do catálogo</strong><small>{catalog.restoredFromSnapshot ? "Snapshot local seguro restaurado antes da rede." : "Catálogo confirmado pela sincronização remota."}{catalog.snapshotSavedAt ? ` • snapshot ${formatDate(catalog.snapshotSavedAt)}` : ""}</small></span><b>{catalog.restoredFromSnapshot ? "CACHE LOCAL" : "ATUALIZADO"}</b></section>
     <section className="settings-card info"><span><strong>Último failover</strong><small>{failoverLabel(catalog.lastFailoverOutcome)}</small></span><b>{catalog.lastFailoverOutcome === "switched" ? "RECUPERADO" : catalog.lastFailoverOutcome ? "REGISTRADO" : "SEM EVENTO"}</b></section>
     <section className="settings-card info"><span><strong>Código de suporte</strong><small>Use este código curto ao falar com o suporte. Não envie senha, token nem URL da lista.</small></span><b>{session.supportCode || "INDISPONÍVEL"}</b></section>
     {session.expiresAt && Math.ceil((new Date(session.expiresAt).getTime() - Date.now()) / 86_400_000) <= 7 && <section className="settings-card warning-card"><span><strong>Assinatura próxima do vencimento</strong><small>Vencimento em {new Date(session.expiresAt).toLocaleDateString("pt-BR")}. Fale com seu vendedor para renovar.</small></span><b>ATENÇÃO</b></section>}
@@ -418,7 +458,7 @@ function Settings({ catalog, session, settings, updateSettings, appUpdate, onlin
     <p className="settings-section-title">APLICATIVO</p>
     <section className="settings-card"><span><strong>Verificar atualização do aplicativo</strong><small>{updateDescription}{appUpdate.lastCheckedAt ? ` • Verificado ${formatDate(appUpdate.lastCheckedAt)}` : ""}</small></span><FocusableButton data-focus-key="settings:app-update" onClick={() => void appUpdate.refresh()}>{appUpdate.checking ? "AGUARDE" : "VERIFICAR"}</FocusableButton></section>
     <section className="settings-card info"><span><strong>{session.clientName || "Roneca Player TV"}</strong><small>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"} • App {APP_VERSION} • suporte {session.supportCode || "indisponível"}</small></span><b>SMART TV</b></section>
-    <section className="settings-card"><span><strong>Suporte</strong><small>Consultar versão, lista ativa, conexão, failover e identificação segura desta TV.</small></span><FocusableButton data-focus-key="settings:support" onClick={() => openDialog("support")}>ABRIR</FocusableButton></section>
+    <section className="settings-card"><span><strong>{session.supportProfile.displayName}</strong><small>{session.supportProfile.supportText || "Contato responsável por este aparelho."}</small></span><FocusableButton data-focus-key="settings:support" onClick={() => openDialog("support")}>{session.supportProfile.primaryContactUri ? "CONTATO" : "INFO"}</FocusableButton></section>
     <section className="settings-card"><span><strong>Privacidade</strong><small>Entender quais dados ficam nesta TV e quais são usados na ativação e diagnóstico.</small></span><FocusableButton data-focus-key="settings:privacy" onClick={() => openDialog("privacy")}>LER</FocusableButton></section>
     <section className="settings-card"><span><strong>Limpar cache temporário</strong><small>Remove somente dados reconstruíveis. Ativação, favoritos, progresso e preferências são preservados.</small></span><FocusableButton data-focus-key="settings:clear-cache" onClick={() => openDialog("clear-cache")}>LIMPAR CACHE</FocusableButton></section>
     <section className="settings-card danger-card"><span><strong>Limpar dados desta TV</strong><small>Remover favoritos, histórico e progresso salvos localmente sem desvincular o aparelho.</small></span><FocusableButton data-focus-key="settings:clear-data" className="danger" onClick={() => openDialog("clear-data")}>LIMPAR DADOS</FocusableButton></section>
@@ -446,7 +486,7 @@ function Dialog({ dialog, session, catalog, online, closeDialog, clearAll, clear
     <p className="eyebrow">{dialog === "privacy" ? "PRIVACIDADE" : dialog === "support" ? "SUPORTE" : "CONFIRMAÇÃO"}</p>
     <h2>{title}</h2>
     {dialog === "privacy" && <div className="dialog-copy"><p>O aplicativo usa uma identidade exclusiva do aparelho para consultar ativação, validade e listas autorizadas.</p><p>Favoritos, histórico, progresso e preferências permanecem no armazenamento local da TV; cache temporário é reconstruível.</p><p>Diagnósticos são sanitizados no cliente e novamente no servidor. O suporte deve usar o código curto e nunca solicitar senha, token ou URL completa da lista.</p></div>}
-    {dialog === "support" && <dl><dt>Código de suporte</dt><dd>{session.supportCode || "Não disponível"}</dd><dt>Plataforma</dt><dd>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"}</dd><dt>Versão do app</dt><dd>{APP_VERSION}</dd><dt>Lista ativa</dt><dd>{catalog.activePlaylistName || session.playlistName || "Não disponível"} ({catalog.usingBackupPlaylist ? "reserva" : "principal"})</dd><dt>Conexão</dt><dd>{online ? "Conectada" : "Sem internet"}</dd><dt>Último failover</dt><dd>{failoverLabel(catalog.lastFailoverOutcome)}</dd><dt>Última falha</dt><dd>{supportFailure || "Nenhuma falha registrada"}</dd></dl>}
+    {dialog === "support" && <><div className="support-dialog-profile"><p className="eyebrow">RESPONSÁVEL PELO DISPOSITIVO</p><h3>{session.supportProfile.displayName}</h3><p>{session.supportProfile.supportText || "Envie este código ao seu fornecedor."}</p>{session.supportProfile.businessHours && <small>{session.supportProfile.businessHours}</small>}{session.supportProfile.whatsapp && <strong>WhatsApp: {session.supportProfile.whatsapp}</strong>}{session.supportProfile.email && <strong>{session.supportProfile.email}</strong>}{session.supportProfile.primaryContactUri && <code>{session.supportProfile.primaryContactUri.replace(/^mailto:/, "")}</code>}</div><dl><dt>Código de suporte</dt><dd>{session.supportCode || "Não disponível"}</dd><dt>Plataforma</dt><dd>{platform === "webos" ? "LG webOS" : platform === "tizen" ? "Samsung Tizen" : "Navegador"}</dd><dt>Versão do app</dt><dd>{APP_VERSION}</dd><dt>Lista ativa</dt><dd>{catalog.activePlaylistName || session.playlistName || "Não disponível"} ({catalog.usingBackupPlaylist ? "reserva" : "principal"})</dd><dt>Conexão</dt><dd>{online ? "Conectada" : "Sem internet"}</dd><dt>Último failover</dt><dd>{failoverLabel(catalog.lastFailoverOutcome)}</dd><dt>Última falha</dt><dd>{supportFailure || "Nenhuma falha registrada"}</dd></dl></>}
     {dialog === "unlink" && <p>Esta instalação será revogada no servidor, a credencial atual deixará de funcionar e a TV voltará para a ativação com uma nova identidade. Favoritos, histórico e progresso locais também serão removidos.</p>}
     {dialog === "clear-cache" && <p>Somente cache e estado temporário reconstruível serão removidos. Ativação, favoritos, progresso e preferências serão preservados.</p>}
     {dialog === "clear-data" && <p>Favoritos, histórico e progresso serão removidos somente desta TV. A ativação, a lista e as preferências do player continuarão funcionando.</p>}
@@ -464,10 +504,11 @@ export function MainShell(props: MainShellProps) {
     selected, setSelected, query, setQuery, category, setCategory,
     channelFavoritesOnly, setChannelFavoritesOnly, channelAlphabetical, setChannelAlphabetical,
     visibleLimit, setVisibleLimit, pageSize, catalog, session, library, settings, updateSettings,
-    appUpdate, online, dialog, openDialog, closeDialog, onClearCache, onUnlinkDevice, onOpenCard, onOpenMovie, onOpenSeries
+    appUpdate, online, dialog, openDialog, closeDialog, maintenanceMessage, onClearCache, onUnlinkDevice, onOpenCard, onOpenMovie, onOpenSeries
   } = props;
 
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [mainMenuOpen, setMainMenuOpen] = useState(false);
   const counts = useMemo(() => ({ channels: catalog.data.channels.length, movies: catalog.data.movies.length, series: catalog.data.series.length }), [catalog.data]);
   const recentCards = useMemo(() => libraryCards(catalog.data, library.history).filter(item => item.kind !== "channel").slice(0, 6), [catalog.data, library.history]);
   const favoriteCards = useMemo(() => libraryCards(catalog.data, library.favorites).filter(item => item.kind === "movie" || item.kind === "series").slice(0, 6), [catalog.data, library.favorites]);
@@ -505,6 +546,44 @@ export function MainShell(props: MainShellProps) {
     if (selected === "Séries") return ["Todas", "Minha Lista", "Continuar", ...Array.from(new Set(catalog.data.series.map(item => item.category || "Outros"))).sort((a, b) => a.localeCompare(b, "pt-BR"))];
     return [];
   }, [catalog.data, selected]);
+  const sideMode = settings.categoryDisplayMode === "Painel lateral" && ["Canais", "Filmes", "Séries"].includes(selected);
+  const sideCategories = selected === "Canais" ? ["Todos", "Favoritos", "A-Z", ...categories.filter(value => value !== "Todos")] : categories;
+  const activeSideCategory = selected === "Canais" ? channelFavoritesOnly ? "Favoritos" : channelAlphabetical ? "A-Z" : category : category;
+  const categoryCounts = useMemo(() => {
+    const values = new Map<string, number>();
+    if (selected === "Canais") {
+      values.set("Todos", catalog.data.channels.length);
+      values.set("Favoritos", catalog.data.channels.filter(item => library.isFavorite("channel", item.id, channelCard(item).contentKey)).length);
+      values.set("A-Z", catalog.data.channels.length);
+      catalog.data.channels.forEach(item => values.set(item.groupTitle || "Outros", (values.get(item.groupTitle || "Outros") || 0) + 1));
+    } else if (selected === "Filmes") {
+      values.set("Todos", catalog.data.movies.length);
+      catalog.data.movies.forEach(item => values.set(item.category || "Outros", (values.get(item.category || "Outros") || 0) + 1));
+    } else if (selected === "Séries") {
+      values.set("Todas", catalog.data.series.length);
+      catalog.data.series.forEach(item => values.set(item.category || "Outros", (values.get(item.category || "Outros") || 0) + 1));
+    }
+    return values;
+  }, [catalog.data, library, selected]);
+
+  useEffect(() => {
+    if (!sideMode) { setMainMenuOpen(false); return; }
+    const onKey = (event: KeyboardEvent) => {
+      if (dialog) return;
+      if (!isBackKey(event)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (mainMenuOpen) {
+        setMainMenuOpen(false);
+        window.setTimeout(() => document.querySelector<HTMLElement>(`.category-side-panel [data-focus-key="category-side:${selected}:${activeSideCategory}"]`)?.focus(), 0);
+      } else {
+        setMainMenuOpen(true);
+        window.setTimeout(() => document.querySelector<HTMLElement>(`.rail [data-focus-key="nav:${selected}"]`)?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [activeSideCategory, dialog, mainMenuOpen, selected, sideMode]);
 
   const filteredCards = useMemo(() => {
     const term = normalized(query);
@@ -563,8 +642,8 @@ export function MainShell(props: MainShellProps) {
   useScrollMemory(homeScrollKey);
   useScrollMemory("settings");
 
-  return <main className="shell content-experience">
-    <aside className="rail"><div className="brand"><span className="brand-mark">RP</span><span className="brand-name">RONECA</span></div><nav>{destinations.map(item => <FocusableButton key={item.label} data-focus-key={`nav:${item.label}`} className={`nav-item ${selected === item.label ? "selected" : ""}`} onClick={() => setSelected(item.label)}><span>{item.icon}</span><strong>{item.label}</strong></FocusableButton>)}</nav><small className="platform">{platform.toUpperCase()}</small></aside>
+  return <main className={`shell content-experience${sideMode ? " category-side-mode" : ""}${mainMenuOpen ? " main-menu-open" : ""}`}>
+    <aside className="rail"><div className="brand"><span className="brand-mark">RP</span><span className="brand-name">RONECA</span></div><nav>{destinations.map(item => <FocusableButton key={item.label} data-focus-key={`nav:${item.label}`} className={`nav-item ${selected === item.label ? "selected" : ""}`} onKeyDown={event => { if (sideMode && mainMenuOpen && item.label === selected && event.key === "ArrowRight") { event.preventDefault(); event.stopPropagation(); setMainMenuOpen(false); window.setTimeout(() => document.querySelector<HTMLElement>(`.category-side-panel [data-focus-key="category-side:${selected}:${activeSideCategory}"]`)?.focus(), 0); } }} onClick={() => { setSelected(item.label); setMainMenuOpen(false); }}><span>{item.icon}</span><strong>{item.label}</strong></FocusableButton>)}</nav><small className="platform">{platform.toUpperCase()}</small></aside>
     <section className={`content ${["Canais", "Filmes", "Séries", "Minha lista"].includes(selected) ? "catalog-view" : ""}`}>
       {!online && <aside className="connection-banner" role="status"><b>Sem internet</b><span>O último catálogo válido continua disponível. A sincronização volta automaticamente quando a conexão retornar.</span></aside>}
       {appUpdate.update && <aside className="update-banner" role="status"><span><b>Stable {appUpdate.update.versionName} disponível</b><small>Uma versão publicada foi detectada. A instalação continua sujeita ao canal oficial LG/pacote homologado; esta verificação não promove Candidate para Stable.</small></span><FocusableButton data-focus-key="update:dismiss" onClick={appUpdate.dismiss}>Agora não</FocusableButton></aside>}
@@ -604,13 +683,16 @@ export function MainShell(props: MainShellProps) {
 
       {catalog.status === "ready" && ["Canais", "Filmes", "Séries"].includes(selected) && <>
         <CatalogToolbar selected={selected} query={query} setQuery={value => { setQuery(value); resetPage(); }} filteredCount={filteredCards.length} />
-        <Filters selected={selected} categories={categories} category={category} setCategory={setCategory} favoritesOnly={channelFavoritesOnly} setFavoritesOnly={setChannelFavoritesOnly} alphabetical={channelAlphabetical} setAlphabetical={setChannelAlphabetical} resetPage={resetPage} />
-        {filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} pageIndex={pageIndex} pageCount={pageCount} pageSize={pageSize} library={library} onOpen={onOpenCard} onPrevious={previousPage} onMore={nextPage} /> : <EmptyState title={selected === "Canais" ? "Nenhum canal encontrado" : selected === "Filmes" ? "Nenhum filme encontrado" : "Nenhuma série encontrada"} message="Tente outro nome, filtro ou categoria." />}
+        {!sideMode && <Filters selected={selected} categories={categories} category={category} setCategory={setCategory} favoritesOnly={channelFavoritesOnly} setFavoritesOnly={setChannelFavoritesOnly} alphabetical={channelAlphabetical} setAlphabetical={setChannelAlphabetical} resetPage={resetPage} />}
+        <div className={sideMode ? "side-panel-catalog" : "classic-catalog"}>
+          {sideMode && <CategorySidePanel selected={selected} categories={sideCategories} active={activeSideCategory} counts={categoryCounts} onExitToMenu={() => { setMainMenuOpen(true); window.setTimeout(() => document.querySelector<HTMLElement>(`.rail [data-focus-key="nav:${selected}"]`)?.focus(), 0); }} onSelect={value => { if (selected === "Canais") { setChannelFavoritesOnly(value === "Favoritos"); setChannelAlphabetical(value === "A-Z"); setCategory(value === "Favoritos" || value === "A-Z" ? "Todos" : value); } else setCategory(value); resetPage(); }} />}
+          {filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} pageIndex={pageIndex} pageCount={pageCount} pageSize={pageSize} library={library} onOpen={onOpenCard} onPrevious={previousPage} onMore={nextPage} /> : <EmptyState title={selected === "Canais" ? "Nenhum canal encontrado" : selected === "Filmes" ? "Nenhum filme encontrado" : "Nenhuma série encontrada"} message="Tente outro nome, filtro ou categoria." />}
+        </div>
       </>}
 
       {catalog.status === "ready" && selected === "Minha lista" && (filteredCards.length > 0 ? <CatalogGrid section={selected} cards={visibleCards} total={filteredCards.length} pageIndex={pageIndex} pageCount={pageCount} pageSize={pageSize} library={library} onOpen={onOpenCard} onPrevious={previousPage} onMore={nextPage} /> : <EmptyState title="Sua lista está vazia" message="Adicione filmes e séries pelos detalhes do conteúdo. Canais favoritos ficam em Canais → Favoritos." />)}
 
-      {catalog.status === "ready" && selected === "Configurações" && <Settings catalog={catalog} session={session} settings={settings} updateSettings={updateSettings} appUpdate={appUpdate} online={online} openDialog={openDialog} />}
+      {catalog.status === "ready" && selected === "Configurações" && <Settings catalog={catalog} session={session} settings={settings} updateSettings={updateSettings} appUpdate={appUpdate} online={online} openDialog={openDialog} maintenanceMessage={maintenanceMessage} />}
     </section>
     {dialog && <Dialog dialog={dialog} session={session} catalog={catalog} online={online} closeDialog={closeDialog} clearAll={library.clearAll} clearCache={onClearCache} unlinkDevice={onUnlinkDevice} />}
   </main>;

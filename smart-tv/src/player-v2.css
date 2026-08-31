@@ -156,6 +156,10 @@ body[data-player-aspect="Estender"] .native-video { object-fit: fill; }
   border-left-color: #2b2b30;
   background: #080809f7;
 }
+
+.track-panel header > div > small { color: var(--muted); font-size: 10px; }
+.track-panel button.selected { position: relative; }
+.track-panel button.selected::after { content: "✓"; margin-left: auto; color: var(--gold); font-size: 16px; font-weight: 900; }
 .track-panel > header,
 .channel-panel > header {
   border-bottom-color: #2b2b30;

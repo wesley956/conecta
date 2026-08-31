@@ -26,7 +26,7 @@ if (parsed.protocol !== "https:") {
   throw new Error("O aplicativo hospedado exige um endereço HTTPS.");
 }
 if (!fs.existsSync(officialAppIcon)) {
-  throw new Error("LG-02: o ícone oficial Android 2.9.5 não foi encontrado para o pacote hosted.");
+  throw new Error("LG-02: o ícone oficial Android 2.9.8 não foi encontrado para o pacote hosted.");
 }
 
 const appId = channel === "test" ? "com.ronecaplaytv.app.test" : "com.ronecaplaytv.app";
