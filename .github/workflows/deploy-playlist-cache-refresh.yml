@@ -1,0 +1,64 @@
+name: Deploy Playlist Cache Refresh
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-playlist-cache-refresh.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-playlist-cache-refresh
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error title=Missing Supabase secret::${name} is required for the isolated cache-refresh deployment."
+              exit 1
+            fi
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # 2.112.0 has a known regression while resolving project API keys during link.
+      - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: 2.111.0
+
+      - name: Link production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Apply only the cache refresh scheduler migration
+        run: |
+          supabase db query --linked \
+            --file supabase/migrations/20260831070000_playlist_cache_auto_refresh_6h.sql
+
+      - name: Deploy seller manual refresh function
+        run: supabase functions deploy seller-playlist-refresh --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Deploy automatic cache refresh function
+        run: supabase functions deploy playlist-cache-auto --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Confirm isolated deployment
+        run: |
+          echo 'Playlist cache refresh migration and Edge Functions deployed without applying unrelated pending migrations.'
