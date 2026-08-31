@@ -52,7 +52,7 @@
     const base = String(config.supabaseUrl || '').replace(/\/$/, '');
     if (!base || !config.anonKey) throw new Error('Configuração do painel indisponível.');
     const accessToken = await window.RonecaPanelAuth.getAccessToken();
-    const response = await fetch(`${base}/functions/v1/seller-playlist-refresh`, {
+    const response = await fetch(`${base}/functions/v1/seller-panel`, {
       method: 'POST', cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +60,7 @@
         apikey: config.anonKey,
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ playlistId }),
+      body: JSON.stringify({ action: 'refreshSellerPlaylistCache', playlistId }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || data.message || 'Não foi possível iniciar a atualização do catálogo.');
@@ -270,11 +270,11 @@
     refreshingCaches.add(id);
     renderPlaylists();
     try {
-      showListMsg('Atualizando o catálogo em segundo plano. O cache atual continuará disponível durante a atualização.');
+      showListMsg('Atualizando o catálogo. O cache atual continuará disponível durante a atualização.');
       const result = await officialSellerCacheRefresh(id);
       refreshCooldownUntil.set(id, Date.now() + CACHE_REFRESH_COOLDOWN_MS);
       showListMsg(
-        result.message || 'Atualização do catálogo iniciada. O cache atual continuará disponível até a nova versão ficar pronta.',
+        result.message || 'Atualização do catálogo solicitada. O cache atual continuará disponível até a nova versão ficar pronta.',
         result.ok === false ? 'err' : 'ok',
       );
       await loadLists();
