@@ -1,5 +1,6 @@
 name: Deploy Playlist Cache Refresh
 
+# Publicação isolada: aplica somente a migration e as Edge Functions desta melhoria.
 on:
   push:
     branches:
