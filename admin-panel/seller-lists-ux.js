@@ -1,6 +1,10 @@
 (() => {
   const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
   const TOKEN_KEY = 'roneca_seller_token';
+  const CACHE_REFRESH_COOLDOWN_MS = 30 * 1000;
+  const CACHE_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  const refreshingCaches = new Set();
+  const refreshCooldownUntil = new Map();
   let listsData = null;
 
   const $ = id => document.getElementById(id);
@@ -42,6 +46,27 @@
     return data;
   }
 
+  async function officialSellerCacheRefresh(playlistId) {
+    if (!window.RonecaPanelAuth) return api('refreshSellerPlaylistCache', { playlistId });
+    const config = window.RONECA_PANEL_CONFIG || {};
+    const base = String(config.supabaseUrl || '').replace(/\/$/, '');
+    if (!base || !config.anonKey) throw new Error('Configuração do painel indisponível.');
+    const accessToken = await window.RonecaPanelAuth.getAccessToken();
+    const response = await fetch(`${base}/functions/v1/seller-playlist-refresh`, {
+      method: 'POST', cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        apikey: config.anonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ playlistId }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || data.message || 'Não foi possível iniciar a atualização do catálogo.');
+    return data;
+  }
+
   async function mergeOfficial(data) {
     const target = data && typeof data === 'object' ? data : { playlists: [] };
     try {
@@ -59,6 +84,13 @@
     if (!value) return '—';
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
+  }
+
+  function cacheEligibleAt(value) {
+    if (!value) return null;
+    const updatedAt = new Date(value);
+    if (Number.isNaN(updatedAt.getTime())) return null;
+    return new Date(updatedAt.getTime() + CACHE_REFRESH_INTERVAL_MS).toISOString();
   }
 
   function lifecycleInfo(playlist) {
@@ -157,11 +189,11 @@
       <div class="seller-playlist-head">
         <div>
           <h2>Minhas listas</h2>
-          <p class="muted">Cadastre pela entrada universal. O painel identifica a origem e tenta gerar o cache; se o servidor não confirmar, o Android pode validar na primeira abertura.</p>
+          <p class="muted">Cadastre pela entrada universal. O catálogo em cache é renovado automaticamente após 6 horas e também pode ser atualizado manualmente.</p>
         </div>
         <div class="actions" style="margin-top:0;">
           <button class="primary" type="button" onclick="sellerListsOpenUniversal()">Adicionar lista</button>
-          <button type="button" onclick="sellerListsUxRender()">Atualizar</button>
+          <button type="button" onclick="sellerListsUxRender()">Recarregar painel</button>
         </div>
       </div>
       <div id="sellerListsMsg" class="seller-msg"></div>
@@ -181,19 +213,26 @@
       const platforms = platformCapabilities(playlist, info);
       const tone = ['blocked','device_failed'].includes(info.status) ? 'err'
         : ['ready_cache','confirmed_by_device'].includes(info.status) ? 'ok' : '';
+      const playlistId = String(playlist.id || '');
+      const refreshing = refreshingCaches.has(playlistId);
+      const coolingDown = Number(refreshCooldownUntil.get(playlistId) || 0) > Date.now();
+      const refreshDisabled = refreshing || coolingDown || playlist.active === false;
+      const refreshLabel = refreshing ? 'Atualizando…' : coolingDown ? 'Atualização solicitada' : 'Atualizar agora';
+      const updatedAt = playlist.cacheUpdatedAt || playlist.playlistUpdatedAt || playlist.sourceUpdatedAt;
       return `<div class="seller-playlist-item">
         <div>
           <strong>${esc(playlist.name)}</strong>
           <div class="muted">Tipo: ${esc(playlist.playlistType || playlist.type || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
-          <div class="muted">Atualizado: ${formatDate(playlist.cacheUpdatedAt || playlist.playlistUpdatedAt || playlist.sourceUpdatedAt)}</div>
+          <div class="muted">Atualizado: ${formatDate(updatedAt)}</div>
+          <div class="muted">Elegível para renovação automática: ${formatDate(cacheEligibleAt(playlist.cacheUpdatedAt))}</div>
           ${lifecyclePill(playlist)}
           <div class="seller-msg ${tone}">${esc(info.message)}</div>
           <div class="muted">${esc(platformText('Android', platforms.android))} · ${esc(platformText('LG', platforms.lg))} · ${esc(platformText('Samsung', platforms.samsung))}</div>
           ${cacheAttemptDetails(playlist)}
         </div>
         <div class="actions" style="margin-top:0;">
-          ${playlist.canRetryCache === false ? '' : `<button type="button" onclick="sellerListsRefreshCache('${esc(playlist.id)}')">Tentar cache</button>`}
-          <button class="red" type="button" onclick="sellerListsDelete('${esc(playlist.id)}')">Excluir</button>
+          <button type="button" onclick="sellerListsRefreshCache('${esc(playlistId)}')" ${refreshDisabled ? 'disabled' : ''} aria-busy="${refreshing ? 'true' : 'false'}">${esc(refreshLabel)}</button>
+          <button class="red" type="button" onclick="sellerListsDelete('${esc(playlistId)}')">Excluir</button>
         </div>
       </div>`;
     }).join('') : '<div class="muted">Nenhuma lista cadastrada ou liberada ainda.</div>';
@@ -220,15 +259,40 @@
   window.sellerListsCreate = function sellerListsCreate() { window.sellerListsOpenUniversal(); };
 
   window.sellerListsRefreshCache = async function sellerListsRefreshCache(playlistId) {
+    const id = String(playlistId || '');
+    if (!id || refreshingCaches.has(id)) return;
+    const cooldownUntil = Number(refreshCooldownUntil.get(id) || 0);
+    if (cooldownUntil > Date.now()) {
+      showListMsg('A atualização desta lista já foi solicitada. Aguarde alguns segundos.', 'ok');
+      return;
+    }
+
+    refreshingCaches.add(id);
+    renderPlaylists();
     try {
-      showListMsg('Tentando gerar o cache novamente...');
-      const result = window.RonecaPanelAuth
-        ? await officialApi({ action: 'retry', playlistId })
-        : await api('refreshSellerPlaylistCache', { playlistId });
-      showListMsg(result.message || 'Nova tentativa iniciada.', result.ok === false ? 'err' : 'ok');
+      showListMsg('Atualizando o catálogo em segundo plano. O cache atual continuará disponível durante a atualização.');
+      const result = await officialSellerCacheRefresh(id);
+      refreshCooldownUntil.set(id, Date.now() + CACHE_REFRESH_COOLDOWN_MS);
+      showListMsg(
+        result.message || 'Atualização do catálogo iniciada. O cache atual continuará disponível até a nova versão ficar pronta.',
+        result.ok === false ? 'err' : 'ok',
+      );
       await loadLists();
       if (typeof window.loadPortal === 'function') await window.loadPortal();
-    } catch (err) { showListMsg(err.message || 'Erro ao tentar o cache.', 'err'); }
+      setTimeout(() => loadLists().catch(() => {}), 12 * 1000);
+      setTimeout(() => loadLists().catch(() => {}), 45 * 1000);
+      setTimeout(() => {
+        if (Number(refreshCooldownUntil.get(id) || 0) <= Date.now()) {
+          refreshCooldownUntil.delete(id);
+          renderPlaylists();
+        }
+      }, CACHE_REFRESH_COOLDOWN_MS + 250);
+    } catch (err) {
+      showListMsg(err.message || 'Erro ao atualizar o catálogo.', 'err');
+    } finally {
+      refreshingCaches.delete(id);
+      renderPlaylists();
+    }
   };
 
   window.sellerListsDelete = async function sellerListsDelete(playlistId) {
