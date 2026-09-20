@@ -36,6 +36,12 @@
   gap: 8px;
 }
 
+/* "display: grid" acima anulava o atributo hidden: o campo de link (vazio) e o botão "Copiar link"
+   apareciam antes de qualquer link ser gerado. */
+.app-release-link[hidden] {
+  display: none;
+}
+
 .app-release-link input {
   width: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -43,6 +49,43 @@
 
 .app-release-notes {
   white-space: pre-wrap;
+}
+
+/* Notas da versão em Markdown, renderizadas por app-release.js: uma seção recolhível por versão. */
+.app-release-notes-rich {
+  white-space: normal;
+}
+
+.app-release-notes-section {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.app-release-notes-section:last-child {
+  border-bottom: 0;
+}
+
+.app-release-notes-section > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.app-release-notes-section ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.app-release-notes-section p {
+  margin: 8px 0 0;
+}
+
+.app-release-notes-section code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .08);
+  font-size: .92em;
 }
 
 
