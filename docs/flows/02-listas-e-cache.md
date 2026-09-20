@@ -17,7 +17,7 @@
 | 9 | Excluir/arquivar lista com verificação de impacto | ✅ | `[CÓD]` `safeDeletePlaylist` mostra aparelhos, vendedores e homologações afetados e bloqueia se for a principal de um aparelho ativo sem reserva; a função de banco `archive_playlist_safe_transaction` faz o arquivamento |
 | 10 | Listas sem uso | ✅ | `[BD]` No levantamento: **23 de 51** sem nenhum vínculo (11 com cache, ≈153 MB). **Depois, com autorização do dono, no mesmo dia:** 17 excluídas e 5 arquivadas (`playlist.bulk_cleanup` na auditoria); restam 6 sem vínculo, todas arquivadas. Pendente: apagar as pastas órfãs do Storage pelo Dashboard `[#445]` `[#418]` |
 | 11 | Texto de reserva "Filme autorizado pelo painel." mostrado ao usuário | 🟡 | `[#429]` |
-| 12 | Protegão do histórico de troca de lista | ✅ | `[BD]` a FK `panel_device_playlist_revisions.new_playlist_id` é `RESTRICT`: lista que já foi usada por um aparelho **não pode ser apagada**, só arquivada (foi o que impediu excluir 5 das 23) |
+| 12 | Proteção do histórico de troca de lista | ✅ | `[BD]` a FK `panel_device_playlist_revisions.new_playlist_id` é `RESTRICT`: lista que já foi usada por um aparelho **não pode ser apagada**, só arquivada (foi o que impediu excluir 5 das 23) |
 
 ## Variáveis e estados
 
