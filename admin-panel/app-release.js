@@ -40,11 +40,97 @@
     status.classList.toggle('err', Boolean(error));
   }
 
+  // Trechos entre crases viram <code>. Tudo é montado com textContent (sem innerHTML), então o texto
+  // das notas nunca é interpretado como HTML.
+  function appendInlineCode(parent, text) {
+    String(text).split('`').forEach(function (part, index) {
+      if (!part) return;
+      if (index % 2 === 1) {
+        var code = document.createElement('code');
+        code.textContent = part;
+        parent.appendChild(code);
+      } else {
+        parent.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+
+  // As notas chegam em Markdown simples: "# Título" por versão e "- item". Antes eram exibidas cruas
+  // (com "#" e "-"). Cada versão vira uma seção recolhível; a mais recente (a primeira) começa aberta.
+  function renderNotes(container, notes) {
+    var source = String(notes || '').trim();
+    container.replaceChildren();
+    if (!source) {
+      container.classList.remove('app-release-notes-rich');
+      container.textContent = 'Sem observações para esta versão.';
+      return;
+    }
+    container.classList.add('app-release-notes-rich');
+    var sections = [];
+    var section = null;
+    source.split(/\r?\n/).forEach(function (line) {
+      var heading = /^#{1,3}\s+(.*)$/.exec(line);
+      if (heading) {
+        section = { title: heading[1].trim(), lines: [] };
+        sections.push(section);
+        return;
+      }
+      if (!section) {
+        section = { title: '', lines: [] };
+        sections.push(section);
+      }
+      section.lines.push(line);
+    });
+    sections.forEach(function (item, index) {
+      var details = document.createElement('details');
+      details.className = 'app-release-notes-section';
+      details.open = index === 0;
+      if (item.title) {
+        var summary = document.createElement('summary');
+        appendInlineCode(summary, item.title);
+        details.appendChild(summary);
+      }
+      var list = null;
+      item.lines.forEach(function (line) {
+        var bullet = /^\s*[-*]\s+(.*)$/.exec(line);
+        if (bullet) {
+          if (!list) {
+            list = document.createElement('ul');
+            details.appendChild(list);
+          }
+          var entry = document.createElement('li');
+          appendInlineCode(entry, bullet[1]);
+          list.appendChild(entry);
+          return;
+        }
+        list = null;
+        if (!line.trim()) return;
+        var paragraph = document.createElement('p');
+        appendInlineCode(paragraph, line.trim());
+        details.appendChild(paragraph);
+      });
+      container.appendChild(details);
+    });
+  }
+
+  // O elemento das notas era um <p>; com seções e listas dentro, passa a ser um <div>.
+  function notesContainer(root) {
+    var node = root.querySelector('[data-app-release-notes]');
+    if (node && node.tagName === 'P') {
+      var replacement = document.createElement('div');
+      replacement.className = node.className;
+      replacement.setAttribute('data-app-release-notes', '');
+      node.replaceWith(replacement);
+      node = replacement;
+    }
+    return node;
+  }
+
   function render(root, release) {
     root.querySelector('[data-app-release-version]').textContent = release.versionName || '—';
     root.querySelector('[data-app-release-size]').textContent = formatBytes(release.fileSizeBytes);
     root.querySelector('[data-app-release-date]').textContent = formatDate(release.publishedAt);
-    root.querySelector('[data-app-release-notes]').textContent = release.notes || 'Sem observações para esta versão.';
+    renderNotes(notesContainer(root), release.notes);
   }
 
   function reset(root) {
