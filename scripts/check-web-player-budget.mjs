@@ -58,7 +58,11 @@ const PLAYER_CORE_LIMIT = 130_000;
 // WEB-29–WEB-36 acrescentam continuidade, categorias, Configurações e PWA controlada.
 // O cache sanitizado do catálogo adiciona menos de 1 kB ao bundle, mas evita downloads
 // completos e repetidos do catálogo; os limites críticos de entry/engine seguem iguais.
-const TOTAL_LIMIT = 826_000;
+// PERF-03 (#419): a contenção de chamadas repetidas ao catálogo (cache em memória, pausa
+// após 429, memo de série/EPG) adiciona ~1,2 kB (825.772 → 826.962 bytes) e evita centenas
+// de MB de download do Storage. O total sobe de 826.000 para 828.000; entry/engine/shell
+// continuam com os mesmos limites.
+const TOTAL_LIMIT = 828_000;
 
 console.log('Web Player JS budget:');
 for (const row of rows) console.log(` - ${row.relative}: ${row.bytes} bytes`);
