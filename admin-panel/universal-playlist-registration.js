@@ -229,10 +229,20 @@
     var board = document.createElement('div');
     board.id = 'uplBoard';
     board.className = 'upl-board';
+    // ADM (#426): o botão "Nova lista" do cartão de cima já abre este mesmo cadastro (openPlaylistActionModal),
+    // então "Adicionar fonte" era um segundo botão para a mesma janela; e "Ferramentas antigas" não tem efeito
+    // visível (a tabela e o formulário antigos continuam escondidos por outra regra). No portal do vendedor os
+    // três botões continuam como estavam.
+    var addSourceButton = state.surface === 'seller'
+      ? '<button class="upl-btn primary" type="button" onclick="RonecaUniversalPlaylists.open()">Adicionar fonte</button>'
+      : '';
+    var legacyButton = state.surface === 'seller'
+      ? '<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.toggleLegacy()">Ferramentas antigas</button>'
+      : '';
     board.innerHTML = `
       <div class="upl-board-head">
         <div><h2>Fontes universais</h2><p>Uma conta pode reunir Xtream, M3U, HLS e endereços alternativos sem duplicação.</p></div>
-        <div class="upl-actions"><button class="upl-btn primary" type="button" onclick="RonecaUniversalPlaylists.open()">Adicionar fonte</button><button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.refresh()">Atualizar</button><button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.toggleLegacy()">Ferramentas antigas</button></div>
+        <div class="upl-actions">${addSourceButton}<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.refresh()">Atualizar</button>${legacyButton}</div>
       </div>
       <div class="upl-toolbar">
         <input id="uplSearch" placeholder="Buscar por nome, fornecedor, domínio ou ID" aria-label="Buscar fontes">
