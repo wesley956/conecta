@@ -6,6 +6,24 @@
   const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
   const setText = (element, text) => { if (element && element.textContent !== text) element.textContent = text; };
 
+  // #423 (UI-04): a função admin-panel limita o extrato a 200 linhas (.limit(200)) e o dashboard.js mostra
+  // o tamanho da lista carregada. Quando o número bate o limite, o total real é maior (hoje 279 no banco),
+  // então mostramos "200+" com explicação. A correção definitiva (contagem exata no servidor) depende do
+  // deploy reproduzível das Edge Functions (#374): a função no ar é um shim preso a um commit antigo.
+  const LEDGER_FETCH_LIMIT = 200;
+  function watchLedgerKpi() {
+    const kpi = $('stLedger');
+    if (!kpi || kpi.dataset.capWatch === '1') return;
+    kpi.dataset.capWatch = '1';
+    const mark = () => {
+      if (String(kpi.textContent).trim() !== String(LEDGER_FETCH_LIMIT)) return;
+      kpi.textContent = `${LEDGER_FETCH_LIMIT}+`;
+      kpi.title = `Mostrando as ${LEDGER_FETCH_LIMIT} movimentações mais recentes; há mais registros no banco.`;
+    };
+    new MutationObserver(mark).observe(kpi, { childList: true, characterData: true, subtree: true });
+    mark();
+  }
+
   async function api(payload) {
     const config = window.RONECA_PANEL_CONFIG || {};
     const token = await window.RonecaPanelAuth?.getAccessToken?.();
@@ -29,6 +47,7 @@
   function consolidateAdmin() {
     if (!/\/dashboard\.html$/i.test(location.pathname)) return false;
     removeSubscriptionUi();
+    watchLedgerKpi();
     document.querySelectorAll('.tab[data-tab="finance"], .tab[data-tab="credit-packages"]').forEach(tab => tab.remove());
     $('section-finance')?.remove();
     const commercial = $('section-commercial');
