@@ -18,10 +18,37 @@ export const WEB_PLAYER_VERSION = '0.2.3';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
 const CATALOG_CACHE_PREFIX = 'roneca.web.catalog.v2.';
 const CATALOG_CACHE_TTL_MS = 5 * 60_000;
+const SERIES_CACHE_TTL_MS = 5 * 60_000;
+const EPG_CACHE_TTL_MS = 60_000;
+const DETAIL_CACHE_MAX_ENTRIES = 40;
+// Depois de um 429 o servidor continua contando (e custando) cada tentativa. Pausamos as
+// chamadas deste endpoint por um tempo em vez de repetir o pedido em laço.
+const RATE_LIMIT_COOLDOWN_MS = 30_000;
+const RATE_LIMIT_COOLDOWN_ENDPOINTS = new Set(['web-player-catalog']);
 let activeAccessToken: string | null = null;
 let activeCatalogCacheKey: string | null = null;
 const identities = new Map<string, { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }>();
 const catalogInflight = new Map<string, Promise<Catalog>>();
+const catalogMemory = new Map<string, { storedAt: number; catalog: Catalog }>();
+
+type SeriesResult = {
+  ok: true; contentId: string; contentKey: string; title: string; seasons: WebSeason[]; detailsReady: boolean; message?: string | null;
+};
+const seriesMemory = new Map<string, { storedAt: number; result: SeriesResult }>();
+const seriesInflight = new Map<string, Promise<SeriesResult>>();
+const epgMemory = new Map<string, { storedAt: number; programs: EpgProgram[] }>();
+const epgInflight = new Map<string, Promise<EpgProgram[]>>();
+const rateLimitedUntil = new Map<string, number>();
+
+function rememberBounded<T>(store: Map<string, T>, key: string, value: T) {
+  store.delete(key);
+  store.set(key, value);
+  while (store.size > DETAIL_CACHE_MAX_ENTRIES) {
+    const oldest = store.keys().next().value;
+    if (oldest === undefined) break;
+    store.delete(oldest);
+  }
+}
 
 function registerIdentity(item: { contentId: string; contentKey: string; type: 'channel' | 'movie' | 'series' | 'episode' }) {
   if (!item.contentId || !item.contentKey) return;
@@ -44,6 +71,11 @@ function catalogCacheKey(accessToken: string) {
 }
 
 function readCatalogCache(key: string) {
+  const memory = catalogMemory.get(key);
+  if (memory) {
+    if (Date.now() - memory.storedAt <= CATALOG_CACHE_TTL_MS) return memory.catalog;
+    catalogMemory.delete(key);
+  }
   try {
     const entry = JSON.parse(window.sessionStorage.getItem(key) || 'null') as { storedAt?: number; catalog?: Catalog } | null;
     if (!entry?.catalog || Date.now() - Number(entry.storedAt || 0) > CATALOG_CACHE_TTL_MS) return null;
@@ -52,11 +84,20 @@ function readCatalogCache(key: string) {
 }
 
 function writeCatalogCache(key: string, catalog: Catalog) {
+  // Catálogos grandes podem não caber no sessionStorage (limite típico de ~5 MB). A cópia em
+  // memória evita refazer a chamada inteira a cada tela quando a gravação falha.
+  catalogMemory.clear();
+  catalogMemory.set(key, { storedAt: Date.now(), catalog });
   try { window.sessionStorage.setItem(key, JSON.stringify({ storedAt: Date.now(), catalog })); } catch { /* storage indisponível */ }
 }
 
 export function clearCatalogCache() {
   catalogInflight.clear();
+  catalogMemory.clear();
+  seriesMemory.clear();
+  seriesInflight.clear();
+  epgMemory.clear();
+  epgInflight.clear();
   try { if (activeCatalogCacheKey) window.sessionStorage.removeItem(activeCatalogCacheKey); } catch { /* storage indisponível */ }
   activeCatalogCacheKey = null;
 }
@@ -71,6 +112,9 @@ export class ApiError extends Error {
 }
 
 async function post<T>(endpoint: string, payload: Record<string, unknown>, accessToken?: string | null): Promise<T> {
+  if ((rateLimitedUntil.get(endpoint) || 0) > Date.now()) {
+    throw new ApiError('WEB_RATE_LIMITED', 'Muitas solicitações. Aguarde alguns segundos e tente novamente.', 429);
+  }
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 20_000);
   try {
@@ -88,6 +132,9 @@ async function post<T>(endpoint: string, payload: Record<string, unknown>, acces
     });
     let body: Record<string, unknown> = {};
     try { body = await response.json() as Record<string, unknown>; } catch { body = {}; }
+    if (response.status === 429 && RATE_LIMIT_COOLDOWN_ENDPOINTS.has(endpoint)) {
+      rateLimitedUntil.set(endpoint, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+    }
     if (!response.ok || body.ok === false) {
       throw new ApiError(String(body.code || `HTTP_${response.status}`), String(body.message || 'Não foi possível concluir esta operação.'), response.status, body);
     }
@@ -121,7 +168,7 @@ export async function fetchSession(accessToken: string) {
 }
 export async function logout(accessToken: string | null) {
   try { if (accessToken) await post('web-player-auth', { action: 'logout' }, accessToken); }
-  finally { activeAccessToken = null; clearIdentityRegistry(); clearCatalogCache(); storeRefreshToken(null); }
+  finally { activeAccessToken = null; clearIdentityRegistry(); clearCatalogCache(); rateLimitedUntil.clear(); storeRefreshToken(null); }
 }
 
 async function requestCatalog(accessToken: string, key: string) {
@@ -150,16 +197,41 @@ export async function fetchCatalog(accessToken: string) {
   catalogInflight.set(key, request);
   return request;
 }
-export async function fetchSeries(accessToken: string, contentId: string) {
-  const result = await post<{
-    ok: true; contentId: string; contentKey: string; title: string; seasons: WebSeason[]; detailsReady: boolean; message?: string | null;
-  }>('web-player-catalog', { action: 'series', contentId }, accessToken);
+
+async function requestSeries(accessToken: string, contentId: string) {
+  const result = await post<SeriesResult>('web-player-catalog', { action: 'series', contentId }, accessToken);
   for (const season of result.seasons || []) for (const episode of season.episodes || []) registerIdentity(episode);
+  // Só guarda quando os episódios vieram; uma resposta vazia deve poder ser tentada de novo depois.
+  if (result.detailsReady) rememberBounded(seriesMemory, contentId, { storedAt: Date.now(), result });
   return result;
 }
-export async function fetchEpg(accessToken: string, contentId: string) {
+export async function fetchSeries(accessToken: string, contentId: string): Promise<SeriesResult> {
+  const cached = seriesMemory.get(contentId);
+  if (cached && Date.now() - cached.storedAt <= SERIES_CACHE_TTL_MS) {
+    for (const season of cached.result.seasons || []) for (const episode of season.episodes || []) registerIdentity(episode);
+    return cached.result;
+  }
+  const running = seriesInflight.get(contentId);
+  if (running) return running;
+  const request = requestSeries(accessToken, contentId).finally(() => seriesInflight.delete(contentId));
+  seriesInflight.set(contentId, request);
+  return request;
+}
+
+async function requestEpg(accessToken: string, contentId: string) {
   const result = await post<{ ok: true; available: boolean; programs: EpgProgram[] }>('web-player-catalog', { action: 'epg', contentId }, accessToken);
-  return result.programs || [];
+  const programs = result.programs || [];
+  rememberBounded(epgMemory, contentId, { storedAt: Date.now(), programs });
+  return programs;
+}
+export async function fetchEpg(accessToken: string, contentId: string) {
+  const cached = epgMemory.get(contentId);
+  if (cached && Date.now() - cached.storedAt <= EPG_CACHE_TTL_MS) return cached.programs;
+  const running = epgInflight.get(contentId);
+  if (running) return running;
+  const request = requestEpg(accessToken, contentId).finally(() => epgInflight.delete(contentId));
+  epgInflight.set(contentId, request);
+  return request;
 }
 
 function browserMediaRelayUrl(playbackUrl: string) {
