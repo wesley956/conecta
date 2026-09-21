@@ -154,6 +154,10 @@
     const amount = Number.parseInt(source.textContent || '0', 10) || 0;
     target.textContent = amount > 99 ? '99+' : String(amount);
     target.hidden = amount === 0;
+    // O atributo hidden sozinho não bastava: a regra ".panel-notification span" define o display e o anulava,
+    // deixando um "0" vermelho no sino. O display inline (com !important) vence essa regra.
+    if (amount === 0) target.style.setProperty('display', 'none', 'important');
+    else target.style.removeProperty('display');
   }
 
   function syncMoreNavigation() {

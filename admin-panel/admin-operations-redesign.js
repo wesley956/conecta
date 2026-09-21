@@ -51,6 +51,108 @@
     return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('pt-BR');
   };
 
+  // Singular/plural em português: count(1, 'dia', 'dias') devolve "1 dia" e count(5, 'dia', 'dias') devolve
+  // "5 dias". Substitui os "dia(s)", "crédito(s)", "aparelho(s)" e "1 clientes" que apareciam nas telas.
+  const noun = (amount, one, many) => (Math.abs(Number(amount)) === 1 ? one : many);
+  const count = (amount, one, many) => `${amount} ${noun(amount, one, many)}`;
+
+  // Nomes legíveis para os eventos do histórico. Antes apareciam como "device.activated_canonical".
+  // Cobre os 39 tipos que existem hoje em panel_audit_logs; o que não estiver aqui cai em auditActionText().
+  const AUDIT_ACTION_LABELS = {
+    'device.activated': 'Aparelho ativado',
+    'device.activated_canonical': 'Aparelho ativado',
+    'device.activated_with_finance': 'Aparelho ativado com venda registrada',
+    'device.activation.rate_limited': 'Ativação bloqueada por excesso de tentativas',
+    'device.deleted': 'Aparelho excluído',
+    'device.deleted_by_seller': 'Aparelho excluído pelo vendedor',
+    'device.updated': 'Aparelho atualizado',
+    'device.renewed': 'Aparelho renovado',
+    'device.renewed_canonical': 'Aparelho renovado',
+    'device.renewed_with_finance': 'Aparelho renovado com venda registrada',
+    'device.playlist_replaced': 'Lista do aparelho substituída',
+    'device.playlists_changed_canonical': 'Listas do aparelho alteradas',
+    'device.playlists_changed_without_renewal': 'Listas do aparelho alteradas (sem renovação)',
+    'playlist.created': 'Lista criada',
+    'playlist.updated': 'Lista atualizada',
+    'playlist.deleted': 'Lista excluída',
+    'playlist.removed_by_seller': 'Lista removida pelo vendedor',
+    'playlist.bulk_cleanup': 'Limpeza de listas em lote',
+    'playlist.fix_preflight_snapshot': 'Cópia de segurança antes da correção de listas',
+    'playlist.direct_fallback_enabled': 'Acesso direto ativado para a lista',
+    'playlist.reclassify_connection_refused': 'Lista reclassificada (conexão recusada)',
+    'playlist_source_archived': 'Fonte de lista arquivada',
+    'universal_playlist_created': 'Fonte universal criada',
+    'universal_playlist_reused': 'Fonte universal reaproveitada',
+    'seller.created': 'Vendedor criado',
+    'seller.provisioned': 'Vendedor provisionado',
+    'seller.updated': 'Vendedor atualizado',
+    'seller.deleted': 'Vendedor excluído',
+    'customer.created': 'Cliente criado',
+    'customer.updated': 'Cliente atualizado',
+    'customer.deleted': 'Cliente excluído',
+    'credit.added': 'Créditos adicionados',
+    'plan.created': 'Plano criado',
+    'plan.updated': 'Plano atualizado',
+    'finance.record.updated': 'Registro financeiro atualizado',
+    'finance.record_deleted_by_seller': 'Registro financeiro excluído pelo vendedor',
+    'support.system.updated': 'Sistema de suporte atualizado',
+    'lg_review.device_activated': 'Aparelho de homologação LG ativado',
+    'audit.ping': 'Teste do registro de auditoria',
+  };
+
+  const HISTORY_CATEGORY_LABELS = {
+    credit: 'Créditos',
+    device: 'Aparelhos',
+    customer: 'Clientes',
+    playlist: 'Listas',
+    seller: 'Vendedores',
+    security: 'Segurança e administração',
+  };
+
+  // Antes o marcador era o começo do nome em inglês da categoria ("DE", "PL", "CU"), e "seller" e
+  // "security" ficavam iguais ("SE").
+  const HISTORY_MARKERS = {
+    credit: 'CR',
+    device: 'AP',
+    customer: 'CL',
+    playlist: 'LI',
+    seller: 'VE',
+    security: 'AD',
+  };
+
+  function auditActionText(action) {
+    const key = String(action || '');
+    if (AUDIT_ACTION_LABELS[key]) return AUDIT_ACTION_LABELS[key];
+    const fromPanel = typeof actionLabel === 'function' ? actionLabel(key) : key;
+    if (fromPanel && fromPanel !== key) return fromPanel;
+    const words = key.replace(/[._]+/g, ' ').trim();
+    return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Ação administrativa';
+  }
+
+  // #444: o status gravado continua "active" depois que a validade passa (nenhuma rotina o atualiza), mas o
+  // servidor já nega o acesso a esses aparelhos (device-config devolve "expired" na hora). Só na apresentação,
+  // "ativo com validade no passado" vira "Vencido". Nada é gravado e nenhum endpoint muda.
+  const isExpiredNow = device => device.status === 'active'
+    && Boolean(device.expiresAt)
+    && new Date(device.expiresAt).getTime() <= Date.now();
+  const effectiveStatus = device => (isExpiredNow(device) ? 'expired' : device.status);
+
+  // O indicador "Ativos" do dashboard.js conta só pelo status gravado; aqui ele passa a contar quem está com a
+  // validade em dia, e o tooltip explica a diferença.
+  function applyEffectiveActiveCount() {
+    if (typeof devices === 'undefined') return;
+    const valid = devices.filter(device => device.status === 'active' && !isExpiredNow(device)).length;
+    const expired = devices.filter(isExpiredNow).length;
+    ['stActive', 'stActiveMirror'].forEach(id => {
+      const element = $(id);
+      if (!element) return;
+      element.textContent = String(valid);
+      element.title = expired
+        ? `${valid} com validade em dia. ${expired} com status ativo, mas já ${noun(expired, 'vencido', 'vencidos')}.`
+        : '';
+    });
+  }
+
   async function operationsApi(payload = { action: 'dashboard' }) {
     const config = window.RONECA_PANEL_CONFIG || {};
     const accessToken = await window.RonecaPanelAuth?.getAccessToken?.();
@@ -115,7 +217,7 @@
     return `
       <div class="admin-ops-pagination">
         <button class="btn" type="button" onclick="${changeFunction}(${Math.max(1, current - 1)})" ${current <= 1 ? 'disabled' : ''}>Anterior</button>
-        <span>Página <strong>${current}</strong> de <strong>${pages}</strong> · ${total} registro(s)</span>
+        <span>Página <strong>${current}</strong> de <strong>${pages}</strong> · ${count(total, 'registro', 'registros')}</span>
         <button class="btn" type="button" onclick="${changeFunction}(${Math.min(pages, current + 1)})" ${current >= pages ? 'disabled' : ''}>Próxima</button>
       </div>`;
   }
@@ -192,8 +294,8 @@
       <div><small>Vendedor</small><strong>${escapeHtml(seller?.name || 'Não selecionado')}</strong></div>
       <div><small>Plano</small><strong>${escapeHtml(plan?.name || 'Não selecionado')}</strong></div>
       <div><small>Lista principal</small><strong>${escapeHtml(playlist?.name || 'Não selecionada')}</strong></div>
-      <div><small>Custo</small><strong>${cost ? `${cost} crédito(s)` : '—'}</strong></div>
-      <div><small>Saldo após</small><strong>${seller && plan ? `${balance - cost} crédito(s)` : '—'}</strong></div>`;
+      <div><small>Custo</small><strong>${cost ? count(cost, 'crédito', 'créditos') : '—'}</strong></div>
+      <div><small>Saldo após</small><strong>${seller && plan ? count(balance - cost, 'crédito', 'créditos') : '—'}</strong></div>`;
   }
 
   window.adminOpsOpenPending = deviceId => {
@@ -239,13 +341,17 @@
 
   function compactDeviceCard(device) {
     const left = typeof daysLeft === 'function' ? daysLeft(device.expiresAt) : null;
-    const validity = left === null ? 'Sem vencimento' : (left < 0 ? `Vencido há ${Math.abs(left)} dia(s)` : `${left} dia(s) restantes`);
+    const validity = left === null
+      ? 'Sem vencimento'
+      : (left < 0
+        ? `Vencido há ${count(Math.abs(left), 'dia', 'dias')}`
+        : (left === 0 ? 'Vence hoje' : `${left} ${noun(left, 'dia restante', 'dias restantes')}`));
     const backup = device.backupPlaylistId ? 'Reserva configurada' : 'Sem lista reserva';
     return `
-      <article class="admin-device-card admin-device-card-compact" data-status="${escapeHtml(device.status)}">
+      <article class="admin-device-card admin-device-card-compact" data-status="${escapeHtml(effectiveStatus(device))}">
         <div class="admin-device-head">
           <div><div class="mono admin-device-code">${escapeHtml(device.deviceCode)}</div><strong>${escapeHtml(device.customerName || 'Sem cliente')}</strong></div>
-          ${statusBadge(device.status)}
+          ${statusBadge(effectiveStatus(device))}
         </div>
         <div class="admin-device-compact-meta">
           <span><small>Vendedor</small><strong>${escapeHtml(device.sellerName || 'Sem vendedor')}</strong></span>
@@ -307,7 +413,7 @@
       const expiring = linked.filter(device => typeof isExpiringSoon === 'function' && isExpiringSoon(device)).length;
       return `<button class="admin-seller-group-card" type="button" onclick="adminOpsOpenCustomerSeller('${escapeHtml(group.key)}')">
         <div><small>${group.seller ? 'Vendedor' : 'Organização'}</small><strong>${escapeHtml(group.seller?.name || 'Clientes sem vendedor')}</strong><span>${escapeHtml(group.seller?.whatsapp || 'Cadastros administrativos ou antigos')}</span></div>
-        <div class="admin-seller-group-metrics"><span><b>${group.rows.length}</b> clientes</span><span><b>${linked.length}</b> aparelhos</span><span><b>${active}</b> ativos</span><span><b>${expiring}</b> vencendo</span></div>
+        <div class="admin-seller-group-metrics"><span><b>${group.rows.length}</b> ${noun(group.rows.length, 'cliente', 'clientes')}</span><span><b>${linked.length}</b> ${noun(linked.length, 'aparelho', 'aparelhos')}</span><span><b>${active}</b> ${noun(active, 'ativo', 'ativos')}</span><span><b>${expiring}</b> vencendo</span></div>
         <em>Ver clientes →</em>
       </button>`;
     }).join('')}</div>` : '<div class="admin-ops-empty">Nenhum vendedor ou cliente encontrado.</div>';
@@ -334,7 +440,7 @@
       <div class="admin-customer-card-grid">${pageRows.map(customer => {
         const wa = typeof whatsappUrl === 'function' ? whatsappUrl(customer.whatsapp) : '';
         return `<article class="admin-customer-card">
-          <div class="admin-customer-card-head"><div><input id="cust-name-${escapeHtml(customer.id)}" value="${escapeHtml(customer.name)}"><input id="cust-whats-${escapeHtml(customer.id)}" value="${escapeHtml(customer.whatsapp)}"></div><span class="badge active">${Number(customer.devicesCount || 0)} aparelho(s)</span></div>
+          <div class="admin-customer-card-head"><div><input id="cust-name-${escapeHtml(customer.id)}" value="${escapeHtml(customer.name)}"><input id="cust-whats-${escapeHtml(customer.id)}" value="${escapeHtml(customer.whatsapp)}"></div><span class="badge active">${count(Number(customer.devicesCount || 0), 'aparelho', 'aparelhos')}</span></div>
           <div class="admin-customer-card-meta"><span>Cadastrado em ${dateOnly(customer.createdAt)}</span>${wa ? `<a href="${wa}" target="_blank" rel="noreferrer">Abrir WhatsApp</a>` : ''}</div>
           <div class="actions"><button class="btn" type="button" onclick="showCustomerDetails('${escapeHtml(customer.id)}')">Detalhes</button><button class="btn green" type="button" onclick="updateCustomer('${escapeHtml(customer.id)}')">Salvar</button><button class="btn red" type="button" onclick="deleteCustomer('${escapeHtml(customer.id)}')">Excluir</button></div>
         </article>`;
@@ -408,7 +514,7 @@
       const errors = group.rows.filter(playlist => playlist.cacheStatus === 'error').length;
       return `<button class="admin-seller-group-card" type="button" onclick="adminOpsOpenPlaylistSeller('${escapeHtml(group.key)}')">
         <div><small>${group.seller ? 'Vendedor' : 'Organização'}</small><strong>${escapeHtml(group.seller?.name || 'Listas administrativas')}</strong><span>${escapeHtml(group.seller?.whatsapp || 'Sem vendedor associado')}</span></div>
-        <div class="admin-seller-group-metrics"><span><b>${group.rows.length}</b> listas</span><span><b>${deviceIds.size}</b> aparelhos</span><span><b>${errors}</b> com erro</span></div><em>Ver listas →</em>
+        <div class="admin-seller-group-metrics"><span><b>${group.rows.length}</b> ${noun(group.rows.length, 'lista', 'listas')}</span><span><b>${deviceIds.size}</b> ${noun(deviceIds.size, 'aparelho', 'aparelhos')}</span><span><b>${errors}</b> com erro</span></div><em>Ver listas →</em>
       </button>`;
     }).join('')}</div>` : '<div class="admin-ops-empty">Nenhum grupo de listas encontrado.</div>';
   }
@@ -428,7 +534,7 @@
     target.innerHTML = pageRows.length ? `
       <div class="admin-playlist-card-grid">${pageRows.map(playlist => `
         <article class="admin-playlist-card">
-          <div class="admin-playlist-card-head"><div><input id="pl-name-${escapeHtml(playlist.id)}" value="${escapeHtml(playlist.name)}"><span>${escapeHtml(playlist.playlistType || 'm3u')} · ${Number(playlist.devicesCount || 0)} aparelho(s)</span></div>${typeof playlistCacheBadge === 'function' ? playlistCacheBadge(playlist) : ''}</div>
+          <div class="admin-playlist-card-head"><div><input id="pl-name-${escapeHtml(playlist.id)}" value="${escapeHtml(playlist.name)}"><span>${escapeHtml(playlist.playlistType || 'm3u')} · ${count(Number(playlist.devicesCount || 0), 'aparelho', 'aparelhos')}</span></div>${typeof playlistCacheBadge === 'function' ? playlistCacheBadge(playlist) : ''}</div>
           <input id="pl-url-${escapeHtml(playlist.id)}" value="${escapeHtml(playlist.playlistUrl)}" aria-label="URL da lista">
           <div class="admin-playlist-controls"><select id="pl-type-${escapeHtml(playlist.id)}"><option value="m3u" ${playlist.playlistType === 'm3u' ? 'selected' : ''}>M3U</option><option value="xtream" ${playlist.playlistType === 'xtream' ? 'selected' : ''}>Xtream</option><option value="stalker" ${playlist.playlistType === 'stalker' ? 'selected' : ''}>Stalker</option></select><select id="pl-active-${escapeHtml(playlist.id)}"><option value="true" ${playlist.active ? 'selected' : ''}>Ativa</option><option value="false" ${!playlist.active ? 'selected' : ''}>Inativa</option></select></div>
           <div class="actions"><button class="btn" type="button" onclick="showPlaylistDetails('${escapeHtml(playlist.id)}')">Detalhes</button><button class="btn orange" type="button" onclick="refreshPlaylistCache('${escapeHtml(playlist.id)}')">Gerar cache</button><button class="btn green" type="button" onclick="updatePlaylist('${escapeHtml(playlist.id)}')">Salvar</button><button class="btn red" type="button" onclick="deletePlaylist('${escapeHtml(playlist.id)}')">Excluir</button></div>
@@ -509,7 +615,7 @@
       const amount = Number(item.amount || 0);
       const date = new Date(item.createdAt || 0);
       const itemSellerId = item.sellerId || item.metadata?.sellerId || (item.entityType === 'seller' ? item.entityId : '');
-      const text = normalized(JSON.stringify(item));
+      const text = normalized(`${JSON.stringify(item)} ${item.kind === 'audit' ? auditActionText(item.action) : ''}`);
       return (!type || category === type)
         && (!sellerId || itemSellerId === sellerId)
         && (!direction || (direction === 'positive' ? amount > 0 : amount < 0))
@@ -540,9 +646,9 @@
       state.historyItems.set(key, item);
       if (item.kind === 'credit') {
         const amount = Number(item.amount || 0);
-        return `<article class="admin-history-item credit"><div class="admin-history-marker">CR</div><div><div class="admin-history-title"><strong>${escapeHtml(typeof ledgerTypeLabel === 'function' ? ledgerTypeLabel(item.type) : item.type)}</strong><span class="${amount >= 0 ? 'ok-text' : 'danger-text'}">${amount > 0 ? '+' : ''}${amount} crédito(s)</span></div><p>${escapeHtml(item.description || 'Movimentação de créditos')}</p><div class="admin-history-meta"><span>${escapeHtml(item.sellerName || 'Vendedor não informado')}</span><span>Saldo após: ${Number(item.balanceAfter || 0)}</span><span>${dateTime(item.createdAt)}</span></div></div><button class="btn" type="button" onclick="adminOpsHistoryDetailsByKey('${escapeHtml(key)}')">Detalhes</button></article>`;
+        return `<article class="admin-history-item credit"><div class="admin-history-marker">CR</div><div><div class="admin-history-title"><strong>${escapeHtml(typeof ledgerTypeLabel === 'function' ? ledgerTypeLabel(item.type) : item.type)}</strong><span class="${amount >= 0 ? 'ok-text' : 'danger-text'}">${amount > 0 ? '+' : ''}${count(amount, 'crédito', 'créditos')}</span></div><p>${escapeHtml(item.description || 'Movimentação de créditos')}</p><div class="admin-history-meta"><span>${escapeHtml(item.sellerName || 'Vendedor não informado')}</span><span>Saldo após: ${Number(item.balanceAfter || 0)}</span><span>${dateTime(item.createdAt)}</span></div></div><button class="btn" type="button" onclick="adminOpsHistoryDetailsByKey('${escapeHtml(key)}')">Detalhes</button></article>`;
       }
-      return `<article class="admin-history-item"><div class="admin-history-marker">${escapeHtml(historyCategory(item).slice(0, 2).toUpperCase())}</div><div><div class="admin-history-title"><strong>${escapeHtml(typeof actionLabel === 'function' ? actionLabel(item.action) : item.action)}</strong><span>${escapeHtml(typeof entityLabel === 'function' ? entityLabel(item.entityType) : item.entityType || 'Sistema')}</span></div><p>${escapeHtml(item.description || 'Ação administrativa')}</p><div class="admin-history-meta"><span>${dateTime(item.createdAt)}</span><span class="mono">${escapeHtml(item.entityId || '')}</span></div></div><button class="btn" type="button" onclick="adminOpsHistoryDetailsByKey('${escapeHtml(key)}')">Detalhes</button></article>`;
+      return `<article class="admin-history-item"><div class="admin-history-marker">${escapeHtml(HISTORY_MARKERS[historyCategory(item)] || '··')}</div><div><div class="admin-history-title"><strong>${escapeHtml(auditActionText(item.action))}</strong><span>${escapeHtml(typeof entityLabel === 'function' ? entityLabel(item.entityType) : item.entityType || 'Sistema')}</span></div><p>${escapeHtml(item.description || 'Ação administrativa')}</p><div class="admin-history-meta"><span>${dateTime(item.createdAt)}</span><span class="mono">${escapeHtml(item.entityId || '')}</span></div></div><button class="btn" type="button" onclick="adminOpsHistoryDetailsByKey('${escapeHtml(key)}')">Detalhes</button></article>`;
     }).join('')}${pagination(rows.length, state.historyPage, state.historyPageSize, 'adminOpsHistoryPage')}` : '<div class="admin-ops-empty">Nenhum registro corresponde aos filtros.</div>';
   }
 
@@ -554,7 +660,7 @@
     if (!item) return;
     const title = item.kind === 'credit' ? 'Movimentação de créditos' : 'Evento do histórico';
     const subtitle = `<span class="mono">${escapeHtml(item.id || item.entityId || 'registro')}</span>`;
-    const html = `<div class="detail-grid"><div class="detail-box half"><small>Data</small><strong>${dateTime(item.createdAt)}</strong></div><div class="detail-box half"><small>Categoria</small><strong>${escapeHtml(historyCategory(item))}</strong></div><div class="detail-box wide"><small>Descrição</small><strong>${escapeHtml(item.description || '—')}</strong></div><div class="detail-box wide"><small>Dados completos</small><pre class="admin-history-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre></div></div>`;
+    const html = `<div class="detail-grid"><div class="detail-box half"><small>Data</small><strong>${dateTime(item.createdAt)}</strong></div><div class="detail-box half"><small>Categoria</small><strong>${escapeHtml(HISTORY_CATEGORY_LABELS[historyCategory(item)] || historyCategory(item))}</strong></div><div class="detail-box wide"><small>Descrição</small><strong>${escapeHtml(item.description || '—')}</strong></div><div class="detail-box wide"><small>Dados completos</small><pre class="admin-history-json">${escapeHtml(JSON.stringify(item, null, 2))}</pre></div></div>`;
     if (typeof openDetails === 'function') openDetails(title, subtitle, html);
   };
 
@@ -689,6 +795,7 @@
       renderHistory();
       renderCompanyFinance();
       ensureCommercialCleanup();
+      applyEffectiveActiveCount();
       return result;
     };
     return true;
@@ -732,6 +839,7 @@
     window.renderDevices?.();
     renderHistory();
     renderCompanyFinance();
+    applyEffectiveActiveCount();
     return true;
   }
 
