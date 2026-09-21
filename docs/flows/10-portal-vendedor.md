@@ -1,43 +1,37 @@
 # Portal do vendedor: verificação ao vivo (2026-09-21)
 
-O portal do vendedor era a parte **não verificada** do inventário (ver [README](README.md)). Nesta rodada o dono entrou com a conta do vendedor "Wesley" e eu percorri as telas **somente em leitura**: não enviei nenhum formulário, não busquei nenhum código de aparelho, não cliquei em "Renovar", "Excluir" nem "Atualizar agora".
+O portal do vendedor era a parte **não verificada** do inventário (ver [README](README.md)). O dono entrou com a conta do vendedor "Wesley" em duas rodadas (a sessão caiu entre elas) e eu percorri as telas **somente em leitura**: não enviei nenhum formulário, não busquei nenhum código de aparelho, não cliquei em "Renovar", "Excluir", "Atualizar agora" nem "Registrar recebimento".
 
-`[TELA]` = vista ao vivo nesta rodada · `[BD]` = banco · `[#N]` = issue/PR.
+`[TELA]` = vista ao vivo · `[BD]` = banco · `[CÓD]` = código · `[#N]` = issue/PR.
 
 ## Conta usada
 
-`[BD]` papel **`seller`**, ligada ao vendedor "Wesley" (5 contas com papel no sistema; papéis existentes: `admin` e `seller`). Não é uma conta de administrador: por isso **as mudanças de painel ADM (#435 a #443) não puderam ser vistas nesta rodada**.
+`[BD]` papel **`seller`**, ligada ao vendedor "Wesley" (5 contas com papel no sistema; papéis existentes: `admin` e `seller`). Não é uma conta de administrador.
 
-## Telas do portal
+## Todas as 10 telas do portal, agora vistas
 
 | Tela | Visto? | O que apareceu |
 |---|---|---|
-| **Início** | ✅ `[TELA]` | Saldo atual **34**; aparelhos ativos **1**; vencendo em 7 dias 0; vencidos 0; pendentes 0; bloqueados 0; créditos adicionados **110**; consumidos **76**. "Ações de hoje": nenhuma ativação pendente, nenhum vencimento próximo, "34 crédito(s)". **Bate com o banco:** 110 − 76 = 34 e o saldo do vendedor é 34 `[BD]` |
-| **Ativar aparelho** | 🟡 | Campo "RPTV-XXXXXX" e botão "Buscar aparelho"; texto "Busque o código e siga o fluxo único. Não existe formulário comercial alternativo nesta tela." **A busca do código e o assistente de 5 etapas não foram testados** |
-| **Meus aparelhos** | ✅ `[TELA]` | Filtros: Status (Todos, Ativos, Pendentes, **Vencidos**, Bloqueados, Inativos) e Vencimento (Todos, **Já vencidos**, vence hoje, até 7 dias, até 30 dias, mais de 30). "1 de 1 aparelho(s) exibido(s)". Cartão: código, cliente, WhatsApp, "Ativo", plano "mensal 1 tela", validade 10/10/2026 23:59 ("20 dia(s)"), lista principal "Teste 01", reserva "Não configurada", último acesso 09/08/2026. **Ações no cartão: Abrir, WhatsApp, Renovar, Alterar listas, Acesso Web.** Não há "Excluir" nem "Bloquear" no cartão (**não abri o "Abrir"** para ver se estão lá) |
-| **Clientes** | ✅ `[TELA]` | 3 clientes (parecem de teste), botões "Novo cliente", "WhatsApp" e "Editar" |
-| **Minhas listas** | ✅ `[TELA]` | Ver abaixo (2 achados) |
-| **Baixar aplicativo** | ✅ `[TELA]` | Versão 2.9.9, 8,2 MB, 22/08/2026. **As notas aparecem em Markdown cru** ("# RonecaPlayTV 2.9.9", "- Remove...") e a tela oferece **"Samsung Tizen · .wgt"** sem pacote publicado. O módulo é o mesmo do ADM, então o PR #440 corrige as duas telas `[#440]` `[#446]` |
-| Diagnóstico | ❔ | **Não visto** (a aba travou) |
-| Meu suporte | ❔ | **Não visto** |
-| Minhas vendas | ❔ | **Não visto** |
-| Meus créditos | ❔ | **Não visto** |
+| **Início** | ✅ | Saldo atual **34**; aparelhos ativos **1**; créditos adicionados **110**; consumidos **76** (110−76=34, bate com o banco) `[BD]` |
+| **Ativar aparelho** | 🟡 | Campo do código e "Buscar aparelho"; **a busca e o assistente de 5 etapas não foram testados** |
+| **Meus aparelhos** | ✅ | Filtros "Vencidos"/"Já vencidos"; ações Abrir, WhatsApp, Renovar, Alterar listas, Acesso Web; sem "Excluir"/"Bloquear" visível no cartão (não abri "Abrir") |
+| **Clientes** | ✅ | 3 clientes, "Novo cliente", "WhatsApp", "Editar" |
+| **Minhas listas** | ✅ | Promessa falsa de renovação automática corrigida `[#450]`; botões duplicados mantidos de propósito ("Ferramentas antigas" funciona aqui, diferente do ADM) |
+| **Baixar aplicativo** | ✅ | **Confirmado em produção, após o merge do #440:** as notas da 2.9.9 aparecem como lista com marcadores, não mais em Markdown cru ("# RonecaPlayTV", "-") |
+| **Diagnóstico** | ✅ | 5 indicadores (Problemas em 24h, Aparelhos afetados, Recuperados, Sem lista reserva, Precisam verificar), todos 0; busca, filtro por situação, paginação; "Nenhum problema encontrado. Ótima notícia." |
+| **Meu suporte** | ✅ | Formulário de perfil de suporte (nome comercial, WhatsApp, e-mail, URL, texto de atendimento, horário, checkbox de exibição) com prévia ao lado. **Achado:** o campo "Texto curto de atendimento" (`#sellerSupportText`) estava em fonte monoespaçada — mesmo defeito do `#adminSupportText` que o #438 corrigiu, mas só para o ADM. Corrigido e confirmado ao vivo `[#452]` |
+| **Minhas vendas** | ✅ | "Meus preços por plano": os **2 planos deste vendedor não têm preço configurado** (confirma o achado geral do `[#448]` a nível de conta real). Indicadores Recebido/Pendente/Atrasado/Vendas pagas/Ticket médio, todos zerados. Mesmo "1 crédito(s)" sem plural correto (fora do escopo do #443, que só cobriu o ADM) |
+| **Meus créditos** | ✅ | Extrato de movimentações (ativações/renovações, -1 cada, com saldo após). **Achado:** o cabeçalho "Saldo atual" aqui mostra **0** (é `cpSellerBalance`, do sistema de compra financiada de pacotes — recurso à parte), diferente do "Saldo atual: 34" da tela Início. Mesmo rótulo, dois significados `[#453]` |
 
-## Minhas listas: achados
+**Todas as 10 telas foram vistas.** O que continua não testado: o assistente de ativação (5 etapas), "Renovar", "Alterar listas", "Registrar recebimento", e o conteúdo de "Abrir" no aparelho.
 
-1. **Promessa falsa.** O cabeçalho dizia "O catálogo em cache é renovado automaticamente após 6 horas" e a lista antiga mostrava "Elegível para renovação automática: <data>". A atualização automática **não está ativa** `[#373]`. Corrigido no PR #450.
-2. **Botões duplicados.** "Adicionar lista" (cabeçalho) e "Adicionar fonte" (quadro) abrem a **mesma** janela ("Cadastro universal de fontes"). No portal do vendedor o "Ferramentas antigas" **não é um botão morto**: ao clicar, a página cresce de 1.559 para 3.230 px e aparece a **lista antiga** (com "Atualizar agora" e "Excluir" por lista); clicar de novo volta ao normal. Por isso o PR #442 **mantém os três botões para o vendedor** e só limpa o ADM (no ADM esse botão não muda nada visível).
-3. O quadro "Fontes universais" do vendedor mostrou 7 cartões.
+## Achados novos desta rodada
 
-## Acesso indevido ao painel do ADM
-
-Com essa conta, abrir `/dashboard.html` mostra o painel do ADM vazio, com "Administrador — Conta principal" e o aviso "Painel carregado parcialmente". O servidor recusou os dados (sem vazamento), mas o vendedor vê o menu inteiro do administrador `[#451]`.
+- **#452** (corrigido): `#sellerSupportText` em fonte monoespaçada.
+- **#453** (aberto): "Saldo atual" com dois significados.
+- **Plural "crédito(s)" no lado do vendedor** (Minhas vendas: "custo 1 crédito(s)") não foi corrigido — o #443 só tratou o ADM. Sem issue própria ainda; ver #427.
 
 ## Pontos de atenção técnicos
 
-- A aba do navegador **travou várias vezes** ao trocar de tela no portal e depois de recarregar (consultas simples deram tempo esgotado de 45 s). **Não sei a causa**: pode ser o portal (vários `MutationObserver` e sobreposições de script, #376) ou outras abas do mesmo site abertas no mesmo processo do Chrome. **Não afirmo que é defeito do portal.** Reavaliar com as outras abas fechadas.
-- Plural com "(s)" também no portal do vendedor: "aparelho(s)", "dia(s)", "crédito(s)" (o PR #443 só corrigiu o ADM).
-
-## O que ainda falta neste perfil
-
-As 4 telas não vistas; o assistente de ativação (5 etapas); "Renovar" e "Alterar listas"; o conteúdo de "Abrir" no aparelho (exclusão e bloqueio); "Atualizar agora" (atualização manual do cache).
+- A aba do navegador **trava ao trocar de tela no portal do vendedor**, de forma repetida (confirmado em duas rodadas de teste, com abas diferentes). Os comandos parecem executar mesmo assim (a ação acontece), só a confirmação demora ~30–45 s. **Não determinei a causa**; não afirmo que é defeito do portal.
+- **A sessão do vendedor caiu** ao navegar para fora e voltar (sessionStorage não sobreviveu à re-navegação nesta sessão de teste); exigiu login de novo. Não investiguei se é TTL curto do token ou efeito da minha navegação entre abas/reinicializações do Chrome.
