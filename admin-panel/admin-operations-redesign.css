@@ -177,5 +177,8 @@ body.admin-v2 .panel-global-search input {
 }
 
 /* O texto de atendimento do Suporte é prosa. Os demais textarea do painel (URLs, certificado PEM, JSON,
-   cabeçalhos) continuam monoespaçados de propósito. */
-#adminSupportText { font-family: inherit; }
+   cabeçalhos) continuam monoespaçados de propósito. O portal do vendedor tem o mesmo campo com outro id
+   (sellerSupportText, tela "Meu suporte"); a correção original (#438) só cobria o do ADM. Achado ao vivo
+   no portal do vendedor em 2026-09-21. */
+#adminSupportText,
+#sellerSupportText { font-family: inherit; }
