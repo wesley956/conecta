@@ -159,3 +159,23 @@
   .admin-playlist-card-head { flex-direction: column; }
   .admin-company-records article { align-items: flex-start; flex-direction: column; }
 }
+
+/* Acabamento (UI-08, #427) */
+
+/* Busca do topo: a regra ".panel-global-search input" do roneca-panel-premium.css (especificidade 0,1,1)
+   perdia para "body.admin-v2 input" (0,1,2, também com !important), e o campo aparecia como uma caixa
+   dentro da outra. Com body.admin-v2 na frente a regra original passa a valer; o anel de foco continua
+   no contêiner (.panel-global-search:focus-within). */
+body.admin-v2 .panel-global-search input {
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* O texto de atendimento do Suporte é prosa. Os demais textarea do painel (URLs, certificado PEM, JSON,
+   cabeçalhos) continuam monoespaçados de propósito. */
+#adminSupportText { font-family: inherit; }
