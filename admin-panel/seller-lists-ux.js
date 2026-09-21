@@ -86,6 +86,8 @@
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
   }
 
+  // Sem uso na tela por enquanto (#373): a atualização automática de 6 h não está ativa em produção, então
+  // a tela não pode mais dizer "Elegível para renovação automática". Restaurar a linha junto com o #373.
   function cacheEligibleAt(value) {
     if (!value) return null;
     const updatedAt = new Date(value);
@@ -189,7 +191,7 @@
       <div class="seller-playlist-head">
         <div>
           <h2>Minhas listas</h2>
-          <p class="muted">Cadastre pela entrada universal. O catálogo em cache é renovado automaticamente após 6 horas e também pode ser atualizado manualmente.</p>
+          <p class="muted">Cadastre pela entrada universal. O catálogo em cache pode ser atualizado manualmente.</p>
         </div>
         <div class="actions" style="margin-top:0;">
           <button class="primary" type="button" onclick="sellerListsOpenUniversal()">Adicionar lista</button>
@@ -224,7 +226,6 @@
           <strong>${esc(playlist.name)}</strong>
           <div class="muted">Tipo: ${esc(playlist.playlistType || playlist.type || 'm3u')} · Itens: ${Number(playlist.cacheItemCount || 0).toLocaleString('pt-BR')}</div>
           <div class="muted">Atualizado: ${formatDate(updatedAt)}</div>
-          <div class="muted">Elegível para renovação automática: ${formatDate(cacheEligibleAt(playlist.cacheUpdatedAt))}</div>
           ${lifecyclePill(playlist)}
           <div class="seller-msg ${tone}">${esc(info.message)}</div>
           <div class="muted">${esc(platformText('Android', platforms.android))} · ${esc(platformText('LG', platforms.lg))} · ${esc(platformText('Samsung', platforms.samsung))}</div>
