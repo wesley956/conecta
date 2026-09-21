@@ -57,7 +57,7 @@
   const count = (amount, one, many) => `${amount} ${noun(amount, one, many)}`;
 
   // Nomes legíveis para os eventos do histórico. Antes apareciam como "device.activated_canonical".
-  // Cobre os 38 tipos que existem hoje em panel_audit_logs; o que não estiver aqui cai em auditActionText().
+  // Cobre os 39 tipos que existem hoje em panel_audit_logs; o que não estiver aqui cai em auditActionText().
   const AUDIT_ACTION_LABELS = {
     'device.activated': 'Aparelho ativado',
     'device.activated_canonical': 'Aparelho ativado',
@@ -127,6 +127,30 @@
     if (fromPanel && fromPanel !== key) return fromPanel;
     const words = key.replace(/[._]+/g, ' ').trim();
     return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Ação administrativa';
+  }
+
+  // #444: o status gravado continua "active" depois que a validade passa (nenhuma rotina o atualiza), mas o
+  // servidor já nega o acesso a esses aparelhos (device-config devolve "expired" na hora). Só na apresentação,
+  // "ativo com validade no passado" vira "Vencido". Nada é gravado e nenhum endpoint muda.
+  const isExpiredNow = device => device.status === 'active'
+    && Boolean(device.expiresAt)
+    && new Date(device.expiresAt).getTime() <= Date.now();
+  const effectiveStatus = device => (isExpiredNow(device) ? 'expired' : device.status);
+
+  // O indicador "Ativos" do dashboard.js conta só pelo status gravado; aqui ele passa a contar quem está com a
+  // validade em dia, e o tooltip explica a diferença.
+  function applyEffectiveActiveCount() {
+    if (typeof devices === 'undefined') return;
+    const valid = devices.filter(device => device.status === 'active' && !isExpiredNow(device)).length;
+    const expired = devices.filter(isExpiredNow).length;
+    ['stActive', 'stActiveMirror'].forEach(id => {
+      const element = $(id);
+      if (!element) return;
+      element.textContent = String(valid);
+      element.title = expired
+        ? `${valid} com validade em dia. ${expired} com status ativo, mas já ${noun(expired, 'vencido', 'vencidos')}.`
+        : '';
+    });
   }
 
   async function operationsApi(payload = { action: 'dashboard' }) {
@@ -324,10 +348,10 @@
         : (left === 0 ? 'Vence hoje' : `${left} ${noun(left, 'dia restante', 'dias restantes')}`));
     const backup = device.backupPlaylistId ? 'Reserva configurada' : 'Sem lista reserva';
     return `
-      <article class="admin-device-card admin-device-card-compact" data-status="${escapeHtml(device.status)}">
+      <article class="admin-device-card admin-device-card-compact" data-status="${escapeHtml(effectiveStatus(device))}">
         <div class="admin-device-head">
           <div><div class="mono admin-device-code">${escapeHtml(device.deviceCode)}</div><strong>${escapeHtml(device.customerName || 'Sem cliente')}</strong></div>
-          ${statusBadge(device.status)}
+          ${statusBadge(effectiveStatus(device))}
         </div>
         <div class="admin-device-compact-meta">
           <span><small>Vendedor</small><strong>${escapeHtml(device.sellerName || 'Sem vendedor')}</strong></span>
@@ -771,6 +795,7 @@
       renderHistory();
       renderCompanyFinance();
       ensureCommercialCleanup();
+      applyEffectiveActiveCount();
       return result;
     };
     return true;
@@ -814,6 +839,7 @@
     window.renderDevices?.();
     renderHistory();
     renderCompanyFinance();
+    applyEffectiveActiveCount();
     return true;
   }
 
