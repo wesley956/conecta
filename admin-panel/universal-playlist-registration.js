@@ -229,10 +229,20 @@
     var board = document.createElement('div');
     board.id = 'uplBoard';
     board.className = 'upl-board';
+    // ADM (#426): o botão "Nova lista" do cartão de cima já abre este mesmo cadastro (openPlaylistActionModal),
+    // então "Adicionar fonte" era um segundo botão para a mesma janela; e "Ferramentas antigas" não tem efeito
+    // visível (a tabela e o formulário antigos continuam escondidos por outra regra). No portal do vendedor os
+    // três botões continuam como estavam.
+    var addSourceButton = state.surface === 'seller'
+      ? '<button class="upl-btn primary" type="button" onclick="RonecaUniversalPlaylists.open()">Adicionar fonte</button>'
+      : '';
+    var legacyButton = state.surface === 'seller'
+      ? '<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.toggleLegacy()">Ferramentas antigas</button>'
+      : '';
     board.innerHTML = `
       <div class="upl-board-head">
         <div><h2>Fontes universais</h2><p>Uma conta pode reunir Xtream, M3U, HLS e endereços alternativos sem duplicação.</p></div>
-        <div class="upl-actions"><button class="upl-btn primary" type="button" onclick="RonecaUniversalPlaylists.open()">Adicionar fonte</button><button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.refresh()">Atualizar</button><button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.toggleLegacy()">Ferramentas antigas</button></div>
+        <div class="upl-actions">${addSourceButton}<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.refresh()">Atualizar</button>${legacyButton}</div>
       </div>
       <div class="upl-toolbar">
         <input id="uplSearch" placeholder="Buscar por nome, fornecedor, domínio ou ID" aria-label="Buscar fontes">
@@ -253,6 +263,25 @@
     });
   }
 
+  // Idade do cache (#426): o selo dizia só "Cache pronto", mesmo com o cache gerado há semanas. No ADM a data
+  // vem de playlists[].cacheUpdatedAt (o id da fonte é o id da lista); no portal do vendedor não existe essa
+  // lista, então o selo continua como antes.
+  function cacheUpdatedAtFor(source) {
+    if (state.surface !== 'admin' || typeof playlists === 'undefined') return null;
+    var row = playlists.find(function (item) { return item.id === source.id; });
+    return row && row.cacheUpdatedAt || null;
+  }
+
+  function cacheAgeText(value) {
+    var time = value ? new Date(value).getTime() : NaN;
+    if (Number.isNaN(time)) return '';
+    var hours = Math.max(0, Math.floor((Date.now() - time) / 3600000));
+    if (hours < 1) return 'agora há pouco';
+    if (hours < 24) return 'há ' + hours + ' h';
+    var days = Math.floor(hours / 24);
+    return 'há ' + days + (days === 1 ? ' dia' : ' dias');
+  }
+
   function sourceStatus(source) {
     var map = {
       ready_cache: ['Cache pronto', 'ok'],
@@ -262,7 +291,17 @@
       blocked: ['Bloqueada', 'err'],
       validating: ['Em validação', 'warn']
     };
-    return map[source.qualificationStatus] || [source.qualificationStatus || 'Sem status', ''];
+    var info = map[source.qualificationStatus] || [source.qualificationStatus || 'Sem status', ''];
+    if (source.qualificationStatus === 'ready_cache') {
+      var updatedAt = cacheUpdatedAtFor(source);
+      var age = cacheAgeText(updatedAt);
+      if (age) {
+        // Mais de 7 dias sem atualizar deixa de ser "pronto" em verde: fica amarelo e diz "antigo".
+        var stale = Date.now() - new Date(updatedAt).getTime() > 7 * 24 * 3600000;
+        return [(stale ? 'Cache antigo · ' : 'Cache pronto · ') + age, stale ? 'warn' : 'ok', 'Cache gerado em ' + fmt(updatedAt)];
+      }
+    }
+    return info;
   }
 
   function tlsLabel(mode) {
@@ -298,8 +337,8 @@
       var tlsInfo = tlsLabel(source.tls && source.tls.mode);
       var expired = source.providerExpiresAt && new Date(source.providerExpiresAt).getTime() <= Date.now();
       return `<article class="upl-source-card" data-tls="${esc(source.tls && source.tls.mode || 'strict')}" data-status="${esc(statusInfo[1])}">
-        <div class="upl-source-head"><div><h3>${esc(source.name)}</h3><p>${esc(source.providerName || 'Fornecedor não informado')} · ID ${esc(String(source.id || '').slice(-6).toUpperCase())}</p></div><span class="upl-chip ${statusInfo[1]}">${esc(statusInfo[0])}</span></div>
-        <div class="upl-chip-row"><span class="upl-chip ${tlsInfo[1]}">${esc(tlsInfo[0])}</span>${expired ? '<span class="upl-chip err">Conta vencida</span>' : ''}<span class="upl-chip">${endpoints.length} endpoint(s)</span></div>
+        <div class="upl-source-head"><div><h3>${esc(source.name)}</h3><p>${esc(source.providerName || 'Fornecedor não informado')} · ID ${esc(String(source.id || '').slice(-6).toUpperCase())}</p></div><span class="upl-chip ${statusInfo[1]}"${statusInfo[2] ? ' title="' + esc(statusInfo[2]) + '"' : ''}>${esc(statusInfo[0])}</span></div>
+        <div class="upl-chip-row"><span class="upl-chip ${tlsInfo[1]}">${esc(tlsInfo[0])}</span>${expired ? '<span class="upl-chip err">Conta vencida</span>' : ''}<span class="upl-chip">${endpoints.length} ${endpoints.length === 1 ? 'endpoint' : 'endpoints'}</span></div>
         <div class="upl-meta"><div><small>Origem principal</small><strong title="${esc(primary.preview || '')}">${esc(primary.host || '—')}${primary.port ? ':' + esc(primary.port) : ''}</strong></div><div><small>Formato</small><strong>${esc((primary.type || source.type || '—').toUpperCase())}</strong></div><div><small>Itens</small><strong>${number(source.cacheItemCount)}</strong></div><div><small>Vencimento</small><strong class="${expired ? 'upl-expired' : ''}">${fmt(source.providerExpiresAt)}</strong></div></div>
         <div class="upl-actions">${state.surface === 'admin' ? `<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.edit('${esc(source.id)}')">Editar</button>` : ''}<button class="upl-btn" type="button" onclick="RonecaUniversalPlaylists.testSaved('${esc(source.id)}')">Testar</button><button class="upl-btn danger" type="button" onclick="RonecaUniversalPlaylists.remove('${esc(source.id)}')">Excluir</button></div>
       </article>`;
