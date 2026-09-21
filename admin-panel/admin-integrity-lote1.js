@@ -4,6 +4,18 @@
   const FUNCTION_NAME = 'admin-integrity-panel';
   const state = { pending: [], loaded: false };
 
+  // #423 (UI-04): a função admin-panel limita o extrato a 200 linhas (.limit(200)) e o dashboard.js mostra o
+  // tamanho da lista carregada. Quando o número bate o limite, o total real é maior (hoje 279 no banco), então
+  // mostramos "200+" com explicação. A correção definitiva (contagem exata no servidor) depende do deploy
+  // reproduzível das Edge Functions (#374): a função no ar é um shim preso a um commit antigo.
+  const LEDGER_FETCH_LIMIT = 200;
+  function markLedgerKpiCap() {
+    const kpi = document.getElementById('stLedger');
+    if (!kpi || String(kpi.textContent).trim() !== String(LEDGER_FETCH_LIMIT)) return;
+    kpi.textContent = `${LEDGER_FETCH_LIMIT}+`;
+    kpi.title = `Mostrando as ${LEDGER_FETCH_LIMIT} movimentações mais recentes; há mais registros no banco.`;
+  }
+
   function esc(value) {
     return String(value ?? '')
       .replaceAll('&', '&amp;')
@@ -162,6 +174,8 @@
   }
 
   function renderIntegrity() {
+    markLedgerKpiCap();
+
     const sections = [
       document.getElementById('section-dashboard'),
       document.getElementById('section-devices'),
@@ -301,6 +315,7 @@
       const originalLoadAll = global.loadAll;
       const wrapped = async function integrityAwareLoadAll(...args) {
         const result = await originalLoadAll.apply(this, args);
+        markLedgerKpiCap();
         await loadIntegrity();
         return result;
       };
