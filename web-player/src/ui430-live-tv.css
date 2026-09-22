@@ -1,0 +1,57 @@
+/* UI-11 / #430 — acabamento pontual da TV ao vivo sem alterar regras de catálogo. */
+.media-placeholder.channel {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(239, 49, 57, .22), transparent 42%),
+    linear-gradient(145deg, #23262b, #111316);
+  border: 1px solid rgba(255, 255, 255, .08);
+}
+
+.media-placeholder.channel img {
+  width: 34%;
+  opacity: .82;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35));
+}
+
+.media-placeholder.channel::after {
+  content: 'TV';
+  position: absolute;
+  right: .4rem;
+  bottom: .3rem;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: rgba(255, 255, 255, .62);
+}
+
+.category-collapse-button {
+  display: inline-flex !important;
+  align-items: center;
+  gap: .4rem;
+  white-space: nowrap;
+}
+
+.category-collapse-button > span:first-child {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.page-heading .count-badge[data-channel-count] {
+  min-width: max-content;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 960px) and (min-width: 641px) {
+  .category-collapse-button > span:last-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
