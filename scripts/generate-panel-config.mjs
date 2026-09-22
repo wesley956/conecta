@@ -27,6 +27,12 @@ if (anonKey.length < 40 || anonKey.length > 16 * 1024) {
 const LEGACY_MULTI_PANEL_PATTERN = '(dashboard|seller)';
 const modules = [
   {
+    id: 'admin-route-guard',
+    contractName: 'loadAdminRouteGuard',
+    pages: ['dashboard'],
+    script: './admin-route-guard.js?v=1.0',
+  },
+  {
     id: 'panel-time',
     contractName: 'loadPanelTime',
     pages: ['dashboard', 'seller'],
