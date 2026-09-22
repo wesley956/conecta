@@ -2,9 +2,9 @@
   'use strict';
 
   var platforms = [
-    { id: 'android', label: 'Android TV', extension: 'APK', install: 'Instalação direta e atualização pelo aplicativo.' },
-    { id: 'webos', label: 'LG webOS', extension: 'IPK', install: 'Teste via Developer Mode ou atualização pela LG Content Store.' },
-    { id: 'tizen', label: 'Samsung Tizen', extension: 'WGT', install: 'Pacote assinado para TV autorizada ou atualização pela Samsung Apps.' }
+    { id: 'android', label: 'Android TV', extension: 'APK', available: true, install: 'Instalação direta e atualização pelo aplicativo.' },
+    { id: 'webos', label: 'LG webOS', extension: 'IPK', available: true, install: 'Teste via Developer Mode ou atualização pela LG Content Store.' },
+    { id: 'tizen', label: 'Samsung Tizen', extension: 'WGT', available: false, availabilityLabel: 'Em breve', install: 'O pacote Samsung Tizen ainda não foi publicado.' }
   ];
 
   function formatBytes(value) {
@@ -147,8 +147,15 @@
       button.type = 'button';
       button.className = 'btn app-release-platform';
       button.dataset.platform = item.id;
-      button.textContent = item.label + ' · .' + item.extension.toLowerCase();
-      button.addEventListener('click', function () { select(root, item.id); });
+      if (item.available === false) {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+        button.title = item.label + ': pacote ainda não publicado';
+        button.textContent = item.label + ' · ' + (item.availabilityLabel || 'indisponível');
+      } else {
+        button.textContent = item.label + ' · .' + item.extension.toLowerCase();
+        button.addEventListener('click', function () { select(root, item.id); });
+      }
       picker.appendChild(button);
     });
     var summary = root.querySelector('.app-release-summary');
@@ -168,6 +175,11 @@
   }
 
   async function select(root, platform) {
+    var selected = platforms.find(function (item) { return item.id === platform; });
+    if (!selected || selected.available === false) {
+      setStatus(root, selected ? selected.install : 'Plataforma indisponível.', true);
+      return;
+    }
     root.dataset.releasePlatform = platform;
     reset(root);
     updatePlatformCopy(root);
