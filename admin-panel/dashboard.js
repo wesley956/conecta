@@ -86,8 +86,10 @@ function show(text, error = false) {
 }
 
 // Antes "Bom dia" era um texto fixo, mostrado o dia inteiro (#427). Calcula pela hora local do navegador.
+// Madrugada (0h–5h59) ainda conta como noite (continuação da noite anterior), não "bom dia".
 function greetingWord() {
   const hour = new Date().getHours();
+  if (hour < 6) return 'Boa noite';
   if (hour < 12) return 'Bom dia';
   if (hour < 18) return 'Boa tarde';
   return 'Boa noite';
