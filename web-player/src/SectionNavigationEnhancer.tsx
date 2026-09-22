@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { shouldShowCategorySearch } from './sectionNavigation';
+import './ui430-live-tv.css';
 
 type CatalogSection = 'live' | 'movies' | 'series' | null;
 
@@ -15,6 +16,18 @@ function currentCatalogSection(root: Element | null): CatalogSection {
 
 function currentFilterStrip(root: Element | null) {
   return root?.querySelector<HTMLElement>('.main-content > .page-section > .filter-strip') || null;
+}
+
+function labelLiveChannelCount(root: Element | null, section: CatalogSection) {
+  if (!root || section !== 'live') return;
+  const badge = root.querySelector<HTMLElement>('.main-content > .page-section .page-heading .count-badge');
+  if (!badge) return;
+  const numericText = badge.dataset.channelCount || badge.textContent || '0';
+  const count = Number.parseInt(numericText.replace(/\D/g, ''), 10);
+  if (!Number.isFinite(count)) return;
+  badge.dataset.channelCount = String(count);
+  badge.textContent = `${count.toLocaleString('pt-BR')} ${count === 1 ? 'canal' : 'canais'}`;
+  badge.setAttribute('aria-label', `${count.toLocaleString('pt-BR')} ${count === 1 ? 'canal disponível' : 'canais disponíveis'}`);
 }
 
 export function SectionNavigationEnhancer() {
@@ -43,6 +56,7 @@ export function SectionNavigationEnhancer() {
         }
         return nextSection;
       });
+      labelLiveChannelCount(nextRoot, nextSection);
       setRevision(value => value + 1);
     };
     sync();
@@ -54,6 +68,10 @@ export function SectionNavigationEnhancer() {
       window.removeEventListener('resize', sync);
     };
   }, []);
+
+  useEffect(() => {
+    labelLiveChannelCount(root, section);
+  }, [revision, root, section]);
 
   const desktop = useMemo(() => window.matchMedia('(min-width: 641px)').matches, [revision]);
   const categoryButtons = useMemo(() => (
@@ -139,7 +157,10 @@ export function SectionNavigationEnhancer() {
             setMenuRevealed(true);
             window.setTimeout(() => root?.querySelector<HTMLButtonElement>('.side-nav nav button.active')?.focus(), 0);
           }}>‹ Menu principal</button>
-          <button type="button" className="category-runtime-control category-collapse-button" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? 'Expandir categorias' : 'Recolher categorias'}>{collapsed ? '›' : '‹'}</button>
+          <button type="button" className="category-runtime-control category-collapse-button" onClick={() => setCollapsed(value => !value)} aria-label={collapsed ? 'Expandir categorias' : 'Recolher categorias'}>
+            <span aria-hidden="true">{collapsed ? '›' : '‹'}</span>
+            <span>{collapsed ? 'Expandir categorias' : 'Recolher categorias'}</span>
+          </button>
           {searchable && !collapsed ? <label className="category-runtime-control category-search"><span className="sr-only">Buscar categoria</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar categoria…" /></label> : null}
         </>
       ) : (
