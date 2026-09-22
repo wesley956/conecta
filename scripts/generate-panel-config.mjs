@@ -133,6 +133,13 @@ const modules = [
     script: './admin-operations-redesign.js?v=1.0',
   },
   {
+    id: 'playlist-workspace-visibility',
+    contractName: 'loadPlaylistWorkspaceVisibility',
+    pages: ['dashboard'],
+    script: './playlist-workspace-visibility.js?v=1.0',
+    afterDomReady: true,
+  },
+  {
     id: 'admin-device-flow',
     contractName: 'loadAdminDeviceFlow',
     pages: ['dashboard'],
