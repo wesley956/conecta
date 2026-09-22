@@ -1,0 +1,15 @@
+.experience-login-card input:-webkit-autofill,
+.experience-login-card input:-webkit-autofill:hover,
+.experience-login-card input:-webkit-autofill:focus,
+.experience-login-card input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text, #f5f7fa);
+  caret-color: var(--text, #f5f7fa);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface, #17191d) inset;
+  box-shadow: 0 0 0 1000px var(--surface, #17191d) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
+.experience-login-card form.autofill-ready .primary-button:disabled {
+  opacity: 1;
+  cursor: pointer;
+}
