@@ -106,6 +106,19 @@ const initialState: CatalogState = {
   lastFailoverOutcome: null
 };
 
+const INTERNAL_SYNOPSIS = new Set([
+  "filme autorizado pelo painel.",
+  "filme importado da lista m3u autorizada.",
+  "série autorizada pelo painel.",
+  "serie autorizada pelo painel."
+]);
+
+function sanitizeSynopsis(value: string | undefined): string | undefined {
+  const cleaned = value?.trim();
+  if (!cleaned || INTERNAL_SYNOPSIS.has(cleaned.toLocaleLowerCase("pt-BR"))) return undefined;
+  return cleaned;
+}
+
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("O cache retornou um formato inválido.");
@@ -182,8 +195,14 @@ async function loadCatalog(parts: CacheParts | null, signal: AbortSignal): Promi
   ]);
   const data = {
     channels: items<Channel>(channelsPayload, "channels"),
-    movies: items<Movie>(moviesPayload, "movies"),
-    series: items<Series>(seriesPayload, "series")
+    movies: items<Movie>(moviesPayload, "movies").map(movie => ({
+      ...movie,
+      synopsis: sanitizeSynopsis(movie.synopsis)
+    })),
+    series: items<Series>(seriesPayload, "series").map(item => ({
+      ...item,
+      synopsis: sanitizeSynopsis(item.synopsis)
+    }))
   };
   if (!data.channels.length && !data.movies.length && !data.series.length) {
     throw new Error("A lista retornou um catálogo vazio.");
