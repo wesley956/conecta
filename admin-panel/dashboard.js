@@ -155,6 +155,16 @@ function isExpiringSoon(device) {
   return left !== null && left >= 0 && left <= 7;
 }
 
+// #444: o status gravado continua "active" depois que a validade passa (nenhuma rotina o atualiza), mas o
+// servidor já nega o acesso a esses aparelhos. Aqui, só na apresentação, calcula o status "de verdade" —
+// usado pelo filtro por status e pela contagem, sem gravar nada no banco.
+function effectiveDeviceStatus(device) {
+  const isExpiredNow = device.status === 'active'
+    && Boolean(device.expiresAt)
+    && new Date(device.expiresAt).getTime() <= Date.now();
+  return isExpiredNow ? 'expired' : device.status;
+}
+
 function validityLabel(value) {
   const left = daysLeft(value);
 
@@ -226,7 +236,10 @@ function filteredDevices() {
       normalize(d.playlistName).includes(term) ||
       normalize(d.deviceUuid).includes(term);
 
-    const matchStatus = !status || d.status === status;
+    // #444: filtrar por "Ativos" ou "Vencidos" usa o status calculado pela validade, não o campo gravado
+    // (que nunca vira "expired" sozinho). Antes, "Vencidos" nunca mostrava nada e "Ativos" incluía quem
+    // já venceu.
+    const matchStatus = !status || effectiveDeviceStatus(d) === status;
     const matchCustomer = !customerId || d.customerId === customerId;
     const matchSeller = !sellerId || d.sellerId === sellerId;
     const matchPlan = !planId || d.planId === planId;
