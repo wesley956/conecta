@@ -48,7 +48,7 @@
 
   function sellerHtml(){
     return `<div class="credit-packages-shell"><div class="credit-packages-head"><div><small>Meus créditos</small><h2>Compras e validade</h2><p>Suas vendas para clientes continuam privadas e separadas destas compras.</p></div></div>
-      <div class="credit-package-metrics"><article><span>Saldo atual</span><strong id="cpSellerBalance">0</strong></article><article><span>Dívida em aberto</span><strong id="cpSellerDebt">R$ 0,00</strong></article><article><span>Limite autorizado</span><strong id="cpSellerLimit">R$ 0,00</strong></article><article><span>Próximo vencimento</span><strong id="cpSellerExpiry">—</strong></article></div>
+      <div class="credit-package-metrics"><article><span>Saldo de compras financiadas</span><strong id="cpSellerBalance">0</strong></article><article><span>Dívida em aberto</span><strong id="cpSellerDebt">R$ 0,00</strong></article><article><span>Limite autorizado</span><strong id="cpSellerLimit">R$ 0,00</strong></article><article><span>Próximo vencimento</span><strong id="cpSellerExpiry">—</strong></article></div>
       <div id="cpSellerPackages" class="credit-package-grid"></div><div class="credit-package-card"><div class="credit-package-card-head"><div><h3>Minhas compras</h3><p>Pacotes comprados, pagamentos e data de expiração.</p></div></div><div id="cpSellerOrders" class="credit-seller-orders"></div></div></div>`;
   }
 
