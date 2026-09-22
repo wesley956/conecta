@@ -59,6 +59,16 @@
     return `<span class="pd-badge ${esc(kind || '')}">${esc(value || '—')}</span>`;
   }
 
+  // Antes: "N ocorrência(s) encontrada(s)." / "N ocorrência(s)." em todos os casos, inclusive com N=1.
+  function occurrenceCountText(total, { withFound = false } = {}) {
+    const value = Number(total || 0);
+    const formatted = value.toLocaleString('pt-BR');
+    if (withFound) {
+      return value === 1 ? '1 ocorrência encontrada.' : `${formatted} ocorrências encontradas.`;
+    }
+    return value === 1 ? '1 ocorrência.' : `${formatted} ocorrências.`;
+  }
+
   async function diagnosticApi(action, payload = {}) {
     const config = window.RONECA_PANEL_CONFIG || {};
     if (!config.supabaseUrl || !config.anonKey || !window.RonecaPanelAuth) {
@@ -211,7 +221,7 @@
       stat('Fecharam o player', summary.playerExited, summary.playerExited ? 'danger' : 'ok');
 
     populateAdminOptions(data);
-    byId('pdAdminCount').textContent = `${Number(data.pagination?.total || 0).toLocaleString('pt-BR')} ocorrência(s) encontrada(s).`;
+    byId('pdAdminCount').textContent = occurrenceCountText(data.pagination?.total, { withFound: true });
     byId('pdAdminList').innerHTML = (data.records || []).length
       ? data.records.map(record => `
         <article class="pd-row">
@@ -382,7 +392,7 @@
       stat('Recuperados', summary.recovered, 'ok') +
       stat('Sem lista reserva', summary.withoutBackup, summary.withoutBackup ? 'warn' : 'ok') +
       stat('Precisam verificar', summary.open, summary.open ? 'danger' : 'ok');
-    byId('pdSellerCount').textContent = `${Number(data.pagination?.total || 0).toLocaleString('pt-BR')} ocorrência(s).`;
+    byId('pdSellerCount').textContent = occurrenceCountText(data.pagination?.total);
     byId('pdSellerList').innerHTML = (data.records || []).length
       ? data.records.map(record => `
         <article class="pd-seller-card">
