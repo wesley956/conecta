@@ -140,7 +140,7 @@ object CatalogJsonParser {
             name = name,
             year = year?.takeIf { it > 0 },
             duration = duration,
-            synopsis = synopsis,
+            synopsis = sanitizeSynopsis(synopsis),
             coverUrl = coverUrl,
             category = category,
             primaryUrl = selectedUrl,
@@ -178,7 +178,7 @@ object CatalogJsonParser {
             name = name,
             coverUrl = coverUrl,
             category = category,
-            synopsis = synopsis,
+            synopsis = sanitizeSynopsis(synopsis),
             seasons = seasons.sortedBy(NativeSeason::number),
             xtreamSeriesId = xtreamSeriesId,
         )
@@ -270,6 +270,17 @@ object CatalogJsonParser {
         }
         endArray()
         return values
+    }
+
+    private fun sanitizeSynopsis(value: String?): String? {
+        val cleaned = value?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        val normalized = cleaned.lowercase()
+        return cleaned.takeUnless {
+            normalized == "filme autorizado pelo painel." ||
+                normalized == "filme importado da lista m3u autorizada." ||
+                normalized == "série autorizada pelo painel." ||
+                normalized == "serie autorizada pelo painel."
+        }
     }
 
     private fun JsonReader.nextSafeString(): String? = when (peek()) {
