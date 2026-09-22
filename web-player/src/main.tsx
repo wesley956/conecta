@@ -2,7 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import ExperienceApp from './ExperienceApp';
 import { ExperienceAccessibilityController } from './experienceAccessibility';
-import { LoginAutofillBridge } from './LoginAutofillBridge';
 import { NavigationStateRestorer } from './NavigationStateRestorer';
 import { PwaUpdatePrompt } from './PwaUpdatePrompt';
 import { registerPwa } from './pwa';
@@ -33,12 +32,26 @@ createRoot(root).render(
     <ExperienceAccessibilityController />
     <NavigationStateRestorer />
     <ExperienceApp />
-    <LoginAutofillBridge />
     <SectionNavigationEnhancer />
     <SettingsPortal />
     <PwaUpdatePrompt />
   </StrictMode>,
 );
+
+window.setInterval(() => {
+  const fields = document.querySelectorAll<HTMLInputElement>('.experience-login-card form input');
+  const submit = document.querySelector<HTMLButtonElement>('.experience-login-card form button[type="submit"]');
+  if (fields.length < 2 || !submit) return;
+  const [code, pin] = fields;
+  code.name = 'ronecaplaytv-device-code';
+  pin.name = 'ronecaplaytv-web-pin';
+  pin.autocomplete = 'one-time-code';
+  if (submit.disabled && code.value.trim().length >= 4 && /^\d{6}$/.test(pin.value.trim())) {
+    code.dispatchEvent(new Event('input', { bubbles: true }));
+    pin.dispatchEvent(new Event('input', { bubbles: true }));
+    submit.disabled = false;
+  }
+}, 300);
 
 void registerPwa();
 
