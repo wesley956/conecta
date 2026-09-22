@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import ExperienceApp from './ExperienceApp';
 import { ExperienceAccessibilityController } from './experienceAccessibility';
+import { LoginAutofillBridge } from './LoginAutofillBridge';
 import { NavigationStateRestorer } from './NavigationStateRestorer';
 import { PwaUpdatePrompt } from './PwaUpdatePrompt';
 import { registerPwa } from './pwa';
@@ -20,6 +21,7 @@ import './evolution-batch2-mobile.css';
 import './autonext.css';
 import './player-hud.css';
 import './player-exit.css';
+import './login-autofill.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
@@ -31,6 +33,7 @@ createRoot(root).render(
     <ExperienceAccessibilityController />
     <NavigationStateRestorer />
     <ExperienceApp />
+    <LoginAutofillBridge />
     <SectionNavigationEnhancer />
     <SettingsPortal />
     <PwaUpdatePrompt />
