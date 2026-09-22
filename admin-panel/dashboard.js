@@ -85,9 +85,17 @@ function show(text, error = false) {
   show.hideTimer = setTimeout(() => el.classList.remove('visible'), error ? 7000 : 3200);
 }
 
+// Antes "Bom dia" era um texto fixo, mostrado o dia inteiro (#427). Calcula pela hora local do navegador.
+function greetingWord() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Bom dia';
+  if (hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
 function setTab(tab) {
   const pages = {
-    dashboard: ['Hoje · operação', 'Bom dia. Vamos resolver o que importa.', 'Uma visão direta das decisões que precisam ser tomadas agora.'],
+    dashboard: ['Hoje · operação', `${greetingWord()}. Vamos resolver o que importa.`, 'Uma visão direta das decisões que precisam ser tomadas agora.'],
     pending: ['Operação', 'Pendências', 'Libere novos aparelhos com o mínimo de passos possível.'],
     devices: ['Operação', 'Aparelhos', 'Encontre rapidamente qualquer informação sem abrir uma tabela extensa.'],
     customers: ['Operação', 'Clientes', 'Encontre clientes e acompanhe todos os seus vínculos.'],
