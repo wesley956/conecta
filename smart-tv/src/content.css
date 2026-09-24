@@ -1,4 +1,4 @@
-/* LG-04 — Home, catálogo, busca e biblioteca em paridade prática com Android 2.9.5.
+/* LG-04 — Home, catálogo, busca e biblioteca em paridade prática com Android 2.9.8.
    Esta camada vem depois de brand.css e antes de navigation.css: conteúdo define layout,
    navigation.css continua sendo a autoridade final do foco remoto. */
 
@@ -660,6 +660,46 @@
   background: rgba(227, 38, 46, .13);
   color: var(--roneca-red-focus);
 }
+
+.side-panel-catalog {
+  height: calc(100% - 124px);
+  display: grid;
+  grid-template-columns: minmax(170px, 18%) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.side-panel-catalog > .content-poster-grid,
+.side-panel-catalog > .content-channel-grid,
+.side-panel-catalog > .content-empty-state {
+  width: 100%;
+  height: 100%;
+}
+
+.category-side-panel {
+  min-width: 0;
+  height: 100%;
+  padding: 15px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--roneca-border);
+  border-radius: 14px;
+  background: rgba(14, 14, 16, .97);
+}
+
+.category-side-panel header { padding: 0 5px 10px; }
+.category-side-panel h2 { margin: 0; font-size: 20px; }
+.category-side-panel header small { color: var(--roneca-muted); font-size: 10px; }
+.category-side-panel > section { min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 5px; padding: 3px; scrollbar-width: none; }
+.category-side-panel > section::-webkit-scrollbar { display: none; }
+.category-side-panel button { min-height: 43px; padding: 7px 9px; display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--roneca-border); border-radius: 10px; outline: 0; background: var(--roneca-surface); text-align: left; }
+.category-side-panel button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 700; }
+.category-side-panel button b { flex: 0 0 auto; color: var(--roneca-red-focus); font-size: 9px; }
+.category-side-panel button.selected { border-color: rgba(255, 69, 76, .68); background: rgba(227, 38, 46, .14); }
+.support-dialog-profile { padding: 17px; display: grid; gap: 7px; border: 1px solid rgba(255, 69, 76, .42); border-radius: 13px; background: rgba(227, 38, 46, .08); text-align: center; }
+.support-dialog-profile h3, .support-dialog-profile p { margin: 0; }
+.support-dialog-profile > small { color: var(--roneca-muted); }
+.support-dialog-profile > strong, .support-dialog-profile > code { overflow-wrap: anywhere; }
 
 .global-search-shell {
   height: calc(100% - 62px);

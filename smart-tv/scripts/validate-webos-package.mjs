@@ -10,7 +10,7 @@ const artifactsDir = path.join(root, "artifacts");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const version = String(packageJson.version || "");
 const appId = "com.ronecaplaytv.app";
-const baselineAndroid = "2.9.5";
+const baselineAndroid = "2.9.8";
 
 function fail(message) {
   console.error(`LG-01 validation failed: ${message}`);
@@ -95,7 +95,7 @@ try {
   const archiveBytes = run("ar", ["p", ipkPath, dataMember]).stdout;
   fs.writeFileSync(dataArchive, archiveBytes);
   const entries = run("tar", ["-tf", dataArchive], { encoding: "utf8" }).stdout.trim().split(/\r?\n/).filter(Boolean);
-  for (const requiredFile of ["appinfo.json", "index.html", "icon.png", "largeIcon.png"]) {
+  for (const requiredFile of ["appinfo.json", "index.html", "icon.png", "largeIcon.png", "roneca_launch_video.mp4"]) {
     const found = entries.some(entry => entry === requiredFile || entry === `./${requiredFile}` || entry.endsWith(`/${requiredFile}`));
     if (!found) fail(`Conteúdo interno do IPK não contém ${requiredFile}.`);
   }

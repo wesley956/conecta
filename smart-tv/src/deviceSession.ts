@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { buildSupportCode, sanitizeDiagnosticText } from "./diagnosticSafety";
 import { platform } from "./platform";
+import { genericSupportProfile, normalizeSupportProfile } from "./supportProfile";
+import type { SupportProfile } from "./supportProfile";
 
 const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = platform === "webos" ? "1.1.0" : "1.0.0";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 export type DeviceAccessStatus = "loading" | "pending" | "active" | "blocked" | "expired" | "error";
 export interface CacheParts { manifestUrl?: string | null; channelsUrl?: string | null; moviesUrl?: string | null; seriesUrl?: string | null; }
@@ -36,6 +38,7 @@ export interface DeviceSession {
   playlists: DevicePlaylist[];
   message: string | null;
   refreshing: boolean;
+  supportProfile: SupportProfile;
 }
 interface DeviceResponse {
   active?: boolean;
@@ -52,6 +55,7 @@ interface DeviceResponse {
   cacheParts?: CacheParts;
   playlists?: unknown;
   message?: string;
+  supportProfile?: unknown;
   unlinked?: boolean;
 }
 export interface PlaybackDiagnosticReport {
@@ -79,7 +83,7 @@ export interface PlaybackDiagnosticReport {
 const initialSession: DeviceSession = {
   status: "loading", deviceCode: null, supportCode: null, clientName: null, expiresAt: null, playlistName: null,
   selectedPlaylistId: null, cacheVersion: null, cacheItemCount: 0, cacheError: null,
-  cacheParts: null, playlists: [], message: null, refreshing: false
+  cacheParts: null, playlists: [], message: null, refreshing: false, supportProfile: genericSupportProfile()
 };
 function storageKey(name: string) { return `${STORAGE_PREFIX}${name}`; }
 function readStored(name: string) { try { return window.localStorage.getItem(storageKey(name)); } catch { return null; } }
@@ -162,7 +166,8 @@ function mapResponse(httpStatus: number, body: DeviceResponse): DeviceSession {
     selectedPlaylistId: body.selectedPlaylistId || null, cacheVersion: body.cacheVersion || null,
     cacheItemCount: Number(body.cacheItemCount || 0), cacheError: safeString(body.cacheError, 420),
     cacheParts: body.cacheParts || null, playlists: validPlaylists(body.playlists),
-    message: safeString(body.message, 420), refreshing: false
+    message: safeString(body.message, 420), refreshing: false,
+    supportProfile: normalizeSupportProfile(body.supportProfile)
   };
 }
 async function attachSupportCode(session: DeviceSession): Promise<DeviceSession> {

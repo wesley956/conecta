@@ -22,7 +22,7 @@ const matrix = read("docs/LG-10-PARITY-MATRIX.md");
 if (metadata.platform !== "webos") throw new Error("LG-10: metadata não representa webOS.");
 if (metadata.appId !== "com.ronecaplaytv.app") throw new Error(`LG-10: App ID inesperado: ${metadata.appId}`);
 if (metadata.version !== packageJson.version) throw new Error("LG-10: versão do candidate diverge do package.json.");
-if (metadata.baselineAndroid !== "2.9.5") throw new Error("LG-10: baseline Android deve continuar 2.9.5.");
+if (metadata.baselineAndroid !== "2.9.8") throw new Error("LG-10: baseline Android deve continuar 2.9.8.");
 if (metadata.status !== "CANDIDATE") throw new Error(`LG-10: candidate técnico precisa chegar como CANDIDATE, recebido ${metadata.status}.`);
 if (!/^[a-f0-9]{64}$/i.test(metadata.sha256 || "")) throw new Error("LG-10: SHA-256 do IPK inválido.");
 if (!Number.isFinite(metadata.sizeBytes) || metadata.sizeBytes <= 0) throw new Error("LG-10: tamanho do IPK inválido.");
@@ -39,6 +39,9 @@ for (const gate of [
   "validate:lg-resilience",
   "validate:lg-operations",
   "validate:lg-performance",
+  "validate:lg-2.9.8-pack",
+  "validate:lg-2.9.8-pack-2",
+  "validate:lg-2.9.8-pack-3",
   "validate:lg-homologation"
 ]) requireToken(verified, gate, "cadeia cumulativa de homologação incompleta");
 
@@ -93,7 +96,7 @@ const manifest = {
   sha256: metadata.sha256,
   sizeBytes: metadata.sizeBytes,
   builtAt: metadata.builtAt,
-  automatedGateChain: ["LG-01", "LG-02", "LG-03", "LG-04", "LG-05", "LG-06", "LG-07", "LG-08", "LG-09", "LG-10"],
+  automatedGateChain: ["LG-01", "LG-02", "LG-03", "LG-04", "LG-05", "LG-06", "LG-07", "LG-08", "LG-09", "LG-10", "LG-2.9.8-PACK-1", "LG-2.9.8-PACK-2", "LG-2.9.8-PACK-3"],
   physicalApproval: false,
   parityApproved: false,
   stableEligible: false,
@@ -105,6 +108,11 @@ const manifest = {
     "upgrade-n-to-n-plus-1",
     "identity-and-user-state-preservation",
     "android-vs-lg-parity",
+    "launch-video-crossfade",
+    "encrypted-catalog-snapshot",
+    "support-profile-and-local-qr",
+    "classic-and-side-category-navigation",
+    "real-subtitle-tracks",
     "live-vod-tracks-aspect-epg",
     "network-recovery-source-switch-failover",
     "standby-resume",

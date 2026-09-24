@@ -1,3 +1,5 @@
+import { clearCatalogSnapshots } from "./catalogSnapshot";
+
 const LOCAL_PREFIXES = [
   "roneca.smart-tv.cache.",
   "roneca.smart-tv.ui.",
@@ -22,6 +24,7 @@ function removeMatching(storage: Storage | undefined) {
 
 export async function clearReconstructibleCache(): Promise<number> {
   let removed = 0;
+  removed += await clearCatalogSnapshots();
   removed += removeMatching(globalThis.localStorage);
   removed += removeMatching(globalThis.sessionStorage);
   try {

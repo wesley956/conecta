@@ -11,7 +11,6 @@ import { MainShell } from "./content/MainShell";
 import type { AppDialog, MainSection } from "./content/MainShell";
 import { recommendedMovies, recommendedSeries } from "./content/recommendations";
 import { focusAutofocus, moveFocus, rememberFocus, restoreFocus } from "./focus";
-import { playLaunchSoundOnce } from "./launchSound";
 import { clearReconstructibleCache } from "./localMaintenance";
 import { resumableProgress, useMediaLibrary } from "./mediaLibrary";
 import type { LibraryItem } from "./mediaLibrary";
@@ -44,6 +43,7 @@ function ActivationScreen({ session, onRefresh, onReset }: {
     expired: "Assinatura expirada",
     error: "Falha de conexão"
   }[session.status];
+  const support = session.supportProfile;
   return <main className="activation-shell"><section className="activation-panel">
     <div className="activation-brand"><span className="brand-mark">R</span><span><b>RONECA</b><small>PLAYER TV</small></span></div>
     <p className="eyebrow">{platform === "webos" ? "LG WEBOS" : platform === "tizen" ? "SAMSUNG TIZEN" : "PRÉ-VISUALIZAÇÃO"}</p>
@@ -54,7 +54,15 @@ function ActivationScreen({ session, onRefresh, onReset }: {
       <FocusableButton data-autofocus="true" data-focus-key="activation:refresh" className="primary" disabled={session.refreshing || session.status === "loading"} onClick={onRefresh}>{session.refreshing ? "Atualizando..." : "Atualizar acesso"}</FocusableButton>
       {(session.status === "blocked" || session.status === "error") && <FocusableButton data-focus-key="activation:reset" className="secondary danger" onClick={onReset}>Gerar novo código</FocusableButton>}
     </div>
-  </section><div className="activation-art"><i /><span>R</span></div></main>;
+  </section><aside className="activation-support-card">
+    <p className="eyebrow">PRECISA DE AJUDA?</p>
+    <h2>{support.displayName}</h2>
+    <p>{support.supportText || "Envie este código ao seu fornecedor."}</p>
+    {support.businessHours && <small>{support.businessHours}</small>}
+    {support.whatsapp && <strong>WhatsApp: {support.whatsapp}</strong>}
+    {support.email && <strong>{support.email}</strong>}
+    {support.primaryContactUri && <div className="support-contact-uri"><span>CONTATO SEGURO</span><code>{support.primaryContactUri.replace(/^mailto:/, "")}</code><small>Aponte a câmera para o QR Code quando disponível ou use este contato.</small></div>}
+  </aside></main>;
 }
 
 async function recoveredPlayback(item: PlaybackItem, result: SuccessfulCatalogFailover): Promise<PlaybackItem | null> {
@@ -128,6 +136,7 @@ export function App() {
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [dialog, setDialog] = useState<AppDialog>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
 
   const { session, refresh, renewConfiguration, reset, unlink } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
@@ -148,8 +157,6 @@ export function App() {
     ];
     library.reconcileIdentities(identities);
   }, [catalog.data, library.reconcileIdentities]);
-
-  useEffect(() => { void playLaunchSoundOnce(settings.launchSoundEnabled); }, [settings.launchSoundEnabled]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -382,7 +389,12 @@ export function App() {
     dialog={dialog}
     openDialog={openDialog}
     closeDialog={closeDialog}
-    onClearCache={async () => { await clearReconstructibleCache(); catalog.retry(); }}
+    maintenanceMessage={maintenanceMessage}
+    onClearCache={async () => {
+      const removed = await clearReconstructibleCache();
+      setMaintenanceMessage(removed > 0 ? "Cache temporário removido. Atualizando o catálogo..." : "Nenhum cache temporário precisava ser removido.");
+      catalog.retry();
+    }}
     onUnlinkDevice={() => void unlink().catch(() => undefined)}
     onOpenCard={openCard}
     onOpenMovie={openMovieFromApp}
