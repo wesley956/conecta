@@ -125,4 +125,4 @@ assert.match(app, /PendingPlaybackValidation/);
 assert.match(app, /playlistWidePlaybackFailures/);
 assert.match(app, /onPlaybackValidated = ::markPlaybackValidated/);
 
-console.log('Android 2.9.9: crossfade nativo, foco acessível, continuidade de séries e VOD validados.');
+console.log('Android: contrato de melhorias, foco acessível, continuidade de séries e VOD validados.');
