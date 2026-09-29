@@ -859,6 +859,23 @@ fun RonecaPlayTVApp(
         }
     }
 
+    // Relatório de navegação (varredura completa desta sessão): sem isto, o botão "Voltar" físico
+    // fechava o app direto a partir de Canais, Filmes, Séries e Configurações — só o Player, o modo de
+    // painel lateral (acima) e a tela "Continuar assistindo" já tratavam "voltar" de verdade. Início
+    // mantém o comportamento atual (sai do app), sem mudança.
+    BackHandler(
+        enabled = sessionState.isActive &&
+            !fixedCategoryPanelActive &&
+            destination in setOf(
+                NativeDestination.Channels,
+                NativeDestination.Movies,
+                NativeDestination.Series,
+                NativeDestination.Settings,
+            ),
+    ) {
+        destination = NativeDestination.Home
+    }
+
     LaunchedEffect(fixedCategoryPanelActive) {
         if (!fixedCategoryPanelActive) mainNavigationOverlayOpen = false
     }
