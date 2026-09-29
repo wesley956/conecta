@@ -144,9 +144,16 @@ if (!performanceSources.catalogViewModel.includes('previousState.copy(') ||
 if (!performanceSources.launchSound.includes('withContext(Dispatchers.Default)')) {
   throw new Error('A assinatura sonora não pode ser sintetizada na thread da interface.');
 }
-if (!performanceSources.search.includes('.asSequence()') ||
-    !performanceSources.search.includes('.take(20)\n            .toList()')) {
-  throw new Error('A busca deve parar após os resultados visíveis.');
+for (const marker of [
+  'MAX_RESULTS_PER_SECTION = 20',
+  'channelMatches.take(MAX_RESULTS_PER_SECTION)',
+  'movieMatches.take(MAX_RESULTS_PER_SECTION)',
+  'seriesMatches.take(MAX_RESULTS_PER_SECTION)',
+  'SectionHeader("Canais", channelResults.size, channelMatches.size',
+]) {
+  if (!performanceSources.search.includes(marker)) {
+    throw new Error(`A busca perdeu o limite visual ou a contagem total: ${marker}`);
+  }
 }
 if (!performanceSources.home.includes('remember(featuredMovies)') ||
     performanceSources.home.includes('remember(featuredMovies.map')) {

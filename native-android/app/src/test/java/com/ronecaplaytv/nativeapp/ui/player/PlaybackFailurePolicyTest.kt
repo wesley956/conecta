@@ -53,7 +53,7 @@ class PlaybackFailurePolicyTest {
         val cleartext = classifyPlaybackFailure("ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED")
 
         assertEquals(PlaybackFailureKind.RuntimeCheck, runtime.kind)
-        assertFalse(runtime.retryable)
+        assertTrue(runtime.retryable)
         assertFalse(runtime.userMessage.contains("segurança", ignoreCase = true))
         assertEquals(PlaybackFailureKind.SecureConnection, cleartext.kind)
     }

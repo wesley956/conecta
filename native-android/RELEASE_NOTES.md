@@ -1,3 +1,13 @@
+# RonecaPlayTV 3.0.0
+
+- Melhora a recuperação de reprodução: falhas transitórias de RuntimeCheck agora têm novas tentativas também em canais ao vivo, com diagnóstico mais preciso de causa e status HTTP.
+- Corrige o botão Voltar em Canais, Filmes, Séries e Configurações para retornar à tela Início em vez de fechar o aplicativo.
+- Remove de “Continuar assistindo” conteúdos praticamente concluídos (95% ou mais).
+- Mantém Configurações sincronizada com o estado real do aplicativo e melhora o arredondamento das contagens exibidas na Início.
+- Exibe mensagens claras quando filtros ou buscas de Filmes e Séries não encontram resultados.
+- Mostra “X de Y” na busca quando existem mais resultados do que os 20 exibidos por categoria.
+- Substitui os principais símbolos de busca e favoritos por ícones vetoriais, melhorando a compatibilidade visual em TVs com fontes limitadas.
+
 # RonecaPlayTV 2.9.9
 
 - Remove o preenchimento totalmente vermelho dos botões e mantém o vermelho apenas como assinatura visual da marca.
