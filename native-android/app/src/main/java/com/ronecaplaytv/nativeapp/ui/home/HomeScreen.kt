@@ -57,6 +57,7 @@ import com.ronecaplaytv.nativeapp.catalog.NativeMovie
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.FocusableActionCard
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.SearchGlyph
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
 
@@ -327,7 +328,7 @@ private fun HomeHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HeaderAction(label = "⌕  Buscar", onClick = onOpenSearch)
+            HeaderAction(label = "Buscar", onClick = onOpenSearch)
             if (isWideLayout) {
                 Row(
                     modifier = Modifier
@@ -362,14 +363,17 @@ private fun HomeHeader(
 @Composable
 private fun HeaderAction(label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
-    Box(
+    Row(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
             .background(RonecaColors.Surface)
             .border(1.dp, RonecaColors.Border, RoundedCornerShape(999.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 13.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        SearchGlyph(color = RonecaColors.TextSecondary, size = 11.dp)
+        Spacer(modifier = Modifier.width(6.dp))
         Text(text = label, color = RonecaColors.TextSecondary, fontSize = 11.sp)
     }
 }
