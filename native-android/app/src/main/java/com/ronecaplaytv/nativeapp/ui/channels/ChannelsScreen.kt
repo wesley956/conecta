@@ -53,6 +53,7 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeChannel
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.StarGlyph
 import com.ronecaplaytv.nativeapp.ui.components.TvCategorySidePanel
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import com.ronecaplaytv.nativeapp.ui.navigation.deterministicFocusId
@@ -450,11 +451,18 @@ private fun SearchField(
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         if (value.isBlank()) {
-            Text(
-                text = "⌕  Buscar canal",
-                color = RonecaColors.TextMuted,
-                fontSize = if (isTelevision) 13.sp else 14.sp,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.ronecaplaytv.nativeapp.ui.components.SearchGlyph(
+                    color = RonecaColors.TextMuted,
+                    size = if (isTelevision) 13.dp else 14.dp,
+                )
+                Spacer(modifier = Modifier.width(7.dp))
+                Text(
+                    text = "Buscar canal",
+                    color = RonecaColors.TextMuted,
+                    fontSize = if (isTelevision) 13.sp else 14.sp,
+                )
+            }
         }
         BasicTextField(
             value = value,
@@ -600,10 +608,10 @@ private fun ChannelItem(
                 .clickable(onClick = onToggleFavorite)
                 .padding(if (compact) 7.dp else 10.dp),
         ) {
-            Text(
-                text = if (favorite) "★" else "☆",
+            StarGlyph(
+                filled = favorite,
                 color = if (favorite) RonecaColors.Primary else RonecaColors.TextMuted,
-                fontSize = if (compact) 17.sp else 19.sp,
+                size = if (compact) 17.dp else 19.dp,
             )
         }
     }
