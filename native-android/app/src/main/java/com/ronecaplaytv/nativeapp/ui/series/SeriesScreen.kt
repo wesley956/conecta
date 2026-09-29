@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -281,6 +282,18 @@ fun SeriesScreen(
             horizontalArrangement = Arrangement.spacedBy(if (isTelevision) 11.dp else 10.dp),
             verticalArrangement = Arrangement.spacedBy(if (isTelevision) 12.dp else 14.dp),
         ) {
+            // Varredura completa (achado #11): sem isto, buscar/filtrar sem resultado deixava a grade
+            // em branco, sem nenhuma explicação — só Canais avisava "Nenhum encontrado". item(span=...)
+            // ocupa a linha inteira em vez de espremer numa única célula da grade.
+            if (filtered.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "Nenhuma série encontrada.",
+                        color = RonecaColors.TextMuted,
+                        modifier = Modifier.padding(vertical = 28.dp),
+                    )
+                }
+            }
             itemsIndexed(filtered, key = { _, item -> item.id }) { index, item ->
                 val panelNavigationModifier = if (
                     isTelevision &&
