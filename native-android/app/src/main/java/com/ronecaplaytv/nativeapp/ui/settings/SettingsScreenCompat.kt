@@ -6,16 +6,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import com.ronecaplaytv.nativeapp.activation.SupportProfile
-import com.ronecaplaytv.nativeapp.persistence.PlayerSettingsPreferences
 import com.ronecaplaytv.nativeapp.update.AppUpdateState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Compatibility entry point used by the current app navigation.
- * It keeps settings persistent while the navigation layer is progressively modularized.
+ * It keeps only the transient "refreshing" UI state while the navigation layer is progressively
+ * modularized.
+ *
+ * Varredura completa (achado #7): antes este arquivo mantinha sua PRÓPRIA cópia de PlayerSettingsState,
+ * carregada uma única vez do disco (`preferences.load()`), separada da que o RonecaPlayTVApp.kt já
+ * mantém e já persiste em toda mudança — inclusive as feitas fora desta tela, como o aspecto de
+ * imagem trocado durante a reprodução. Isso podia deixar esta tela mostrando um valor desatualizado
+ * ao voltar do player. Agora usa diretamente o `state`/`onStateChange` recebidos, sem cópia local
+ * nem gravação duplicada em disco.
  */
 @Composable
 fun SettingsScreen(
@@ -28,26 +34,19 @@ fun SettingsScreen(
     onRefreshContent: () -> Unit,
     onCheckForAppUpdate: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val preferences = remember { PlayerSettingsPreferences(context) }
     val scope = rememberCoroutineScope()
-    var persistedState by remember { mutableStateOf(preferences.load()) }
     var refreshInProgress by remember { mutableStateOf(false) }
     var refreshMessage by remember { mutableStateOf<String?>(null) }
 
     SettingsScreen(
         isTelevision = isTelevision,
-        state = persistedState,
+        state = state,
         refreshInProgress = refreshInProgress,
         refreshMessage = refreshMessage,
         appUpdateState = appUpdateState,
         playlistDiagnostics = playlistDiagnostics,
         supportProfile = supportProfile,
-        onStateChange = { updated ->
-            persistedState = updated
-            preferences.save(updated)
-            onStateChange(updated)
-        },
+        onStateChange = onStateChange,
         onRefreshContent = {
             if (!refreshInProgress) {
                 refreshInProgress = true

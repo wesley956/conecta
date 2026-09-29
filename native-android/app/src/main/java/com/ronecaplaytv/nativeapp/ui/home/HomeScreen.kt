@@ -749,9 +749,12 @@ private fun AccentCut() {
     }
 }
 
+// Varredura completa (achado #8): antes esta função TRUNCAVA em vez de arredondar — 1.999 itens
+// aparecia como "1 mil" (igual a qualquer valor entre 1.000 e 1.999), perdendo precisão sempre para
+// baixo. Agora arredonda para o milhar/milhão mais próximo, como qualquer contagem compacta deveria.
 private fun compactNumber(value: Int): String = when {
-    value >= 1_000_000 -> "${value / 1_000_000} mi"
-    value >= 1_000 -> "${value / 1_000} mil"
+    value >= 1_000_000 -> "${(value + 500_000) / 1_000_000} mi"
+    value >= 1_000 -> "${(value + 500) / 1_000} mil"
     else -> value.toString()
 }
 
