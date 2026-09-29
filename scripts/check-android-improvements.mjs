@@ -52,9 +52,9 @@ const [
   read('admin-panel/roneca-panel-premium.js'),
 ]);
 
-const versionCode = Number(build.match(/versionCode = (\\d+)/)?.[1] ?? 0);
+const versionCode = Number(build.match(/versionCode = (\d+)/)?.[1] ?? 0);
 assert.ok(versionCode >= 50, `versionCode Android regrediu: ${versionCode}`);
-assert.match(build, /versionName = "\\d+\\.\\d+\\.\\d+"/);
+assert.match(build, /versionName = "\d+\.\d+\.\d+"/);
 assert.match(build, /SUSPEND_HYDRATION_DURING_TV_PLAYBACK/);
 assert.match(build, /COMPACT_XTREAM_PLAYBACK_URLS/);
 assert.match(app, /Lifecycle\.Event\.ON_STOP/);
