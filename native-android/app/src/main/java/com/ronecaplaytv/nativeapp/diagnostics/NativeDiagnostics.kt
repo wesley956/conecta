@@ -39,13 +39,19 @@ object NativeDiagnostics {
         })
     }
 
-    fun recordPlaybackFailure(error: PlaybackException, failureKind: String) {
-        val causeChain = generateSequence(error.cause) { it.cause }
-            .take(8)
+    fun recordPlaybackFailure(error: PlaybackException, failureKind: String, httpStatus: Int? = null) {
+        val causes = generateSequence(error.cause) { it.cause }.take(8).toList()
+        val causeChain = causes
             .map { it::class.java.simpleName }
             .filter(String::isNotBlank)
             .joinToString(">")
             .take(260)
+        // #375/#423 (diagnóstico): antes só o nome da classe da causa mais interna chegava ao servidor
+        // (ex.: "IllegalStateException"), sem a mensagem real que explica o motivo — 418 de 420 registros
+        // do maior grupo de falhas mostravam o mesmo texto genérico do Media3, sem nenhuma pista do que
+        // houve de verdade. Agora a mensagem da causa mais próxima (sanitizada, sem URL/credencial) e o
+        // status HTTP calculado (quando existir) também viajam até o painel.
+        val causeMessage = sanitizeDiagnosticMessage(causes.firstOrNull()?.message)
         val safeMessage = sanitizeDiagnosticMessage(error.message)
         record(
             "playback.raw_error",
@@ -54,6 +60,8 @@ object NativeDiagnostics {
                 "error_name" to error.errorCodeName,
                 "failure_kind" to failureKind,
                 "cause_chain" to causeChain,
+                "cause_message" to causeMessage,
+                "http_status" to httpStatus,
                 "message" to safeMessage,
             ),
         )
@@ -68,6 +76,8 @@ object NativeDiagnostics {
                     append("Media3 ")
                     append(error.errorCodeName)
                     if (causeChain.isNotBlank()) append("; causes=").append(causeChain)
+                    if (causeMessage.isNotBlank()) append("; cause_message=").append(causeMessage)
+                    if (httpStatus != null) append("; http_status=").append(httpStatus)
                     if (safeMessage.isNotBlank()) append("; message=").append(safeMessage)
                 }.take(800)
                 PlaybackDiagnosticsApi(BuildConfig.SUPABASE_FUNCTIONS_URL).report(

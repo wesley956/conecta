@@ -40,7 +40,10 @@ fun classifyPlaybackFailure(error: PlaybackException): PlaybackFailure {
         ?.responseCode
     val causeNames = causes.map { it::class.java.name }
     val failure = classifyPlaybackFailure(error.errorCodeName, httpStatus, causeNames)
-    NativeDiagnostics.recordPlaybackFailure(error, failure.diagnosticCode)
+    // #423/PLAYER-01 (diagnóstico): antes o status HTTP calculado aqui (401/429/500...) era usado só
+    // para decidir se tenta de novo, e descartado depois — o painel nunca sabia se era bloqueio (403),
+    // limite de conexões (429) ou outra coisa. Agora ele viaja junto até o diagnóstico enviado ao servidor.
+    NativeDiagnostics.recordPlaybackFailure(error, failure.diagnosticCode, httpStatus)
     return failure
 }
 
@@ -111,9 +114,16 @@ internal fun classifyPlaybackFailure(
             "A conexão sem criptografia foi bloqueada pela segurança do dispositivo.",
         )
 
-        normalized.contains("FAILED_RUNTIME_CHECK") -> permanent(
-            PlaybackFailureKind.RuntimeCheck,
-            "O player encontrou um estado interno inválido durante a reprodução.",
+        // #375 (PLAYER-01): antes este erro era 'permanent' (retryable=false). Numa TV ao vivo isso fazia
+        // o player pular direto pra próxima fonte/lista reserva sem NENHUMA nova tentativa na mesma fonte —
+        // só filme/série ganhavam uma chance (troca pra decoder por software, 1 vez). Como 87% das falhas
+        // reais eram deste tipo (dado do painel), e o erro costuma ser um estado interno transitório do
+        // ExoPlayer (não necessariamente o decoder), agora ele ganha a mesma janela de 3 tentativas com
+        // espera (2s/4s/8s) que os outros erros transitórios já tinham, em qualquer tipo de conteúdo.
+        normalized.contains("FAILED_RUNTIME_CHECK") -> PlaybackFailure(
+            kind = PlaybackFailureKind.RuntimeCheck,
+            retryable = true,
+            userMessage = "O player encontrou um estado interno inválido durante a reprodução.",
         )
 
         else -> permanent(
