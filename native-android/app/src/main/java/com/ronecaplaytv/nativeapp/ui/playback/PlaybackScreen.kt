@@ -56,6 +56,10 @@ import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
 
+// Varredura completa: sem este limite, um filme ou episódio assistido a 98% nunca saia de
+// "Continuar assistindo" — ficava misturado com conteúdo realmente pausado no meio.
+private const val CONTINUE_WATCHING_COMPLETION_THRESHOLD = 0.95f
+
 private data class PlaybackCardItem(
     val key: String,
     val title: String,
@@ -87,16 +91,18 @@ fun PlaybackScreen(
     val progressByKey = remember(progress) { progress.associateBy(SavedProgress::contentKey) }
     val startedMovieCards = remember(movies, progressByKey) {
         movies.mapNotNull { movie ->
-            (progressByKey[ContentIdentity.movie(movie)] ?: progressByKey["movie:${movie.id}"])?.let { saved ->
-                PlaybackCardItem(
-                    key = "started-movie-${movie.id}",
-                    title = movie.name,
-                    imageUrl = movie.coverUrl,
-                    progress = saved.fraction,
-                    badge = "CONTINUAR",
-                    onClick = { onResumeMovie(movie) },
-                )
+            val saved = progressByKey[ContentIdentity.movie(movie)] ?: progressByKey["movie:${movie.id}"]
+            if (saved == null || saved.fraction >= CONTINUE_WATCHING_COMPLETION_THRESHOLD) {
+                return@mapNotNull null
             }
+            PlaybackCardItem(
+                key = "started-movie-${movie.id}",
+                title = movie.name,
+                imageUrl = movie.coverUrl,
+                progress = saved.fraction,
+                badge = "CONTINUAR",
+                onClick = { onResumeMovie(movie) },
+            )
         }
     }
     val latestProgressBySeriesId = remember(progress) {
@@ -118,17 +124,19 @@ fun PlaybackScreen(
     }
     val startedSeriesCards = remember(series, latestProgressBySeriesId) {
         series.mapNotNull { item ->
-            (latestProgressBySeriesId[ContentIdentity.token(item.name)]
-                ?: latestProgressBySeriesId[item.id])?.let { saved ->
-                PlaybackCardItem(
-                    key = "started-series-${item.id}",
-                    title = item.name,
-                    imageUrl = item.coverUrl,
-                    progress = saved.fraction,
-                    badge = "ÚLTIMO EPISÓDIO",
-                    onClick = { onResumeSeries(item, saved) },
-                )
+            val saved = latestProgressBySeriesId[ContentIdentity.token(item.name)]
+                ?: latestProgressBySeriesId[item.id]
+            if (saved == null || saved.fraction >= CONTINUE_WATCHING_COMPLETION_THRESHOLD) {
+                return@mapNotNull null
             }
+            PlaybackCardItem(
+                key = "started-series-${item.id}",
+                title = item.name,
+                imageUrl = item.coverUrl,
+                progress = saved.fraction,
+                badge = "ÚLTIMO EPISÓDIO",
+                onClick = { onResumeSeries(item, saved) },
+            )
         }
     }
     val favoriteChannels = remember(channels, favoriteChannelIds) {
