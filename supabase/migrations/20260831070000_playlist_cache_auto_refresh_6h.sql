@@ -7,7 +7,9 @@ create schema if not exists extensions;
 create schema if not exists vault;
 
 create extension if not exists pg_net with schema extensions;
-create extension if not exists pg_cron with schema pg_catalog;
+-- pg_cron is preinstalled by the Supabase local/hosted stack.
+-- Do not issue CREATE EXTENSION here: PostgreSQL may try to relocate an existing
+-- managed extension and fail with SQLSTATE 2BP01 (dependent privileges exist).
 create extension if not exists supabase_vault with schema vault;
 
 do $$
