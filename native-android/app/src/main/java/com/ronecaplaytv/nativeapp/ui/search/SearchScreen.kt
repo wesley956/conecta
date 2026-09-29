@@ -56,6 +56,8 @@ import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
 
+private const val MAX_RESULTS_PER_SECTION = 20
+
 @Composable
 fun SearchScreen(
     channels: List<NativeChannel>,
@@ -79,27 +81,25 @@ fun SearchScreen(
         }
     }
 
-    val channelResults = remember(channels, query) {
+    // Varredura completa (achado #9): antes cada categoria cortava em 20 resultados sem avisar —
+    // uma busca com 45 canais parecia ter exatamente 20, sem nenhum sinal de que faltava gente.
+    // Agora guarda a contagem TOTAL de cada categoria separada da lista exibida (limitada a 20),
+    // e o cabeçalho da seção mostra "exibindo X de Y" quando há mais resultados do que o limite.
+    val channelMatches = remember(channels, query) {
         if (query.isBlank()) emptyList() else channels
-            .asSequence()
             .filter { it.name.contains(query, ignoreCase = true) }
-            .take(20)
-            .toList()
     }
-    val movieResults = remember(movies, query) {
+    val movieMatches = remember(movies, query) {
         if (query.isBlank()) emptyList() else movies
-            .asSequence()
             .filter { it.name.contains(query, ignoreCase = true) }
-            .take(20)
-            .toList()
     }
-    val seriesResults = remember(series, query) {
+    val seriesMatches = remember(series, query) {
         if (query.isBlank()) emptyList() else series
-            .asSequence()
             .filter { it.name.contains(query, ignoreCase = true) }
-            .take(20)
-            .toList()
     }
+    val channelResults = remember(channelMatches) { channelMatches.take(MAX_RESULTS_PER_SECTION) }
+    val movieResults = remember(movieMatches) { movieMatches.take(MAX_RESULTS_PER_SECTION) }
+    val seriesResults = remember(seriesMatches) { seriesMatches.take(MAX_RESULTS_PER_SECTION) }
 
     LazyColumn(
         modifier = Modifier
@@ -188,7 +188,7 @@ fun SearchScreen(
         }
 
         if (channelResults.isNotEmpty()) {
-            item { SectionHeader("Canais", channelResults.size, isTelevision) }
+            item { SectionHeader("Canais", channelResults.size, channelMatches.size, isTelevision) }
             items(channelResults, key = { "channel-${it.id}" }) { channel ->
                 SearchResultRow(
                     title = channel.name,
@@ -202,7 +202,7 @@ fun SearchScreen(
         }
 
         if (movieResults.isNotEmpty()) {
-            item { SectionHeader("Filmes", movieResults.size, isTelevision) }
+            item { SectionHeader("Filmes", movieResults.size, movieMatches.size, isTelevision) }
             items(movieResults, key = { "movie-${it.id}" }) { movie ->
                 SearchResultRow(
                     title = movie.name,
@@ -216,7 +216,7 @@ fun SearchScreen(
         }
 
         if (seriesResults.isNotEmpty()) {
-            item { SectionHeader("Séries", seriesResults.size, isTelevision) }
+            item { SectionHeader("Séries", seriesResults.size, seriesMatches.size, isTelevision) }
             items(seriesResults, key = { "series-${it.id}" }) { item ->
                 SearchResultRow(
                     title = item.name,
@@ -232,9 +232,9 @@ fun SearchScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String, count: Int, isTelevision: Boolean) {
+private fun SectionHeader(title: String, shown: Int, total: Int, isTelevision: Boolean) {
     Text(
-        text = "$title • $count",
+        text = if (total > shown) "$title • $shown de $total" else "$title • $total",
         color = RonecaColors.TextSecondary,
         fontSize = if (isTelevision) 14.sp else 12.sp,
         fontWeight = FontWeight.SemiBold,
