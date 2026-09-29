@@ -54,6 +54,8 @@ import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
 import com.ronecaplaytv.nativeapp.catalog.NativeSeries
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
+import com.ronecaplaytv.nativeapp.ui.components.SearchGlyph
+import com.ronecaplaytv.nativeapp.ui.components.StarGlyph
 import com.ronecaplaytv.nativeapp.ui.components.TvCategorySidePanel
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import com.ronecaplaytv.nativeapp.ui.navigation.deterministicFocusId
@@ -282,9 +284,6 @@ fun SeriesScreen(
             horizontalArrangement = Arrangement.spacedBy(if (isTelevision) 11.dp else 10.dp),
             verticalArrangement = Arrangement.spacedBy(if (isTelevision) 12.dp else 14.dp),
         ) {
-            // Varredura completa (achado #11): sem isto, buscar/filtrar sem resultado deixava a grade
-            // em branco, sem nenhuma explicação — só Canais avisava "Nenhum encontrado". item(span=...)
-            // ocupa a linha inteira em vez de espremer numa única célula da grade.
             if (filtered.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
@@ -344,11 +343,15 @@ private fun SeriesSearchField(
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         if (value.isBlank()) {
-            Text(
-                text = "⌕  Buscar série",
-                color = RonecaColors.TextMuted,
-                fontSize = if (isTelevision) 13.sp else 14.sp,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SearchGlyph(color = RonecaColors.TextMuted, size = if (isTelevision) 13.dp else 14.dp)
+                Spacer(modifier = Modifier.width(7.dp))
+                Text(
+                    text = "Buscar série",
+                    color = RonecaColors.TextMuted,
+                    fontSize = if (isTelevision) 13.sp else 14.sp,
+                )
+            }
         }
         BasicTextField(
             value = value,
@@ -475,7 +478,16 @@ private fun SeriesPosterCard(
                 .padding(7.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            if (favorite) Badge("★", RonecaColors.Primary)
+            if (favorite) {
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xD9080808), RoundedCornerShape(999.dp))
+                        .border(1.dp, RonecaColors.Primary.copy(alpha = 0.70f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 7.dp, vertical = 4.dp),
+                ) {
+                    StarGlyph(filled = true, color = RonecaColors.Primary, size = 10.dp)
+                }
+            }
             if (started) Badge("CONTINUAR", RonecaColors.RedStrong)
         }
 
