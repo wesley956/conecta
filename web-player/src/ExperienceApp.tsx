@@ -825,6 +825,13 @@ export default function ExperienceApp() {
 
   useEffect(() => {
     setDetail(null);
+    // Varredura completa: antes, navegar pelo menu (Início/Filmes/Séries/…) enquanto um vídeo
+    // estava aberto não fechava o player — a sobreposição em tela cheia continuava por cima da
+    // página nova, parecendo que o site inteiro tinha travado. Agora fecha o player junto.
+    setPlayer(current => {
+      if (current) library.flushPending(current.contentId);
+      return null;
+    });
   }, [section]);
 
   useEffect(() => {
