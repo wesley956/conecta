@@ -64,6 +64,15 @@ export function VirtualCatalogGrid<T>({
     return () => observer.disconnect();
   }, [measure]);
 
+  // Varredura completa: antes da primeira medição real do container (feita em um useEffect,
+  // que só roda DEPOIS do primeiro paint), `layout` ainda é o placeholder EMPTY_LAYOUT com
+  // columns=1. Com columns=1, totalRows vira items.length inteiro — para uma lista de ~24 mil
+  // canais isso calculava uma altura de ~7 milhões de px no host por um instante, obrigando o
+  // navegador a desenhar/relayoutar essa altura gigante antes da correção chegar. Em telas com
+  // cartões mais largos (menos colunas reais, como a grade de canais) isso ficava pior, e era
+  // percebido como a aba "TV" travando o site. Agora a altura só é calculada com um layout
+  // medido de verdade; antes disso o container usa altura natural (poucos itens no fallback).
+  const measured = layout.width > 0;
   const totalRows = Math.ceil(items.length / Math.max(1, layout.columns));
   const totalHeight = Math.max(0, totalRows * layout.rowHeight - gap);
 
@@ -110,7 +119,7 @@ export function VirtualCatalogGrid<T>({
     <div
       ref={hostRef}
       className={`virtual-catalog-grid ${className}`.trim()}
-      style={{ height: totalHeight || undefined }}
+      style={{ height: measured ? (totalHeight || undefined) : undefined }}
       data-total-items={items.length}
       data-rendered-items={visibleItems.length}
     >
