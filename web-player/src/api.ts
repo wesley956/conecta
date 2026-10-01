@@ -17,9 +17,14 @@ const FUNCTIONS_URL = String(
 export const WEB_PLAYER_VERSION = '0.2.3';
 const REFRESH_KEY = 'roneca.web.refresh.v1';
 const CATALOG_CACHE_PREFIX = 'roneca.web.catalog.v2.';
-const CATALOG_CACHE_TTL_MS = 5 * 60_000;
-const SERIES_CACHE_TTL_MS = 5 * 60_000;
-const EPG_CACHE_TTL_MS = 60_000;
+// Cotas do plano Supabase: o catálogo e a lista de séries quase nunca mudam de um minuto pro
+// outro (o refresh automático de 6h nem está ativo em produção — ver DATA-01), então um cache
+// curto só gera chamadas repetidas sem ganho real de atualização pro usuário. EPG muda pouco
+// dentro de uma janela de poucos minutos. Valores maiores aqui reduzem bastante o número de
+// chamadas às Edge Functions sem o usuário perceber diferença.
+const CATALOG_CACHE_TTL_MS = 30 * 60_000;
+const SERIES_CACHE_TTL_MS = 30 * 60_000;
+const EPG_CACHE_TTL_MS = 5 * 60_000;
 const DETAIL_CACHE_MAX_ENTRIES = 40;
 // Depois de um 429 o servidor continua contando (e custando) cada tentativa. Pausamos as
 // chamadas deste endpoint por um tempo em vez de repetir o pedido em laço.
