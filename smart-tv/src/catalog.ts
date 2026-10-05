@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { reportPlaylistFailure, reportPlaylistSuccess } from "./deviceSession";
 import type { CacheParts, DevicePlaylist, DeviceSession } from "./deviceSession";
+import { restoreCatalogSnapshot, saveCatalogSnapshot } from "./catalogSnapshot";
 
 export interface Channel {
   id: string;
@@ -90,6 +91,8 @@ type CatalogState = {
   lastFailure: string | null;
   lastFailoverAttemptId: string | null;
   lastFailoverOutcome: CatalogFailoverResult["outcome"] | "switching" | null;
+  restoredFromSnapshot: boolean;
+  snapshotSavedAt: string | null;
 };
 
 const emptyCatalog: Catalog = { channels: [], movies: [], series: [] };
@@ -103,7 +106,9 @@ const initialState: CatalogState = {
   lastSuccessfulSync: null,
   lastFailure: null,
   lastFailoverAttemptId: null,
-  lastFailoverOutcome: null
+  lastFailoverOutcome: null,
+  restoredFromSnapshot: false,
+  snapshotSavedAt: null
 };
 
 function object(value: unknown): Record<string, unknown> {
@@ -216,6 +221,30 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
 
     void (async () => {
       try {
+        const configuredAtStart = candidates(session);
+        const restored = await restoreCatalogSnapshot(
+          session.deviceCode,
+          configuredAtStart.map(item => item.id)
+        ).catch(() => null);
+        if (restored && !controller.signal.aborted) {
+          const restoredPlaylist = configuredAtStart.find(item => item.id === restored.playlistId);
+          activePlaylistId.current = restored.playlistId;
+          setState({
+            status: "ready",
+            data: restored.catalog,
+            message: "Catálogo local restaurado. Verificando atualizações em segundo plano...",
+            activePlaylistId: restored.playlistId,
+            activePlaylistName: restoredPlaylist?.name || session.playlistName,
+            usingBackupPlaylist: restoredPlaylist?.role === "backup",
+            lastSuccessfulSync: new Date(restored.savedAt).toISOString(),
+            lastFailure: null,
+            lastFailoverAttemptId: null,
+            lastFailoverOutcome: null,
+            restoredFromSnapshot: true,
+            snapshotSavedAt: new Date(restored.savedAt).toISOString()
+          });
+        }
+
         const freshSession = await renewConfiguration();
         if (freshSession.status !== "active") {
           throw new Error(freshSession.message || "Acesso não autorizado.");
@@ -244,8 +273,16 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
               lastSuccessfulSync: new Date().toISOString(),
               lastFailure: usingBackup ? "O servidor selecionou a lista reserva para esta sincronização." : null,
               lastFailoverAttemptId: null,
-              lastFailoverOutcome: null
+              lastFailoverOutcome: null,
+              restoredFromSnapshot: false,
+              snapshotSavedAt: new Date().toISOString()
             });
+            void saveCatalogSnapshot(
+              freshSession.deviceCode,
+              candidate.id,
+              freshSession.cacheVersion,
+              data
+            ).catch(() => undefined);
             void reportPlaylistSuccess(candidate.id).catch(() => undefined);
             return;
           } catch (error) {
@@ -331,8 +368,16 @@ export function useCatalog(session: DeviceSession, renewConfiguration: () => Pro
             lastSuccessfulSync: new Date().toISOString(),
             lastFailure: reason,
             lastFailoverAttemptId: attemptId,
-            lastFailoverOutcome: "switched"
+            lastFailoverOutcome: "switched",
+            restoredFromSnapshot: false,
+            snapshotSavedAt: new Date().toISOString()
           });
+          void saveCatalogSnapshot(
+            freshSession.deviceCode,
+            candidate.id,
+            freshSession.cacheVersion,
+            data
+          ).catch(() => undefined);
           return {
             outcome: "switched" as const,
             attemptId,

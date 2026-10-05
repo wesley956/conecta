@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 
 export type SmartTvBufferSeconds = 2 | 5 | 10;
 export type SmartTvAspectMode = "Original" | "Preencher" | "Estender";
+export type SmartTvCategoryDisplayMode = "Clássica" | "Painel lateral";
 
 export interface SmartTvPlayerSettings {
   automaticReconnect: boolean;
   bufferSeconds: SmartTvBufferSeconds;
   launchSoundEnabled: boolean;
   aspectMode: SmartTvAspectMode;
+  categoryDisplayMode: SmartTvCategoryDisplayMode;
 }
 
 const STORAGE_KEY = "roneca.smart-tv.player-settings.v1";
@@ -16,7 +18,8 @@ const defaults: SmartTvPlayerSettings = {
   automaticReconnect: true,
   bufferSeconds: 5,
   launchSoundEnabled: true,
-  aspectMode: "Original"
+  aspectMode: "Original",
+  categoryDisplayMode: "Clássica"
 };
 
 function normalizeAspect(value: unknown): SmartTvAspectMode {
@@ -32,11 +35,12 @@ function normalize(value: unknown): SmartTvPlayerSettings {
     automaticReconnect: raw.automaticReconnect !== false,
     bufferSeconds,
     launchSoundEnabled: raw.launchSoundEnabled !== false,
-    aspectMode: normalizeAspect(raw.aspectMode)
+    aspectMode: normalizeAspect(raw.aspectMode),
+    categoryDisplayMode: raw.categoryDisplayMode === "Painel lateral" ? "Painel lateral" : "Clássica"
   };
 }
 
-function read(): SmartTvPlayerSettings {
+export function readSmartTvPlayerSettings(): SmartTvPlayerSettings {
   try { return normalize(JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null")); }
   catch { return defaults; }
 }
@@ -52,23 +56,23 @@ function broadcast(settings: SmartTvPlayerSettings) {
 }
 
 export function readAspectModePreference(): SmartTvAspectMode {
-  return read().aspectMode;
+  return readSmartTvPlayerSettings().aspectMode;
 }
 
 export function setAspectModePreference(aspectMode: SmartTvAspectMode) {
-  const next = normalize({ ...read(), aspectMode });
+  const next = normalize({ ...readSmartTvPlayerSettings(), aspectMode });
   write(next);
   broadcast(next);
   return next.aspectMode;
 }
 
 export function useSmartTvPlayerSettings() {
-  const [settings, setSettingsState] = useState<SmartTvPlayerSettings>(read);
+  const [settings, setSettingsState] = useState<SmartTvPlayerSettings>(readSmartTvPlayerSettings);
 
   useEffect(() => {
     const onSettings = (event: Event) => {
       const detail = (event as CustomEvent<SmartTvPlayerSettings>).detail;
-      setSettingsState(normalize(detail || read()));
+      setSettingsState(normalize(detail || readSmartTvPlayerSettings()));
     };
     window.addEventListener(SETTINGS_EVENT, onSettings);
     return () => window.removeEventListener(SETTINGS_EVENT, onSettings);

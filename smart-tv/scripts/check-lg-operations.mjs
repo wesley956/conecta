@@ -28,6 +28,10 @@ const diagnostics = read("supabase/functions/playback-diagnostics-report/index.t
 
 for (const token of [
   "Aspecto da imagem",
+  "Exibição das categorias",
+  "Inicialização do catálogo",
+  "Perfil atual",
+  "Decodificação",
   "Original",
   "Preencher",
   "Estender",
@@ -37,6 +41,7 @@ for (const token of [
   "Limpar cache temporário",
   "Limpar dados desta TV",
   "Verificar atualização do aplicativo",
+  "supportProfile",
   "Stable publicada",
   "Não envie senha, token nem URL da lista"
 ]) requireToken(shell, token, "configurações/diagnóstico incompletos");
