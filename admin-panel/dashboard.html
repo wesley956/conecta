@@ -1518,33 +1518,47 @@ tbody tr:hover td {
 
         <div class="panel-ux-body">
           <section class="panel-ux-form active" data-ux-form="seller">
-            <label for="uxNewSellerName">Nome</label>
-            <input id="uxNewSellerName" placeholder="Ex: Revendedor João" />
+            <div class="ux-field">
+              <label for="uxNewSellerName">Nome</label>
+              <input id="uxNewSellerName" placeholder="Ex: Revendedor João" />
+            </div>
 
-            <label for="uxNewSellerWhatsapp">WhatsApp</label>
-            <input id="uxNewSellerWhatsapp" placeholder="Ex: 19999999999" />
+            <div class="ux-field">
+              <label for="uxNewSellerWhatsapp">WhatsApp</label>
+              <input id="uxNewSellerWhatsapp" placeholder="Ex: 19999999999" />
+            </div>
 
-            <label for="uxNewSellerEmail">E-mail opcional</label>
-            <input id="uxNewSellerEmail" placeholder="email@exemplo.com" />
+            <div class="ux-field ux-field--wide">
+              <label for="uxNewSellerEmail">E-mail opcional</label>
+              <input id="uxNewSellerEmail" placeholder="email@exemplo.com" />
+            </div>
 
-            <label for="uxNewSellerInitialCredits">Créditos iniciais</label>
-            <input id="uxNewSellerInitialCredits" type="number" min="0" value="0" />
+            <div class="ux-field">
+              <label for="uxNewSellerInitialCredits">Créditos iniciais</label>
+              <input id="uxNewSellerInitialCredits" type="number" min="0" value="0" />
+            </div>
 
-            <label for="uxNewSellerAccessDurationHours">Validade da conta em horas</label>
-            <input id="uxNewSellerAccessDurationHours" type="number" min="0" max="8760" value="0" />
-            <p class="muted small">Use 0 para não vencer ou 24 para liberar um teste de 24 horas.</p>
+            <div class="ux-field">
+              <label for="uxNewSellerAccessDurationHours">Validade da conta em horas</label>
+              <input id="uxNewSellerAccessDurationHours" type="number" min="0" max="8760" value="0" />
+            </div>
+            <p class="muted small ux-field--wide">Use 0 para não vencer ou 24 para liberar um teste de 24 horas.</p>
 
-            <label class="ux-check-row">
+            <label class="ux-toggle-row">
               <input id="uxNewSellerAutoDeleteAfterExpiry" type="checkbox" />
-              Excluir automaticamente se não renovar
+              <span class="ux-toggle"></span>
+              <span>Excluir automaticamente se não renovar</span>
             </label>
 
-            <label for="uxNewSellerAutoDeleteGraceHours">Tolerância após o bloqueio (horas)</label>
-            <input id="uxNewSellerAutoDeleteGraceHours" type="number" min="1" max="720" value="36" />
+            <div class="ux-field">
+              <label for="uxNewSellerAutoDeleteGraceHours">Tolerância após o bloqueio (horas)</label>
+              <input id="uxNewSellerAutoDeleteGraceHours" type="number" min="1" max="720" value="36" />
+            </div>
 
-            <label class="ux-check-row">
+            <label class="ux-toggle-row">
               <input id="uxNewSellerCanGoNegative" type="checkbox" />
-              Permitir saldo negativo
+              <span class="ux-toggle"></span>
+              <span>Permitir saldo negativo</span>
             </label>
 
             <div class="panel-ux-actions">
@@ -1553,17 +1567,25 @@ tbody tr:hover td {
           </section>
 
           <section class="panel-ux-form" data-ux-form="plan">
-            <label for="uxNewPlanName">Nome do plano</label>
-            <input id="uxNewPlanName" placeholder="Ex: Mensal 1 tela" />
+            <div class="ux-field ux-field--wide">
+              <label for="uxNewPlanName">Nome do plano</label>
+              <input id="uxNewPlanName" placeholder="Ex: Mensal 1 tela" />
+            </div>
 
-            <label for="uxNewPlanDurationDays">Duração em dias</label>
-            <input id="uxNewPlanDurationDays" type="number" min="1" value="30" />
+            <div class="ux-field">
+              <label for="uxNewPlanDurationDays">Duração em dias</label>
+              <input id="uxNewPlanDurationDays" type="number" min="1" value="30" />
+            </div>
 
-            <label for="uxNewPlanCreditCost">Custo em créditos</label>
-            <input id="uxNewPlanCreditCost" type="number" min="1" value="1" />
+            <div class="ux-field">
+              <label for="uxNewPlanCreditCost">Custo em créditos</label>
+              <input id="uxNewPlanCreditCost" type="number" min="1" value="1" />
+            </div>
 
-            <label for="uxNewPlanMaxDevices">Máx. aparelhos</label>
-            <input id="uxNewPlanMaxDevices" type="number" min="1" value="1" />
+            <div class="ux-field">
+              <label for="uxNewPlanMaxDevices">Máx. aparelhos</label>
+              <input id="uxNewPlanMaxDevices" type="number" min="1" value="1" />
+            </div>
 
             <div class="panel-ux-actions">
               <button class="btn primary" type="button" onclick="submitCommercialPlan()">Cadastrar plano</button>
@@ -1571,14 +1593,20 @@ tbody tr:hover td {
           </section>
 
           <section class="panel-ux-form" data-ux-form="credits">
-            <label for="uxSellerCreditSeller">Vendedor</label>
-            <select id="uxSellerCreditSeller"></select>
+            <div class="ux-field ux-field--wide">
+              <label for="uxSellerCreditSeller">Vendedor</label>
+              <select id="uxSellerCreditSeller"></select>
+            </div>
 
-            <label for="uxSellerCreditAmount">Quantidade</label>
-            <input id="uxSellerCreditAmount" type="number" min="1" value="1" />
+            <div class="ux-field">
+              <label for="uxSellerCreditAmount">Quantidade</label>
+              <input id="uxSellerCreditAmount" type="number" min="1" value="1" />
+            </div>
 
-            <label for="uxSellerCreditDescription">Descrição</label>
-            <input id="uxSellerCreditDescription" placeholder="Ex: Pagamento recebido" />
+            <div class="ux-field">
+              <label for="uxSellerCreditDescription">Descrição</label>
+              <input id="uxSellerCreditDescription" placeholder="Ex: Pagamento recebido" />
+            </div>
 
             <div class="panel-ux-actions">
               <button class="btn green" type="button" onclick="submitCommercialCredits()">Adicionar créditos</button>
@@ -1600,11 +1628,15 @@ tbody tr:hover td {
 
         <div class="panel-ux-body">
           <section class="panel-ux-form active">
-            <label for="uxNewCustomerName">Nome</label>
-            <input id="uxNewCustomerName" placeholder="Ex: João Silva" />
+            <div class="ux-field">
+              <label for="uxNewCustomerName">Nome</label>
+              <input id="uxNewCustomerName" placeholder="Ex: João Silva" />
+            </div>
 
-            <label for="uxNewCustomerWhatsapp">WhatsApp</label>
-            <input id="uxNewCustomerWhatsapp" placeholder="Ex: 19999999999" />
+            <div class="ux-field">
+              <label for="uxNewCustomerWhatsapp">WhatsApp</label>
+              <input id="uxNewCustomerWhatsapp" placeholder="Ex: 19999999999" />
+            </div>
 
             <div class="panel-ux-actions">
               <button class="btn primary" type="button" onclick="submitCustomerModal()">Cadastrar cliente</button>
@@ -1626,18 +1658,24 @@ tbody tr:hover td {
 
         <div class="panel-ux-body">
           <section class="panel-ux-form active">
-            <label>Nome da lista</label>
-            <input id="uxNewPlaylistName" placeholder="Ex: Lista Premium 01" />
+            <div class="ux-field ux-field--wide">
+              <label>Nome da lista</label>
+              <input id="uxNewPlaylistName" placeholder="Ex: Lista Premium 01" />
+            </div>
 
-            <label>URL da lista</label>
-            <input id="uxNewPlaylistUrl" placeholder="https://..." oninput="syncPlaylistType('uxNewPlaylistUrl', 'uxNewPlaylistType')" />
+            <div class="ux-field ux-field--wide">
+              <label>URL da lista</label>
+              <input id="uxNewPlaylistUrl" placeholder="https://..." oninput="syncPlaylistType('uxNewPlaylistUrl', 'uxNewPlaylistType')" />
+            </div>
 
-            <label>Tipo (automático)</label>
-            <select id="uxNewPlaylistType">
-              <option value="m3u">M3U</option>
-              <option value="xtream">Xtream</option>
-              <option value="stalker">Stalker</option>
-            </select>
+            <div class="ux-field">
+              <label>Tipo (automático)</label>
+              <select id="uxNewPlaylistType">
+                <option value="m3u">M3U</option>
+                <option value="xtream">Xtream</option>
+                <option value="stalker">Stalker</option>
+              </select>
+            </div>
 
             <div class="panel-ux-actions">
               <button class="btn primary" type="button" onclick="submitPlaylistModal()">Salvar lista</button>
