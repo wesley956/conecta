@@ -765,8 +765,8 @@ body.admin-v2 .admin-page-badge {
 body.admin-v2 .section { padding: 0 30px 32px !important; }
 
 body.admin-v2 .admin-daily-briefing {
-  min-height: 198px;
-  padding: clamp(24px, 3vw, 34px) !important;
+  min-height: 0;
+  padding: 16px 22px !important;
   border-color: rgba(255, 69, 76, .22) !important;
   background:
     linear-gradient(90deg, rgba(8,8,9,.1), rgba(8,8,9,.62)),
@@ -774,31 +774,97 @@ body.admin-v2 .admin-daily-briefing {
     linear-gradient(135deg, #3b1115, #171719 58%, #111113) !important;
 }
 
-body.admin-v2 .admin-daily-briefing h2 {
-  max-width: 760px;
-  font-size: clamp(24px, 3.1vw, 42px) !important;
-  line-height: 1.04;
+body.admin-v2 .admin-daily-briefing > div:first-child { gap: 5px !important; }
+
+body.admin-v2 .admin-daily-briefing p {
+  font-size: 13px;
+  max-width: 560px;
 }
 
 body.admin-v2 .admin-briefing-numbers {
-  margin-top: 8px;
-  gap: 10px !important;
+  margin-top: 2px;
+  gap: 8px !important;
 }
 
 body.admin-v2 .admin-briefing-numbers span {
-  padding: 7px 10px;
+  padding: 6px 10px;
+  font-size: 12.5px;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 999px;
   background: rgba(0,0,0,.18);
 }
 
-body.admin-v2 .admin-overview-grid { gap: 18px !important; margin-top: 18px; }
+/* O layout 12-colunas legado (dashboard.html: ".card{grid-column:span 12}")
+   "vaza" para qualquer .card dentro de uma grade própria mais estreita,
+   forçando cada card a ocupar a linha inteira. A grade de visão geral
+   (agenda + pulso) define só 2 trilhas reais — libera os cards dela. */
+body.admin-v2 .admin-overview-grid > .card { grid-column: auto !important; }
+
+body.admin-v2 .admin-overview-grid { gap: 18px !important; margin-top: 18px; align-items: start !important; }
 
 body.admin-v2 .admin-pulse-card {
   border-color: rgba(255, 69, 76, .18) !important;
   background:
     radial-gradient(circle at 100% 0%, rgba(227, 38, 46, .12), transparent 38%),
     linear-gradient(180deg, #171719, #111113) !important;
+}
+
+body.admin-v2 .admin-pulse-stats {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+body.admin-v2 .admin-pulse-stat {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--rp-radius-sm);
+  background: linear-gradient(150deg, #1b1b1e, #111113);
+  overflow: hidden;
+}
+
+body.admin-v2 .admin-pulse-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, rgba(255, 69, 76, .7), transparent);
+}
+
+body.admin-v2 .admin-pulse-stat small {
+  color: var(--rp-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+body.admin-v2 .admin-pulse-stat strong {
+  font-size: 24px;
+}
+
+body.admin-v2 .admin-pulse-stat--wide { grid-column: 1 / -1; }
+
+/* Cards de aparelho: a largura mínima original (430px) deixava só 2 por
+   linha em telas largas, com muito espaço vazio ao redor de pouco
+   conteúdo. Reduzida para caber mais cards por linha e aproveitar
+   melhor a tela, com o miolo (vendedor/plano/lista/validade) um pouco
+   mais compacto para acompanhar. */
+body.admin-v2 .admin-device-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+body.admin-v2 .admin-device-card {
+  gap: 11px !important;
+  padding: 13px 14px !important;
+}
+
+body.admin-v2 .admin-device-meta {
+  gap: 9px !important;
+  padding: 10px 0 !important;
 }
 
 body.admin-v2 .stat,

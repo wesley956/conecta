@@ -1024,7 +1024,6 @@ tbody tr:hover td {
       <div class="admin-daily-briefing">
         <div>
           <span class="admin-kicker">Resumo do dia</span>
-          <h2>A operação mostra primeiro o que exige uma decisão.</h2>
           <p>Comece pelas pendências novas e pelos clientes próximos do vencimento.</p>
           <div class="admin-briefing-numbers">
             <span><strong id="stPending">0</strong> pendências</span>
@@ -1058,15 +1057,20 @@ tbody tr:hover td {
         </div>
 
         <div class="card admin-pulse-card">
-          <h2>Pulso da operação</h2>
-          <p class="sub"><strong id="stDevices">0</strong> aparelhos cadastrados</p>
-          <div class="admin-pulse-total"><strong id="stCustomers">0</strong><span>clientes</span></div>
-          <div class="admin-pulse-list">
-            <div><span><i class="active"></i>Aparelhos ativos</span><strong id="stActiveMirror">0</strong></div>
-            <div><span><i class="pending"></i>Pendentes</span><strong id="stPendingMirror">0</strong></div>
-            <div><span><i></i>Listas disponíveis</span><strong id="stPlaylists">0</strong></div>
+          <div class="admin-card-head">
+            <div>
+              <h2>Pulso da operação</h2>
+              <p class="sub">Panorama em tempo real da base.</p>
+            </div>
+            <button class="btn" onclick="setTab('devices')">Explorar</button>
           </div>
-          <button class="btn" onclick="setTab('devices')">Explorar aparelhos</button>
+          <div class="admin-pulse-stats">
+            <div class="admin-pulse-stat"><small>Aparelhos</small><strong id="stDevices">0</strong></div>
+            <div class="admin-pulse-stat"><small>Clientes</small><strong id="stCustomers">0</strong></div>
+            <div class="admin-pulse-stat"><small>Ativos</small><strong id="stActiveMirror">0</strong></div>
+            <div class="admin-pulse-stat"><small>Pendentes</small><strong id="stPendingMirror">0</strong></div>
+            <div class="admin-pulse-stat admin-pulse-stat--wide"><small>Listas disponíveis</small><strong id="stPlaylists">0</strong></div>
+          </div>
         </div>
       </div>
     </section>
