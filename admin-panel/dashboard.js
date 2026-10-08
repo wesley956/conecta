@@ -1,5 +1,5 @@
 /* Núcleo do dashboard administrativo. Mantido como script clássico para preservar os contratos globais dos módulos do painel. */
-const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/admin-panel';
+const API = 'https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/admin-panel';
 let customers = [];
 let playlists = [];
 let devices = [];

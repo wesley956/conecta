@@ -3,7 +3,7 @@ import https from 'node:https';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 
-const RESOLVER_URL = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/web-player-media-resolve';
+const RESOLVER_URL = 'https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/web-player-media-resolve';
 const MAX_REDIRECTS = 4;
 const HEADER_TIMEOUT_MS = 20_000;
 const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;

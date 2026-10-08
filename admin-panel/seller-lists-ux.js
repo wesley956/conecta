@@ -1,5 +1,5 @@
 (() => {
-  const API = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/seller-panel';
+  const API = 'https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/seller-panel';
   const TOKEN_KEY = 'roneca_seller_token';
   const CACHE_REFRESH_COOLDOWN_MS = 30 * 1000;
   const CACHE_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;

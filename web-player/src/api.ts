@@ -11,7 +11,7 @@ import type {
 
 const FUNCTIONS_URL = String(
   import.meta.env.VITE_SUPABASE_FUNCTIONS_URL ||
-  'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1',
+  'https://oelhyzhwtawywlpdviji.supabase.co/functions/v1',
 ).replace(/\/$/, '');
 
 export const WEB_PLAYER_VERSION = '0.2.3';
@@ -243,7 +243,7 @@ function browserMediaRelayUrl(playbackUrl: string) {
   try {
     const source = new URL(playbackUrl);
     if (
-      source.hostname !== 'awauvkjkucjqulkklmuo.supabase.co' ||
+      source.hostname !== 'oelhyzhwtawywlpdviji.supabase.co' ||
       !source.pathname.endsWith('/functions/v1/web-player-media')
     ) return playbackUrl;
     const token = source.searchParams.get('token');

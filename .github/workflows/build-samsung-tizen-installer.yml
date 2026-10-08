@@ -70,7 +70,7 @@ jobs:
     timeout-minutes: 20
     env:
       TIZEN_CERT_PROFILE: ${{ secrets.TIZEN_CERT_PROFILE }}
-      SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+      SUPABASE_URL: https://oelhyzhwtawywlpdviji.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4

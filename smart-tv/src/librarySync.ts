@@ -1,4 +1,4 @@
-const FUNCTIONS_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1";
+const FUNCTIONS_URL = "https://oelhyzhwtawywlpdviji.supabase.co/functions/v1";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 
 export interface SyncedFavorite {

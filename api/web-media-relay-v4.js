@@ -4,7 +4,7 @@ import dns from 'node:dns/promises';
 import net from 'node:net';
 import crypto from 'node:crypto';
 
-const RESOLVER_URL = 'https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/web-player-media-resolve-v4';
+const RESOLVER_URL = 'https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/web-player-media-resolve-v4';
 const MAX_REDIRECTS = 4;
 const HEADER_TIMEOUT_MS = 20_000;
 const UPSTREAM_IDLE_TIMEOUT_MS = 10_000;

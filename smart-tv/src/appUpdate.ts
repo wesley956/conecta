@@ -3,7 +3,7 @@ import { sanitizeDiagnosticText } from "./diagnosticSafety";
 import { APP_VERSION } from "./deviceSession";
 import { platform } from "./platform";
 
-const RELEASE_URL = "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/app-release";
+const RELEASE_URL = "https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/app-release";
 const STORAGE_PREFIX = "roneca.smart-tv.";
 
 export interface TvAppUpdate {
