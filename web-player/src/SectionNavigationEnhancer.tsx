@@ -22,11 +22,24 @@ function labelLiveChannelCount(root: Element | null, section: CatalogSection) {
   if (!root || section !== 'live') return;
   const badge = root.querySelector<HTMLElement>('.main-content > .page-section .page-heading .count-badge');
   if (!badge) return;
-  const numericText = badge.dataset.channelCount || badge.textContent || '0';
+  // Lê o texto renderizado pelo React primeiro: depois que a lista é filtrada por
+  // categoria, o React escreve a nova contagem crua no mesmo nó (ex.: "120"), e
+  // priorizar dataset.channelCount aqui manteria a legenda travada na contagem antiga.
+  const numericText = badge.textContent || badge.dataset.channelCount || '0';
   const count = Number.parseInt(numericText.replace(/\D/g, ''), 10);
   if (!Number.isFinite(count)) return;
+  // Varredura completa: `textContent = ...` sempre troca o nó de texto, mesmo quando a
+  // string final é igual à atual — e essa troca é uma mutação childList, exatamente o que
+  // o MutationObserver abaixo observa (subtree + childList em document.body). Sem este
+  // guard, toda vez que a aba "TV" roda este label ela gera uma mutação, que dispara sync()
+  // de novo, que chama este label de novo, que gera outra mutação — um laço infinito de
+  // microtasks que nunca cede a vez a paint/input, travando a aba por completo (reproduzido
+  // isoladamente: o clique na aba TV nunca retornava e a página ficava 100% sem resposta).
+  // Só escreve quando o valor realmente muda, para a mutação não se automanter.
+  const nextText = `${count.toLocaleString('pt-BR')} ${count === 1 ? 'canal' : 'canais'}`;
+  if (badge.dataset.channelCount === String(count) && badge.textContent === nextText) return;
   badge.dataset.channelCount = String(count);
-  badge.textContent = `${count.toLocaleString('pt-BR')} ${count === 1 ? 'canal' : 'canais'}`;
+  badge.textContent = nextText;
   badge.setAttribute('aria-label', `${count.toLocaleString('pt-BR')} ${count === 1 ? 'canal disponível' : 'canais disponíveis'}`);
 }
 
