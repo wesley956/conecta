@@ -12,6 +12,9 @@ import { fetchWebMediaUpstream } from '../_shared/webMediaTransport.ts';
 const MAX_MANIFEST_BYTES = 2 * 1024 * 1024;
 const CHILD_TOKEN_TTL_MS = 12 * 60 * 1000;
 const HOMOLOG_ORIGIN = 'https://raw.githack.com';
+// Ver nota em _shared/webPlayerSecurity.ts (incidente 2026-10-08): rede de segurança
+// independente do secret WEB_PLAYER_ORIGINS para o domínio de produção real.
+const PRODUCTION_ORIGIN = 'https://ronecaplaytv.pp.ua';
 
 type MediaToken = {
   v: number;
@@ -39,7 +42,7 @@ function gatewayOriginAllowed(request: Request) {
     .split(',')
     .map(value => value.trim())
     .filter(Boolean);
-  if (configured.includes(origin) || origin === HOMOLOG_ORIGIN) return true;
+  if (configured.includes(origin) || origin === HOMOLOG_ORIGIN || origin === PRODUCTION_ORIGIN) return true;
   try {
     const url = new URL(origin);
     return url.protocol === 'https:' && url.hostname.endsWith('.vercel.app');

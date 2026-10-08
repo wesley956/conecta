@@ -25,6 +25,13 @@ function projectOrigin() {
   }
 }
 
+// Domínio de produção do painel/web-player (admin-panel e web-player são servidos pelo
+// mesmo projeto Vercel, web-player em /web/). Fixo aqui como rede de segurança: depende
+// apenas do secret WEB_PLAYER_ORIGINS deixava o login do Acesso Web quebrado sempre que
+// esse secret não estivesse configurado neste projeto Supabase (ex.: após uma migração de
+// projeto) — ver incidente de 2026-10-08 (Failed to fetch no login do Acesso Web).
+const PRODUCTION_ORIGIN = 'https://ronecaplaytv.pp.ua';
+
 function allowedOrigins() {
   const configured = String(Deno.env.get('WEB_PLAYER_ORIGINS') || '')
     .split(',')
@@ -34,6 +41,7 @@ function allowedOrigins() {
   return new Set([
     ...configured,
     ...(selfOrigin ? [selfOrigin] : []),
+    PRODUCTION_ORIGIN,
     'https://raw.githack.com',
     'http://localhost:4173',
     'http://localhost:5173',

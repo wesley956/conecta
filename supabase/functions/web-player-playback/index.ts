@@ -26,6 +26,9 @@ import { classifyRecoveryError, sanitizedRecoveryCode } from '../_shared/webPlay
 const PLAYBACK_TOKEN_TTL_MS = 10 * 60 * 1000;
 const RECOVERY_TOKEN_TTL_MS = 60 * 60 * 1000;
 const HOMOLOG_ORIGIN = 'https://raw.githack.com';
+// Ver nota em _shared/webPlayerSecurity.ts (incidente 2026-10-08): rede de segurança
+// independente do secret WEB_PLAYER_ORIGINS para o domínio de produção real.
+const PRODUCTION_ORIGIN = 'https://ronecaplaytv.pp.ua';
 
 type RecoveryToken = {
   v: number;
@@ -106,7 +109,7 @@ function gatewayOriginAllowed(request: Request) {
     .split(',')
     .map(value => value.trim())
     .filter(Boolean);
-  if (configured.includes(origin) || origin === HOMOLOG_ORIGIN) return true;
+  if (configured.includes(origin) || origin === HOMOLOG_ORIGIN || origin === PRODUCTION_ORIGIN) return true;
   try {
     const url = new URL(origin);
     return url.protocol === 'https:' && url.hostname.endsWith('.vercel.app');
