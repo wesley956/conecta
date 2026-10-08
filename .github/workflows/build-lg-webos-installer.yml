@@ -192,9 +192,11 @@ jobs:
       # do Actions está bloqueado nesta sessão (blob.core.windows.net). Commitar os
       # binários direto na branch para recuperar via git normal.
       - name: TEMP - commit build artifacts to branch for retrieval
-        if: github.ref == 'refs/heads/agent/lg-ipk-diagnostics'
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/lg-ipk-diagnostics'
         run: |
           set -euo pipefail
+          git fetch origin agent/lg-ipk-diagnostics
+          git checkout -B agent/lg-ipk-diagnostics FETCH_HEAD
           mkdir -p _retrieve
           cp smart-tv/artifacts/*.ipk _retrieve/
           cp smart-tv/artifacts/lg-seller-lounge-icon-400.png _retrieve/
