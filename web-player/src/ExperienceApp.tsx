@@ -482,12 +482,9 @@ function CategoryFilter({
   if (categories.length > CATEGORY_FILTER_BUTTON_LIMIT) {
     return (
       <div className="filter-strip filter-strip-select">
-        <label className="category-select-label">
-          <span className="sr-only">{ariaLabel}</span>
-          <select className="category-select" value={active} onChange={event => onSelect(event.target.value)} aria-label={ariaLabel}>
-            {categories.map(item => <option key={item} value={item}>{item}</option>)}
-          </select>
-        </label>
+        <select className="category-select" value={active} onChange={event => onSelect(event.target.value)} aria-label={ariaLabel}>
+          {categories.map(item => <option key={item} value={item}>{item}</option>)}
+        </select>
       </div>
     );
   }

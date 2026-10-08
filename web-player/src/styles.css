@@ -191,7 +191,6 @@ img { display: block; max-width: 100%; }
 .filter-strip button { white-space: nowrap; border: 1px solid var(--line); background: #15171a; border-radius: 999px; padding: .55rem .85rem; color: #aeb2ba; }
 .filter-strip button.active { color: #fff; border-color: rgba(239,49,57,.5); background: rgba(207,35,43,.19); }
 .filter-strip-select { padding: .25rem .1rem 1rem; }
-.category-select-label { display: block; }
 .category-select { width: 100%; max-width: 360px; border: 1px solid var(--line); background: #15171a; border-radius: 10px; padding: .6rem .75rem; color: #eceef1; font-size: .9rem; }
 .poster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 1.2rem .95rem; }
 .channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .7rem; }
