@@ -63,9 +63,49 @@ jobs:
         working-directory: smart-tv
         run: npm run typecheck
 
-      - name: Generate and validate packaged webOS IPK
+      - name: Package webOS IPK
         working-directory: smart-tv
-        run: npm run package:webos:verified
+        run: npm run package:webos
+
+      - name: Validate webOS package structure
+        working-directory: smart-tv
+        run: npm run validate:webos-package
+
+      - name: Validate LG branding
+        working-directory: smart-tv
+        run: npm run validate:lg-branding
+
+      - name: Validate LG navigation
+        working-directory: smart-tv
+        run: npm run validate:lg-navigation
+
+      - name: Validate LG content
+        working-directory: smart-tv
+        run: npm run validate:lg-content
+
+      - name: Validate LG VOD details
+        working-directory: smart-tv
+        run: npm run validate:lg-vod
+
+      - name: Validate LG player
+        working-directory: smart-tv
+        run: npm run validate:lg-player
+
+      - name: Validate LG resilience
+        working-directory: smart-tv
+        run: npm run validate:lg-resilience
+
+      - name: Validate LG operations
+        working-directory: smart-tv
+        run: npm run validate:lg-operations
+
+      - name: Validate LG performance
+        working-directory: smart-tv
+        run: npm run validate:lg-performance
+
+      - name: Validate LG homologation
+        working-directory: smart-tv
+        run: npm run validate:lg-homologation
 
       - name: Check bundle budget
         working-directory: smart-tv
