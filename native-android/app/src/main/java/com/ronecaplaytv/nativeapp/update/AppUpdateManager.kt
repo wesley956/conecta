@@ -380,7 +380,7 @@ class AppUpdateManager(private val context: Context) {
         val SHA256_PATTERN = Regex("^[a-f0-9]{64}$")
         val REDIRECT_STATUS_CODES = setOf(301, 302, 303, 307, 308)
         val ALLOWED_UPDATE_HOSTS = setOf(
-            "awauvkjkucjqulkklmuo.supabase.co",
+            "oelhyzhwtawywlpdviji.supabase.co",
             "github.com",
             "release-assets.githubusercontent.com",
             "objects.githubusercontent.com",

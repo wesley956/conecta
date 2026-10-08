@@ -155,7 +155,7 @@ jobs:
             --argjson schemaVersion 1 \
             --argjson versionCode "${{ steps.app.outputs.version_code }}" \
             --arg versionName "${{ steps.app.outputs.version }}" \
-            --arg updateApiUrl "https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/app-release" \
+            --arg updateApiUrl "https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/app-release" \
             --arg sha256 "$APK_SHA256" \
             --arg signerSha256 "$ACTUAL_SIGNER_SHA256" \
             --argjson mandatory false \
@@ -196,7 +196,7 @@ jobs:
 
       - name: Publish APK to protected Supabase Storage
         env:
-          SUPABASE_URL: https://awauvkjkucjqulkklmuo.supabase.co
+          SUPABASE_URL: https://oelhyzhwtawywlpdviji.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VERSION: ${{ steps.app.outputs.version }}
           VERSION_CODE: ${{ steps.app.outputs.version_code }}

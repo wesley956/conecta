@@ -26,18 +26,18 @@ android {
         applicationId = "com.ronecaplaytv.nativeapp"
         minSdk = 23
         targetSdk = 36
-        versionCode = 51
-        versionName = "3.0.0"
+        versionCode = 52
+        versionName = "3.0.1"
 
         buildConfigField(
             "String",
             "SUPABASE_FUNCTIONS_URL",
-            "\"https://awauvkjkucjqulkklmuo.supabase.co/functions/v1\"",
+            "\"https://oelhyzhwtawywlpdviji.supabase.co/functions/v1\"",
         )
         buildConfigField(
             "String",
             "UPDATE_API_URL",
-            "\"https://awauvkjkucjqulkklmuo.supabase.co/functions/v1/app-release\"",
+            "\"https://oelhyzhwtawywlpdviji.supabase.co/functions/v1/app-release\"",
         )
         buildConfigField("boolean", "SUSPEND_HYDRATION_DURING_TV_PLAYBACK", "true")
         buildConfigField("boolean", "COMPACT_XTREAM_PLAYBACK_URLS", "true")

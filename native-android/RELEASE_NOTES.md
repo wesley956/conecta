@@ -1,3 +1,7 @@
+# RonecaPlayTV 3.0.1
+
+- Atualiza o aplicativo para o novo backend Supabase (migração de projeto); nenhuma mudança visível para o usuário.
+
 # RonecaPlayTV 3.0.0
 
 - Melhora a recuperação de reprodução: falhas transitórias de RuntimeCheck agora têm novas tentativas também em canais ao vivo, com diagnóstico mais preciso de causa e status HTTP.
