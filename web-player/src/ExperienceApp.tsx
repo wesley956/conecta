@@ -458,6 +458,46 @@ function ChannelCard({
   );
 }
 
+// Varredura completa: alguns provedores Xtream não agrupam canais por gênero — cada
+// canal vem com seu próprio "groupTitle", então allCategories (TV ao vivo) podia chegar
+// a milhares de entradas (quase 1:1 com o nº de canais), bem mais que as poucas dezenas
+// de categorias típicas de Filmes/Séries. Renderizar isso como milhares de <button> no
+// filter-strip, somado ao SectionNavigationEnhancer reconsultando esses botões a cada
+// mutação do DOM (inclusive as da grade virtualizada rolando), travava a página só de
+// abrir a aba "TV". Acima do limite, usa um <select> nativo — o navegador lida com
+// milhares de <option> sem o mesmo custo de milhares de botões com handlers próprios.
+const CATEGORY_FILTER_BUTTON_LIMIT = 60;
+
+function CategoryFilter({
+  categories,
+  active,
+  onSelect,
+  ariaLabel = 'Categorias',
+}: {
+  categories: string[];
+  active: string;
+  onSelect: (value: string) => void;
+  ariaLabel?: string;
+}) {
+  if (categories.length > CATEGORY_FILTER_BUTTON_LIMIT) {
+    return (
+      <div className="filter-strip filter-strip-select">
+        <label className="category-select-label">
+          <span className="sr-only">{ariaLabel}</span>
+          <select className="category-select" value={active} onChange={event => onSelect(event.target.value)} aria-label={ariaLabel}>
+            {categories.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+      </div>
+    );
+  }
+  return (
+    <div className="filter-strip" role="list" aria-label={ariaLabel}>
+      {categories.map(item => <button type="button" key={item} className={active === item ? 'active' : ''} onClick={() => onSelect(item)}>{item}</button>)}
+    </div>
+  );
+}
+
 function Shelf({ title, children, action, className = '' }: { title: string; children: ReactNode; action?: ReactNode; className?: string }) {
   return (
     <section className={`shelf ${className}`}>
@@ -1267,9 +1307,7 @@ export default function ExperienceApp() {
         {catalogStatus === 'ready' && section === 'live' ? (
           <section className="page-section">
             <div className="page-heading"><div><span className="eyebrow">TV AO VIVO</span><h1>Canais</h1></div><span className="count-badge">{filteredChannels.length}</span></div>
-            <div className="filter-strip" role="list" aria-label="Categorias de canais">
-              {allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => selectCategory(item)}>{item}</button>)}
-            </div>
+            <CategoryFilter categories={allCategories} active={category} onSelect={selectCategory} ariaLabel="Categorias de canais" />
             <VirtualCatalogGrid
               items={filteredChannels}
               getKey={item => item.contentId}
@@ -1287,7 +1325,7 @@ export default function ExperienceApp() {
         {catalogStatus === 'ready' && section === 'movies' ? (
           <section className="page-section">
             <div className="page-heading"><div><span className="eyebrow">VOD</span><h1>Filmes</h1></div><span className="count-badge">{filteredMovies.length}</span></div>
-            <div className="filter-strip">{allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => selectCategory(item)}>{item}</button>)}</div>
+            <CategoryFilter categories={allCategories} active={category} onSelect={selectCategory} ariaLabel="Categorias de filmes" />
             {renderPosterGrid(filteredMovies)}
           </section>
         ) : null}
@@ -1295,7 +1333,7 @@ export default function ExperienceApp() {
         {catalogStatus === 'ready' && section === 'series' ? (
           <section className="page-section">
             <div className="page-heading"><div><span className="eyebrow">EPISÓDIOS</span><h1>Séries</h1></div><span className="count-badge">{filteredSeries.length}</span></div>
-            <div className="filter-strip">{allCategories.map(item => <button type="button" key={item} className={category === item ? 'active' : ''} onClick={() => selectCategory(item)}>{item}</button>)}</div>
+            <CategoryFilter categories={allCategories} active={category} onSelect={selectCategory} ariaLabel="Categorias de séries" />
             {renderPosterGrid(filteredSeries)}
           </section>
         ) : null}
