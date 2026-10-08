@@ -93,7 +93,28 @@ Deno.serve(async request => {
       .limit(CANDIDATE_LIMIT);
     if (candidateError) throw new Error('Não foi possível localizar caches vencidos.');
 
-    const ids = (candidates || []).map((row: any) => String(row.id)).filter(Boolean);
+    // Playlists que nunca tiveram um cache construído com sucesso (status != 'ready'
+    // ou sem itens) não se tornam "vencidas" pela condição acima, então nunca seriam
+    // selecionadas — isso deixava listas recém-criadas (ou migradas de outro projeto
+    // Supabase) permanentemente sem cache até alguém disparar um refresh manual.
+    // Esta segunda consulta faz o bootstrap inicial dessas listas automaticamente.
+    const { data: neverCached, error: neverCachedError } = await supabase
+      .from('panel_playlists')
+      .select('id, playlist_cache_updated_at')
+      .eq('active', true)
+      .or(
+        'playlist_cache_status.is.null,playlist_cache_status.neq.ready,playlist_cache_item_count.is.null,playlist_cache_item_count.eq.0',
+      )
+      .limit(CANDIDATE_LIMIT);
+    if (neverCachedError) throw new Error('Não foi possível localizar caches nunca construídos.');
+
+    const ids = Array.from(
+      new Set(
+        [...(candidates || []), ...(neverCached || [])]
+          .map((row: any) => String(row.id))
+          .filter(Boolean),
+      ),
+    );
     if (!ids.length) {
       return json({
         ok: true,
