@@ -3,6 +3,39 @@
   Mantém a lógica existente e consolida desktop, tablet e mobile.
 */
 
+/* Tipografia: Archivo Condensed para títulos e números de destaque
+   (remete ao letreiro de canal de TV), Public Sans para interface e
+   tabelas (legibilidade em conteúdo denso). Fontes carregadas via
+   <link> no <head> de cada página; aqui só a aplicação. */
+body.admin-v2,
+body.seller-v2 {
+  font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+body.admin-v2 h1,
+body.admin-v2 h2,
+body.admin-v2 .admin-daily-briefing h2,
+body.admin-v2 .admin-pulse-card h2,
+body.admin-v2 #adminPageTitle,
+body.admin-v2 .admin-nav-brand strong,
+body.admin-v2 .stat strong,
+body.admin-v2 .panel-account strong,
+body.seller-v2 h1,
+body.seller-v2 h2,
+body.seller-v2 .hero .brand h1,
+body.seller-v2 .metric strong,
+body.seller-v2 .seller-activation-card h2 {
+  font-family: 'Archivo Condensed', 'Public Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: .005em;
+}
+
+body.admin-v2 .stat strong,
+body.seller-v2 .metric strong {
+  font-variant-numeric: tabular-nums;
+}
+
 body.admin-v2,
 body.seller-v2 {
   --rp-bg: #080809;
