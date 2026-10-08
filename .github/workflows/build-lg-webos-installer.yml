@@ -100,8 +100,27 @@ jobs:
         run: npm run validate:lg-operations
 
       - name: Validate LG performance
+        id: lg_performance
         working-directory: smart-tv
-        run: npm run validate:lg-performance
+        run: npm run validate:lg-performance 2>&1 | tee /tmp/lg-performance.log
+        continue-on-error: true
+
+      - name: Report LG performance failure on PR
+        if: steps.lg_performance.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "### Saída de \`validate:lg-performance\` (diagnóstico automático)"
+            echo '```'
+            cat /tmp/lg-performance.log
+            echo '```'
+          } > /tmp/lg-performance-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/lg-performance-comment.md
+
+      - name: Fail job if LG performance validator failed
+        if: steps.lg_performance.outcome == 'failure'
+        run: exit 1
 
       - name: Validate LG homologation
         working-directory: smart-tv
