@@ -1,0 +1,19 @@
+{
+  "platform": "webos",
+  "appId": "com.ronecaplaytv.app",
+  "version": "1.0.0",
+  "baselineAndroid": "2.9.5",
+  "artifact": "com.ronecaplaytv.app_1.0.0_all.ipk",
+  "sha256": "0eb2022ee965a8f7df0aa477e4cdfe0812eb1969ed25dee980bc5ae9ff1ef2c9",
+  "sizeBytes": 123880,
+  "commit": "df91e97f3c760cdb1797141072e11a66e938cbc1",
+  "status": "CANDIDATE",
+  "generatedAt": "2026-10-08T08:34:59.958Z",
+  "validation": {
+    "manifest": true,
+    "resolutionFhd": true,
+    "referencedAssets": true,
+    "ipkArStructure": true,
+    "ipkRequiredFiles": true
+  }
+}

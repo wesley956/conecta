@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "phase": "LG-10",
+  "state": "RC_PENDING_PHYSICAL",
+  "platform": "webos",
+  "appId": "com.ronecaplaytv.app",
+  "version": "1.0.0",
+  "sourceCommit": "df91e97f3c760cdb1797141072e11a66e938cbc1",
+  "baselineAndroid": "2.9.5",
+  "artifact": "com.ronecaplaytv.app_1.0.0_all.ipk",
+  "sha256": "0eb2022ee965a8f7df0aa477e4cdfe0812eb1969ed25dee980bc5ae9ff1ef2c9",
+  "sizeBytes": 123880,
+  "automatedGateChain": [
+    "LG-01",
+    "LG-02",
+    "LG-03",
+    "LG-04",
+    "LG-05",
+    "LG-06",
+    "LG-07",
+    "LG-08",
+    "LG-09",
+    "LG-10"
+  ],
+  "physicalApproval": false,
+  "parityApproved": false,
+  "stableEligible": false,
+  "exactArtifactRequired": true,
+  "physicalEvidenceRequired": [
+    "clean-install",
+    "second-launch",
+    "tv-reboot-reopen",
+    "upgrade-n-to-n-plus-1",
+    "identity-and-user-state-preservation",
+    "android-vs-lg-parity",
+    "live-vod-tracks-aspect-epg",
+    "network-recovery-source-switch-failover",
+    "standby-resume",
+    "30-minute-performance-run",
+    "20-player-cycles"
+  ],
+  "releaseRule": "BUILD ONCE → TEST EXACT ARTIFACT → PROMOTE SAME ARTIFACT. Stable requires explicit physical approval and LG-P07 promotion."
+}
