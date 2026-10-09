@@ -178,6 +178,8 @@ fun NativePlayerScreen(
     }
     val subtitleController = rememberPlayerSubtitleController(player)
     val currentSubtitlePanelVisible = rememberUpdatedState(subtitleController.panelVisible)
+    val audioController = rememberPlayerAudioController(player)
+    val currentAudioPanelVisible = rememberUpdatedState(audioController.panelVisible)
 
     fun rebuildPlayerSession(positionMs: Long, forceSoftware: Boolean = false) {
         restartPositionMs = positionMs.coerceAtLeast(0L)
@@ -325,6 +327,23 @@ fun NativePlayerScreen(
         }
     }
 
+    fun openAudioPanel() {
+        if (audioController.options.size <= 1) return
+        channelDrawerVisible = false
+        controlsVisible = false
+        media3Controller?.hideController()
+        audioController.openPanel()
+    }
+
+    fun closeAudioPanel() {
+        audioController.closePanel()
+        coroutineScope.launch {
+            delay(80)
+            controlsVisible = true
+            media3Controller?.showAndFocusAudioTracks()
+        }
+    }
+
     LaunchedEffect(media3Controller) {
         media3Controller?.showAndFocusPlayPause()
     }
@@ -462,6 +481,7 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_BACK -> {
                     if (actionUp) {
                         when {
+                            currentAudioPanelVisible.value -> closeAudioPanel()
                             currentSubtitlePanelVisible.value -> closeSubtitlePanel()
                             currentChannelDrawerVisible.value -> closeDrawer()
                             else -> onBack()
@@ -509,6 +529,7 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_SPACE,
                 -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentChannelDrawerVisible.value ||
                         currentControlsVisible.value
@@ -522,6 +543,7 @@ fun NativePlayerScreen(
 
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentChannelDrawerVisible.value ||
                         currentControlsVisible.value
@@ -535,6 +557,7 @@ fun NativePlayerScreen(
 
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentChannelDrawerVisible.value ||
                         currentControlsVisible.value
@@ -550,6 +573,7 @@ fun NativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentChannelDrawerVisible.value ||
                         currentControlsVisible.value
@@ -569,6 +593,7 @@ fun NativePlayerScreen(
 
     BackHandler {
         when {
+            audioController.panelVisible -> closeAudioPanel()
             subtitleController.panelVisible -> closeSubtitlePanel()
             channelDrawerVisible -> closeDrawer()
             else -> onBack()
@@ -590,9 +615,11 @@ fun NativePlayerScreen(
             drawerLabel = relatedChannels.takeIf { it.isNotEmpty() }?.let { "Canais" },
             drawerVisible = channelDrawerVisible,
             subtitleTrackCount = subtitleController.options.size,
+            audioTrackCount = audioController.options.size,
             onBack = onBack,
             onOpenDrawer = relatedChannels.takeIf { it.isNotEmpty() }?.let { { openDrawer() } },
             onOpenSubtitles = ::openSubtitlePanel,
+            onOpenAudioTracks = ::openAudioPanel,
             onAspectModeChange = { onAspectModeChange(it.storageValue) },
             onControllerVisibilityChanged = { controlsVisible = it },
             onControllerReady = { media3Controller = it },
@@ -644,6 +671,19 @@ fun NativePlayerScreen(
                     closeSubtitlePanel()
                 },
                 onDismiss = ::closeSubtitlePanel,
+            )
+        }
+
+        if (audioController.panelVisible) {
+            AudioSelectorDialog(
+                options = audioController.options,
+                selectedId = audioController.selectedId,
+                isTelevision = isTelevision,
+                onSelect = { optionId ->
+                    audioController.select(optionId)
+                    closeAudioPanel()
+                },
+                onDismiss = ::closeAudioPanel,
             )
         }
     }

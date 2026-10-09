@@ -1,0 +1,17 @@
+/* Vídeo de abertura real (mesmo clipe do Android nativo), com paridade de
+   comportamento: tela cheia, preto atrás, crossfade de saída e nenhum controle
+   de usuário. Substitui o antigo splash CSS-only (logo estático 2.6s). */
+.launch-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #000;
+  pointer-events: none;
+}
+
+.launch-splash-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}

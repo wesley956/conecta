@@ -37,24 +37,8 @@ body,
   color: var(--roneca-text);
 }
 
-/* Splash is intentionally CSS-only so it appears before React data/session work.
-   It uses the exact official 2.9.5 lockup and disappears without keeping state. */
-#root::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 44%, rgba(227, 38, 46, 0.14), transparent 35%),
-    var(--roneca-background) url("/brand/ronecaplaytv-lockup-horizontal.svg") center / min(720px, 62vw) auto no-repeat;
-  animation: roneca-brand-splash 2.6s ease forwards;
-}
-
-@keyframes roneca-brand-splash {
-  0%, 70% { opacity: 1; visibility: visible; }
-  100% { opacity: 0; visibility: hidden; }
-}
+/* O splash estático CSS-only (logo 2.6s) foi substituído pelo vídeo de abertura
+   real em paridade com o Android (ver src/splash/LaunchSplashScreen.tsx + splash.css). */
 
 /* Activation: remove the old R + text composition visually and use one master lockup. */
 .activation-shell {

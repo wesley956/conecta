@@ -11,7 +11,6 @@ import { MainShell } from "./content/MainShell";
 import type { AppDialog, MainSection } from "./content/MainShell";
 import { recommendedMovies, recommendedSeries } from "./content/recommendations";
 import { focusAutofocus, moveFocus, rememberFocus, restoreFocus } from "./focus";
-import { playLaunchSoundOnce } from "./launchSound";
 import { clearReconstructibleCache } from "./localMaintenance";
 import { resumableProgress, useMediaLibrary } from "./mediaLibrary";
 import type { LibraryItem } from "./mediaLibrary";
@@ -22,6 +21,7 @@ import { PlayerScreen } from "./player/PlayerScreen";
 import type { PlaybackItem } from "./player/types";
 import { useSmartTvPlayerSettings } from "./playerSettings";
 import { SeriesDetailScreen } from "./series/SeriesDetailScreen";
+import { LaunchSplashScreen } from "./splash/LaunchSplashScreen";
 
 const PAGE_SIZE = SMART_TV_PERFORMANCE_PROFILE.catalogPageSize;
 type SuccessfulCatalogFailover = Extract<CatalogFailoverResult, { outcome: "switched" }>;
@@ -128,6 +128,7 @@ export function App() {
   const [visibleLimit, setVisibleLimit] = useState(PAGE_SIZE);
   const [dialog, setDialog] = useState<AppDialog>(null);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+  const [showSplash, setShowSplash] = useState(true);
 
   const { session, refresh, renewConfiguration, reset, unlink } = useDeviceSession();
   const catalog = useCatalog(session, renewConfiguration);
@@ -148,8 +149,6 @@ export function App() {
     ];
     library.reconcileIdentities(identities);
   }, [catalog.data, library.reconcileIdentities]);
-
-  useEffect(() => { void playLaunchSoundOnce(settings.launchSoundEnabled); }, [settings.launchSoundEnabled]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -177,7 +176,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (playback || selectedSeries || selectedMovie) return;
+    if (showSplash || playback || selectedSeries || selectedMovie) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const directions: Record<string, "up" | "down" | "left" | "right"> = {
         ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
@@ -215,10 +214,10 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [category, channelAlphabetical, channelFavoritesOnly, closeDialog, dialog, playback, query, selected, selectedMovie, selectedSeries]);
+  }, [category, channelAlphabetical, channelFavoritesOnly, closeDialog, dialog, playback, query, selected, selectedMovie, selectedSeries, showSplash]);
 
   useEffect(() => {
-    if (playback || selectedSeries || selectedMovie) return;
+    if (showSplash || playback || selectedSeries || selectedMovie) return;
     const timer = window.setTimeout(() => {
       if (dialog) {
         focusAutofocus(document.querySelector(".app-dialog") || document);
@@ -230,7 +229,7 @@ export function App() {
       focusAutofocus();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [catalog.status, dialog, playback, selected, selectedMovie, selectedSeries, session.status]);
+  }, [catalog.status, dialog, playback, selected, selectedMovie, selectedSeries, session.status, showSplash]);
 
   const resolvePlaybackStart = useCallback((item: PlaybackItem) => {
     const kind = item.kind || (item.live ? "channel" : "movie");
@@ -269,10 +268,12 @@ export function App() {
     setSelectedSeries(series);
   }, []);
 
+  let content: JSX.Element;
+
   if (playback) {
     const activePlaylistId = catalog.activePlaylistId || session.selectedPlaylistId;
     const backupAvailable = session.playlists.some(value => value.id !== activePlaylistId && value.role === "backup");
-    return <PlayerScreen
+    content = <PlayerScreen
       key={`${playback.id}:${playback.recoveryAttempt || 0}`}
       item={playback}
       playlistId={activePlaylistId}
@@ -306,12 +307,12 @@ export function App() {
     />;
   }
 
-  if (selectedMovie) {
+  else if (selectedMovie) {
     const contentKey = movieContentKey(selectedMovie);
     const progress = library.history.find(item =>
       item.kind === "movie" && (item.contentKey === contentKey || (!item.contentKey && item.id === selectedMovie.id))
     );
-    return <MovieDetailScreen
+    content = <MovieDetailScreen
       movie={selectedMovie}
       favorite={library.isFavorite("movie", selectedMovie.id, contentKey)}
       progress={progress}
@@ -330,9 +331,9 @@ export function App() {
     />;
   }
 
-  if (selectedSeries) {
+  else if (selectedSeries) {
     const contentKey = seriesContentKey(selectedSeries);
-    return <SeriesDetailScreen
+    content = <SeriesDetailScreen
       series={selectedSeries}
       playlistId={catalog.activePlaylistId || session.selectedPlaylistId}
       favorite={library.isFavorite("series", selectedSeries.id, contentKey)}
@@ -354,11 +355,11 @@ export function App() {
     />;
   }
 
-  if (session.status !== "active") {
-    return <ActivationScreen session={session} onRefresh={() => void refresh()} onReset={() => void reset()} />;
+  else if (session.status !== "active") {
+    content = <ActivationScreen session={session} onRefresh={() => void refresh()} onReset={() => void reset()} />;
   }
-
-  return <MainShell
+  else {
+    content = <MainShell
     selected={selected}
     setSelected={setSelected}
     query={query}
@@ -388,4 +389,10 @@ export function App() {
     onOpenMovie={openMovieFromApp}
     onOpenSeries={openSeriesFromApp}
   />;
+  }
+
+  return <>
+    {content}
+    {showSplash && <LaunchSplashScreen playAudio={settings.launchSoundEnabled} onFinished={() => setShowSplash(false)} />}
+  </>;
 }

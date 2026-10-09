@@ -11,6 +11,7 @@ import "./content.css";
 import "./detail.css";
 import "./player-v2.css";
 import "./navigation.css";
+import "./splash/splash.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
