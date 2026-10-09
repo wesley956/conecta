@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { useAppUpdate } from "./appUpdate";
 import { useCatalog } from "./catalog";
 import type { CatalogFailoverResult, Movie, Series } from "./catalog";
@@ -268,7 +269,7 @@ export function App() {
     setSelectedSeries(series);
   }, []);
 
-  let content: JSX.Element;
+  let content: ReactNode;
 
   if (playback) {
     const activePlaylistId = catalog.activePlaylistId || session.selectedPlaylistId;
