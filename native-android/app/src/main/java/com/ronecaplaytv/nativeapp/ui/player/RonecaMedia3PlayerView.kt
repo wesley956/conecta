@@ -50,6 +50,14 @@ internal class RonecaMedia3Controller internal constructor(
         }
     }
 
+    fun showAndFocusAudioTracks() {
+        playerView.showController()
+        playerView.post {
+            val audio = playerView.findViewById<View>(R.id.roneca_media3_audio)
+            if (audio?.requestFocus() != true) showAndFocusPlayPause()
+        }
+    }
+
     fun hideController() {
         playerView.hideController()
     }
@@ -69,9 +77,11 @@ internal fun RonecaMedia3PlayerView(
     drawerLabel: String?,
     drawerVisible: Boolean,
     subtitleTrackCount: Int,
+    audioTrackCount: Int,
     onBack: () -> Unit,
     onOpenDrawer: (() -> Unit)?,
     onOpenSubtitles: () -> Unit,
+    onOpenAudioTracks: () -> Unit,
     onAspectModeChange: (PlayerAspectMode) -> Unit,
     onControllerVisibilityChanged: (Boolean) -> Unit,
     onControllerReady: (RonecaMedia3Controller?) -> Unit,
@@ -80,6 +90,7 @@ internal fun RonecaMedia3PlayerView(
     val currentOnBack by rememberUpdatedState(onBack)
     val currentOnOpenDrawer by rememberUpdatedState(onOpenDrawer)
     val currentOnOpenSubtitles by rememberUpdatedState(onOpenSubtitles)
+    val currentOnOpenAudioTracks by rememberUpdatedState(onOpenAudioTracks)
     val currentAspectMode by rememberUpdatedState(aspectMode)
     val currentOnAspectModeChange by rememberUpdatedState(onAspectModeChange)
     val currentOnControllerVisibilityChanged by rememberUpdatedState(onControllerVisibilityChanged)
@@ -118,6 +129,9 @@ internal fun RonecaMedia3PlayerView(
                 findViewById<TextView>(R.id.roneca_media3_subtitles)?.setOnClickListener {
                     currentOnOpenSubtitles()
                 }
+                findViewById<TextView>(R.id.roneca_media3_audio)?.setOnClickListener {
+                    currentOnOpenAudioTracks()
+                }
                 resizeMode = aspectMode.toMedia3ResizeMode()
                 isFocusable = true
                 isFocusableInTouchMode = true
@@ -150,6 +164,11 @@ internal fun RonecaMedia3PlayerView(
                 text = "CC  Legendas"
                 contentDescription = "$subtitleTrackCount opções de legenda. Pressione para escolher."
             }
+            playerView.findViewById<TextView>(R.id.roneca_media3_audio)?.apply {
+                visibility = if (audioTrackCount > 1) View.VISIBLE else View.GONE
+                text = "🔊  Áudio"
+                contentDescription = "$audioTrackCount faixas de áudio. Pressione para escolher."
+            }
 
             playerView.findViewById<TextView>(R.id.roneca_media3_drawer)?.apply {
                 val available = !drawerLabel.isNullOrBlank() && currentOnOpenDrawer != null
@@ -175,6 +194,7 @@ private fun configureMedia3FocusGraph(playerView: PlayerView) {
         val drawer = playerView.findViewById<View>(R.id.roneca_media3_drawer)
         val aspect = playerView.findViewById<View>(R.id.roneca_media3_aspect)
         val subtitles = playerView.findViewById<View>(R.id.roneca_media3_subtitles)
+        val audio = playerView.findViewById<View>(R.id.roneca_media3_audio)
 
         timeBar?.apply {
             isFocusable = true
@@ -191,6 +211,7 @@ private fun configureMedia3FocusGraph(playerView: PlayerView) {
         drawer?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
         aspect?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
         subtitles?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
+        audio?.nextFocusDownId = androidx.media3.ui.R.id.exo_play_pause
     }
 }
 

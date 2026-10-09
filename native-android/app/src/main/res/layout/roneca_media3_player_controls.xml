@@ -107,6 +107,26 @@
             android:visibility="gone" />
 
         <TextView
+            android:id="@+id/roneca_media3_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginStart="7dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:contentDescription="Escolher faixa de áudio"
+            android:focusable="true"
+            android:gravity="center"
+            android:minWidth="78dp"
+            android:nextFocusDown="@id/exo_play_pause"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="🔊  Áudio"
+            android:textColor="#F7F7F8"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/roneca_media3_aspect"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
