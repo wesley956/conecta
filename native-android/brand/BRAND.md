@@ -32,3 +32,19 @@ Reserve ao redor do símbolo uma margem mínima equivalente a 10% da sua largura
 ## Derivados
 
 Os PNGs em `app/src/main/res/drawable-nodpi` e o banner de TV são renderizados destes SVGs. Não devem ser editados manualmente.
+
+## Exceção: ícone do webOS/LG
+
+`ic_app.png` é um ícone **adaptativo** (cantos arredondados, fundo em gradiente,
+transparência fora do tile) pensado para launchers que aplicam sua própria máscara,
+como o Android. A LG Seller Lounge rejeitou o IPK em 2026-09-18 (QA2026091823049/
+50/51) porque o webOS não aplica máscara nenhuma: exige ícone quadrado, 100% opaco
+e com fundo em cor sólida única igual à `backgroundColor` do `appinfo.json`.
+
+Por isso o pacote webOS (`smart-tv/scripts/stage-platform.mjs` e
+`stage-webos-hosted.mjs`) usa um master dedicado em
+`smart-tv/platforms/webos/app-icon-source.png` — mesmo emblema, mas em canvas
+1024x1024 quadrado, totalmente opaco e com fundo `#080809` sólido (sem gradiente).
+`smart-tv/scripts/check-lg-branding.mjs` (gate LG-02) valida isso automaticamente:
+falha o build se algum ícone webOS gerado tiver transparência ou cor de canto
+diferente da `backgroundColor` declarada.

@@ -15,6 +15,26 @@ Stable permanece bloqueado até aprovação física e promoção explícita pela
 - O arquivo `artifacts/lg10-homologation-manifest.json` é a ficha técnica do RC produzido pelo CI.
 - O arquivo `artifacts/SHA256SUMS` é a referência de integridade do IPK.
 
+## Histórico de rejeição LG QA (Seller Lounge)
+
+- **Rodada 1 — 2026-09-18 — versão 1.1.1 — QA Rejected.** 3 defeitos abertos, todos em
+  `Images` (ícone do app):
+  - `QA2026091823049` — cor de fundo do ícone não bate com a tile color.
+  - `QA2026091823050` — cantos do ícone arredondados (webOS exige quadrado).
+  - `QA2026091823051` — fundo do ícone transparente (webOS exige 0% transparência).
+  - Causa raiz: o pacote webOS reaproveitava `ic_app.png`, o raster **adaptativo**
+    do Android (cantos arredondados + gradiente + transparência fora do tile,
+    pensado para launchers que aplicam sua própria máscara). O webOS não aplica
+    máscara nenhuma, então essas características apareciam cruas no ícone.
+  - Correção: master dedicado `smart-tv/platforms/webos/app-icon-source.png`
+    (quadrado, 100% opaco, fundo sólido `#080809` igual à `backgroundColor` do
+    `appinfo.json`). Ver `native-android/brand/BRAND.md` → "Exceção: ícone do
+    webOS/LG". Validado automaticamente pelo gate LG-02
+    (`smart-tv/scripts/check-lg-branding.mjs`).
+  - Antes de reenviar: marcar os 3 issues como "Resolve" na Seller Lounge
+    (`Applications → Edit → Defect Info`) e então submeter o novo IPK para nova
+    rodada de QA.
+
 ## Antes de instalar
 
 1. Baixar o artifact `roneca-play-tv-lg-ipk` do workflow LG do commit aprovado.

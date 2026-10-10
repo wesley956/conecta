@@ -86,6 +86,6 @@ check(m3u.includes('S01E01') && m3u.includes('S01E02'), 'A série demonstrativa 
 check(smartPackage.version === '1.0.0', 'O pacote Smart TV precisa estar na versão 1.0.0.');
 check(hostedStage.includes('smartPackagePath') && hostedStage.includes('smartVersion'), 'A versão hospedada não é derivada do package.json da Smart TV.');
 check(webOsInfo.resolution === '1920x1080', 'O pacote webOS não declara a resolução FHD usada no Seller Lounge.');
-check(smartStage.includes('resizePngFile(officialAppIcon') && smartStage.includes('lg-seller-lounge-icon-400.png'), 'O staging LG não deriva os ícones oficiais 80/130/400 da marca atual.');
+check(smartStage.includes('resizePngFile(webosAppIconSource') && smartStage.includes('lg-seller-lounge-icon-400.png'), 'O staging LG não deriva os ícones oficiais 80/130/400 do master webOS dedicado.');
 
 console.log('Pacote de homologação LG validado com identidade vetorial oficial.');

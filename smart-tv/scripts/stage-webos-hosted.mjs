@@ -5,17 +5,12 @@ import { resizePngFile } from "./png-brand-derivatives.mjs";
 const root = process.cwd();
 const source = path.join(root, "platforms", "webos-hosted");
 const output = path.join(root, "build", "webos-hosted");
-const officialAppIcon = path.resolve(
-  root,
-  "..",
-  "native-android",
-  "app",
-  "src",
-  "main",
-  "res",
-  "drawable-nodpi",
-  "ic_app.png"
-);
+// O raster Android (ic_app.png) é adaptativo: cantos arredondados, fundo em
+// gradiente e transparência fora do tile, pensado para launchers que aplicam sua
+// própria máscara. A LG Seller Lounge rejeitou o IPK (QA2026091823049/50/51) por
+// isso: webOS exige ícone quadrado, 100% opaco e com fundo em cor sólida única. O
+// pacote hosted usa o mesmo master dedicado do pacote bundled.
+const webosAppIconSource = path.join(root, "platforms", "webos", "app-icon-source.png");
 const sellerLoungeIcon = path.join(root, "artifacts", "lg-seller-lounge-icon-400.png");
 const channel = process.env.RONECA_TV_HOSTED_CHANNEL === "test" ? "test" : "stable";
 const rawUrl = process.env.RONECA_TV_HOSTED_URL || "https://conecta-five-iota.vercel.app/tv/";
@@ -25,8 +20,8 @@ const parsed = new URL(hostedUrl);
 if (parsed.protocol !== "https:") {
   throw new Error("O aplicativo hospedado exige um endereço HTTPS.");
 }
-if (!fs.existsSync(officialAppIcon)) {
-  throw new Error("LG-02: o ícone oficial Android 2.9.5 não foi encontrado para o pacote hosted.");
+if (!fs.existsSync(webosAppIconSource)) {
+  throw new Error(`LG-02: master do ícone webOS não encontrado em ${webosAppIconSource}.`);
 }
 
 const appId = channel === "test" ? "com.ronecaplaytv.app.test" : "com.ronecaplaytv.app";
@@ -50,8 +45,8 @@ fs.writeFileSync(
   path.join(output, "index.html"),
   replace(fs.readFileSync(path.join(source, "index.template.html"), "utf8"))
 );
-resizePngFile(officialAppIcon, path.join(output, "icon.png"), 80, 80);
-resizePngFile(officialAppIcon, path.join(output, "largeIcon.png"), 130, 130);
-resizePngFile(officialAppIcon, sellerLoungeIcon, 400, 400);
+resizePngFile(webosAppIconSource, path.join(output, "icon.png"), 80, 80);
+resizePngFile(webosAppIconSource, path.join(output, "largeIcon.png"), 130, 130);
+resizePngFile(webosAppIconSource, sellerLoungeIcon, 400, 400);
 
 console.log(`Pacote LG hospedado preparado para o canal ${channel}: ${hostedUrl}`);
