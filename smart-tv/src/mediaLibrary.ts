@@ -93,7 +93,10 @@ export function useMediaLibrary() {
         : [{ ...item, updatedAt: Date.now() }, ...current].slice(0, 100);
       write(FAVORITES_KEY, next);
       if (item.contentKey && ["channel", "movie", "series"].includes(item.kind)) {
-        queueMicrotask(() => void syncFavorite(
+        // Promise.resolve().then(...) agenda a chamada fora do setState reducer, igual ao
+        // queueMicrotask que usávamos antes — mas queueMicrotask não é garantido no Chromium
+        // 53 (baseline LG), então usamos só Promise, que já é nativo desde o Chrome 32.
+        void Promise.resolve().then(() => syncFavorite(
           item.contentKey!,
           item.kind as "channel" | "movie" | "series",
           !exists
@@ -116,7 +119,7 @@ export function useMediaLibrary() {
 
       if (safeDuration <= 0 || safePosition < MIN_PROGRESS_SECONDS) return current;
       if (item.contentKey && ["movie", "episode"].includes(base.kind)) {
-        queueMicrotask(() => void syncProgress(
+        void Promise.resolve().then(() => syncProgress(
           item.contentKey!,
           base.kind as "movie" | "episode",
           safePosition,
