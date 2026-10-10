@@ -22,6 +22,13 @@ const androidDrawableRoot = path.resolve(
   "drawable-nodpi"
 );
 const officialAppIcon = path.join(androidDrawableRoot, "ic_app.png");
+// O raster Android (ic_app.png) foi desenhado para launchers que aplicam sua própria
+// máscara (cantos arredondados, "safe area" com fundo transparente fora do tile, fundo
+// em gradiente). A LG Seller Lounge rejeitou o IPK (QA2026091823049/50/51) porque o
+// webOS NÃO aplica máscara: exige ícone quadrado, 0% de transparência e fundo em cor
+// sólida única igual à "tile color". Por isso o webOS usa um master dedicado, já
+// opaco/quadrado/sem gradiente, em vez do raster adaptativo do Android.
+const webosAppIconSource = path.join(platformRoot, "app-icon-source.png");
 const sellerLoungeIcon = path.join(root, "artifacts", "lg-seller-lounge-icon-400.png");
 
 if (!fs.existsSync(path.join(dist, "index.html"))) {
@@ -122,15 +129,18 @@ if (platform === "webos") {
 }
 
 /*
- * A fonte visual continua sendo o sistema oficial Android/brand. O PNG Android
- * é um derivado versionado desses SVGs e serve de raster mestre para os tamanhos
- * exigidos pela LG: 80x80 (icon), 130x130 (largeIcon) e 400x400 (Seller Lounge).
- * Assim evitamos editar manualmente três bitmaps independentes.
+ * webOS usa um master próprio (platforms/webos/app-icon-source.png): quadrado,
+ * opaco e com fundo em cor sólida única, conforme exigido pela LG (ver nota acima
+ * sobre a rejeição QA2026091823049/50/51). Tizen continua usando o raster
+ * adaptativo do Android, que é o esperado para aquele launcher.
  */
 if (platform === "webos") {
-  resizePngFile(officialAppIcon, path.join(output, "icon.png"), 80, 80);
-  resizePngFile(officialAppIcon, path.join(output, "largeIcon.png"), 130, 130);
-  resizePngFile(officialAppIcon, sellerLoungeIcon, 400, 400);
+  if (!fs.existsSync(webosAppIconSource)) {
+    throw new Error(`LG-02: master do ícone webOS não encontrado em ${webosAppIconSource}.`);
+  }
+  resizePngFile(webosAppIconSource, path.join(output, "icon.png"), 80, 80);
+  resizePngFile(webosAppIconSource, path.join(output, "largeIcon.png"), 130, 130);
+  resizePngFile(webosAppIconSource, sellerLoungeIcon, 400, 400);
 } else {
   fs.copyFileSync(officialAppIcon, path.join(output, "icon.png"));
 }

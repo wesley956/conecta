@@ -187,3 +187,36 @@ export function resizePngFile(inputFile, outputFile, width, height = width) {
   fs.writeFileSync(outputFile, encodeRgbaPng(width, height, resized));
   return outputFile;
 }
+
+/**
+ * Lê um PNG RGBA e retorna estatísticas de alpha + a cor dos 4 cantos.
+ * Usado para validar requisitos de launcher (ex.: LG webOS) que exigem ícone
+ * 100% opaco e com fundo em cor sólida única (sem gradiente, sem cantos
+ * arredondados/transparentes).
+ */
+export function pngOpacityReport(file) {
+  const { width, height, rgba } = decodeRgbaPng(fs.readFileSync(file));
+  let minAlpha = 255;
+  let maxAlpha = 0;
+  for (let i = 3; i < rgba.length; i += 4) {
+    const a = rgba[i];
+    if (a < minAlpha) minAlpha = a;
+    if (a > maxAlpha) maxAlpha = a;
+  }
+  const pixelAt = (x, y) => {
+    const offset = (y * width + x) * 4;
+    return [rgba[offset], rgba[offset + 1], rgba[offset + 2], rgba[offset + 3]];
+  };
+  return {
+    width,
+    height,
+    minAlpha,
+    maxAlpha,
+    corners: {
+      topLeft: pixelAt(0, 0),
+      topRight: pixelAt(width - 1, 0),
+      bottomLeft: pixelAt(0, height - 1),
+      bottomRight: pixelAt(width - 1, height - 1)
+    }
+  };
+}
