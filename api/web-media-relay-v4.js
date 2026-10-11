@@ -616,7 +616,14 @@ export default async function handler(req, res) {
     }
 
     const fileMedia = !manifest && isFileMedia(target, resolved.contentType);
-    const range = boundedRange(req.headers.range, fileMedia && req.method === 'GET');
+    // Não force um Range padrão aqui. Com o empacotamento em manifesto HLS sintético (ver
+    // `wrap`/`segmentToken` em web-player-playback/index.ts), o hls.js busca o "segmento"
+    // (o arquivo real inteiro) em uma única requisição e espera o conteúdo completo nessa
+    // resposta — forçar um Range padrão de MAX_RANGE_BYTES (8 MB) truncava todo filme/
+    // episódio em ~8 MB, fazendo a reprodução parar pouco depois de começar (incidente
+    // 2026-10-11, pós-deploy do empacotamento sintético). Só limitamos/fatiamos em blocos de
+    // MAX_RANGE_BYTES um Range que o PRÓPRIO cliente pediu explicitamente.
+    const range = boundedRange(req.headers.range, false);
     const upstreamStarted = Date.now();
     const { response, url: finalUrl } = await requestUpstream(target.toString(), { method: req.method, range });
     const upstreamMs = Date.now() - upstreamStarted;
