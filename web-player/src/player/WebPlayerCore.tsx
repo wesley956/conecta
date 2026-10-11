@@ -465,7 +465,20 @@ export function WebPlayer({
           liveSyncDurationCount: live ? 4 : undefined,
           liveMaxLatencyDurationCount: live ? 12 : undefined,
           maxBufferHole: 0.5,
-          fragLoadingTimeOut: 12_000,
+          // Filmes/episódios são empacotados como um único "segmento" HLS sintético que
+          // cobre o arquivo inteiro (ver `wrapAsHls` em web-player-playback/index.ts). Sem
+          // isso, o carregador padrão de fragmentos do hls.js só considera o fragmento
+          // pronto depois de baixar o ARQUIVO INTEIRO — travando a reprodução em
+          // "Preparando…" até terminar o download completo (minutos, para um filme grande;
+          // causa do travamento visto após o fix do empacotamento). `progressive: true` troca
+          // para o carregador por streaming (fetch + ReadableStream), que decodifica e exibe
+          // os dados assim que chegam, como um download progressivo normal.
+          progressive: true,
+          // Esse "segmento" é o arquivo inteiro, não um trecho de poucos segundos — o tempo
+          // padrão (12s) é pensado para fragmentos HLS normais e abortaria o download de um
+          // filme grande antes de terminar mesmo com `progressive` ligado. Canais ao vivo
+          // continuam com o valor curto original.
+          fragLoadingTimeOut: live ? 12_000 : 30 * 60_000,
           manifestLoadingTimeOut: 10_000,
           levelLoadingTimeOut: 10_000,
         });
