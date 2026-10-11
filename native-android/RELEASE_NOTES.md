@@ -1,3 +1,7 @@
+# RonecaPlayTV 3.0.2
+
+- Corrige a reprodução de filmes e séries em fontes com política de rede especial (modo "Ignorar erros do certificado") configuradas com "permitir redirecionamento": antes, o host de destino do redirecionamento (ex.: o CDN de entrega de vídeo de um fornecedor Xtream) precisava já estar pré-cadastrado na lista de hosts permitidos, o que nunca acontecia na prática e bloqueava toda reprodução com "Domínio de redirecionamento não autorizado para esta fonte." Agora a lista de hosts permitidos só é exigida na conexão inicial; a partir daí, "permitir redirecionamento" realmente libera o destino do redirecionamento do próprio provedor.
+
 # RonecaPlayTV 3.0.1
 
 - Atualiza o aplicativo para o novo backend Supabase (migração de projeto); nenhuma mudança visível para o usuário.

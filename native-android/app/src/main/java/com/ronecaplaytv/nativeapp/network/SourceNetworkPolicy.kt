@@ -211,16 +211,8 @@ object SourceNetworkPolicyRegistry {
             policy.requestHeaders.isNotEmpty()
 
         if (hasSpecialPolicy) {
-            if (!policy.isHostAllowed(requestHost)) {
-                throw IOException("Domínio de redirecionamento não autorizado para esta fonte.")
-            }
-            if (
-                initialHost.isNotBlank() &&
-                requestHost != initialHost &&
-                !policy.allowRedirectHosts
-            ) {
-                throw IOException("Redirecionamento para outro domínio bloqueado pela política da fonte.")
-            }
+            val decision = evaluateRequestHost(policy, initialHost, requestHost)
+            if (decision is RedirectDecision.Block) throw IOException(decision.message)
         }
 
         val updated = request.newBuilder()
@@ -293,6 +285,55 @@ object SourceNetworkPolicyRegistry {
 
     private const val DEFAULT_USER_AGENT = "VLC/3.0.20 LibVLC/3.0.20"
     private const val MAX_CLIENTS = 16
+}
+
+/**
+ * Resultado da avaliação de host feita pelo interceptor de política de fonte,
+ * extraído como função pura para poder ser testado sem subir um OkHttpClient.
+ */
+internal sealed class RedirectDecision {
+    object Allow : RedirectDecision()
+    data class Block(val message: String) : RedirectDecision()
+}
+
+/**
+ * Decide se uma requisição (inicial ou redirecionada) pode seguir, para uma fonte
+ * com política especial ativa.
+ *
+ * Correção: antes, TODA requisição — inclusive a primeira, pro próprio host
+ * configurado no painel — passava por [SourceNetworkPolicy.isHostAllowed],
+ * e só então havia uma segunda checagem (gated por allowRedirectHosts) pra
+ * redirecionamentos. Como o host de um redirecionamento legítimo do próprio
+ * fornecedor (ex.: a API em "provedor.com" redirecionando o vídeo pra um CDN
+ * de entrega em outro domínio) nunca estava pré-cadastrado em allowedHosts —
+ * é justamente o host que o painel não tem como prever —, a primeira checagem
+ * já bloqueava antes de allowRedirectHosts entrar em jogo, tornando essa opção
+ * inoperante na prática (#playback-redirect-block).
+ *
+ * Agora: a allowlist (allowedHosts/allowSubdomains) só é exigida na requisição
+ * inicial, que é o único ponto em que o painel de fato sabe qual host esperar e
+ * onde a proteção contra sequestro de DNS/redirecionamento malicioso importa.
+ * Uma vez que essa conexão inicial foi validada, um redirecionamento pra outro
+ * host só precisa que allowRedirectHosts esteja ligado — sem exigir que o
+ * destino também esteja na allowlist. Cabeçalhos customizados continuam só
+ * sendo enviados a hosts explicitamente permitidos (ver policyInterceptor),
+ * então nenhum segredo configurado pro host de origem passa a vazar pro
+ * destino do redirecionamento.
+ */
+internal fun evaluateRequestHost(
+    policy: SourceNetworkPolicy,
+    initialHost: String,
+    requestHost: String,
+): RedirectDecision {
+    val isRedirectedRequest = initialHost.isNotBlank() && requestHost != initialHost
+    return when {
+        isRedirectedRequest && policy.allowRedirectHosts -> RedirectDecision.Allow
+        isRedirectedRequest -> RedirectDecision.Block(
+            "Redirecionamento para outro domínio bloqueado pela política da fonte.",
+        )
+        policy.isHostAllowed(requestHost) -> RedirectDecision.Allow
+        else -> RedirectDecision.Block("Domínio de redirecionamento não autorizado para esta fonte.")
+    }
 }
 
 private fun normalizeHost(value: String): String =
