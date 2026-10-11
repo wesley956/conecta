@@ -96,6 +96,63 @@ function mediaKind(urlString: string, contentType: WebContentType): 'hls' | 'fil
   return 'unknown';
 }
 
+const SNIFF_TIMEOUT_MS = 6_000;
+const SNIFF_MAX_BYTES = 4_096;
+
+// `mediaKind()` acima só olha a EXTENSÃO da URL — mas vários fornecedores Xtream entregam
+// MPEG-TS cru numa URL de aparência `.mp4` (causa original dos WEB_MEDIA_CODEC_ERROR, ver
+// `wrapAsHls` abaixo), enquanto OUTROS fornecedores entregam um MP4/WebM genuíno na mesma
+// forma de URL. Empacotar OS DOIS casos no manifesto HLS sintético (como fazíamos antes desta
+// função existir) quebra o caso genuíno: o demuxer do hls.js é feito para MPEG-TS ou para
+// segmentos fMP4/CMAF fragmentados, não para um MP4 clássico (moov/mdat) de arquivo único —
+// resultado era `WEB_HLS_DECODER_ERROR` fatal depois de esgotar `recoverMediaError()`
+// (incidente 2026-10-11, filmes/séries reproduzindo "Origens esgotadas" mesmo após os fixes
+// de range/progressive/wrapped). Por isso cheiramos os primeiros bytes reais do arquivo
+// (assinatura binária, não a URL) para decidir: só empacotamos quando os bytes confirmam TS
+// cru (ou quando a sondagem falha/é inconclusiva — mantemos o fallback seguro de empacotar,
+// que é o comportamento documentado e testado até aqui); quando os bytes confirmam um
+// container MP4/WebM de verdade, servimos como `file` igual ao fluxo anterior ao wrap (que já
+// funcionava bem para esses casos via `<video>` nativo + Range).
+async function sniffContainerKind(url: string): Promise<'ts' | 'mp4' | 'webm' | 'unknown'> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SNIFF_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      headers: { Range: `bytes=0-${SNIFF_MAX_BYTES - 1}` },
+      signal: controller.signal,
+    });
+    if (!response.body) return 'unknown';
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (total < SNIFF_MAX_BYTES) {
+        const { done, value } = await reader.read();
+        if (done || !value) break;
+        chunks.push(value);
+        total += value.length;
+      }
+    } finally {
+      try { await reader.cancel(); } catch { /* ignora */ }
+    }
+    if (total < 4) return 'unknown';
+    const buffer = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.length; }
+    // MPEG-TS: byte de sincronismo 0x47 a cada 188 bytes.
+    if (total >= 377 && buffer[0] === 0x47 && buffer[188] === 0x47 && buffer[376] === 0x47) return 'ts';
+    // ISO BMFF (mp4/m4v/mov, fragmentado ou não): caixa `ftyp` no offset 4.
+    if (total >= 8 && buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) return 'mp4';
+    // EBML (mkv/webm): assinatura 0x1A45DFA3.
+    if (total >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return 'webm';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function directSafe(urlString: string) {
   if (!/^(1|true|yes)$/i.test(String(Deno.env.get('WEB_ALLOW_DIRECT_SAFE') || ''))) return false;
   try {
@@ -220,12 +277,22 @@ async function authorize(
 
   // O <video> nativo do Chrome não decodifica MPEG-TS cru, comum em respostas de
   // fornecedores Xtream mesmo quando a URL/Content-Type sugere .mp4 (causa confirmada dos
-  // WEB_MEDIA_CODEC_ERROR). Para qualquer conteúdo que não seja já um manifesto HLS,
-  // entregamos um manifesto HLS sintético de um segmento só: o hls.js baixa e demuxa o
-  // conteúdo verdadeiro a partir dos bytes recebidos, não da extensão da URL — funciona
-  // tanto para fMP4 quanto para TS cru.
-  const wrapAsHls = rawKind !== 'hls';
-  const kind: 'hls' | 'file' | 'unknown' = wrapAsHls ? 'hls' : rawKind;
+  // WEB_MEDIA_CODEC_ERROR). Para esse caso entregamos um manifesto HLS sintético de um
+  // segmento só: o hls.js baixa e demuxa o conteúdo verdadeiro a partir dos bytes recebidos.
+  // Mas ESSE empacotamento só serve para TS cru — um MP4/WebM genuíno (muito comum em outros
+  // fornecedores) quebra dentro do demuxer do hls.js (ver `sniffContainerKind` acima,
+  // incidente 2026-10-11, `WEB_HLS_DECODER_ERROR`). Por isso só decidimos pelo wrap depois de
+  // olhar os bytes reais do arquivo, não só a extensão da URL.
+  let wrapAsHls = rawKind !== 'hls';
+  let effectiveKind: 'hls' | 'file' | 'unknown' = rawKind;
+  if (wrapAsHls) {
+    const sniffed = await sniffContainerKind(selected);
+    if (sniffed === 'mp4' || sniffed === 'webm') {
+      wrapAsHls = false;
+      effectiveKind = 'file';
+    }
+  }
+  const kind: 'hls' | 'file' | 'unknown' = wrapAsHls ? 'hls' : effectiveKind;
 
   const segmentToken = wrapAsHls ? await sealWebPayload({
     v: 1, kind: 'media', sessionId: session.id, deviceId: session.deviceId, contentType: token.type,
