@@ -79,6 +79,12 @@ export type PlaybackAuthorization = {
   mode: 'direct-safe' | 'gateway';
   playbackUrl: string;
   mediaKind: 'hls' | 'file' | 'unknown';
+  // true quando `playbackUrl` é o manifesto HLS SINTÉTICO de um segmento só (ver
+  // `wrapAsHls` em supabase/functions/web-player-playback/index.ts), não um manifesto HLS
+  // real com múltiplos segmentos. O player precisa forçar o hls.js para esse conteúdo, mesmo
+  // quando o navegador reporta suporte nativo a HLS — o player nativo não lida bem com um
+  // único "segmento" cobrindo o arquivo inteiro.
+  wrapped: boolean;
   contentType: 'channel' | 'movie' | 'episode';
   contentKey: string;
   playlistRole: 'primary' | 'backup';

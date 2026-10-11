@@ -451,7 +451,14 @@ export function WebPlayer({
     };
 
     if (activeAuthorization.mediaKind === 'hls') {
-      const nativeHls = video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL');
+      // `wrapped` é o manifesto HLS sintético de um segmento só (ver web-player-playback/
+      // index.ts) — o player nativo do navegador espera um manifesto HLS de verdade e não
+      // lida bem com um único "segmento" cobrindo o arquivo inteiro (causa confirmada de
+      // filmes/episódios travando em "Preparando…" até esgotar as origens, incidente
+      // 2026-10-11, em navegadores com suporte nativo a HLS). Para esse conteúdo, força o
+      // hls.js mesmo quando `canPlayType` reporta suporte nativo.
+      const nativeHls = !activeAuthorization.wrapped &&
+        (video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL'));
       if (nativeHls) attachNative();
       else if (Hls.isSupported()) {
         const hls = new Hls({
@@ -569,6 +576,7 @@ export function WebPlayer({
     activeAuthorization.mediaKind,
     activeAuthorization.playbackUrl,
     activeAuthorization.playlistRole,
+    activeAuthorization.wrapped,
     checkpoint,
     live,
     onProgress,

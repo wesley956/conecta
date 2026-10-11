@@ -90,6 +90,7 @@ async function mockWebApi(page: Page) {
         mode: 'gateway',
         playbackUrl: 'https://example.invalid/media.m3u8',
         mediaKind: 'hls',
+        wrapped: false,
         contentType: 'movie',
         contentKey: 'movie:1',
         playlistRole: 'primary',

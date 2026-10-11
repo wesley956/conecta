@@ -260,6 +260,7 @@ function playbackProjection(result: PlaybackAuthorization) {
     mode: result.mode,
     playbackUrl: browserMediaRelayUrl(result.playbackUrl),
     mediaKind: result.mediaKind,
+    wrapped: Boolean(result.wrapped),
     contentType: result.contentType,
     contentKey: result.contentKey,
     playlistRole: result.playlistRole,

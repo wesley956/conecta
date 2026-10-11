@@ -205,7 +205,7 @@ async function authorize(
   const expiresAtMs = Date.now() + PLAYBACK_TOKEN_TTL_MS;
 
   if (directSafe(selected)) return webJson(request, {
-    ok: true, mode: 'direct-safe', playbackUrl: selected, mediaKind: rawKind, contentType: token.type,
+    ok: true, mode: 'direct-safe', playbackUrl: selected, mediaKind: rawKind, wrapped: false, contentType: token.type,
     contentKey: token.contentKey, playlistRole: resolved.assignment.role,
     alternativesAvailable: Math.max(0, urls.length - urlIndex - 1), recoveryToken: nextRecoveryToken,
     expiresAt: new Date(expiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
@@ -242,7 +242,16 @@ async function authorize(
   const functionsUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1`;
   return webJson(request, {
     ok: true, mode: 'gateway', playbackUrl: `${functionsUrl}/web-player-media?token=${encodeURIComponent(mediaToken)}`,
-    mediaKind: kind, contentType: token.type, contentKey: token.contentKey, playlistRole: resolved.assignment.role,
+    // `wrapped` diz ao cliente que isto é o manifesto HLS SINTÉTICO de um segmento só (ver
+    // comentário acima sobre `wrapAsHls`), não um manifesto HLS real com múltiplos segmentos.
+    // O player web usa isso para forçar o hls.js mesmo em navegadores com suporte nativo a
+    // HLS (`video.canPlayType('application/vnd.apple.mpegurl')` truthy) — o player nativo do
+    // navegador espera um manifesto HLS de verdade e não lida bem com nosso truque de um
+    // único "segmento" cobrindo o arquivo inteiro (causa confirmada de filmes/episódios
+    // travando em "Preparando…" indefinidamente até esgotar as origens, incidente
+    // 2026-10-11: o navegador do usuário tinha suporte nativo a HLS e caía no
+    // `attachNative()`, que não sabe demuxar/tocar esse manifesto sintético).
+    mediaKind: kind, wrapped: wrapAsHls, contentType: token.type, contentKey: token.contentKey, playlistRole: resolved.assignment.role,
     alternativesAvailable: Math.max(0, urls.length - urlIndex - 1), recoveryToken: nextRecoveryToken,
     expiresAt: new Date(expiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
   });
