@@ -16,6 +16,11 @@ const RELAY_SESSION_CACHE_MS = 60_000;
 const LOCAL_CHILD_TTL_MS = 75_000;
 const MAX_RELAY_TOKEN_LENGTH = 16_384;
 const RELAY_CACHE_MAX = 512;
+// Duração nominal do segmento único do manifesto HLS sintético (ver `shouldWrap` abaixo).
+// Maior que qualquer filme/episódio real; o hls.js corrige a duração real a partir dos
+// metadados do próprio contêiner (MP4/TS) assim que o fragmento é baixado, então esse valor
+// nunca chega a ser exibido ao usuário.
+const SYNTHETIC_SEGMENT_SECONDS = 6 * 60 * 60;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 const PASS_HEADERS = new Set([
   'content-type', 'content-length', 'content-range', 'accept-ranges',
@@ -153,6 +158,8 @@ function cacheRelaySession(parentToken, resolved) {
     url: String(resolved.url || ''),
     contentType: resolved.contentType || null,
     playlistRole: resolved.playlistRole || null,
+    wrap: Boolean(resolved.wrap),
+    segmentToken: typeof resolved.segmentToken === 'string' ? resolved.segmentToken : null,
     expiresAt: new Date(absoluteExpiry).toISOString(),
     cachedUntil: Math.min(absoluteExpiry, Date.now() + RELAY_SESSION_CACHE_MS),
   };
@@ -576,6 +583,38 @@ export default async function handler(req, res) {
     const resolved = relayResolution.resolved;
     const target = validateUrlShape(resolved.url);
     const manifest = isManifestUrl(target);
+
+    // Conteúdo que o web-player-playback marcou para empacotamento (qualquer coisa que não
+    // seja já um manifesto HLS real — tipicamente filmes/episódios .mp4 que na verdade são
+    // MPEG-TS cru do fornecedor). Em vez de repassar os bytes crus (que o <video> nativo do
+    // Chrome não decodifica), devolvemos um manifesto HLS sintético de um segmento só
+    // apontando para o token de longa duração do conteúdo real; o hls.js busca esse
+    // "segmento" e demuxa o conteúdo verdadeiro a partir dos bytes.
+    if (!manifest && resolved.wrap === true) {
+      if (!['GET', 'HEAD'].includes(req.method)) return json(res, 405, { ok: false, code: 'WEB_METHOD_NOT_ALLOWED' });
+      const segmentToken = typeof resolved.segmentToken === 'string' ? resolved.segmentToken : '';
+      if (!segmentToken) return json(res, 502, { ok: false, code: 'WEB_MEDIA_WRAP_UNAVAILABLE' });
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store, private');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      res.setHeader('X-Roneca-Relay', 'v5');
+      res.setHeader('X-Roneca-Relay-Wrap', 'synthetic-hls');
+      if (req.method === 'HEAD') return res.end();
+      return res.end([
+        '#EXTM3U',
+        '#EXT-X-VERSION:3',
+        '#EXT-X-PLAYLIST-TYPE:VOD',
+        '#EXT-X-INDEPENDENT-SEGMENTS',
+        `#EXT-X-TARGETDURATION:${SYNTHETIC_SEGMENT_SECONDS}`,
+        `#EXTINF:${SYNTHETIC_SEGMENT_SECONDS}.0,`,
+        `/api/web-media-relay?token=${encodeURIComponent(segmentToken)}`,
+        '#EXT-X-ENDLIST',
+        '',
+      ].join('\n'));
+    }
+
     const fileMedia = !manifest && isFileMedia(target, resolved.contentType);
     const range = boundedRange(req.headers.range, fileMedia && req.method === 'GET');
     const upstreamStarted = Date.now();

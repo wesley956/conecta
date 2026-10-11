@@ -25,6 +25,11 @@ import { classifyRecoveryError, sanitizedRecoveryCode } from '../_shared/webPlay
 
 const PLAYBACK_TOKEN_TTL_MS = 10 * 60 * 1000;
 const RECOVERY_TOKEN_TTL_MS = 60 * 60 * 1000;
+// TTL do token que aponta para o arquivo real quando ele é empacotado como manifesto HLS
+// sintético (ver `wrapAsHls` em `authorize`). Precisa cobrir o download completo de um
+// filme/episódio longo pelo hls.js, não só os 10 min do token do manifesto — por isso é bem
+// maior que PLAYBACK_TOKEN_TTL_MS.
+const WRAP_SEGMENT_TOKEN_TTL_MS = 4 * 60 * 60 * 1000;
 const HOMOLOG_ORIGIN = 'https://raw.githack.com';
 // Ver nota em _shared/webPlayerSecurity.ts (incidente 2026-10-08): rede de segurança
 // independente do secret WEB_PLAYER_ORIGINS para o domínio de produção real.
@@ -195,12 +200,12 @@ async function authorize(
   const rawSelected = urls[urlIndex];
   if (!rawSelected) throw new Error('WEB_CONTENT_UNAVAILABLE');
   const selected = browserCompatibleUrl(rawSelected, token.type);
-  const kind = mediaKind(selected, token.type);
+  const rawKind = mediaKind(selected, token.type);
   const nextRecoveryToken = await recoveryToken(session, token, resolved.assignment, urlIndex, sameOriginAttempts);
   const expiresAtMs = Date.now() + PLAYBACK_TOKEN_TTL_MS;
 
   if (directSafe(selected)) return webJson(request, {
-    ok: true, mode: 'direct-safe', playbackUrl: selected, mediaKind: kind, contentType: token.type,
+    ok: true, mode: 'direct-safe', playbackUrl: selected, mediaKind: rawKind, contentType: token.type,
     contentKey: token.contentKey, playlistRole: resolved.assignment.role,
     alternativesAvailable: Math.max(0, urls.length - urlIndex - 1), recoveryToken: nextRecoveryToken,
     expiresAt: new Date(expiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
@@ -213,10 +218,26 @@ async function authorize(
     ok: false, code: 'WEB_MEDIA_GATEWAY_REQUIRED', message: 'Esta mídia precisa do gateway Web, ainda não habilitado neste ambiente.',
   }, 409);
 
+  // O <video> nativo do Chrome não decodifica MPEG-TS cru, comum em respostas de
+  // fornecedores Xtream mesmo quando a URL/Content-Type sugere .mp4 (causa confirmada dos
+  // WEB_MEDIA_CODEC_ERROR). Para qualquer conteúdo que não seja já um manifesto HLS,
+  // entregamos um manifesto HLS sintético de um segmento só: o hls.js baixa e demuxa o
+  // conteúdo verdadeiro a partir dos bytes recebidos, não da extensão da URL — funciona
+  // tanto para fMP4 quanto para TS cru.
+  const wrapAsHls = rawKind !== 'hls';
+  const kind: 'hls' | 'file' | 'unknown' = wrapAsHls ? 'hls' : rawKind;
+
+  const segmentToken = wrapAsHls ? await sealWebPayload({
+    v: 1, kind: 'media', sessionId: session.id, deviceId: session.deviceId, contentType: token.type,
+    contentKey: token.contentKey, playlistId: resolved.assignment.playlistId, playlistRole: resolved.assignment.role,
+    url: selected, exp: Date.now() + WRAP_SEGMENT_TOKEN_TTL_MS,
+  }) : null;
+
   const mediaToken = await sealWebPayload({
     v: 1, kind: 'media', sessionId: session.id, deviceId: session.deviceId, contentType: token.type,
     contentKey: token.contentKey, playlistId: resolved.assignment.playlistId, playlistRole: resolved.assignment.role,
     url: selected, exp: expiresAtMs,
+    ...(wrapAsHls ? { wrap: true, segmentToken } : {}),
   });
   const functionsUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1`;
   return webJson(request, {

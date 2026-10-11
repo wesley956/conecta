@@ -26,7 +26,29 @@ type MediaToken = {
   playlistRole?: string;
   url: string;
   exp: number;
+  wrap?: boolean;
+  segmentToken?: string;
 };
+
+// Duração nominal do segmento único do manifesto HLS sintético (ver uso de `payload.wrap`
+// abaixo). Mesmo valor usado no relay Vercel (api/web-media-relay-v4.js) por consistência.
+const SYNTHETIC_SEGMENT_SECONDS = 6 * 60 * 60;
+
+function syntheticManifest(request: Request, segmentToken: string) {
+  const current = new URL(request.url);
+  const segmentUrl = `${current.origin}${current.pathname}?token=${encodeURIComponent(segmentToken)}`;
+  return [
+    '#EXTM3U',
+    '#EXT-X-VERSION:3',
+    '#EXT-X-PLAYLIST-TYPE:VOD',
+    '#EXT-X-INDEPENDENT-SEGMENTS',
+    `#EXT-X-TARGETDURATION:${SYNTHETIC_SEGMENT_SECONDS}`,
+    `#EXTINF:${SYNTHETIC_SEGMENT_SECONDS}.0,`,
+    segmentUrl,
+    '#EXT-X-ENDLIST',
+    '',
+  ].join('\n');
+}
 
 function serviceClient() {
   const url = Deno.env.get('SUPABASE_URL');
@@ -197,6 +219,23 @@ serve(async request => {
     ) throw new Error('WEB_MEDIA_TOKEN_INVALID');
 
     await validateSession(payload.sessionId, payload.deviceId, payload.playlistId);
+
+    // Conteúdo que o web-player-playback marcou para empacotamento (ver mesma lógica no
+    // relay Vercel, api/web-media-relay-v4.js): em vez de repassar os bytes crus do
+    // upstream, devolve um manifesto HLS sintético de um segmento só, sem nem precisar
+    // buscar o upstream aqui.
+    if (payload.wrap === true && typeof payload.segmentToken === 'string') {
+      return new Response(request.method === 'HEAD' ? null : syntheticManifest(request, payload.segmentToken), {
+        status: 200,
+        headers: {
+          ...webCorsHeaders(request),
+          'Content-Type': 'application/vnd.apple.mpegurl; charset=utf-8',
+          'Cache-Control': 'no-store, private',
+          'Cross-Origin-Resource-Policy': 'cross-origin',
+        },
+      });
+    }
+
     const upstream = await fetchWebMediaUpstream(payload.url, request);
     if (!upstream.ok && upstream.status !== 206) {
       return new Response(null, { status: upstream.status, headers: mediaHeaders(request, upstream) });

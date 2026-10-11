@@ -32,6 +32,8 @@ type MediaPayload = {
   playlistRole?: string;
   url: string;
   exp: number;
+  wrap?: boolean;
+  segmentToken?: string;
 };
 
 function json(body: unknown, status = 200) {
@@ -199,7 +201,8 @@ async function validateSession(payload: MediaPayload) {
 async function resolveMedia(body: Record<string, unknown>) {
   const { token, payload } = await openMediaToken(body.token);
   let relayKey: string | null = null;
-  if (payload.kind !== 'media-child') {
+  const isChild = payload.kind === 'media-child';
+  if (!isChild) {
     await validateSession(payload);
     relayKey = await deriveRelayKey(token);
   }
@@ -210,6 +213,11 @@ async function resolveMedia(body: Record<string, unknown>) {
     playlistRole: payload.playlistRole || null,
     expiresAt: new Date(Number(payload.exp)).toISOString(),
     relayKey,
+    // Um token filho (segmento de manifesto HLS real) nunca deve ser empacotado de novo,
+    // mesmo que o campo exista por acidente no payload — só o token "pai" (media) pode
+    // pedir o empacotamento sintético.
+    wrap: !isChild && Boolean(payload.wrap),
+    segmentToken: !isChild && typeof payload.segmentToken === 'string' ? payload.segmentToken : null,
   });
 }
 
