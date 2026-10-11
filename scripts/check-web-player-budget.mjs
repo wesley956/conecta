@@ -62,7 +62,13 @@ const PLAYER_CORE_LIMIT = 130_000;
 // após 429, memo de série/EPG) adiciona ~1,2 kB (825.772 → 826.962 bytes) e evita centenas
 // de MB de download do Storage. O total sobe de 826.000 para 828.000; entry/engine/shell
 // continuam com os mesmos limites.
-const TOTAL_LIMIT = 828_000;
+// Incidente 2026-10-11 (player web travando em "Preparando…" para filmes/episódios
+// empacotados em HLS sintético): `progressive: true` + timeout maior para fragLoadingTimeOut
+// no WebPlayerCore adicionam ~20 bytes minificados, levando o total a 828.017 bytes — acima
+// do limite antigo por 17 bytes. Sem isso o hls.js só considera o "segmento" (arquivo inteiro)
+// pronto depois do download completo, travando a reprodução. Total sobe de 828.000 para
+// 829.000; entry/engine/shell continuam com os mesmos limites.
+const TOTAL_LIMIT = 829_000;
 
 console.log('Web Player JS budget:');
 for (const row of rows) console.log(` - ${row.relative}: ${row.bytes} bytes`);
