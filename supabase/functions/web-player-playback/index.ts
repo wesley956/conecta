@@ -24,12 +24,22 @@ import {
 import { classifyRecoveryError, sanitizedRecoveryCode } from '../_shared/webPlayerRecovery.ts';
 
 const PLAYBACK_TOKEN_TTL_MS = 10 * 60 * 1000;
-const RECOVERY_TOKEN_TTL_MS = 60 * 60 * 1000;
 // TTL do token que aponta para o arquivo real quando ele é empacotado como manifesto HLS
 // sintético (ver `wrapAsHls` em `authorize`). Precisa cobrir o download completo de um
 // filme/episódio longo pelo hls.js, não só os 10 min do token do manifesto — por isso é bem
-// maior que PLAYBACK_TOKEN_TTL_MS.
+// maior que PLAYBACK_TOKEN_TTL_MS. Também usado (ver `mediaTokenTtlMs` em `authorize`) como
+// validade do `mediaToken` de conteúdo NÃO empacotado (`file`), pelo mesmo motivo: é o único
+// token que o <video> nativo usa durante toda a reprodução.
 const WRAP_SEGMENT_TOKEN_TTL_MS = 4 * 60 * 60 * 1000;
+// Precisa superar com folga o maior TTL de mídia em uso (`WRAP_SEGMENT_TOKEN_TTL_MS`, 4h) —
+// o `recoveryToken` emitido junto com um `mediaToken` de 4h (conteúdo `file`) só é usado pela
+// renovação proativa do cliente perto do fim dessas 4h (ver `WebPlayerCore.tsx`, ~90s antes de
+// expirar); se `RECOVERY_TOKEN_TTL_MS` fosse mais curto que isso (era 60 min, incidente
+// 2026-10-11), essa renovação chegaria com o `recoveryToken` já expirado há horas e o servidor
+// recusaria com `WEB_RECOVERY_TOKEN_INVALID` — o cliente trata esse 401 como sessão inválida e
+// desloga o Acesso Web no meio de um filme, bem pior do que o recarregamento que motivou dar
+// 4h ao `mediaToken` de conteúdo `file` em primeiro lugar.
+const RECOVERY_TOKEN_TTL_MS = WRAP_SEGMENT_TOKEN_TTL_MS + 30 * 60 * 1000;
 const HOMOLOG_ORIGIN = 'https://raw.githack.com';
 // Ver nota em _shared/webPlayerSecurity.ts (incidente 2026-10-08): rede de segurança
 // independente do secret WEB_PLAYER_ORIGINS para o domínio de produção real.
@@ -300,10 +310,25 @@ async function authorize(
     url: selected, exp: Date.now() + WRAP_SEGMENT_TOKEN_TTL_MS,
   }) : null;
 
+  // Quando o conteúdo é servido como `file` (não empacotado — HLS real de canal continua
+  // curto, sem mudança), este é o ÚNICO token que o <video> nativo usa durante TODA a
+  // reprodução — pode ser um filme de horas — porque o navegador reabre conexões/faz novas
+  // requisições de range para esse mesmo URL ao longo do tempo (buffer, reconexão, seek). Os
+  // 10 min de `PLAYBACK_TOKEN_TTL_MS` bastam para HLS (real ou empacotado: o download pesado
+  // do empacotado usa o `segmentToken` de 4h acima; o HLS real de canal já se renova sozinho
+  // via replay da playlist), mas para o arquivo direto eram curtos demais: a renovação
+  // proativa do cliente (`WebPlayerCore.tsx`, ~90s antes de expirar) troca a `playbackUrl`, o
+  // que força `video.src` a trocar e recarregar do zero — causa confirmada de "depois de
+  // alguns minutos aparece carregando de novo" (incidente 2026-10-11, consequência direta de
+  // ativar o caminho `file` na correção anterior). Por isso só o `file` recebe a mesma
+  // validade longa do `segmentToken`.
+  const mediaTokenTtlMs = kind === 'file' ? WRAP_SEGMENT_TOKEN_TTL_MS : PLAYBACK_TOKEN_TTL_MS;
+  const mediaExpiresAtMs = Date.now() + mediaTokenTtlMs;
+
   const mediaToken = await sealWebPayload({
     v: 1, kind: 'media', sessionId: session.id, deviceId: session.deviceId, contentType: token.type,
     contentKey: token.contentKey, playlistId: resolved.assignment.playlistId, playlistRole: resolved.assignment.role,
-    url: selected, exp: expiresAtMs,
+    url: selected, exp: mediaExpiresAtMs,
     ...(wrapAsHls ? { wrap: true, segmentToken } : {}),
   });
   const functionsUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1`;
@@ -320,7 +345,12 @@ async function authorize(
     // `attachNative()`, que não sabe demuxar/tocar esse manifesto sintético).
     mediaKind: kind, wrapped: wrapAsHls, contentType: token.type, contentKey: token.contentKey, playlistRole: resolved.assignment.role,
     alternativesAvailable: Math.max(0, urls.length - urlIndex - 1), recoveryToken: nextRecoveryToken,
-    expiresAt: new Date(expiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
+    // Precisa bater com a validade real do `mediaToken` acima (`mediaExpiresAtMs`), não a
+    // curta `expiresAtMs` de 10 min — é este valor que o cliente usa para agendar a renovação
+    // proativa (`WebPlayerCore.tsx`, ~90s antes de expirar); se ficasse descasado, o player
+    // renovaria achando o token curto (10 min) enquanto o token de verdade (longo, no caso
+    // `file`) ainda era válido, recarregando o vídeo sem necessidade.
+    expiresAt: new Date(mediaExpiresAtMs).toISOString(), ...(recovery ? { recovery } : {}),
   });
 }
 
