@@ -8,6 +8,7 @@ import { progressFraction, resumableProgress } from "../mediaLibrary";
 import { SMART_TV_PERFORMANCE_PROFILE } from "../performanceProfile";
 import { isBackKey } from "../platform";
 import type { PlaybackItem, SeriesQueueEntry } from "../player/types";
+import { formatPlaybackPosition, resolveSeriesResumeTarget } from "./seriesProgressResolver";
 
 function urls(url: string, alternatives?: string[]) {
   return Array.from(new Set([...(alternatives || []), url].filter(value => /^https?:\/\//i.test(value))));
@@ -24,6 +25,12 @@ function progressFor(history: LibraryItem[], contentKey: string, id: string) {
   return history.find(item =>
     item.kind === "episode" && (item.contentKey === contentKey || (!item.contentKey && item.id === id))
   );
+}
+
+function episodePageIndexFor(season: Season | undefined, episodeNumber: number, pageSize: number): number {
+  if (!season) return 0;
+  const index = season.episodes.findIndex(item => item.number === episodeNumber);
+  return index < 0 ? 0 : Math.floor(index / pageSize);
 }
 
 function buildEpisodeQueue(series: Series, seasons: Season[]): SeriesQueueEntry[] {
@@ -77,12 +84,21 @@ export function SeriesDetailScreen({
   onPlay: (item: PlaybackItem) => void;
 }) {
   const embedded = useMemo(() => embeddedSeasons(series), [series]);
+  const episodePageSize = SMART_TV_PERFORMANCE_PROFILE.episodePageSize;
+  const initialResumeTarget = useMemo(
+    () => resolveSeriesResumeTarget(series, embedded, history),
+    [series, embedded, history]
+  );
   const initialSeason = selectedSeasonNumber && embedded.some(item => item.number === selectedSeasonNumber)
     ? selectedSeasonNumber
-    : embedded[0]?.number ?? selectedSeasonNumber ?? 1;
+    : initialResumeTarget?.season.number ?? embedded[0]?.number ?? selectedSeasonNumber ?? 1;
   const [seasons, setSeasons] = useState<Season[]>(embedded);
   const [selectedSeason, setSelectedSeason] = useState(initialSeason);
-  const [episodePage, setEpisodePage] = useState(0);
+  const [episodePage, setEpisodePage] = useState(() => {
+    if (selectedSeasonNumber) return 0;
+    const season = embedded.find(item => item.number === initialSeason);
+    return initialResumeTarget ? episodePageIndexFor(season, initialResumeTarget.episode.number, episodePageSize) : 0;
+  });
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     embedded.length || !series.xtreamSeriesId ? "ready" : "loading"
   );
@@ -90,15 +106,21 @@ export function SeriesDetailScreen({
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    const target = resolveSeriesResumeTarget(series, embedded, history);
     const preferred = selectedSeasonNumber && embedded.some(item => item.number === selectedSeasonNumber)
       ? selectedSeasonNumber
-      : embedded[0]?.number ?? selectedSeasonNumber ?? 1;
+      : target?.season.number ?? embedded[0]?.number ?? selectedSeasonNumber ?? 1;
+    const season = embedded.find(item => item.number === preferred);
     setSeasons(embedded);
     setSelectedSeason(preferred);
-    setEpisodePage(0);
+    setEpisodePage(!selectedSeasonNumber && target ? episodePageIndexFor(season, target.episode.number, episodePageSize) : 0);
     setStatus(embedded.length || !series.xtreamSeriesId ? "ready" : "loading");
     setMessage(null);
-  }, [embedded, selectedSeasonNumber, series.id, series.xtreamSeriesId]);
+    // história de progresso é lida aqui só pra escolher a temporada/página iniciais;
+    // deliberadamente fora das deps pra não resetar a navegação manual do usuário
+    // a cada atualização de progresso em outra parte do app.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [embedded, episodePageSize, selectedSeasonNumber, series.id, series.xtreamSeriesId]);
 
   useEffect(() => {
     if (embedded.length || !series.xtreamSeriesId) return;
@@ -108,12 +130,14 @@ export function SeriesDetailScreen({
     void fetchSeriesSeasons(String(series.xtreamSeriesId), playlistId)
       .then(value => {
         if (cancelled) return;
+        const target = resolveSeriesResumeTarget(series, value, history);
         const preferred = selectedSeasonNumber && value.some(item => item.number === selectedSeasonNumber)
           ? selectedSeasonNumber
-          : value[0]?.number ?? 1;
+          : target?.season.number ?? value[0]?.number ?? 1;
+        const season = value.find(item => item.number === preferred);
         setSeasons(value);
         setSelectedSeason(preferred);
-        setEpisodePage(0);
+        setEpisodePage(!selectedSeasonNumber && target ? episodePageIndexFor(season, target.episode.number, episodePageSize) : 0);
         setStatus("ready");
       })
       .catch(error => {
@@ -122,7 +146,9 @@ export function SeriesDetailScreen({
         setMessage(error instanceof Error ? error.message : "Não foi possível carregar os episódios.");
       });
     return () => { cancelled = true; };
-  }, [attempt, embedded, playlistId, selectedSeasonNumber, series.xtreamSeriesId]);
+    // mesmo raciocínio do efeito anterior: history fica fora das deps de propósito.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt, embedded, episodePageSize, playlistId, selectedSeasonNumber, series.xtreamSeriesId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -153,7 +179,7 @@ export function SeriesDetailScreen({
 
   const season = seasons.find(item => item.number === selectedSeason) || seasons[0];
   const episodeCount = seasons.reduce((sum, item) => sum + item.episodes.length, 0);
-  const episodePageSize = SMART_TV_PERFORMANCE_PROFILE.episodePageSize;
+  const resumeTarget = useMemo(() => resolveSeriesResumeTarget(series, seasons, history), [series, seasons, history]);
   const episodePages = season ? Math.max(1, Math.ceil(season.episodes.length / episodePageSize)) : 1;
   const safeEpisodePage = Math.min(episodePage, episodePages - 1);
   const episodeStart = safeEpisodePage * episodePageSize;
@@ -182,7 +208,7 @@ export function SeriesDetailScreen({
 
   return <main className="series-detail">
     <header className="series-header">
-      <button data-tv-focusable="true" data-autofocus="true" data-focus-key="series:back" className="series-back" onClick={onBack}>← Voltar</button>
+      <button data-tv-focusable="true" data-autofocus={resumeTarget ? undefined : "true"} data-focus-key="series:back" className="series-back" onClick={onBack}>← Voltar</button>
       <div className="series-cover"><span className="poster detail-poster">
         {series.cover ? <img src={series.cover} alt={series.name} onError={event => { event.currentTarget.style.display = "none"; }} /> : <span className="poster-fallback">SÉRIE</span>}
       </span></div>
@@ -192,6 +218,13 @@ export function SeriesDetailScreen({
         <p className="series-meta">{seasons.length > 0 ? `${seasons.length} temporada(s) • ${episodeCount} episódio(s)` : series.category || "Série"}</p>
         <p className="series-summary">{series.synopsis || "Sinopse não informada para esta série."}</p>
         <div className="series-info">
+          {resumeTarget && <button
+            data-tv-focusable="true"
+            data-autofocus="true"
+            data-focus-key="series:continue"
+            className="primary series-continue"
+            onClick={() => playEpisode(resumeTarget.season, resumeTarget.episode)}
+          >▶ Continuar T{resumeTarget.season.number}E{resumeTarget.episode.number} • {formatPlaybackPosition(resumeTarget.progress.currentTime || 0)}</button>}
           <button data-tv-focusable="true" data-focus-key="series:favorite" className={`favorite-chip ${favorite ? "selected" : ""}`} onClick={onFavorite}>{favorite ? "★ Na Minha Lista" : "☆ Adicionar à Minha Lista"}</button>
         </div>
       </div>

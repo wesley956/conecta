@@ -173,6 +173,8 @@ fun SeriesNativePlayerScreen(
     }
     val subtitleController = rememberPlayerSubtitleController(player)
     val currentSubtitlePanelVisible = rememberUpdatedState(subtitleController.panelVisible)
+    val audioController = rememberPlayerAudioController(player)
+    val currentAudioPanelVisible = rememberUpdatedState(audioController.panelVisible)
 
     fun recoverOrFail(failure: PlaybackFailure) {
         if (!automaticReconnect) {
@@ -203,6 +205,7 @@ fun SeriesNativePlayerScreen(
                 delay(retryDelayMs)
                 currentSources.getOrNull(sourceIndex)?.let { source ->
                     subtitleController.resetForContentChange()
+                    audioController.resetForContentChange()
                     player.setMediaItem(mediaItemForSeries(source))
                     if (resumePositionMs > 0L) player.seekTo(resumePositionMs)
                     player.prepare()
@@ -286,6 +289,23 @@ fun SeriesNativePlayerScreen(
         }
     }
 
+    fun openAudioPanel() {
+        if (audioController.options.size <= 1) return
+        episodeDrawerVisible = false
+        controlsVisible = false
+        media3Controller?.hideController()
+        audioController.openPanel()
+    }
+
+    fun closeAudioPanel() {
+        audioController.closePanel()
+        coroutineScope.launch {
+            delay(80)
+            controlsVisible = true
+            media3Controller?.showAndFocusAudioTracks()
+        }
+    }
+
     fun selectEntry(index: Int, resumePositionMs: Long, notify: Boolean) {
         val entry = entries.getOrNull(index) ?: return
         currentIndex = index
@@ -318,6 +338,7 @@ fun SeriesNativePlayerScreen(
             return@LaunchedEffect
         }
         subtitleController.resetForContentChange()
+        audioController.resetForContentChange()
         player.setMediaItem(mediaItemForSeries(source))
         player.prepare()
         if (pendingSeekMs > 0L) {
@@ -447,6 +468,7 @@ fun SeriesNativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_BACK -> {
                     if (actionUp) {
                         when {
+                            currentAudioPanelVisible.value -> closeAudioPanel()
                             currentSubtitlePanelVisible.value -> closeSubtitlePanel()
                             currentEpisodeDrawerVisible.value -> closeDrawer()
                             else -> onBack()
@@ -494,6 +516,7 @@ fun SeriesNativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_SPACE,
                 -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentEpisodeDrawerVisible.value ||
                         currentControlsVisible.value
@@ -507,6 +530,7 @@ fun SeriesNativePlayerScreen(
 
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentEpisodeDrawerVisible.value ||
                         currentControlsVisible.value
@@ -520,6 +544,7 @@ fun SeriesNativePlayerScreen(
 
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentEpisodeDrawerVisible.value ||
                         currentControlsVisible.value
@@ -535,6 +560,7 @@ fun SeriesNativePlayerScreen(
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 -> {
                     if (
+                        currentAudioPanelVisible.value ||
                         currentSubtitlePanelVisible.value ||
                         currentEpisodeDrawerVisible.value ||
                         currentControlsVisible.value
@@ -554,6 +580,7 @@ fun SeriesNativePlayerScreen(
 
     BackHandler {
         when {
+            audioController.panelVisible -> closeAudioPanel()
             subtitleController.panelVisible -> closeSubtitlePanel()
             episodeDrawerVisible -> closeDrawer()
             else -> onBack()
@@ -580,9 +607,11 @@ fun SeriesNativePlayerScreen(
             drawerLabel = "Episódios",
             drawerVisible = episodeDrawerVisible,
             subtitleTrackCount = subtitleController.options.size,
+            audioTrackCount = audioController.options.size,
             onBack = onBack,
             onOpenDrawer = { openDrawer() },
             onOpenSubtitles = ::openSubtitlePanel,
+            onOpenAudioTracks = ::openAudioPanel,
             onAspectModeChange = { onAspectModeChange(it.storageValue) },
             onControllerVisibilityChanged = { controlsVisible = it },
             onControllerReady = { media3Controller = it },
@@ -639,6 +668,19 @@ fun SeriesNativePlayerScreen(
                     closeSubtitlePanel()
                 },
                 onDismiss = ::closeSubtitlePanel,
+            )
+        }
+
+        if (audioController.panelVisible) {
+            AudioSelectorDialog(
+                options = audioController.options,
+                selectedId = audioController.selectedId,
+                isTelevision = isTelevision,
+                onSelect = { optionId ->
+                    audioController.select(optionId)
+                    closeAudioPanel()
+                },
+                onDismiss = ::closeAudioPanel,
             )
         }
     }

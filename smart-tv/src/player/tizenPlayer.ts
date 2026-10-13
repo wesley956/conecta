@@ -1,4 +1,10 @@
 import type { PlayerAdapter, PlayerLoadOptions, PlayerTrack, SnapshotListener } from "./types";
+import {
+  readAspectModePreference,
+  SMART_TV_PLAYER_SETTINGS_EVENT,
+  type SmartTvAspectMode,
+  type SmartTvPlayerSettings
+} from "../playerSettings";
 
 interface AvPlayTrackInfo {
   index: number;
@@ -32,6 +38,19 @@ declare global {
 export class TizenPlayer implements PlayerAdapter {
   private avplay: AvPlay | null = null;
   private tryingSource = false;
+  // AVPlay desenha num plano de vídeo de hardware, fora da árvore de DOM — o atributo CSS
+  // que o PlayerAspectControl grava em document.body (data-player-aspect, visto em
+  // player-v2.css) só afeta a tag <video> do player HTML5 (LG/genérico). Na Samsung isso
+  // fazia o controle de "Aspecto da imagem" parecer funcionar mas não ter nenhum efeito real.
+  // Ouvimos o mesmo evento de preferências que o PlayerAspectControl dispara e aplicamos via
+  // AVPlay (setDisplayMethod/setDisplayRect) para que a troca realmente mude a imagem na TV.
+  private aspectMode: SmartTvAspectMode = readAspectModePreference();
+  private readonly onSettingsChanged = (event: Event) => {
+    const detail = (event as CustomEvent<SmartTvPlayerSettings>).detail;
+    this.aspectMode = detail?.aspectMode || readAspectModePreference();
+    this.applyAspectMode();
+  };
+
   constructor(private readonly update: SnapshotListener) {}
 
   mount() {
@@ -48,6 +67,25 @@ export class TizenPlayer implements PlayerAdapter {
         this.update({ status: "error", buffering: false, error: "A origem ativa parou de responder na Samsung." });
       }
     });
+    window.addEventListener(SMART_TV_PLAYER_SETTINGS_EVENT, this.onSettingsChanged);
+  }
+
+  /**
+   * AVPlay só expõe nativamente modo "letterbox" (preserva a proporção original, com
+   * tarjas pretas) e "tela cheia" (estica a imagem para preencher o retângulo). Não existe
+   * um terceiro modo de "preencher cortando as bordas" sem calcular a proporção do vídeo —
+   * então "Preencher" usa a mesma tela cheia de "Estender" como aproximação mais fiel
+   * disponível nesta API, em vez de continuar sem efeito nenhum como antes.
+   */
+  private applyAspectMode() {
+    const avplay = this.avplay;
+    if (!avplay) return;
+    try {
+      avplay.setDisplayRect(0, 0, 1920, 1080);
+      avplay.setDisplayMethod(
+        this.aspectMode === "Original" ? "PLAYER_DISPLAY_MODE_LETTER_BOX" : "PLAYER_DISPLAY_MODE_FULL_SCREEN"
+      );
+    } catch { /* alguns modelos só aceitam a troca depois do próximo prepareAsync */ }
   }
 
   async load(urls: string[], _live: boolean, options?: PlayerLoadOptions) {
@@ -66,8 +104,7 @@ export class TizenPlayer implements PlayerAdapter {
     const avplay = this.avplay!;
     this.tryingSource = true;
     avplay.open(url);
-    avplay.setDisplayRect(0, 0, 1920, 1080);
-    avplay.setDisplayMethod("PLAYER_DISPLAY_MODE_LETTER_BOX");
+    this.applyAspectMode();
     try {
       avplay.setBufferingParam?.("PLAYER_BUFFER_FOR_PLAY", "PLAYER_BUFFER_SIZE_IN_SECOND", bufferSeconds);
       avplay.setBufferingParam?.("PLAYER_BUFFER_FOR_RESUME", "PLAYER_BUFFER_SIZE_IN_SECOND", Math.max(2, Math.min(10, bufferSeconds)));
@@ -88,6 +125,8 @@ export class TizenPlayer implements PlayerAdapter {
       avplay.prepareAsync(() => done(() => {
         this.update({ duration: Math.max(0, avplay.getDuration() / 1000) });
         this.publishTracks();
+        // Alguns modelos resetam o modo de exibição ao preparar uma nova origem.
+        this.applyAspectMode();
         resolve();
       }), () => done(() => reject(new Error("Formato ou endereço não suportado nesta Samsung."))));
     });
@@ -116,7 +155,11 @@ export class TizenPlayer implements PlayerAdapter {
     try { this.avplay?.stop(); } catch { /* o estado pode já estar fechado */ }
     this.safeClose();
   }
-  destroy() { this.stop(); this.avplay = null; }
+  destroy() {
+    window.removeEventListener(SMART_TV_PLAYER_SETTINGS_EVENT, this.onSettingsChanged);
+    this.stop();
+    this.avplay = null;
+  }
   private safeClose() { try { this.avplay?.close(); } catch { /* o estado pode já estar NONE */ } }
 
   private publishTracks() {

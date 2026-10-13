@@ -973,6 +973,7 @@ fun RonecaPlayTVApp(
                                 isFavorite = ContentIdentity.movie(movie) in favoriteMovieIds ||
                                     movie.id in favoriteMovieIds,
                                 isTelevision = isWideLayout,
+                                progress = savedProgress,
                                 onBack = { destination = detailReturnDestination },
                                 onToggleFavorite = {
                                     favoriteMovieIds = playbackPreferences.toggleFavoriteMovie(

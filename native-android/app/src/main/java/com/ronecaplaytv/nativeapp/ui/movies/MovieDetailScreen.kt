@@ -47,10 +47,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.ronecaplaytv.nativeapp.ui.components.RonecaAsyncImage
+import com.ronecaplaytv.nativeapp.catalog.ContentIdentity
 import com.ronecaplaytv.nativeapp.catalog.NativeMovie
+import com.ronecaplaytv.nativeapp.persistence.SavedProgress
 import com.ronecaplaytv.nativeapp.ui.components.RonecaColors
 import com.ronecaplaytv.nativeapp.ui.components.ronecaFocusScale
 import kotlinx.coroutines.delay
+
+// Varredura completa: mesmo limiar usado em PlaybackScreen/SeriesProgressResolver — um
+// filme assistido quase até o fim não deve continuar oferecendo "Continuar assistindo".
+private const val MOVIE_RESUME_COMPLETION_THRESHOLD = 0.95f
 
 @Composable
 fun MovieDetailScreen(
@@ -58,6 +64,7 @@ fun MovieDetailScreen(
     recommendations: List<NativeMovie>,
     isFavorite: Boolean,
     isTelevision: Boolean,
+    progress: List<SavedProgress> = emptyList(),
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onPlay: (NativeMovie) -> Unit,
@@ -65,6 +72,12 @@ fun MovieDetailScreen(
 ) {
     BackHandler(onBack = onBack)
     val playFocusRequester = remember(movie.id) { FocusRequester() }
+    val savedProgress = remember(movie.id, progress) {
+        val saved = progress.firstOrNull {
+            it.contentKey == ContentIdentity.movie(movie) || it.contentKey == "movie:${movie.id}"
+        }
+        saved?.takeIf { it.fraction < MOVIE_RESUME_COMPLETION_THRESHOLD }
+    }
 
     LaunchedEffect(movie.id, isTelevision) {
         if (isTelevision) {
@@ -105,6 +118,7 @@ fun MovieDetailScreen(
                     movie = movie,
                     isFavorite = isFavorite,
                     isTelevision = true,
+                    savedProgress = savedProgress,
                     modifier = Modifier.weight(1f),
                     playFocusRequester = playFocusRequester,
                     onPlay = { onPlay(movie) },
@@ -123,6 +137,7 @@ fun MovieDetailScreen(
                 movie = movie,
                 isFavorite = isFavorite,
                 isTelevision = false,
+                savedProgress = savedProgress,
                 modifier = Modifier.fillMaxWidth(),
                 playFocusRequester = playFocusRequester,
                 onPlay = { onPlay(movie) },
@@ -234,6 +249,7 @@ private fun MovieInfo(
     movie: NativeMovie,
     isFavorite: Boolean,
     isTelevision: Boolean,
+    savedProgress: SavedProgress?,
     modifier: Modifier,
     playFocusRequester: FocusRequester,
     onPlay: () -> Unit,
@@ -269,10 +285,14 @@ private fun MovieInfo(
             fontSize = if (isTelevision) 15.sp else 14.sp,
             lineHeight = if (isTelevision) 22.sp else 21.sp,
         )
+        if (savedProgress != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            MovieResumeProgress(progress = savedProgress, isTelevision = isTelevision)
+        }
         Spacer(modifier = Modifier.height(22.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             DetailActionButton(
-                label = "▶  Assistir agora",
+                label = if (savedProgress != null) "▶  Continuar" else "▶  Assistir agora",
                 primary = true,
                 enabled = canPlay,
                 isTelevision = isTelevision,
@@ -288,6 +308,59 @@ private fun MovieInfo(
                 onClick = onToggleFavorite,
             )
         }
+    }
+}
+
+@Composable
+private fun MovieResumeProgress(progress: SavedProgress, isTelevision: Boolean) {
+    val percent = (progress.fraction * 100).toInt()
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "Continuar assistindo",
+                color = RonecaColors.TextSecondary,
+                fontSize = if (isTelevision) 13.sp else 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Text(
+                text = "${formatPlaybackPosition(progress.positionMs)} de " +
+                    "${formatPlaybackPosition(progress.durationMs)} • $percent%",
+                color = RonecaColors.Primary,
+                fontSize = if (isTelevision) 13.sp else 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(RonecaColors.Border),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress.fraction.coerceIn(0f, 1f))
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(RonecaColors.RedStrong),
+            )
+        }
+    }
+}
+
+private fun formatPlaybackPosition(positionMs: Long): String {
+    val totalSeconds = positionMs.coerceAtLeast(0L) / 1_000L
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return if (hours > 0L) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
     }
 }
 

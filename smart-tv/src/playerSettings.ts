@@ -11,7 +11,10 @@ export interface SmartTvPlayerSettings {
 }
 
 const STORAGE_KEY = "roneca.smart-tv.player-settings.v1";
-const SETTINGS_EVENT = "roneca:smart-tv-player-settings";
+// Exportado para que player adapters (ex.: TizenPlayer, que não renderiza um <video> de DOM
+// e por isso não pode reagir a mudanças de CSS) possam ouvir a preferência mudar em tempo real.
+export const SMART_TV_PLAYER_SETTINGS_EVENT = "roneca:smart-tv-player-settings";
+const SETTINGS_EVENT = SMART_TV_PLAYER_SETTINGS_EVENT;
 const defaults: SmartTvPlayerSettings = {
   automaticReconnect: true,
   bufferSeconds: 5,
