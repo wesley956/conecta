@@ -28,6 +28,24 @@ export type CacheManifestInput = {
 };
 
 const encoder = new TextEncoder();
+const INTERNAL_FALLBACK_TEXTS = new Set([
+  'Filme autorizado pelo painel.',
+  'Filme importado da lista M3U autorizada.',
+]);
+
+function sanitizeCachePayload(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return INTERNAL_FALLBACK_TEXTS.has(value.trim()) ? '' : value;
+  }
+  if (Array.isArray(value)) return value.map(sanitizeCachePayload);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .map(([key, entry]) => [key, sanitizeCachePayload(entry)]),
+    );
+  }
+  return value;
+}
 
 export async function sha256Hex(value: string) {
   const hash = await crypto.subtle.digest('SHA-256', encoder.encode(value));
@@ -37,7 +55,9 @@ export async function sha256Hex(value: string) {
 }
 
 export async function encodeJsonCachePart(payload: unknown): Promise<EncodedCachePart> {
-  const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  const body = typeof payload === 'string'
+    ? payload
+    : JSON.stringify(sanitizeCachePayload(payload));
   return {
     body,
     sizeBytes: encoder.encode(body).byteLength,

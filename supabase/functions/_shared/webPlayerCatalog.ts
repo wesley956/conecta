@@ -44,6 +44,19 @@ function safeText(value: unknown, max = 500) {
   return result ? result.slice(0, max) : undefined;
 }
 
+const INTERNAL_SYNOPSIS = new Set([
+  'filme autorizado pelo painel.',
+  'filme importado da lista m3u autorizada.',
+  'série autorizada pelo painel.',
+  'serie autorizada pelo painel.',
+]);
+
+function safeSynopsis(value: unknown, max = 1600) {
+  const result = safeText(value, max);
+  if (!result || INTERNAL_SYNOPSIS.has(result.toLocaleLowerCase('pt-BR'))) return undefined;
+  return result;
+}
+
 function safeNumber(value: unknown) {
   const result = Number(value);
   return Number.isFinite(result) ? result : undefined;
@@ -179,7 +192,7 @@ export async function projectMovies(session: WebSessionContext, playlistId: stri
       category: safeText(item.category, 200),
       year: safeNumber(item.year),
       duration: safeText(item.duration, 80),
-      synopsis: safeText(item.synopsis, 1600),
+      synopsis: safeSynopsis(item.synopsis, 1600),
     }))];
   }));
 }
@@ -230,7 +243,7 @@ export async function projectSeries(session: WebSessionContext, playlistId: stri
       title: safeText(item.name, 300) || 'Série',
       cover: safePublicImage(item.cover),
       category: safeText(item.category, 200),
-      synopsis: safeText(item.synopsis, 1600),
+      synopsis: safeSynopsis(item.synopsis, 1600),
       hasEmbeddedSeasons: Array.isArray(item.seasons) && item.seasons.length > 0,
     }))];
   }));

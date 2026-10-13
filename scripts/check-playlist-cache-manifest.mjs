@@ -10,10 +10,22 @@ import { runTasksWithConcurrency } from '../supabase/functions/_shared/limitedCo
 const channels = await encodeJsonCachePart({ channels: [{ id: 'channel-1', name: 'Canal autorizado' }] });
 const movies = await encodeJsonCachePart({ movies: [] });
 const series = await encodeJsonCachePart({ series: [] });
+const sanitizedMovies = await encodeJsonCachePart({
+  movies: [
+    { id: 'movie-1', synopsis: 'Filme autorizado pelo painel.' },
+    { id: 'movie-2', synopsis: 'Filme importado da lista M3U autorizada.' },
+    { id: 'movie-3', synopsis: 'Uma descrição real do filme.' },
+  ],
+});
 
 assert.equal(channels.sizeBytes, Buffer.byteLength(channels.body));
 assert.match(channels.sha256, /^[0-9a-f]{64}$/);
 assert.equal(channels.sha256, await sha256Hex(channels.body));
+assert.deepEqual(JSON.parse(sanitizedMovies.body).movies.map(movie => movie.synopsis), [
+  '',
+  '',
+  'Uma descrição real do filme.',
+]);
 
 const manifest = buildCacheManifest({
   schemaVersion: 2,
@@ -56,4 +68,4 @@ await assert.rejects(
   /inteiro positivo/,
 );
 
-console.log('Manifest SHA-256 e limite de concorrência do cache validados.');
+console.log('Manifest SHA-256, sanitização de textos internos e limite de concorrência do cache validados.');

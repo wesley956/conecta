@@ -224,7 +224,7 @@ internal class DirectM3uClient {
                             name = cleanMovieName(name),
                             year = yearFromName(name),
                             duration = null,
-                            synopsis = "Filme autorizado pelo painel.",
+                            synopsis = null,
                             coverUrl = logo,
                             category = cleanCategory(groupTitle, "Filmes"),
                             primaryUrl = line,
@@ -399,7 +399,7 @@ internal class DirectM3uClient {
             name = name,
             coverUrl = coverUrl,
             category = category,
-            synopsis = "Série autorizada pelo painel.",
+            synopsis = null,
             seasons = seasons.entries
                 .sortedBy(Map.Entry<Int, MutableList<NativeEpisode>>::key)
                 .map { (number, episodes) ->
