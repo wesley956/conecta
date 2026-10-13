@@ -20,6 +20,7 @@ import './evolution-batch2-mobile.css';
 import './autonext.css';
 import './player-hud.css';
 import './player-exit.css';
+import './login-autofill.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found.');
@@ -36,6 +37,21 @@ createRoot(root).render(
     <PwaUpdatePrompt />
   </StrictMode>,
 );
+
+window.setInterval(() => {
+  const fields = document.querySelectorAll<HTMLInputElement>('.experience-login-card form input');
+  const submit = document.querySelector<HTMLButtonElement>('.experience-login-card form button[type="submit"]');
+  if (fields.length < 2 || !submit) return;
+  const [code, pin] = fields;
+  code.name = 'ronecaplaytv-device-code';
+  pin.name = 'ronecaplaytv-web-pin';
+  pin.autocomplete = 'one-time-code';
+  if (submit.disabled && code.value.trim().length >= 4 && /^\d{6}$/.test(pin.value.trim())) {
+    code.dispatchEvent(new Event('input', { bubbles: true }));
+    pin.dispatchEvent(new Event('input', { bubbles: true }));
+    submit.disabled = false;
+  }
+}, 300);
 
 void registerPwa();
 
