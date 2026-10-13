@@ -1,0 +1,89 @@
+name: Apply owner access compatibility
+
+on:
+  push:
+    branches:
+      - hotfix/owner-access-compat
+    paths:
+      - '.github/workflows/apply-owner-access-compat.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: hotfix/owner-access-compat
+          fetch-depth: 0
+
+      - name: Use exclusive owner marker in subscription API
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('supabase/functions/subscription-panel/index.ts')
+          text = path.read_text()
+
+          old = '''function requireOwner(principal: PanelPrincipal) {
+  if (principal.role !== 'owner') {
+    throw new PanelAuthError('Ferramenta disponível somente para o proprietário.', 403);
+  }
+}
+'''
+          new = '''async function isOwnerPrincipal(supabase: any, principal: PanelPrincipal) {
+  if (principal.role === 'owner') return true;
+  const { data, error } = await supabase
+    .from('panel_owner_access')
+    .select('user_id, active')
+    .eq('user_id', principal.userId)
+    .eq('active', true)
+    .maybeSingle();
+  if (error) {
+    console.error('Falha ao validar acesso exclusivo do proprietário.', {
+      userId: principal.userId,
+      code: error.code || null,
+    });
+    return false;
+  }
+  return Boolean(data);
+}
+
+async function requireOwner(supabase: any, principal: PanelPrincipal) {
+  if (!(await isOwnerPrincipal(supabase, principal))) {
+    throw new PanelAuthError('Ferramenta disponível somente para o proprietário.', 403);
+  }
+}
+'''
+          if old not in text:
+              raise SystemExit('Owner helper not found')
+          text = text.replace(old, new, 1)
+          text = text.replace("  if (principal.role !== 'owner') return [];", "  if (!(await isOwnerPrincipal(supabase, principal))) return [];", 1)
+          text = text.replace("      isOwner: principal.role === 'owner',", "      isOwner: await isOwnerPrincipal(supabase, principal),", 1)
+          text = text.replace('  requireOwner(principal);', '  await requireOwner(supabase, principal);')
+          path.write_text(text)
+
+          test_path = Path('scripts/check-subscription-module.mjs')
+          tests = test_path.read_text()
+          tests = tests.replace("  'requireOwner(principal)',", "  'await requireOwner(supabase, principal)',\n  'panel_owner_access',")
+          test_path.write_text(tests)
+          PY
+
+          grep -q 'panel_owner_access' supabase/functions/subscription-panel/index.ts
+          grep -q 'await requireOwner(supabase, principal)' supabase/functions/subscription-panel/index.ts
+
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-owner-access-compat.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add supabase/functions/subscription-panel/index.ts scripts/check-subscription-module.mjs
+          git commit -m 'Usar marca exclusiva do proprietário no laboratório'
+          git push origin HEAD:hotfix/owner-access-compat
